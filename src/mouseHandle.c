@@ -27,11 +27,11 @@
 #include "mouseHandle.h"
 
 // ── GLFW constants (avoids pulling GLFW header into C) ────────────────────────
-#define GLFW_CURSOR            0x00033001
-#define GLFW_CURSOR_NORMAL     0x00034001
-#define GLFW_CURSOR_DISABLED   0x00034003
-#define GLFW_PRESS             1
-#define GLFW_RELEASE           0
+#define GLFW_CURSOR             0x00033001
+#define GLFW_CURSOR_NORMAL      0x00034001
+#define GLFW_CURSOR_DISABLED    0x00034003
+#define GLFW_PRESS              1
+#define GLFW_RELEASE            0
 
 extern void glfwSetInputMode(void *, int, int);
 extern void glfwSetCursorPos(void *, double, double);
@@ -43,10 +43,11 @@ typedef enum {
     eDragFilter1,
 } tDragTarget;
 
-static tDragTarget gDragTarget    = eDragNone;
-static double      gDragStartX    = 0.0;
-static double      gDragStartY    = 0.0;
-static uint8_t     gDragStartVal  = 0;
+static tDragTarget gDragTarget = eDragNone;
+static double      gDragStartX = 0.0;   // cursor position at press — used for restore on release
+static double      gDragStartY = 0.0;
+static double      gDragPrevX  = 0.0;   // cursor position at previous cursor_pos call — incremental delta
+static double      gDragPrevY  = 0.0;
 
 
 // ── Coordinate helpers ────────────────────────────────────────────────────────
@@ -54,10 +55,11 @@ static uint8_t     gDragStartVal  = 0;
 static tCoord window_to_logical(void * win, double x, double y) {
     int winW = 0;
     int winH = 0;
+
     glfwGetWindowSize(win, &winW, &winH);
     return (tCoord){
-               .x = (winW > 0) ? (x / winW) * TARGET_FRAME_BUFF_WIDTH : x,
-               .y = (winH > 0) ? (y / winH) * TARGET_FRAME_BUFF_HEIGHT : y,
+        .x = (winW > 0) ? (x / winW) * TARGET_FRAME_BUFF_WIDTH : x,
+        .y = (winH > 0) ? (y / winH) * TARGET_FRAME_BUFF_HEIGHT : y,
     };
 }
 
@@ -65,7 +67,9 @@ static tCoord window_to_logical(void * win, double x, double y) {
 static double delta_to_logical(void * win, double winDelta, bool isX) {
     int winW = 0;
     int winH = 0;
+
     glfwGetWindowSize(win, &winW, &winH);
+
     if (isX) {
         return (winW > 0) ? (winDelta / winW) * TARGET_FRAME_BUFF_WIDTH : winDelta;
     } else {
@@ -76,8 +80,13 @@ static double delta_to_logical(void * win, double winDelta, bool isX) {
 // ── Dial value helpers ────────────────────────────────────────────────────────
 
 static uint8_t clamp_u8(int v) {
-    if (v < 0) return 0;
-    if (v > 127) return 127;
+    if (v < 0) {
+        return 0;
+    }
+
+    if (v > 127) {
+        return 127;
+    }
     return (uint8_t)v;
 }
 
@@ -95,6 +104,7 @@ static void set_filter1_cutoff(uint8_t value) {
 
 void handle_mouse_button(void * win, int button, int action, int mods, double x, double y) {
     (void)mods;
+
     if (button != 0) {
         return;
     }
@@ -115,6 +125,7 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
     if (close_context_menu_if_outside(coord)) {
         return;
     }
+
     if (handle_context_menu_click(coord)) {
         return;
     }
@@ -125,10 +136,11 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
 
     // Hit-test filter 1 dial
     if (gDevice.connected && within_rectangle(coord, z1_filter1_dial_rect())) {
-        gDragTarget    = eDragFilter1;
-        gDragStartX    = x;
-        gDragStartY    = y;
-        gDragStartVal  = gDevice.filter1Cutoff;
+        gDragTarget = eDragFilter1;
+        gDragStartX = x;
+        gDragStartY = y;
+        gDragPrevX  = x;
+        gDragPrevY  = y;
 
         if (gDialMode != eDialModeRotary) {
             glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -140,22 +152,21 @@ void handle_cursor_pos(void * win, double x, double y) {
     if (gDragTarget == eDragNone) {
         return;
     }
-
     int newVal = 0;
 
     if (gDialMode == eDialModeRotary) {
-        tCoord     logCoord = window_to_logical(win, x, y);
-        double     angle    = calculate_mouse_angle(logCoord, z1_filter1_dial_rect());
+        tCoord logCoord = window_to_logical(win, x, y);
+        double angle    = calculate_mouse_angle(logCoord, z1_filter1_dial_rect());
         newVal = (int)angle_to_value(angle, 128);
     } else if (gDialMode == eDialModeVertical) {
-        // In CURSOR_DISABLED mode y accumulates unboundedly from gDragStartY
-        double dy = delta_to_logical(win, gDragStartY - y, false);
-        // 200 logical units = full 0-127 sweep
-        newVal = (int)gDragStartVal + (int)(dy * 127.0 / 200.0);
+        double dy = delta_to_logical(win, gDragPrevY - y, false);
+        gDragPrevY = y;
+        newVal     = (int)gDevice.filter1Cutoff + (int)(dy * 127.0 / 200.0);
     } else {
         // eDialModeHorizontal — right = increase
-        double dx = delta_to_logical(win, x - gDragStartX, true);
-        newVal = (int)gDragStartVal + (int)(dx * 127.0 / 200.0);
+        double dx = delta_to_logical(win, x - gDragPrevX, true);
+        gDragPrevX = x;
+        newVal     = (int)gDevice.filter1Cutoff + (int)(dx * 127.0 / 200.0);
     }
 
     if (gDragTarget == eDragFilter1) {
@@ -178,6 +189,7 @@ void handle_scroll(void * win, double dx, double dy) {
     if (!gDevice.connected) {
         return;
     }
+
     // Scroll anywhere nudges the filter dial when no drag is active
     if (gDragTarget == eDragNone) {
         int newVal = (int)gDevice.filter1Cutoff + (int)dy;

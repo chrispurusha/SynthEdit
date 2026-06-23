@@ -55,6 +55,7 @@
 
 - (BOOL)validateMenuItem:(NSMenuItem *)item {
     SEL action = [item action];
+
     if (action == @selector(setDialModeRotary:)) {
         [item setState:(gDialMode == eDialModeRotary) ? NSControlStateValueOn : NSControlStateValueOff];
     } else if (action == @selector(setDialModeVertical:)) {
@@ -68,49 +69,50 @@
 @end
 
 void setup_main_menu(void) {
-    NSMenu *              menuBar  = [[NSApplication sharedApplication] mainMenu];
-    static Z1MenuTarget * target   = nil;
+    NSMenu *              menuBar    = [[NSApplication sharedApplication] mainMenu];
+    static Z1MenuTarget * target     = nil;
 
     if (target == nil) {
         target = [[Z1MenuTarget alloc] init];
     }
+
     if (menuBar == nil) {
         menuBar = [[NSMenu alloc] init];
         [[NSApplication sharedApplication] setMainMenu:menuBar];
     }
+    NSUserDefaults *      defaults   = [NSUserDefaults standardUserDefaults];
 
-    NSUserDefaults * defaults = [NSUserDefaults standardUserDefaults];
     if ([defaults objectForKey:@"dialMode"] != nil) {
         gDialMode = (tDialMode)[defaults integerForKey:@"dialMode"];
     }
-    NSMenuItem * devMI    = [[NSMenuItem alloc] init];
-    NSMenu *     devMenu  = [[NSMenu alloc] initWithTitle:@"Device"];
-    NSMenuItem * scanItem = [[NSMenuItem alloc] initWithTitle:@"Scan Devices"
-                              action:@selector(scanDevices:)
-                              keyEquivalent:@"r"];
+    NSMenuItem *          devMI      = [[NSMenuItem alloc] init];
+    NSMenu *              devMenu    = [[NSMenu alloc] initWithTitle:@"Device"];
+    NSMenuItem *          scanItem   = [[NSMenuItem alloc] initWithTitle:@"Scan Devices"
+                                        action:@selector(scanDevices:)
+                                        keyEquivalent:@"r"];
     [scanItem setTarget:target];
     [devMenu addItem:scanItem];
     [devMI setSubmenu:devMenu];
     [menuBar insertItem:devMI atIndex:1];
 
-    NSMenuItem * ctrlMI    = [[NSMenuItem alloc] init];
-    NSMenu *     ctrlMenu  = [[NSMenu alloc] initWithTitle:@"Controls"];
+    NSMenuItem *          ctrlMI     = [[NSMenuItem alloc] init];
+    NSMenu *              ctrlMenu   = [[NSMenu alloc] initWithTitle:@"Controls"];
 
-    NSMenuItem * rotaryItem = [[NSMenuItem alloc] initWithTitle:@"Rotary"
-                                action:@selector(setDialModeRotary:)
-                                keyEquivalent:@""];
+    NSMenuItem *          rotaryItem = [[NSMenuItem alloc] initWithTitle:@"Rotary"
+                                        action:@selector(setDialModeRotary:)
+                                        keyEquivalent:@""];
     [rotaryItem setTarget:target];
     [ctrlMenu addItem:rotaryItem];
 
-    NSMenuItem * vertItem = [[NSMenuItem alloc] initWithTitle:@"Vertical"
-                              action:@selector(setDialModeVertical:)
-                              keyEquivalent:@""];
+    NSMenuItem *          vertItem   = [[NSMenuItem alloc] initWithTitle:@"Vertical"
+                                        action:@selector(setDialModeVertical:)
+                                        keyEquivalent:@""];
     [vertItem setTarget:target];
     [ctrlMenu addItem:vertItem];
 
-    NSMenuItem * horizItem = [[NSMenuItem alloc] initWithTitle:@"Horizontal"
-                               action:@selector(setDialModeHorizontal:)
-                               keyEquivalent:@""];
+    NSMenuItem *          horizItem  = [[NSMenuItem alloc] initWithTitle:@"Horizontal"
+                                        action:@selector(setDialModeHorizontal:)
+                                        keyEquivalent:@""];
     [horizItem setTarget:target];
     [ctrlMenu addItem:horizItem];
 

@@ -55,15 +55,15 @@ typedef struct {
     double alpha;
 } tRgba;
 
-#define RGB_WHITE             {1.0,  1.0,  1.0}
-#define RGB_BLACK             {0.0,  0.0,  0.0}
-#define RGB_GREY              {0.5,  0.5,  0.5}
-#define RGB_BACKGROUND_GREY   {0.30, 0.30, 0.30}
-#define RGB_GREY_2            {0.20, 0.20, 0.20}
-#define RGB_GREY_3            {0.30, 0.30, 0.30}
-#define RGB_GREY_5            {0.50, 0.50, 0.50}
-#define RGB_GREY_7            {0.70, 0.70, 0.70}
-#define RGB_GREEN_ON          {0.00, 0.80, 0.00}
+#define RGB_WHITE              {1.0, 1.0, 1.0}
+#define RGB_BLACK              {0.0, 0.0, 0.0}
+#define RGB_GREY               {0.5, 0.5, 0.5}
+#define RGB_BACKGROUND_GREY    {0.30, 0.30, 0.30}
+#define RGB_GREY_2             {0.20, 0.20, 0.20}
+#define RGB_GREY_3             {0.30, 0.30, 0.30}
+#define RGB_GREY_5             {0.50, 0.50, 0.50}
+#define RGB_GREY_7             {0.70, 0.70, 0.70}
+#define RGB_GREEN_ON           {0.00, 0.80, 0.00}
 
 // ── Geometry primitives ───────────────────────────────────────────────────────
 
@@ -100,21 +100,21 @@ typedef enum {
 // ── UI buttons ────────────────────────────────────────────────────────────────
 
 typedef enum {
-    pkNone    = 0,
-    pkEnter   = 1,
-    pkExit    = 2,
-    pkUp      = 3,
-    pkDown    = 4,
-    pkLeft    = 5,
-    pkRight   = 6,
-    pkInc     = 7,
-    pkDec     = 8,
-    pkF1      = 10,
-    pkF2      = 11,
-    pkF3      = 12,
-    pkF4      = 13,
-    pkF5      = 14,
-    pkF6      = 15,
+    pkNone  = 0,
+    pkEnter = 1,
+    pkExit  = 2,
+    pkUp    = 3,
+    pkDown  = 4,
+    pkLeft  = 5,
+    pkRight = 6,
+    pkInc   = 7,
+    pkDec   = 8,
+    pkF1    = 10,
+    pkF2    = 11,
+    pkF3    = 12,
+    pkF4    = 13,
+    pkF5    = 14,
+    pkF6    = 15,
 } tButtonKey;
 
 typedef struct {
@@ -162,11 +162,11 @@ typedef struct {
     uint16_t member;
     // Program info (decoded from CURR_PROG_DUMP)
     char     progName[Z1_PROG_NAME_MAXLEN];
-    uint8_t  category;      // 0-17, see kCategoryNames in z1Comms.c
-    uint8_t  voiceMode;     // 0=MONO_MULTI 1=MONO_SINGLE 2=POLY
-    bool     unisonOn;      // Unison SW
-    uint8_t  unisonType;    // 0=OFF 1=2voices 2=3voices 3=6voices
-    uint8_t  unisonDetune;  // 0-99 cents
+    uint8_t  category;            // 0-17, see kCategoryNames in z1Comms.c
+    uint8_t  voiceMode;           // 0=MONO_MULTI 1=MONO_SINGLE 2=POLY
+    bool     unisonOn;            // Unison SW
+    uint8_t  unisonType;          // 0=OFF 1=2voices 2=3voices 3=6voices
+    uint8_t  unisonDetune;        // 0-99 cents
     // Real-time CC values
     uint8_t  filter1Cutoff;       // CC 85, 0-127 — dial position
     uint8_t  filter1CutoffNative; // SysEx param 263, 0-99 — Z1 native display value

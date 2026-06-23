@@ -26,12 +26,12 @@
 extern "C" {
 #endif
 
-int  start_midi_thread(void);
-int  midi_scan_devices(void);
+int start_midi_thread(void);
+int midi_scan_devices(void);
 void midi_send(const uint8_t * data, uint32_t length);
 void midi_send_cc(uint8_t channelIndex, uint8_t cc, uint8_t value);
 void midi_send_identity_request(void);
-void register_midi_wake_cb(void (*cb)(void));
+void register_midi_wake_cb(void ( *cb )(void));
 
 #ifdef __cplusplus
 }

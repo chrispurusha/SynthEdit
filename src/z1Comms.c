@@ -35,9 +35,9 @@ static bool is_z1_sysex(const uint8_t * data, uint32_t length) {
         return false;
     }
     return (data[0] == MIDI_SYSEX_START)
-        && (data[1] == KORG_MANUFACTURER_ID)
-        && ((data[2] & 0xF0) == 0x30)
-        && (data[3] == Z1_FAMILY_ID);
+           && (data[1] == KORG_MANUFACTURER_ID)
+           && ((data[2] & 0xF0) == 0x30)
+           && (data[3] == Z1_FAMILY_ID);
 }
 
 // ── 7-to-8 bit decoding ───────────────────────────────────────────────────────
@@ -49,10 +49,12 @@ static uint32_t decode_7to8(const uint8_t * midi, uint32_t midiLen, uint8_t * ou
 
     for (uint32_t i = 0; (i + 7) < midiLen && outLen < outMax; i += 8) {
         uint8_t msbs = midi[i];
+
         for (int j = 0; j < 7 && outLen < outMax; j++) {
             out[outLen++] = (uint8_t)(midi[i + 1 + j] | (((msbs >> (6 - j)) & 1) << 7));
         }
     }
+
     return outLen;
 }
 
@@ -62,20 +64,25 @@ static uint32_t encode_8to7(const uint8_t * data, uint32_t dataLen, uint8_t * ou
     uint32_t outLen = 0;
 
     for (uint32_t i = 0; i < dataLen && (outLen + 8) <= outMax; i += 7) {
-        uint8_t  msbs     = 0;
-        uint32_t groupSz  = (dataLen - i >= 7) ? 7 : (dataLen - i);
+        uint8_t  msbs    = 0;
+        uint32_t groupSz = (dataLen - i >= 7) ? 7 : (dataLen - i);
+
         for (uint32_t j = 0; j < groupSz; j++) {
             msbs |= (uint8_t)(((data[i + j] >> 7) & 1) << (6 - j));
         }
+
         out[outLen++] = msbs;
+
         for (uint32_t j = 0; j < groupSz; j++) {
             out[outLen++] = data[i + j] & 0x7F;
         }
+
         // pad incomplete group
         for (uint32_t j = groupSz; j < 7; j++) {
             out[outLen++] = 0x00;
         }
     }
+
     return outLen;
 }
 
@@ -91,16 +98,16 @@ static uint32_t build_header(uint8_t * buf, uint8_t funcId) {
 
 // ── Category name table ───────────────────────────────────────────────────────
 // Matches Z1 program category parameter (ID 17), values 0-17
-static const char * kCategoryNames[] = {
+static const char * kCategoryNames[]   = {
     "Synth-Hard", "Synth-Soft", "E.Piano",    "Organ",
-    "Strings",    "Brass",      "Wind",        "Bell/Mallt",
-    "Guitar",     "Bass",       "Perc/Drums",  "Vocal",
-    "S.E./Natrl", "Synth-Lead", "Synth-Pad",   "Synth-Comp",
+    "Strings",    "Brass",      "Wind",       "Bell/Mallt",
+    "Guitar",     "Bass",       "Perc/Drums", "Vocal",
+    "S.E./Natrl", "Synth-Lead", "Synth-Pad",  "Synth-Comp",
     "Digital",    "User",
 };
 #define kCategoryCount    (sizeof(kCategoryNames) / sizeof(kCategoryNames[0]))
 
-static const char * kVoiceModeNames[] = {"Mono Multi", "Mono Single", "Poly"};
+static const char * kVoiceModeNames[]  = {"Mono Multi", "Mono Single", "Poly"};
 static const char * kUnisonTypeNames[] = {"OFF", "2 voices", "3 voices", "6 voices"};
 
 // ── Program info extraction ───────────────────────────────────────────────────
@@ -122,6 +129,7 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
         char c = (char)decoded[i];
         gDevice.progName[i] = ((c >= 0x20) && (c <= 0x7F)) ? c : '?';
     }
+
     while ((i > 0) && (gDevice.progName[i - 1] == ' ')) {
         i--;
     }
@@ -130,6 +138,7 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
     // Category (byte 16)
     if (decodedLen > 16) {
         gDevice.category = decoded[16] & 0x1F;
+
         if (gDevice.category >= kCategoryCount) {
             gDevice.category = 0;
         }
@@ -137,7 +146,7 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
 
     // Voice assign mode (byte 18, bits 3-4)
     if (decodedLen > 18) {
-        gDevice.voiceMode  = (decoded[18] >> 3) & 0x03;
+        gDevice.voiceMode = (decoded[18] >> 3) & 0x03;
     }
 
     // Unison (byte 21: bits 0-1 = type, bit 2 = SW; byte 22 = detune)
@@ -145,6 +154,7 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
         gDevice.unisonType = decoded[21] & 0x03;
         gDevice.unisonOn   = (decoded[21] >> 2) & 0x01;
     }
+
     if (decodedLen > 22) {
         gDevice.unisonDetune = decoded[22];
     }
@@ -154,9 +164,8 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
         uint8_t native = decoded[314] <= 99 ? decoded[314] : 99;
         gDevice.filter1CutoffNative = native;
         // Derive initial CC dial position (0-127) from native value
-        gDevice.filter1Cutoff = (uint8_t)((native * 127UL + 49) / 99);
+        gDevice.filter1Cutoff       = (uint8_t)((native * 127UL + 49) / 99);
     }
-
     LOG_DEBUG("Z1 prog: \"%s\"  cat=%s  voice=%s  unison=%s(%u cents)  f1cut=%u(%u)\n",
               gDevice.progName,
               kCategoryNames[gDevice.category],
@@ -177,10 +186,10 @@ static void handle_curr_prog_dump(const uint8_t * data, uint32_t length) {
         return;
     }
     const uint8_t * payload    = data + 6;            // skip F0 42 3g 46 40 01
-    uint32_t        payloadLen = length - 7;           // exclude leading 6 + trailing F7
+    uint32_t        payloadLen = length - 7;          // exclude leading 6 + trailing F7
 
-    static uint8_t decoded[4096];
-    uint32_t       decodedLen = decode_7to8(payload, payloadLen, decoded, sizeof(decoded));
+    static uint8_t  decoded[4096];
+    uint32_t        decodedLen = decode_7to8(payload, payloadLen, decoded, sizeof(decoded));
 
     LOG_DEBUG("CURR_PROG_DUMP: %u MIDI bytes → %u decoded bytes\n",
               (unsigned)payloadLen, (unsigned)decodedLen);
@@ -203,7 +212,7 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
 
     if ((group == Z1_PARAM_GROUP_PROG) && (paramId >= 1) && (paramId <= Z1_PROG_NAME_LEN)) {
         char c = (char)(value & 0x7F);
-        gDevice.progName[paramId - 1] = ((c >= 0x20) && (c <= 0x7F)) ? c : '?';
+        gDevice.progName[paramId - 1]      = ((c >= 0x20) && (c <= 0x7F)) ? c : '?';
         gDevice.progName[Z1_PROG_NAME_LEN] = '\0';
         LOG_DEBUG("Program name updated: \"%s\"\n", gDevice.progName);
     } else if ((group == Z1_PARAM_GROUP_PROG) && (paramId == Z1_PARAM_FILTER1_CUTOFF)) {
@@ -217,11 +226,11 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
 void z1_on_connected(void) {
     LOG_DEBUG("Z1 connected (channel byte 0x%02X)\n", Z1_SYSEX_CHANNEL_BYTE(gDevice.id));
     memset(gDevice.progName, 0, sizeof(gDevice.progName));
-    gDevice.category     = 0;
-    gDevice.voiceMode    = 2;    // default POLY
-    gDevice.unisonOn     = false;
-    gDevice.unisonType   = 0;
-    gDevice.unisonDetune = 0;
+    gDevice.category            = 0;
+    gDevice.voiceMode           = 2; // default POLY
+    gDevice.unisonOn            = false;
+    gDevice.unisonType          = 0;
+    gDevice.unisonDetune        = 0;
     gDevice.filter1Cutoff       = 0;
     gDevice.filter1CutoffNative = 0;
     atomic_store(&gReDraw, true);
@@ -230,8 +239,9 @@ void z1_on_connected(void) {
 
 void z1_request_current_program(void) {
     // F0 42 3g 46 10 00 F7
-    uint8_t msg[7];
+    uint8_t  msg[7];
     uint32_t pos = build_header(msg, Z1_FUNC_CURR_PROG_DUMP_REQ);
+
     msg[pos++] = 0x00;
     msg[pos++] = MIDI_SYSEX_END;
     midi_send(msg, pos);
@@ -240,8 +250,9 @@ void z1_request_current_program(void) {
 
 void z1_send_parameter_change(uint8_t group, uint16_t paramId, uint16_t value) {
     // F0 42 3g 46 41 0mm pp pp vv vv F7
-    uint8_t msg[11];
+    uint8_t  msg[11];
     uint32_t pos = build_header(msg, Z1_FUNC_PARAMETER_CHANGE);
+
     msg[pos++] = (uint8_t)(group & 0x0F);
     msg[pos++] = (uint8_t)(paramId & 0x7F);
     msg[pos++] = (uint8_t)((paramId >> 7) & 0x7F);
@@ -260,30 +271,30 @@ void z1_handle_message(const uint8_t * data, uint32_t length) {
     LOG_DEBUG("Z1 SysEx func=0x%02X len=%u\n", (unsigned)funcId, (unsigned)length);
 
     switch (funcId) {
-    case Z1_FUNC_CURR_PROG_DUMP:
-        handle_curr_prog_dump(data, length);
-        break;
-    case Z1_FUNC_PARAMETER_CHANGE:
-        handle_parameter_change(data, length);
-        break;
-    case Z1_FUNC_DATA_LOAD_COMPLETED:
-        LOG_DEBUG("Data load completed\n");
-        break;
-    case Z1_FUNC_DATA_LOAD_ERROR:
-        LOG_ERROR("Data load error\n");
-        break;
-    case Z1_FUNC_WRITE_COMPLETED:
-        LOG_DEBUG("Write completed\n");
-        break;
-    case Z1_FUNC_WRITE_ERROR:
-        LOG_ERROR("Write error\n");
-        break;
-    case Z1_FUNC_DATA_FORMAT_ERROR:
-        LOG_ERROR("Data format error\n");
-        break;
-    default:
-        LOG_DEBUG("Z1 unhandled func 0x%02X\n", (unsigned)funcId);
-        break;
+        case Z1_FUNC_CURR_PROG_DUMP:
+            handle_curr_prog_dump(data, length);
+            break;
+        case Z1_FUNC_PARAMETER_CHANGE:
+            handle_parameter_change(data, length);
+            break;
+        case Z1_FUNC_DATA_LOAD_COMPLETED:
+            LOG_DEBUG("Data load completed\n");
+            break;
+        case Z1_FUNC_DATA_LOAD_ERROR:
+            LOG_ERROR("Data load error\n");
+            break;
+        case Z1_FUNC_WRITE_COMPLETED:
+            LOG_DEBUG("Write completed\n");
+            break;
+        case Z1_FUNC_WRITE_ERROR:
+            LOG_ERROR("Write error\n");
+            break;
+        case Z1_FUNC_DATA_FORMAT_ERROR:
+            LOG_ERROR("Data format error\n");
+            break;
+        default:
+            LOG_DEBUG("Z1 unhandled func 0x%02X\n", (unsigned)funcId);
+            break;
     }
     atomic_store(&gReDraw, true);
 }

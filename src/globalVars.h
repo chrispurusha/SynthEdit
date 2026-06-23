@@ -24,22 +24,22 @@
 #include "types.h"
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
-extern _Atomic bool     gQuitAll;
-extern _Atomic bool     gReDraw;
+extern _Atomic bool    gQuitAll;
+extern _Atomic bool    gReDraw;
 
 // ── Dial mode ─────────────────────────────────────────────────────────────────
-extern tDialMode        gDialMode;
+extern tDialMode       gDialMode;
 
 // ── GLFW window ───────────────────────────────────────────────────────────────
-extern void *           gWindow;           // GLFWwindow*; void* avoids pulling GLFW into C headers
-extern double           gGlobalGuiScale;
+extern void *          gWindow;            // GLFWwindow*; void* avoids pulling GLFW into C headers
+extern double          gGlobalGuiScale;
 
 // ── MIDI / device ─────────────────────────────────────────────────────────────
-extern tZ1Device        gDevice;
-extern MIDIClientRef    gMidiClient;
-extern MIDIPortRef      gMidiInPort;
-extern MIDIPortRef      gMidiOutPort;
-extern MIDIEndpointRef  gMidiSource;
-extern MIDIEndpointRef  gMidiDest;
+extern tZ1Device       gDevice;
+extern MIDIClientRef   gMidiClient;
+extern MIDIPortRef     gMidiInPort;
+extern MIDIPortRef     gMidiOutPort;
+extern MIDIEndpointRef gMidiSource;
+extern MIDIEndpointRef gMidiDest;
 
 #endif // __GLOBAL_VARS_H__

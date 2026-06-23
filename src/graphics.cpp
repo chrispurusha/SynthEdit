@@ -57,6 +57,7 @@ static void window_refresh_cb(GLFWwindow * win) {
 static void mouse_button_cb(GLFWwindow * win, int button, int action, int mods) {
     double x = 0.0;
     double y = 0.0;
+
     glfwGetCursorPos(win, &x, &y);
     handle_mouse_button(win, button, action, mods, x, y);
     atomic_store(&gReDraw, true);
@@ -85,8 +86,9 @@ void wake_glfw(void) {
 // ── Projection ────────────────────────────────────────────────────────────────
 
 static void setup_projection(GLFWwindow * win) {
-    int fbW = 0;
-    int fbH = 0;
+    int fbW  = 0;
+    int fbH  = 0;
+
     glfwGetFramebufferSize(win, &fbW, &fbH);
 
     int winW = 0;
@@ -117,6 +119,7 @@ static int init_font(void) {
             return EXIT_SUCCESS;
         }
     }
+
     LOG_ERROR("Could not load any system font\n");
     return EXIT_FAILURE;
 }
@@ -133,6 +136,7 @@ void init_graphics(void) {
     glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE);
 
     GLFWwindow * win = glfwCreateWindow(1280, 600, WINDOW_TITLE, NULL, NULL);
+
     if (win == NULL) {
         LOG_ERROR("glfwCreateWindow failed\n");
         glfwTerminate();
@@ -186,6 +190,7 @@ void do_graphics_loop(void) {
 
     while (!atomic_load(&gQuitAll) && !glfwWindowShouldClose(win)) {
         bool reDraw = atomic_exchange(&gReDraw, false);
+
         if (reDraw) {
             render_frame(win);
         }

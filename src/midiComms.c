@@ -24,9 +24,9 @@
 #include "z1Comms.h"
 #include "midiComms.h"
 
-static void            (*gWakeCb)(void) = NULL;
-static pthread_t       gMidiThread      = 0;
-static pthread_mutex_t gSendMutex       = PTHREAD_MUTEX_INITIALIZER;
+static void             (*gWakeCb)(void) = NULL;
+static pthread_t        gMidiThread   = 0;
+static pthread_mutex_t  gSendMutex    = PTHREAD_MUTEX_INITIALIZER;
 
 // ── Identity reply buffer ─────────────────────────────────────────────────────
 // The CoreMIDI read callback fires on the CoreMIDI thread; the MIDI thread
@@ -40,23 +40,23 @@ static struct {
     uint8_t         mfrId;       // data[5]
     uint8_t         familyLSB;   // data[6]
     uint8_t         memberLSB;   // data[8]
-} gIdReplies[MAX_IDENTITY_REPLIES];
+}                       gIdReplies[MAX_IDENTITY_REPLIES];
 
 static _Atomic uint32_t gIdReplyCount = 0;
 
 // Notification from notify thread; polled by the MIDI thread.
-static _Atomic bool gRescanNeeded = false;
+static _Atomic bool     gRescanNeeded = false;
 
 // ── SysEx reassembly ──────────────────────────────────────────────────────────
 #define SYSEX_BUF_SIZE    8192
-static uint8_t         gSysExBuf[SYSEX_BUF_SIZE];
-static uint32_t        gSysExLen = 0;
-static MIDIEndpointRef gSysExSrc = 0;
+static uint8_t          gSysExBuf[SYSEX_BUF_SIZE];
+static uint32_t         gSysExLen     = 0;
+static MIDIEndpointRef  gSysExSrc     = 0;
 
 // ── Non-SysEx message state (running status) ──────────────────────────────────
-static uint8_t gMsgStatus  = 0;
-static uint8_t gMsgData[2];
-static uint8_t gMsgDataLen = 0;
+static uint8_t          gMsgStatus    = 0;
+static uint8_t          gMsgData[2];
+static uint8_t          gMsgDataLen   = 0;
 
 // ── Internal send ─────────────────────────────────────────────────────────────
 
@@ -75,7 +75,7 @@ static void midi_send_to(const uint8_t * data, uint32_t length, MIDIEndpointRef 
         return;
     }
     pthread_mutex_lock(&gSendMutex);
-    OSStatus err = MIDISend(gMidiOutPort, dest, pktList);
+    OSStatus         err     = MIDISend(gMidiOutPort, dest, pktList);
     pthread_mutex_unlock(&gSendMutex);
 
     if (err != noErr) {
@@ -93,30 +93,32 @@ static void midi_send_to(const uint8_t * data, uint32_t length, MIDIEndpointRef 
 //   3. All global destinations by display-name match (last resort)
 
 static MIDIEndpointRef find_dest_for_source(MIDIEndpointRef src) {
-    MIDIEntityRef entity = 0;
+    MIDIEntityRef   entity         = 0;
+
     MIDIEndpointGetEntity(src, &entity);    // may fail — entity stays 0
 
     // Strategy 1
     if (entity != 0) {
         ItemCount n = MIDIEntityGetNumberOfDestinations(entity);
+
         for (ItemCount d = 0; d < n; d++) {
             MIDIEndpointRef r = MIDIEntityGetDestination(entity, d);
+
             if (r != 0) {
                 LOG_DEBUG("dest found via entity (strategy 1)\n");
                 return r;
             }
         }
     }
-
     // Strategies 2 & 3 share one pass over all destinations
     CFStringRef     srcDisplayName = NULL;
     MIDIObjectGetStringProperty(src, kMIDIPropertyDisplayName, &srcDisplayName);
+
     if (srcDisplayName == NULL) {
         MIDIObjectGetStringProperty(src, kMIDIPropertyName, &srcDisplayName);
     }
-
-    MIDIEndpointRef dest      = 0;
-    ItemCount       destCount = MIDIGetNumberOfDestinations();
+    MIDIEndpointRef dest           = 0;
+    ItemCount       destCount      = MIDIGetNumberOfDestinations();
 
     for (ItemCount d = 0; d < destCount && dest == 0; d++) {
         MIDIEndpointRef candidate = MIDIGetDestination(d);
@@ -124,6 +126,7 @@ static MIDIEndpointRef find_dest_for_source(MIDIEndpointRef src) {
         // Strategy 2: entity match
         if (entity != 0) {
             MIDIEntityRef candEntity = 0;
+
             if (MIDIEndpointGetEntity(candidate, &candEntity) == noErr && candEntity == entity) {
                 LOG_DEBUG("dest found via entity scan (strategy 2)\n");
                 dest = candidate;
@@ -135,9 +138,11 @@ static MIDIEndpointRef find_dest_for_source(MIDIEndpointRef src) {
         if (srcDisplayName != NULL) {
             CFStringRef destDisplayName = NULL;
             MIDIObjectGetStringProperty(candidate, kMIDIPropertyDisplayName, &destDisplayName);
+
             if (destDisplayName == NULL) {
                 MIDIObjectGetStringProperty(candidate, kMIDIPropertyName, &destDisplayName);
             }
+
             if (destDisplayName != NULL) {
                 if (CFStringCompare(srcDisplayName, destDisplayName, 0) == kCFCompareEqualTo) {
                     LOG_DEBUG("dest found via display-name match (strategy 3)\n");
@@ -171,12 +176,11 @@ static void process_identity_replies(void) {
                   gIdReplies[i].memberLSB,
                   (unsigned)gIdReplies[i].src);
 
-        if ((gIdReplies[i].mfrId     != KORG_MANUFACTURER_ID) ||
-            (gIdReplies[i].familyLSB != Z1_FAMILY_ID) ||
-            (gIdReplies[i].memberLSB != Z1_MEMBER_ID)) {
+        if (  (gIdReplies[i].mfrId != KORG_MANUFACTURER_ID)
+           || (gIdReplies[i].familyLSB != Z1_FAMILY_ID)
+           || (gIdReplies[i].memberLSB != Z1_MEMBER_ID)) {
             continue;
         }
-
         MIDIEndpointRef src  = gIdReplies[i].src;
         MIDIEndpointRef dest = find_dest_for_source(src);
 
@@ -184,7 +188,6 @@ static void process_identity_replies(void) {
             LOG_ERROR("Z1 found but no matching destination for src=0x%08X\n", (unsigned)src);
             continue;
         }
-
         gDevice.id        = gIdReplies[i].deviceId;
         gDevice.family    = (uint16_t)gIdReplies[i].familyLSB;
         gDevice.member    = (uint16_t)gIdReplies[i].memberLSB;
@@ -202,6 +205,7 @@ static void process_identity_replies(void) {
         }
         return;
     }
+
     LOG_DEBUG("No Z1 found in this batch of identity replies\n");
 }
 
@@ -216,6 +220,7 @@ static void handle_identity_reply(MIDIEndpointRef src, const uint8_t * data, uin
         return;
     }
     uint32_t idx = atomic_fetch_add(&gIdReplyCount, 1);
+
     if (idx < MAX_IDENTITY_REPLIES) {
         gIdReplies[idx].src       = src;
         gIdReplies[idx].deviceId  = data[2];
@@ -229,6 +234,7 @@ static void handle_identity_reply(MIDIEndpointRef src, const uint8_t * data, uin
 
 static void midi_notify_cb(const MIDINotification * msg, void * refCon) {
     (void)refCon;
+
     if (msg->messageID == kMIDIMsgSetupChanged) {
         LOG_DEBUG("CoreMIDI setup changed — scheduling rescan\n");
         atomic_store(&gRescanNeeded, true);
@@ -240,9 +246,11 @@ static void midi_notify_cb(const MIDINotification * msg, void * refCon) {
 
 static void dispatch_cc(uint8_t cc, uint8_t value) {
     LOG_DEBUG("CC 0x%02X val=%u\n", (unsigned)cc, (unsigned)value);
+
     if (cc == 0x55) {    // CC 85 = Filter 1 Cutoff
         gDevice.filter1Cutoff = value;
         atomic_store(&gReDraw, true);
+
         if (gWakeCb != NULL) {
             gWakeCb();
         }
@@ -260,6 +268,7 @@ static void dispatch_sysex(MIDIEndpointRef src, const uint8_t * data, uint32_t l
     } else {
         z1_handle_message(data, length);
     }
+
     if (gWakeCb != NULL) {
         gWakeCb();
     }
@@ -275,6 +284,7 @@ static void midi_read_cb(const MIDIPacketList * pktList, void * readProcRefCon, 
     for (uint32_t i = 0; i < pktList->numPackets; i++) {
         for (uint16_t b = 0; b < pkt->length; b++) {
             uint8_t byte = pkt->data[b];
+
             if (byte == MIDI_SYSEX_START) {
                 gSysExBuf[0] = byte;
                 gSysExLen    = 1;
@@ -294,8 +304,8 @@ static void midi_read_cb(const MIDIPacketList * pktList, void * readProcRefCon, 
                     LOG_DEBUG("SysEx aborted by status 0x%02X\n", byte);
                     gSysExLen = 0;
                 }
-                gMsgStatus   = byte;
-                gMsgDataLen  = 0;
+                gMsgStatus  = byte;
+                gMsgDataLen = 0;
             } else {
                 if (gSysExLen > 0) {
                     if (gSysExLen < SYSEX_BUF_SIZE) {
@@ -308,6 +318,7 @@ static void midi_read_cb(const MIDIPacketList * pktList, void * readProcRefCon, 
                     if (gMsgDataLen < 2) {
                         gMsgData[gMsgDataLen++] = byte;
                     }
+
                     // CC is a 3-byte message (status + 2 data bytes)
                     if (((gMsgStatus & 0xF0) == 0xB0) && (gMsgDataLen == 2)) {
                         if (gDevice.connected && (src == gMidiSource)) {
@@ -318,6 +329,7 @@ static void midi_read_cb(const MIDIPacketList * pktList, void * readProcRefCon, 
                 }
             }
         }
+
         pkt = MIDIPacketNext(pkt);
     }
 }
@@ -325,7 +337,7 @@ static void midi_read_cb(const MIDIPacketList * pktList, void * readProcRefCon, 
 // ── Device scanning ───────────────────────────────────────────────────────────
 
 int midi_scan_devices(void) {
-    static const uint8_t idReq[] = {
+    static const uint8_t idReq[]   = {
         MIDI_SYSEX_START,
         MIDI_NON_REALTIME,
         MIDI_DEVICE_INQUIRY,
@@ -334,8 +346,8 @@ int midi_scan_devices(void) {
         MIDI_SYSEX_END
     };
 
-    ItemCount srcCount  = MIDIGetNumberOfSources();
-    ItemCount destCount = MIDIGetNumberOfDestinations();
+    ItemCount            srcCount  = MIDIGetNumberOfSources();
+    ItemCount            destCount = MIDIGetNumberOfDestinations();
 
     // Reset reply buffer and connection state before a fresh scan
     atomic_store(&gIdReplyCount, 0);
@@ -347,6 +359,7 @@ int midi_scan_devices(void) {
         MIDIEndpointRef src  = MIDIGetSource(i);
         CFStringRef     name = NULL;
         MIDIObjectGetStringProperty(src, kMIDIPropertyDisplayName, &name);
+
         if (name != NULL) {
             char buf[128] = {0};
             CFStringGetCString(name, buf, sizeof(buf), kCFStringEncodingUTF8);
@@ -360,6 +373,7 @@ int midi_scan_devices(void) {
         MIDIEndpointRef dest = MIDIGetDestination(i);
         CFStringRef     name = NULL;
         MIDIObjectGetStringProperty(dest, kMIDIPropertyDisplayName, &name);
+
         if (name != NULL) {
             char buf[128] = {0};
             CFStringGetCString(name, buf, sizeof(buf), kCFStringEncodingUTF8);
@@ -387,6 +401,7 @@ void midi_send_identity_request(void) {
         MIDI_IDENTITY_REQUEST_SUB2,
         MIDI_SYSEX_END
     };
+
     midi_send_to(idReq, sizeof(idReq), gMidiDest);
 }
 
@@ -397,9 +412,10 @@ void midi_send(const uint8_t * data, uint32_t length) {
 void midi_send_cc(uint8_t channelIndex, uint8_t cc, uint8_t value) {
     uint8_t msg[3] = {
         (uint8_t)(0xB0 | (channelIndex & 0x0F)),
-        (uint8_t)(cc    & 0x7F),
+        (uint8_t)(cc & 0x7F),
         (uint8_t)(value & 0x7F),
     };
+
     midi_send_to(msg, 3, gMidiDest);
 }
 
@@ -412,7 +428,7 @@ static void * midi_thread(void * arg) {
     LOG_DEBUG("MIDI thread started\n");
 
     struct timespec reply_wait = {0, 500000000};   // 500 ms — collect all responses
-    struct timespec retry_wait = {2, 0};            // 2 s between scan attempts
+    struct timespec retry_wait = {2, 0};           // 2 s between scan attempts
 
     while (!atomic_load(&gQuitAll)) {
         if (!gDevice.connected) {
@@ -450,22 +466,26 @@ int start_midi_thread(void) {
     OSStatus    err;
 
     err = MIDIClientCreate(clientName, midi_notify_cb, NULL, &gMidiClient);
+
     if (err != noErr) {
         LOG_ERROR("MIDIClientCreate failed: %d\n", (int)err);
         return EXIT_FAILURE;
     }
-    CFStringRef inName = CFSTR("Z1Edit In");
+    CFStringRef inName     = CFSTR("Z1Edit In");
     err = MIDIInputPortCreate(gMidiClient, inName, midi_read_cb, NULL, &gMidiInPort);
+
     if (err != noErr) {
         LOG_ERROR("MIDIInputPortCreate failed: %d\n", (int)err);
         return EXIT_FAILURE;
     }
-    CFStringRef outName = CFSTR("Z1Edit Out");
+    CFStringRef outName    = CFSTR("Z1Edit Out");
     err = MIDIOutputPortCreate(gMidiClient, outName, &gMidiOutPort);
+
     if (err != noErr) {
         LOG_ERROR("MIDIOutputPortCreate failed: %d\n", (int)err);
         return EXIT_FAILURE;
     }
+
     if (pthread_create(&gMidiThread, NULL, midi_thread, NULL) != 0) {
         LOG_ERROR("pthread_create for MIDI thread failed\n");
         return EXIT_FAILURE;
@@ -473,6 +493,6 @@ int start_midi_thread(void) {
     return EXIT_SUCCESS;
 }
 
-void register_midi_wake_cb(void (*cb)(void)) {
+void register_midi_wake_cb(void ( *cb )(void)) {
     gWakeCb = cb;
 }
