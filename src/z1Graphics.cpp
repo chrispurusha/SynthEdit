@@ -108,16 +108,17 @@ void z1_render(tRectangle area) {
         tRectangle dialRect = {{x, y}, {dialSz, dialSz}};
         gFilter1DialRect = dialRect;
 
-        // value 0-127, range 127, no morph
         set_rgb_colour((tRgb){0.2, 0.6, 1.0});
         render_dial(mainArea, dialRect,
                     (uint32_t)gDevice.filter1Cutoff, 127, 0,
                     (tRgb){0.2, 0.6, 1.0});
 
-        // Label below dial
-        char valBuf[16];
-        snprintf(valBuf, sizeof(valBuf), "%u", (unsigned)gDevice.filter1Cutoff);
-        tRectangle valRect = {{x, y + dialSz + 4.0}, {dialSz, 20.0}};
+        // CC value and native (SysEx) value below dial
+        char valBuf[32];
+        snprintf(valBuf, sizeof(valBuf), "%u  (%u)",
+                 (unsigned)gDevice.filter1Cutoff,
+                 (unsigned)gDevice.filter1CutoffNative);
+        tRectangle valRect = {{x, y + dialSz + 4.0}, {dialSz * 2.0, 20.0}};
         set_rgb_colour((tRgb)RGB_GREY_7);
         render_text(mainArea, valRect, valBuf);
 

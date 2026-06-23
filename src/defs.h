@@ -83,6 +83,9 @@
 // Z1 program name length (parameters 1-16)
 #define Z1_PROG_NAME_LEN              16
 
+// Z1 program parameter IDs (group Z1_PARAM_GROUP_PROG)
+#define Z1_PARAM_FILTER1_CUTOFF       263   // value 0-99; confirmed from SysEx capture
+
 // ── Protocol string size (used by utils.c) ────────────────────────────────────
 #define CLAVIA_NAME_SIZE              (16)
 

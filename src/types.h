@@ -160,7 +160,8 @@ typedef struct {
     uint8_t  unisonType;    // 0=OFF 1=2voices 2=3voices 3=6voices
     uint8_t  unisonDetune;  // 0-99 cents
     // Real-time CC values
-    uint8_t  filter1Cutoff; // CC 85, 0-127
+    uint8_t  filter1Cutoff;       // CC 85, 0-127 — dial position
+    uint8_t  filter1CutoffNative; // SysEx param 263, 0-99 — Z1 native display value
 } tZ1Device;
 
 #endif // __TYPES_H__

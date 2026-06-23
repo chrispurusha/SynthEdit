@@ -53,6 +53,11 @@ static uint8_t         gSysExBuf[SYSEX_BUF_SIZE];
 static uint32_t        gSysExLen = 0;
 static MIDIEndpointRef gSysExSrc = 0;
 
+// ── Non-SysEx message state (running status) ──────────────────────────────────
+static uint8_t gMsgStatus  = 0;
+static uint8_t gMsgData[2];
+static uint8_t gMsgDataLen = 0;
+
 // ── Internal send ─────────────────────────────────────────────────────────────
 
 static void midi_send_to(const uint8_t * data, uint32_t length, MIDIEndpointRef dest) {
@@ -230,6 +235,20 @@ static void midi_notify_cb(const MIDINotification * msg, void * refCon) {
     }
 }
 
+// ── CC dispatch ───────────────────────────────────────────────────────────────
+// Only called from midi_read_cb for messages arriving from the Z1's source.
+
+static void dispatch_cc(uint8_t cc, uint8_t value) {
+    LOG_DEBUG("CC 0x%02X val=%u\n", (unsigned)cc, (unsigned)value);
+    if (cc == 0x55) {    // CC 85 = Filter 1 Cutoff
+        gDevice.filter1Cutoff = value;
+        atomic_store(&gReDraw, true);
+        if (gWakeCb != NULL) {
+            gWakeCb();
+        }
+    }
+}
+
 // ── SysEx dispatch ────────────────────────────────────────────────────────────
 
 static void dispatch_sysex(MIDIEndpointRef src, const uint8_t * data, uint32_t length) {
@@ -275,6 +294,8 @@ static void midi_read_cb(const MIDIPacketList * pktList, void * readProcRefCon, 
                     LOG_DEBUG("SysEx aborted by status 0x%02X\n", byte);
                     gSysExLen = 0;
                 }
+                gMsgStatus   = byte;
+                gMsgDataLen  = 0;
             } else {
                 if (gSysExLen > 0) {
                     if (gSysExLen < SYSEX_BUF_SIZE) {
@@ -282,6 +303,17 @@ static void midi_read_cb(const MIDIPacketList * pktList, void * readProcRefCon, 
                     } else {
                         LOG_ERROR("SysEx buffer overflow, discarding\n");
                         gSysExLen = 0;
+                    }
+                } else if (gMsgStatus != 0) {
+                    if (gMsgDataLen < 2) {
+                        gMsgData[gMsgDataLen++] = byte;
+                    }
+                    // CC is a 3-byte message (status + 2 data bytes)
+                    if (((gMsgStatus & 0xF0) == 0xB0) && (gMsgDataLen == 2)) {
+                        if (gDevice.connected && (src == gMidiSource)) {
+                            dispatch_cc(gMsgData[0], gMsgData[1]);
+                        }
+                        gMsgDataLen = 0;    // ready for running status
                     }
                 }
             }

@@ -17,7 +17,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <math.h>
 #include "defs.h"
 #include "types.h"
 #include "globalVars.h"
@@ -87,7 +86,7 @@ static void set_filter1_cutoff(uint8_t value) {
         return;
     }
     gDevice.filter1Cutoff = value;
-    midi_send_cc(gDevice.id, 0x55, value);   // CC 85 = Filter 1 Cutoff
+    midi_send_cc(gDevice.id, 0x55, value);
     atomic_store(&gReDraw, true);
 }
 

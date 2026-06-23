@@ -192,11 +192,13 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
               (unsigned)group, (unsigned)paramId, (unsigned)value);
 
     if ((group == Z1_PARAM_GROUP_PROG) && (paramId >= 1) && (paramId <= Z1_PROG_NAME_LEN)) {
-        // Single character of the program name changed
         char c = (char)(value & 0x7F);
         gDevice.progName[paramId - 1] = ((c >= 0x20) && (c <= 0x7F)) ? c : '?';
         gDevice.progName[Z1_PROG_NAME_LEN] = '\0';
         LOG_DEBUG("Program name updated: \"%s\"\n", gDevice.progName);
+    } else if ((group == Z1_PARAM_GROUP_PROG) && (paramId == Z1_PARAM_FILTER1_CUTOFF)) {
+        gDevice.filter1CutoffNative = (uint8_t)(value <= 99 ? value : 99);
+        LOG_DEBUG("Filter 1 Cutoff native updated: %u\n", (unsigned)gDevice.filter1CutoffNative);
     }
 }
 
@@ -210,7 +212,8 @@ void z1_on_connected(void) {
     gDevice.unisonOn     = false;
     gDevice.unisonType   = 0;
     gDevice.unisonDetune = 0;
-    gDevice.filter1Cutoff = 64;
+    gDevice.filter1Cutoff       = 0;
+    gDevice.filter1CutoffNative = 0;
     atomic_store(&gReDraw, true);
     z1_request_current_program();
 }
