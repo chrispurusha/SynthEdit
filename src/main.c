@@ -52,6 +52,7 @@ int main(int argc, char ** argv) {
     register_sleep_wake_notifications();
 
     init_graphics();
+    setup_main_menu();
     start_midi_thread();
 
     do_graphics_loop();

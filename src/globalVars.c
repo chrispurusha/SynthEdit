@@ -21,6 +21,8 @@
 #include "types.h"
 #include "globalVars.h"
 
+tDialMode        gDialMode       = eDialModeVertical;
+
 _Atomic bool     gQuitAll        = false;
 _Atomic bool     gReDraw         = true;
 

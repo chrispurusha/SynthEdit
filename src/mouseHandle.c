@@ -35,6 +35,7 @@
 
 extern void glfwSetInputMode(void *, int, int);
 extern void glfwSetCursorPos(void *, double, double);
+extern void glfwGetWindowSize(void *, int *, int *);
 
 // ── Dial drag state ───────────────────────────────────────────────────────────
 typedef enum {
@@ -42,17 +43,17 @@ typedef enum {
     eDragFilter1,
 } tDragTarget;
 
-static tDragTarget gDragTarget  = eDragNone;
-static double      gDragStartX  = 0.0;
-static double      gDragStartY  = 0.0;
-static uint8_t     gDragStartVal = 0;
+static tDragTarget gDragTarget    = eDragNone;
+static double      gDragStartX    = 0.0;
+static double      gDragStartY    = 0.0;
+static uint8_t     gDragStartVal  = 0;
+
 
 // ── Coordinate helpers ────────────────────────────────────────────────────────
 
 static tCoord window_to_logical(void * win, double x, double y) {
     int winW = 0;
     int winH = 0;
-    extern void glfwGetWindowSize(void *, int *, int *);
     glfwGetWindowSize(win, &winW, &winH);
     return (tCoord){
                .x = (winW > 0) ? (x / winW) * TARGET_FRAME_BUFF_WIDTH : x,
@@ -64,7 +65,6 @@ static tCoord window_to_logical(void * win, double x, double y) {
 static double delta_to_logical(void * win, double winDelta, bool isX) {
     int winW = 0;
     int winH = 0;
-    extern void glfwGetWindowSize(void *, int *, int *);
     glfwGetWindowSize(win, &winW, &winH);
     if (isX) {
         return (winW > 0) ? (winDelta / winW) * TARGET_FRAME_BUFF_WIDTH : winDelta;
@@ -101,10 +101,12 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
     tCoord coord   = window_to_logical(win, x, y);
     bool   pressed = (action == GLFW_PRESS);
 
-    // Release: always end drag and restore cursor
+    // Release: end drag; restore cursor only for modes that hid it
     if (!pressed && (gDragTarget != eDragNone)) {
-        glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-        glfwSetCursorPos(win, gDragStartX, gDragStartY);
+        if (gDialMode != eDialModeRotary) {
+            glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            glfwSetCursorPos(win, gDragStartX, gDragStartY);
+        }
         gDragTarget = eDragNone;
         return;
     }
@@ -123,11 +125,14 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
 
     // Hit-test filter 1 dial
     if (gDevice.connected && within_rectangle(coord, z1_filter1_dial_rect())) {
-        gDragTarget   = eDragFilter1;
-        gDragStartX   = x;
-        gDragStartY   = y;
-        gDragStartVal = gDevice.filter1Cutoff;
-        glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        gDragTarget    = eDragFilter1;
+        gDragStartX    = x;
+        gDragStartY    = y;
+        gDragStartVal  = gDevice.filter1Cutoff;
+
+        if (gDialMode != eDialModeRotary) {
+            glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        }
     }
 }
 
@@ -135,10 +140,23 @@ void handle_cursor_pos(void * win, double x, double y) {
     if (gDragTarget == eDragNone) {
         return;
     }
-    // In CURSOR_DISABLED mode x/y are unbounded virtual coords
-    double dy = delta_to_logical(win, gDragStartY - y, false);
-    // 200 logical units = full 0-127 sweep
-    int newVal = (int)gDragStartVal + (int)(dy * 127.0 / 200.0);
+
+    int newVal = 0;
+
+    if (gDialMode == eDialModeRotary) {
+        tCoord     logCoord = window_to_logical(win, x, y);
+        double     angle    = calculate_mouse_angle(logCoord, z1_filter1_dial_rect());
+        newVal = (int)angle_to_value(angle, 128);
+    } else if (gDialMode == eDialModeVertical) {
+        // In CURSOR_DISABLED mode y accumulates unboundedly from gDragStartY
+        double dy = delta_to_logical(win, gDragStartY - y, false);
+        // 200 logical units = full 0-127 sweep
+        newVal = (int)gDragStartVal + (int)(dy * 127.0 / 200.0);
+    } else {
+        // eDialModeHorizontal — right = increase
+        double dx = delta_to_logical(win, x - gDragStartX, true);
+        newVal = (int)gDragStartVal + (int)(dx * 127.0 / 200.0);
+    }
 
     if (gDragTarget == eDragFilter1) {
         set_filter1_cutoff(clamp_u8(newVal));

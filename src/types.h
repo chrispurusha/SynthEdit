@@ -143,6 +143,14 @@ typedef struct {
     double      cellWidth;
 } tContextMenu;
 
+// ── Dial mouse mode ───────────────────────────────────────────────────────────
+
+typedef enum {
+    eDialModeRotary     = 0,   // circular arc around dial centre; cursor visible
+    eDialModeVertical   = 1,   // drag up/down; cursor hidden
+    eDialModeHorizontal = 2,   // drag left/right; cursor hidden
+} tDialMode;
+
 // ── MIDI device ───────────────────────────────────────────────────────────────
 
 #define Z1_PROG_NAME_MAXLEN    17    // 16 chars + null terminator

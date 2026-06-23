@@ -25,6 +25,10 @@
 
 @interface Z1MenuTarget : NSObject
 - (void)scanDevices:(id)sender;
+- (void)setDialModeRotary:(id)sender;
+- (void)setDialModeVertical:(id)sender;
+- (void)setDialModeHorizontal:(id)sender;
+- (BOOL)validateMenuItem:(NSMenuItem *)item;
 @end
 
 @implementation Z1MenuTarget
@@ -32,6 +36,30 @@
 - (void)scanDevices:(id)sender {
     midi_scan_devices();
     wake_glfw();
+}
+
+- (void)setDialModeRotary:(id)sender {
+    gDialMode = eDialModeRotary;
+}
+
+- (void)setDialModeVertical:(id)sender {
+    gDialMode = eDialModeVertical;
+}
+
+- (void)setDialModeHorizontal:(id)sender {
+    gDialMode = eDialModeHorizontal;
+}
+
+- (BOOL)validateMenuItem:(NSMenuItem *)item {
+    SEL action = [item action];
+    if (action == @selector(setDialModeRotary:)) {
+        [item setState:(gDialMode == eDialModeRotary) ? NSControlStateValueOn : NSControlStateValueOff];
+    } else if (action == @selector(setDialModeVertical:)) {
+        [item setState:(gDialMode == eDialModeVertical) ? NSControlStateValueOn : NSControlStateValueOff];
+    } else if (action == @selector(setDialModeHorizontal:)) {
+        [item setState:(gDialMode == eDialModeHorizontal) ? NSControlStateValueOn : NSControlStateValueOff];
+    }
+    return YES;
 }
 
 @end
@@ -56,6 +84,30 @@ void setup_main_menu(void) {
     [devMenu addItem:scanItem];
     [devMI setSubmenu:devMenu];
     [menuBar insertItem:devMI atIndex:1];
+
+    NSMenuItem * ctrlMI    = [[NSMenuItem alloc] init];
+    NSMenu *     ctrlMenu  = [[NSMenu alloc] initWithTitle:@"Controls"];
+
+    NSMenuItem * rotaryItem = [[NSMenuItem alloc] initWithTitle:@"Rotary"
+                                action:@selector(setDialModeRotary:)
+                                keyEquivalent:@""];
+    [rotaryItem setTarget:target];
+    [ctrlMenu addItem:rotaryItem];
+
+    NSMenuItem * vertItem = [[NSMenuItem alloc] initWithTitle:@"Vertical"
+                              action:@selector(setDialModeVertical:)
+                              keyEquivalent:@""];
+    [vertItem setTarget:target];
+    [ctrlMenu addItem:vertItem];
+
+    NSMenuItem * horizItem = [[NSMenuItem alloc] initWithTitle:@"Horizontal"
+                               action:@selector(setDialModeHorizontal:)
+                               keyEquivalent:@""];
+    [horizItem setTarget:target];
+    [ctrlMenu addItem:horizItem];
+
+    [ctrlMI setSubmenu:ctrlMenu];
+    [menuBar insertItem:ctrlMI atIndex:2];
 }
 
 void register_sleep_wake_notifications(void) {
