@@ -29,8 +29,15 @@ extern "C" {
 // Called when a Korg Z1 is identified on the MIDI bus
 void z1_on_connected(void);
 
-// Dispatch an incoming SysEx message from the Z1
+// Dispatch an incoming Z1 SysEx message (full message including F0 header)
 void z1_handle_message(const uint8_t * data, uint32_t length);
+
+// Request the currently loaded program from the Z1
+void z1_request_current_program(void);
+
+// Send a parameter change to the Z1
+// group: Z1_PARAM_GROUP_*; paramId: 1-based ID from spec; value: raw value
+void z1_send_parameter_change(uint8_t group, uint16_t paramId, uint16_t value);
 
 #ifdef __cplusplus
 }

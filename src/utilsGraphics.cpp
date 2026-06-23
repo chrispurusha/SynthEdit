@@ -39,6 +39,7 @@ extern "C" {
 
 #include <stdio.h>
 
+#include "defs.h"
 #include "utilsGraphics.h"
 #include "globalVars.h"
 

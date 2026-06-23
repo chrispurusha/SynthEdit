@@ -21,6 +21,7 @@
 extern "C" {
 #endif
 
+#include "defs.h"
 #include "utils.h"
 
 void read_clavia_string(uint8_t * buff, uint32_t * bitPos, char * name, int nameSize) {

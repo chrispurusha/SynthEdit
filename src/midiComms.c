@@ -59,6 +59,68 @@ static void midi_send_to(const uint8_t * data, uint32_t length, MIDIEndpointRef 
     }
 }
 
+// ── Destination lookup ────────────────────────────────────────────────────────
+// Tries three strategies in order:
+//   1. Query source's own CoreMIDI entity for its destinations
+//   2. Scan all global destinations for entity match (handles some virtual drivers)
+//   3. Scan all global destinations for name match (last resort)
+
+static MIDIEndpointRef find_dest_for_source(MIDIEndpointRef src) {
+    MIDIEntityRef   entity = 0;
+    MIDIEndpointGetEntity(src, &entity);     // may fail — entity stays 0
+
+    // Strategy 1: source entity's own destinations
+    if (entity != 0) {
+        ItemCount n = MIDIEntityGetNumberOfDestinations(entity);
+        for (ItemCount d = 0; d < n; d++) {
+            MIDIEndpointRef candidate = MIDIEntityGetDestination(entity, d);
+            if (candidate != 0) {
+                LOG_DEBUG("dest found via entity (strategy 1)\n");
+                return candidate;
+            }
+        }
+    }
+
+    // Strategy 2 & 3: iterate all global destinations
+    CFStringRef     srcName   = NULL;
+    MIDIEndpointRef dest      = 0;
+    ItemCount       destCount = MIDIGetNumberOfDestinations();
+
+    MIDIObjectGetStringProperty(src, kMIDIPropertyName, &srcName);
+
+    for (ItemCount d = 0; d < destCount && dest == 0; d++) {
+        MIDIEndpointRef candidate  = MIDIGetDestination(d);
+
+        // Strategy 2: entity match
+        if (entity != 0) {
+            MIDIEntityRef candEntity = 0;
+            if (MIDIEndpointGetEntity(candidate, &candEntity) == noErr && candEntity == entity) {
+                LOG_DEBUG("dest found via entity scan (strategy 2)\n");
+                dest = candidate;
+                break;
+            }
+        }
+
+        // Strategy 3: name match
+        if (srcName != NULL) {
+            CFStringRef destName = NULL;
+            MIDIObjectGetStringProperty(candidate, kMIDIPropertyName, &destName);
+            if (destName != NULL) {
+                if (CFStringCompare(srcName, destName, 0) == kCFCompareEqualTo) {
+                    LOG_DEBUG("dest found via name match (strategy 3)\n");
+                    dest = candidate;
+                }
+                CFRelease(destName);
+            }
+        }
+    }
+
+    if (srcName != NULL) {
+        CFRelease(srcName);
+    }
+    return dest;
+}
+
 // ── Identity reply ────────────────────────────────────────────────────────────
 
 static void handle_identity_reply(MIDIEndpointRef src, const uint8_t * data, uint32_t length) {
@@ -70,24 +132,24 @@ static void handle_identity_reply(MIDIEndpointRef src, const uint8_t * data, uin
         LOG_DEBUG("identity reply mfr 0x%02X != Korg 0x%02X, ignoring\n", data[5], KORG_MANUFACTURER_ID);
         return;
     }
+
+    // Verify this is a Z1 (family 0x46, member 0x01)
+    if ((data[6] != Z1_FAMILY_ID) || (data[8] != Z1_MEMBER_ID)) {
+        LOG_DEBUG("Not a Z1 (family=0x%02X member=0x%02X), ignoring\n", data[6], data[8]);
+        return;
+    }
+
     uint8_t  deviceId = data[2];
     uint16_t family   = (uint16_t)(data[6] | ((uint16_t)data[7] << 7));
     uint16_t member   = (uint16_t)(data[8] | ((uint16_t)data[9] << 7));
 
-    LOG_DEBUG("Korg identity reply: device_id=0x%02X family=%u member=%u\n",
-              deviceId, (unsigned)family, (unsigned)member);
+    LOG_DEBUG("Korg Z1 identity reply: device_id=0x%02X family=0x%04X member=0x%04X src=0x%08X\n",
+              deviceId, (unsigned)family, (unsigned)member, (unsigned)src);
 
-    MIDIEntityRef   entity = 0;
-    MIDIEndpointRef dest   = 0;
+    MIDIEndpointRef dest = find_dest_for_source(src);
 
-    if (MIDIEndpointGetEntity(src, &entity) == noErr && entity != 0) {
-        ItemCount dests = MIDIEntityGetNumberOfDestinations(entity);
-        if (dests > 0) {
-            dest = MIDIEntityGetDestination(entity, 0);
-        }
-    }
     if (dest == 0) {
-        LOG_ERROR("No destination found for Korg identity reply source\n");
+        LOG_ERROR("No destination found for Z1 source (src=0x%08X) — cannot send to Z1\n", (unsigned)src);
         return;
     }
     gDevice.id        = deviceId;
@@ -97,7 +159,7 @@ static void handle_identity_reply(MIDIEndpointRef src, const uint8_t * data, uin
     gMidiSource       = src;
     gMidiDest         = dest;
 
-    LOG_DEBUG("Locked onto Korg Z1 device\n");
+    LOG_DEBUG("Locked onto Korg Z1 (dest=0x%08X)\n", (unsigned)dest);
 
     z1_on_connected();
 
@@ -112,10 +174,16 @@ static void midi_notify_cb(const MIDINotification * msg, void * refCon) {
     (void)refCon;
     if (msg->messageID == kMIDIMsgSetupChanged) {
         LOG_DEBUG("CoreMIDI setup changed\n");
-        midi_scan_devices();
-        atomic_store(&gReDraw, true);
-        if (gWakeCb != NULL) {
-            gWakeCb();
+        // Only auto-scan if we don't already have a Z1 connection.
+        // With multiple devices present, MIDIPortConnectSource triggers
+        // setup-change notifications that would otherwise reset gDevice
+        // while identity replies are still in-flight.
+        if (!gDevice.connected) {
+            midi_scan_devices();
+            atomic_store(&gReDraw, true);
+            if (gWakeCb != NULL) {
+                gWakeCb();
+            }
         }
     }
 }
@@ -248,6 +316,15 @@ void midi_send_identity_request(void) {
 
 void midi_send(const uint8_t * data, uint32_t length) {
     midi_send_to(data, length, gMidiDest);
+}
+
+void midi_send_cc(uint8_t channelIndex, uint8_t cc, uint8_t value) {
+    uint8_t msg[3] = {
+        (uint8_t)(0xB0 | (channelIndex & 0x0F)),
+        (uint8_t)(cc    & 0x7F),
+        (uint8_t)(value & 0x7F),
+    };
+    midi_send_to(msg, 3, gMidiDest);
 }
 
 // ── MIDI poll thread ──────────────────────────────────────────────────────────

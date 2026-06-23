@@ -47,6 +47,44 @@
 
 // ── Korg Z1 SysEx constants ───────────────────────────────────────────────────
 #define KORG_MANUFACTURER_ID          0x42
+#define Z1_FAMILY_ID                  0x46    // Z1 Series Family ID (LSB)
+#define Z1_MEMBER_ID                  0x01    // Z1 Member ID (LSB)
+
+// Header: F0 42 (0x30|ch) 46 ...
+// ch = MIDI global channel 0-indexed (channel 4 on Z1 panel = 0x03)
+#define Z1_SYSEX_CHANNEL_BYTE(ch)     (0x30 | ((ch) & 0x0F))
+
+// Z1 function IDs (receive from Z1)
+#define Z1_FUNC_CURR_PROG_DUMP        0x40
+#define Z1_FUNC_PROG_DUMP             0x4C
+#define Z1_FUNC_CURR_MULTI_DUMP       0x49
+#define Z1_FUNC_MULTI_DUMP            0x4D
+#define Z1_FUNC_GLOBAL_MIDI_DUMP      0x51
+#define Z1_FUNC_PARAMETER_CHANGE      0x41
+#define Z1_FUNC_DATA_FORMAT_ERROR     0x26
+#define Z1_FUNC_DATA_LOAD_COMPLETED   0x23
+#define Z1_FUNC_DATA_LOAD_ERROR       0x24
+#define Z1_FUNC_WRITE_COMPLETED       0x21
+#define Z1_FUNC_WRITE_ERROR           0x22
+
+// Z1 function IDs (send to Z1)
+#define Z1_FUNC_CURR_PROG_DUMP_REQ    0x10
+#define Z1_FUNC_PROG_DUMP_REQ         0x1C
+#define Z1_FUNC_CURR_MULTI_DUMP_REQ   0x19
+#define Z1_FUNC_GLOBAL_MIDI_DUMP_REQ  0x0E
+#define Z1_FUNC_PROG_WRITE_REQ        0x11
+
+// Z1 parameter groups (for PARAMETER CHANGE, function 0x41)
+#define Z1_PARAM_GROUP_GLOBAL         0x00
+#define Z1_PARAM_GROUP_PROG           0x01
+#define Z1_PARAM_GROUP_PATTERN        0x10
+#define Z1_PARAM_GROUP_MULTI          0x11
+
+// Z1 program name length (parameters 1-16)
+#define Z1_PROG_NAME_LEN              16
+
+// ── Protocol string size (used by utils.c) ────────────────────────────────────
+#define CLAVIA_NAME_SIZE              (16)
 
 // ── Graphics / layout constants (used by utilsGraphics) ──────────────────────
 #define MAX_GLYPH_CHAR          (127)

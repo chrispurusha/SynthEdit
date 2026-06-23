@@ -145,11 +145,22 @@ typedef struct {
 
 // ── MIDI device ───────────────────────────────────────────────────────────────
 
+#define Z1_PROG_NAME_MAXLEN    17    // 16 chars + null terminator
+
 typedef struct {
     bool     connected;
-    uint8_t  id;
+    uint8_t  id;            // MIDI global channel 0-indexed; Z1_SYSEX_CHANNEL_BYTE(id) for header
     uint16_t family;
     uint16_t member;
+    // Program info (decoded from CURR_PROG_DUMP)
+    char     progName[Z1_PROG_NAME_MAXLEN];
+    uint8_t  category;      // 0-17, see kCategoryNames in z1Comms.c
+    uint8_t  voiceMode;     // 0=MONO_MULTI 1=MONO_SINGLE 2=POLY
+    bool     unisonOn;      // Unison SW
+    uint8_t  unisonType;    // 0=OFF 1=2voices 2=3voices 3=6voices
+    uint8_t  unisonDetune;  // 0-99 cents
+    // Real-time CC values
+    uint8_t  filter1Cutoff; // CC 85, 0-127
 } tZ1Device;
 
 #endif // __TYPES_H__
