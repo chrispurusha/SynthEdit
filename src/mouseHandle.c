@@ -85,7 +85,8 @@ static void set_filter1_cutoff(uint8_t value) {
     if (value == gDevice.filter1Cutoff) {
         return;
     }
-    gDevice.filter1Cutoff = value;
+    gDevice.filter1Cutoff       = value;
+    gDevice.filter1CutoffNative = (uint8_t)(value * 99UL / 127);
     midi_send_cc(gDevice.id, 0x55, value);
     atomic_store(&gReDraw, true);
 }
