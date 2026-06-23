@@ -28,11 +28,26 @@ static void            (*gWakeCb)(void) = NULL;
 static pthread_t       gMidiThread      = 0;
 static pthread_mutex_t gSendMutex       = PTHREAD_MUTEX_INITIALIZER;
 
-// Set by the CoreMIDI notification thread; acted on by the MIDI thread only.
-// Using an atomic avoids a data race without needing a mutex.
+// ── Identity reply buffer ─────────────────────────────────────────────────────
+// The CoreMIDI read callback fires on the CoreMIDI thread; the MIDI thread
+// processes replies after a timeout.  Having the callback do nothing except
+// store data eliminates all races with gDevice and rescan logic.
+#define MAX_IDENTITY_REPLIES    16
+
+static struct {
+    MIDIEndpointRef src;
+    uint8_t         deviceId;    // data[2]
+    uint8_t         mfrId;       // data[5]
+    uint8_t         familyLSB;   // data[6]
+    uint8_t         memberLSB;   // data[8]
+} gIdReplies[MAX_IDENTITY_REPLIES];
+
+static _Atomic uint32_t gIdReplyCount = 0;
+
+// Notification from notify thread; polled by the MIDI thread.
 static _Atomic bool gRescanNeeded = false;
 
-// SysEx reassembly — CoreMIDI may fragment large messages across packets
+// ── SysEx reassembly ──────────────────────────────────────────────────────────
 #define SYSEX_BUF_SIZE    8192
 static uint8_t         gSysExBuf[SYSEX_BUF_SIZE];
 static uint32_t        gSysExLen = 0;
@@ -64,36 +79,42 @@ static void midi_send_to(const uint8_t * data, uint32_t length, MIDIEndpointRef 
 }
 
 // ── Destination lookup ────────────────────────────────────────────────────────
-// Tries three strategies in order:
-//   1. Query source's own CoreMIDI entity for its destinations
-//   2. Scan all global destinations for entity match (handles some virtual drivers)
-//   3. Scan all global destinations for name match (last resort)
+// Called from the MIDI thread (not the callback thread), so CoreMIDI API calls
+// are safe and the device list is fully settled by the time we get here.
+//
+// Strategies tried in order:
+//   1. Source's own entity → entity's destinations
+//   2. All global destinations for entity match (catches some virtual drivers)
+//   3. All global destinations by display-name match (last resort)
 
 static MIDIEndpointRef find_dest_for_source(MIDIEndpointRef src) {
-    MIDIEntityRef   entity = 0;
-    MIDIEndpointGetEntity(src, &entity);     // may fail — entity stays 0
+    MIDIEntityRef entity = 0;
+    MIDIEndpointGetEntity(src, &entity);    // may fail — entity stays 0
 
-    // Strategy 1: source entity's own destinations
+    // Strategy 1
     if (entity != 0) {
         ItemCount n = MIDIEntityGetNumberOfDestinations(entity);
         for (ItemCount d = 0; d < n; d++) {
-            MIDIEndpointRef candidate = MIDIEntityGetDestination(entity, d);
-            if (candidate != 0) {
+            MIDIEndpointRef r = MIDIEntityGetDestination(entity, d);
+            if (r != 0) {
                 LOG_DEBUG("dest found via entity (strategy 1)\n");
-                return candidate;
+                return r;
             }
         }
     }
 
-    // Strategy 2 & 3: iterate all global destinations
-    CFStringRef     srcName   = NULL;
+    // Strategies 2 & 3 share one pass over all destinations
+    CFStringRef     srcDisplayName = NULL;
+    MIDIObjectGetStringProperty(src, kMIDIPropertyDisplayName, &srcDisplayName);
+    if (srcDisplayName == NULL) {
+        MIDIObjectGetStringProperty(src, kMIDIPropertyName, &srcDisplayName);
+    }
+
     MIDIEndpointRef dest      = 0;
     ItemCount       destCount = MIDIGetNumberOfDestinations();
 
-    MIDIObjectGetStringProperty(src, kMIDIPropertyName, &srcName);
-
     for (ItemCount d = 0; d < destCount && dest == 0; d++) {
-        MIDIEndpointRef candidate  = MIDIGetDestination(d);
+        MIDIEndpointRef candidate = MIDIGetDestination(d);
 
         // Strategy 2: entity match
         if (entity != 0) {
@@ -105,70 +126,97 @@ static MIDIEndpointRef find_dest_for_source(MIDIEndpointRef src) {
             }
         }
 
-        // Strategy 3: name match
-        if (srcName != NULL) {
-            CFStringRef destName = NULL;
-            MIDIObjectGetStringProperty(candidate, kMIDIPropertyName, &destName);
-            if (destName != NULL) {
-                if (CFStringCompare(srcName, destName, 0) == kCFCompareEqualTo) {
-                    LOG_DEBUG("dest found via name match (strategy 3)\n");
+        // Strategy 3: display-name match
+        if (srcDisplayName != NULL) {
+            CFStringRef destDisplayName = NULL;
+            MIDIObjectGetStringProperty(candidate, kMIDIPropertyDisplayName, &destDisplayName);
+            if (destDisplayName == NULL) {
+                MIDIObjectGetStringProperty(candidate, kMIDIPropertyName, &destDisplayName);
+            }
+            if (destDisplayName != NULL) {
+                if (CFStringCompare(srcDisplayName, destDisplayName, 0) == kCFCompareEqualTo) {
+                    LOG_DEBUG("dest found via display-name match (strategy 3)\n");
                     dest = candidate;
                 }
-                CFRelease(destName);
+                CFRelease(destDisplayName);
             }
         }
     }
 
-    if (srcName != NULL) {
-        CFRelease(srcName);
+    if (srcDisplayName != NULL) {
+        CFRelease(srcDisplayName);
     }
     return dest;
 }
 
-// ── Identity reply ────────────────────────────────────────────────────────────
+// ── Process buffered identity replies (MIDI thread only) ──────────────────────
+// Scans the reply buffer collected since the last scan, selects the first Z1,
+// and calls z1_on_connected().  All CoreMIDI lookups happen here — no races.
+
+static void process_identity_replies(void) {
+    uint32_t count = atomic_load(&gIdReplyCount);
+
+    LOG_DEBUG("Processing %u identity replies\n", (unsigned)count);
+
+    for (uint32_t i = 0; i < count; i++) {
+        LOG_DEBUG("  reply[%u]: mfr=0x%02X fam=0x%02X mem=0x%02X src=0x%08X\n",
+                  (unsigned)i,
+                  gIdReplies[i].mfrId,
+                  gIdReplies[i].familyLSB,
+                  gIdReplies[i].memberLSB,
+                  (unsigned)gIdReplies[i].src);
+
+        if ((gIdReplies[i].mfrId     != KORG_MANUFACTURER_ID) ||
+            (gIdReplies[i].familyLSB != Z1_FAMILY_ID) ||
+            (gIdReplies[i].memberLSB != Z1_MEMBER_ID)) {
+            continue;
+        }
+
+        MIDIEndpointRef src  = gIdReplies[i].src;
+        MIDIEndpointRef dest = find_dest_for_source(src);
+
+        if (dest == 0) {
+            LOG_ERROR("Z1 found but no matching destination for src=0x%08X\n", (unsigned)src);
+            continue;
+        }
+
+        gDevice.id        = gIdReplies[i].deviceId;
+        gDevice.family    = (uint16_t)gIdReplies[i].familyLSB;
+        gDevice.member    = (uint16_t)gIdReplies[i].memberLSB;
+        gDevice.connected = true;
+        gMidiSource       = src;
+        gMidiDest         = dest;
+
+        LOG_DEBUG("Z1 connected: deviceId=0x%02X src=0x%08X dest=0x%08X\n",
+                  gDevice.id, (unsigned)src, (unsigned)dest);
+
+        z1_on_connected();
+
+        if (gWakeCb != NULL) {
+            gWakeCb();
+        }
+        return;
+    }
+    LOG_DEBUG("No Z1 found in this batch of identity replies\n");
+}
+
+// ── Identity reply callback handler ──────────────────────────────────────────
+// Runs on the CoreMIDI callback thread.  Do the absolute minimum: validate
+// the packet is a well-formed identity reply and store it.  All analysis
+// happens later in process_identity_replies() on the MIDI thread.
 
 static void handle_identity_reply(MIDIEndpointRef src, const uint8_t * data, uint32_t length) {
     // F0 7E <device_id> 06 02 <mfr_id> <fam_lsb> <fam_msb> <mem_lsb> <mem_msb> ... F7
     if (length < 10) {
         return;
     }
-    if (data[5] != KORG_MANUFACTURER_ID) {
-        LOG_DEBUG("identity reply mfr 0x%02X != Korg 0x%02X, ignoring\n", data[5], KORG_MANUFACTURER_ID);
-        return;
-    }
-
-    // Verify this is a Z1 (family 0x46, member 0x01)
-    if ((data[6] != Z1_FAMILY_ID) || (data[8] != Z1_MEMBER_ID)) {
-        LOG_DEBUG("Not a Z1 (family=0x%02X member=0x%02X), ignoring\n", data[6], data[8]);
-        return;
-    }
-
-    uint8_t  deviceId = data[2];
-    uint16_t family   = (uint16_t)(data[6] | ((uint16_t)data[7] << 7));
-    uint16_t member   = (uint16_t)(data[8] | ((uint16_t)data[9] << 7));
-
-    LOG_DEBUG("Korg Z1 identity reply: device_id=0x%02X family=0x%04X member=0x%04X src=0x%08X\n",
-              deviceId, (unsigned)family, (unsigned)member, (unsigned)src);
-
-    MIDIEndpointRef dest = find_dest_for_source(src);
-
-    if (dest == 0) {
-        LOG_ERROR("No destination found for Z1 source (src=0x%08X) — cannot send to Z1\n", (unsigned)src);
-        return;
-    }
-    gDevice.id        = deviceId;
-    gDevice.family    = family;
-    gDevice.member    = member;
-    gDevice.connected = true;
-    gMidiSource       = src;
-    gMidiDest         = dest;
-
-    LOG_DEBUG("Locked onto Korg Z1 (dest=0x%08X)\n", (unsigned)dest);
-
-    z1_on_connected();
-
-    if (gWakeCb != NULL) {
-        gWakeCb();
+    uint32_t idx = atomic_fetch_add(&gIdReplyCount, 1);
+    if (idx < MAX_IDENTITY_REPLIES) {
+        gIdReplies[idx].src       = src;
+        gIdReplies[idx].deviceId  = data[2];
+        gIdReplies[idx].mfrId     = data[5];
+        gIdReplies[idx].familyLSB = data[6];
+        gIdReplies[idx].memberLSB = data[8];
     }
 }
 
@@ -178,11 +226,6 @@ static void midi_notify_cb(const MIDINotification * msg, void * refCon) {
     (void)refCon;
     if (msg->messageID == kMIDIMsgSetupChanged) {
         LOG_DEBUG("CoreMIDI setup changed — scheduling rescan\n");
-        // Do NOT call midi_scan_devices() here. The notification fires on the
-        // CoreMIDI notification thread, which races with midi_read_cb processing
-        // identity replies on the callback thread. Calling scan here would reset
-        // gDevice mid-reply and lose the connection. Set a flag; the MIDI thread
-        // will pick it up after a settle delay once all devices are registered.
         atomic_store(&gRescanNeeded, true);
     }
 }
@@ -262,24 +305,21 @@ int midi_scan_devices(void) {
     ItemCount srcCount  = MIDIGetNumberOfSources();
     ItemCount destCount = MIDIGetNumberOfDestinations();
 
-    // Only wipe the connection state when we aren't already locked onto a Z1.
-    // Re-entrant calls triggered by setup-change notifications must not race
-    // against an identity reply that is already being processed.
-    if (!gDevice.connected) {
-        gMidiSource = 0;
-        gMidiDest   = 0;
-        memset(&gDevice, 0, sizeof(gDevice));
-    }
+    // Reset reply buffer and connection state before a fresh scan
+    atomic_store(&gIdReplyCount, 0);
+    gMidiSource = 0;
+    gMidiDest   = 0;
+    memset(&gDevice, 0, sizeof(gDevice));
 
     for (ItemCount i = 0; i < srcCount; i++) {
         MIDIEndpointRef src  = MIDIGetSource(i);
         CFStringRef     name = NULL;
-        MIDIObjectGetStringProperty(src, kMIDIPropertyName, &name);
+        MIDIObjectGetStringProperty(src, kMIDIPropertyDisplayName, &name);
         if (name != NULL) {
             char buf[128] = {0};
             CFStringGetCString(name, buf, sizeof(buf), kCFStringEncodingUTF8);
             CFRelease(name);
-            LOG_DEBUG("MIDI source %lu: %s\n", (unsigned long)i, buf);
+            LOG_DEBUG("MIDI source %lu: %s (ref=0x%08X)\n", (unsigned long)i, buf, (unsigned)src);
         }
         MIDIPortConnectSource(gMidiInPort, src, (void *)(uintptr_t)src);
     }
@@ -287,12 +327,12 @@ int midi_scan_devices(void) {
     for (ItemCount i = 0; i < destCount; i++) {
         MIDIEndpointRef dest = MIDIGetDestination(i);
         CFStringRef     name = NULL;
-        MIDIObjectGetStringProperty(dest, kMIDIPropertyName, &name);
+        MIDIObjectGetStringProperty(dest, kMIDIPropertyDisplayName, &name);
         if (name != NULL) {
             char buf[128] = {0};
             CFStringGetCString(name, buf, sizeof(buf), kCFStringEncodingUTF8);
             CFRelease(name);
-            LOG_DEBUG("MIDI dest %lu: %s\n", (unsigned long)i, buf);
+            LOG_DEBUG("MIDI dest %lu: %s (ref=0x%08X)\n", (unsigned long)i, buf, (unsigned)dest);
         }
         midi_send_to(idReq, sizeof(idReq), dest);
     }
@@ -332,26 +372,40 @@ void midi_send_cc(uint8_t channelIndex, uint8_t cc, uint8_t value) {
 }
 
 // ── MIDI poll thread ──────────────────────────────────────────────────────────
+// Owns all scanning and connection logic.  The CoreMIDI callback thread only
+// stores raw data; no state mutations happen there.
 
 static void * midi_thread(void * arg) {
     (void)arg;
     LOG_DEBUG("MIDI thread started\n");
-    midi_scan_devices();
+
+    struct timespec reply_wait = {0, 500000000};   // 500 ms — collect all responses
+    struct timespec retry_wait = {2, 0};            // 2 s between scan attempts
 
     while (!atomic_load(&gQuitAll)) {
-        if (atomic_load(&gRescanNeeded) && !gDevice.connected) {
+        if (!gDevice.connected) {
+            // (Re)scan: send identity requests to all destinations
             atomic_store(&gRescanNeeded, false);
-            // Wait for the MIDI setup to fully settle (all device ports registered)
-            // before scanning; otherwise we may only see a partial device list.
-            struct timespec settle = {0, 200000000};   // 200 ms
-            nanosleep(&settle, NULL);
+            midi_scan_devices();
+
+            // Wait for every device — including slow ones via MIDI thru — to reply
+            nanosleep(&reply_wait, NULL);
+
+            // Now process the complete, settled set of replies
+            process_identity_replies();
+
             if (!gDevice.connected) {
-                LOG_DEBUG("MIDI rescan after setup change\n");
-                midi_scan_devices();
+                // Nothing found; wait before trying again.
+                // Wake early if a setup change signals a new device appeared.
+                for (int t = 0; t < 20 && !atomic_load(&gRescanNeeded); t++) {
+                    struct timespec s = {0, 100000000};   // 100 ms slices
+                    nanosleep(&s, NULL);
+                }
             }
+        } else {
+            struct timespec ts = {0, 33000000};   // 33 ms idle
+            nanosleep(&ts, NULL);
         }
-        struct timespec ts = {0, 33000000};   // ~30 Hz idle poll
-        nanosleep(&ts, NULL);
     }
     LOG_DEBUG("MIDI thread exiting\n");
     return NULL;
