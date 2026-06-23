@@ -1,0 +1,8 @@
+#!/bin/zsh
+
+# To run: ./do-uncrustify
+
+uncrustify -c uncrustify.cfg --no-backup src/*.h
+uncrustify -c uncrustify.cfg --no-backup src/*.c
+uncrustify -c uncrustify.cfg --no-backup src/*.cpp
+uncrustify -c uncrustify.cfg --no-backup src/*.mm

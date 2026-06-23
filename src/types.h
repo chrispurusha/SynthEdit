@@ -1,0 +1,149 @@
+/*
+ * The Z1-Edit application.
+ *
+ * Copyright (C) 2025 Chris Turner <chris_purusha@icloud.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+#ifndef __TYPES_H__
+#define __TYPES_H__
+
+#include <stdint.h>
+#include <stdbool.h>
+
+// ── Geometry ──────────────────────────────────────────────────────────────────
+
+typedef struct {
+    double x;
+    double y;
+} tCoord;
+
+typedef struct {
+    double w;
+    double h;
+} tSize;
+
+typedef struct {
+    tCoord coord;
+    tSize  size;
+} tRectangle;
+
+// ── Colour ────────────────────────────────────────────────────────────────────
+
+typedef struct {
+    double red;
+    double green;
+    double blue;
+} tRgb;
+
+typedef struct {
+    double red;
+    double green;
+    double blue;
+    double alpha;
+} tRgba;
+
+#define RGB_WHITE    {1.0, 1.0, 1.0}
+#define RGB_BLACK    {0.0, 0.0, 0.0}
+#define RGB_GREY     {0.5, 0.5, 0.5}
+
+// ── Geometry primitives ───────────────────────────────────────────────────────
+
+typedef struct {
+    tCoord coord1;
+    tCoord coord2rel;
+    tCoord coord3rel;
+} tTriangle;
+
+typedef struct {
+    double u1;
+    double v1;
+    double u2;
+    double v2;
+    double advance_x;
+    int    width;
+    int    height;
+    int    offset_x;
+    int    offset_y;
+} GlyphInfo;
+
+// ── Render area tags ──────────────────────────────────────────────────────────
+
+typedef enum {
+    mainArea   = 0,
+    moduleArea = 1,
+} tArea;
+
+typedef enum {
+    eNoCache = 0,
+    eCache   = 1,
+} tCache;
+
+// ── UI buttons ────────────────────────────────────────────────────────────────
+
+typedef enum {
+    pkNone    = 0,
+    pkEnter   = 1,
+    pkExit    = 2,
+    pkUp      = 3,
+    pkDown    = 4,
+    pkLeft    = 5,
+    pkRight   = 6,
+    pkInc     = 7,
+    pkDec     = 8,
+    pkF1      = 10,
+    pkF2      = 11,
+    pkF3      = 12,
+    pkF4      = 13,
+    pkF5      = 14,
+    pkF6      = 15,
+} tButtonKey;
+
+typedef struct {
+    tButtonKey key;
+    char       label[32];
+    bool       pressed;
+    tRectangle rect;
+} tButton;
+
+// ── Context menu ──────────────────────────────────────────────────────────────
+
+typedef struct tMenuItem {
+    const char *       label;
+    tRgb               colour;
+    void (*action)(int index);
+    int                index;
+    struct tMenuItem * subItems;
+} tMenuItem;
+
+typedef struct {
+    bool        active;
+    tCoord      coord;
+    tMenuItem * items;
+    uint32_t    count;
+    uint32_t    columns;
+    double      cellWidth;
+} tContextMenu;
+
+// ── MIDI device ───────────────────────────────────────────────────────────────
+
+typedef struct {
+    bool     connected;
+    uint8_t  id;
+    uint16_t family;
+    uint16_t member;
+} tZ1Device;
+
+#endif // __TYPES_H__
