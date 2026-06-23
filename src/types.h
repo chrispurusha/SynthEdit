@@ -55,9 +55,15 @@ typedef struct {
     double alpha;
 } tRgba;
 
-#define RGB_WHITE    {1.0, 1.0, 1.0}
-#define RGB_BLACK    {0.0, 0.0, 0.0}
-#define RGB_GREY     {0.5, 0.5, 0.5}
+#define RGB_WHITE             {1.0,  1.0,  1.0}
+#define RGB_BLACK             {0.0,  0.0,  0.0}
+#define RGB_GREY              {0.5,  0.5,  0.5}
+#define RGB_BACKGROUND_GREY   {0.30, 0.30, 0.30}
+#define RGB_GREY_2            {0.20, 0.20, 0.20}
+#define RGB_GREY_3            {0.30, 0.30, 0.30}
+#define RGB_GREY_5            {0.50, 0.50, 0.50}
+#define RGB_GREY_7            {0.70, 0.70, 0.70}
+#define RGB_GREEN_ON          {0.00, 0.80, 0.00}
 
 // ── Geometry primitives ───────────────────────────────────────────────────────
 
