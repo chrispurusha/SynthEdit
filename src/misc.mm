@@ -40,14 +40,17 @@
 
 - (void)setDialModeRotary:(id)sender {
     gDialMode = eDialModeRotary;
+    [[NSUserDefaults standardUserDefaults] setInteger:gDialMode forKey:@"dialMode"];
 }
 
 - (void)setDialModeVertical:(id)sender {
     gDialMode = eDialModeVertical;
+    [[NSUserDefaults standardUserDefaults] setInteger:gDialMode forKey:@"dialMode"];
 }
 
 - (void)setDialModeHorizontal:(id)sender {
     gDialMode = eDialModeHorizontal;
+    [[NSUserDefaults standardUserDefaults] setInteger:gDialMode forKey:@"dialMode"];
 }
 
 - (BOOL)validateMenuItem:(NSMenuItem *)item {
@@ -74,6 +77,11 @@ void setup_main_menu(void) {
     if (menuBar == nil) {
         menuBar = [[NSMenu alloc] init];
         [[NSApplication sharedApplication] setMainMenu:menuBar];
+    }
+
+    NSUserDefaults * defaults = [NSUserDefaults standardUserDefaults];
+    if ([defaults objectForKey:@"dialMode"] != nil) {
+        gDialMode = (tDialMode)[defaults integerForKey:@"dialMode"];
     }
     NSMenuItem * devMI    = [[NSMenuItem alloc] init];
     NSMenu *     devMenu  = [[NSMenu alloc] initWithTitle:@"Device"];
