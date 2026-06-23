@@ -427,32 +427,47 @@ static void * midi_thread(void * arg) {
     (void)arg;
     LOG_DEBUG("MIDI thread started\n");
 
-    struct timespec reply_wait = {0, 500000000};   // 500 ms — collect all responses
-    struct timespec retry_wait = {2, 0};           // 2 s between scan attempts
+    // Create MIDI client here (not on main thread) so MIDIClientCreate does not
+    // block app startup.  The notification callback is tied to this thread's
+    // CFRunLoop, which we drive with CFRunLoopRunInMode in place of nanosleep.
+    OSStatus err;
+    err = MIDIClientCreate(CFSTR("Z1Edit"), midi_notify_cb, NULL, &gMidiClient);
+
+    if (err != noErr) {
+        LOG_ERROR("MIDIClientCreate failed: %d\n", (int)err);
+        return NULL;
+    }
+    err = MIDIInputPortCreate(gMidiClient, CFSTR("Z1Edit In"), midi_read_cb, NULL, &gMidiInPort);
+
+    if (err != noErr) {
+        LOG_ERROR("MIDIInputPortCreate failed: %d\n", (int)err);
+        return NULL;
+    }
+    err = MIDIOutputPortCreate(gMidiClient, CFSTR("Z1Edit Out"), &gMidiOutPort);
+
+    if (err != noErr) {
+        LOG_ERROR("MIDIOutputPortCreate failed: %d\n", (int)err);
+        return NULL;
+    }
 
     while (!atomic_load(&gQuitAll)) {
         if (!gDevice.connected) {
-            // (Re)scan: send identity requests to all destinations
             atomic_store(&gRescanNeeded, false);
             midi_scan_devices();
-
-            // Wait for every device — including slow ones via MIDI thru — to reply
-            nanosleep(&reply_wait, NULL);
-
-            // Now process the complete, settled set of replies
+            // Pump run loop for 500 ms — collects all identity replies and
+            // services any CoreMIDI notifications that arrive during the wait.
+            CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.5, false);
             process_identity_replies();
 
             if (!gDevice.connected) {
-                // Nothing found; wait before trying again.
-                // Wake early if a setup change signals a new device appeared.
+                // Nothing found — wait up to 2 s in 100 ms slices.  Wakes early
+                // if a setup-change notification fires (via gRescanNeeded).
                 for (int t = 0; t < 20 && !atomic_load(&gRescanNeeded); t++) {
-                    struct timespec s = {0, 100000000};   // 100 ms slices
-                    nanosleep(&s, NULL);
+                    CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.1, false);
                 }
             }
         } else {
-            struct timespec ts = {0, 33000000};   // 33 ms idle
-            nanosleep(&ts, NULL);
+            CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.033, false);   // 33 ms idle
         }
     }
     LOG_DEBUG("MIDI thread exiting\n");
@@ -462,30 +477,6 @@ static void * midi_thread(void * arg) {
 // ── Startup ───────────────────────────────────────────────────────────────────
 
 int start_midi_thread(void) {
-    CFStringRef clientName = CFSTR("Z1Edit");
-    OSStatus    err;
-
-    err = MIDIClientCreate(clientName, midi_notify_cb, NULL, &gMidiClient);
-
-    if (err != noErr) {
-        LOG_ERROR("MIDIClientCreate failed: %d\n", (int)err);
-        return EXIT_FAILURE;
-    }
-    CFStringRef inName     = CFSTR("Z1Edit In");
-    err = MIDIInputPortCreate(gMidiClient, inName, midi_read_cb, NULL, &gMidiInPort);
-
-    if (err != noErr) {
-        LOG_ERROR("MIDIInputPortCreate failed: %d\n", (int)err);
-        return EXIT_FAILURE;
-    }
-    CFStringRef outName    = CFSTR("Z1Edit Out");
-    err = MIDIOutputPortCreate(gMidiClient, outName, &gMidiOutPort);
-
-    if (err != noErr) {
-        LOG_ERROR("MIDIOutputPortCreate failed: %d\n", (int)err);
-        return EXIT_FAILURE;
-    }
-
     if (pthread_create(&gMidiThread, NULL, midi_thread, NULL) != 0) {
         LOG_ERROR("pthread_create for MIDI thread failed\n");
         return EXIT_FAILURE;
