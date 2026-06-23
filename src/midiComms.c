@@ -28,6 +28,10 @@ static void            (*gWakeCb)(void) = NULL;
 static pthread_t       gMidiThread      = 0;
 static pthread_mutex_t gSendMutex       = PTHREAD_MUTEX_INITIALIZER;
 
+// Set by the CoreMIDI notification thread; acted on by the MIDI thread only.
+// Using an atomic avoids a data race without needing a mutex.
+static _Atomic bool gRescanNeeded = false;
+
 // SysEx reassembly — CoreMIDI may fragment large messages across packets
 #define SYSEX_BUF_SIZE    8192
 static uint8_t         gSysExBuf[SYSEX_BUF_SIZE];
@@ -173,18 +177,13 @@ static void handle_identity_reply(MIDIEndpointRef src, const uint8_t * data, uin
 static void midi_notify_cb(const MIDINotification * msg, void * refCon) {
     (void)refCon;
     if (msg->messageID == kMIDIMsgSetupChanged) {
-        LOG_DEBUG("CoreMIDI setup changed\n");
-        // Only auto-scan if we don't already have a Z1 connection.
-        // With multiple devices present, MIDIPortConnectSource triggers
-        // setup-change notifications that would otherwise reset gDevice
-        // while identity replies are still in-flight.
-        if (!gDevice.connected) {
-            midi_scan_devices();
-            atomic_store(&gReDraw, true);
-            if (gWakeCb != NULL) {
-                gWakeCb();
-            }
-        }
+        LOG_DEBUG("CoreMIDI setup changed — scheduling rescan\n");
+        // Do NOT call midi_scan_devices() here. The notification fires on the
+        // CoreMIDI notification thread, which races with midi_read_cb processing
+        // identity replies on the callback thread. Calling scan here would reset
+        // gDevice mid-reply and lose the connection. Set a flag; the MIDI thread
+        // will pick it up after a settle delay once all devices are registered.
+        atomic_store(&gRescanNeeded, true);
     }
 }
 
@@ -263,9 +262,14 @@ int midi_scan_devices(void) {
     ItemCount srcCount  = MIDIGetNumberOfSources();
     ItemCount destCount = MIDIGetNumberOfDestinations();
 
-    gMidiSource = 0;
-    gMidiDest   = 0;
-    memset(&gDevice, 0, sizeof(gDevice));
+    // Only wipe the connection state when we aren't already locked onto a Z1.
+    // Re-entrant calls triggered by setup-change notifications must not race
+    // against an identity reply that is already being processed.
+    if (!gDevice.connected) {
+        gMidiSource = 0;
+        gMidiDest   = 0;
+        memset(&gDevice, 0, sizeof(gDevice));
+    }
 
     for (ItemCount i = 0; i < srcCount; i++) {
         MIDIEndpointRef src  = MIDIGetSource(i);
@@ -335,6 +339,17 @@ static void * midi_thread(void * arg) {
     midi_scan_devices();
 
     while (!atomic_load(&gQuitAll)) {
+        if (atomic_load(&gRescanNeeded) && !gDevice.connected) {
+            atomic_store(&gRescanNeeded, false);
+            // Wait for the MIDI setup to fully settle (all device ports registered)
+            // before scanning; otherwise we may only see a partial device list.
+            struct timespec settle = {0, 200000000};   // 200 ms
+            nanosleep(&settle, NULL);
+            if (!gDevice.connected) {
+                LOG_DEBUG("MIDI rescan after setup change\n");
+                midi_scan_devices();
+            }
+        }
         struct timespec ts = {0, 33000000};   // ~30 Hz idle poll
         nanosleep(&ts, NULL);
     }
