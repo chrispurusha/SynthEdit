@@ -149,12 +149,22 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
         gDevice.unisonDetune = decoded[22];
     }
 
-    LOG_DEBUG("Z1 prog: \"%s\"  cat=%s  voice=%s  unison=%s(%u cents)\n",
+    // Filter 1 Cutoff native value (0-99) is at byte 314 in the decoded program dump
+    if (decodedLen > 314) {
+        uint8_t native = decoded[314] <= 99 ? decoded[314] : 99;
+        gDevice.filter1CutoffNative = native;
+        // Derive initial CC dial position (0-127) from native value
+        gDevice.filter1Cutoff = (uint8_t)((native * 127UL + 49) / 99);
+    }
+
+    LOG_DEBUG("Z1 prog: \"%s\"  cat=%s  voice=%s  unison=%s(%u cents)  f1cut=%u(%u)\n",
               gDevice.progName,
               kCategoryNames[gDevice.category],
               kVoiceModeNames[gDevice.voiceMode < 3 ? gDevice.voiceMode : 2],
               gDevice.unisonOn ? kUnisonTypeNames[gDevice.unisonType & 3] : "OFF",
-              (unsigned)gDevice.unisonDetune);
+              (unsigned)gDevice.unisonDetune,
+              (unsigned)gDevice.filter1Cutoff,
+              (unsigned)gDevice.filter1CutoffNative);
 }
 
 // ── Message handlers ──────────────────────────────────────────────────────────
