@@ -20,25 +20,7 @@
 #ifndef __TYPES_H__
 #define __TYPES_H__
 
-#include <stdint.h>
-#include <stdbool.h>
-
-// ── Geometry ──────────────────────────────────────────────────────────────────
-
-typedef struct {
-    double x;
-    double y;
-} tCoord;
-
-typedef struct {
-    double w;
-    double h;
-} tSize;
-
-typedef struct {
-    tCoord coord;
-    tSize  size;
-} tRectangle;
+#include "geometry.h"
 
 // ── Colour ────────────────────────────────────────────────────────────────────
 
