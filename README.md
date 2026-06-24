@@ -62,9 +62,12 @@ All commands run from the root of the cloned repository.
 
 ```
 cmake -S SynthLib/ThirdParty/glfw -B SynthLib/ThirdParty/glfw/build \
+  -DBUILD_SHARED_LIBS=OFF \
   -DGLFW_BUILD_DOCS=OFF \
   -DGLFW_BUILD_EXAMPLES=OFF \
-  -DGLFW_BUILD_TESTS=OFF
+  -DGLFW_BUILD_TESTS=OFF \
+  -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+  -DCMAKE_OSX_DEPLOYMENT_TARGET=15.1
 cmake --build SynthLib/ThirdParty/glfw/build
 ```
 
@@ -72,8 +75,13 @@ cmake --build SynthLib/ThirdParty/glfw/build
 
 ```
 cmake -S SynthLib/ThirdParty/freetype -B SynthLib/ThirdParty/freetype/build \
+  -DBUILD_SHARED_LIBS=OFF \
+  -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+  -DCMAKE_OSX_DEPLOYMENT_TARGET=15.1 \
   -DFT_DISABLE_BROTLI=ON \
   -DFT_DISABLE_BZIP2=ON \
+  -DFT_DISABLE_HARFBUZZ=ON \
+  -DFT_DISABLE_HVF=ON \
   -DFT_DISABLE_PNG=ON \
   -DFT_DISABLE_ZLIB=ON
 cmake --build SynthLib/ThirdParty/freetype/build
