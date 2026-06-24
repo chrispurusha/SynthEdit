@@ -41,11 +41,15 @@ extern "C" {
 #include "misc.h"
 #include "graphics.h"
 
+
+static void setup_projection(GLFWwindow * win);
+
 // ── GLFW callbacks ────────────────────────────────────────────────────────────
 
 static void framebuffer_size_cb(GLFWwindow * win, int w, int h) {
-    (void)win;
-    glViewport(0, 0, w, h);
+    (void)w;
+    (void)h;
+    setup_projection(win);
     atomic_store(&gReDraw, true);
 }
 
@@ -97,10 +101,13 @@ static void setup_projection(GLFWwindow * win) {
 
     gGlobalGuiScale = (winW > 0) ? (double)fbW / (double)winW : 1.0;
 
+    set_render_width(fbW);
+    set_render_height(fbH);
+
     glViewport(0, 0, fbW, fbH);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glOrtho(0.0, TARGET_FRAME_BUFF_WIDTH, TARGET_FRAME_BUFF_HEIGHT, 0.0, -1.0, 1.0);
+    glOrtho(0.0, fbW, fbH, 0.0, -1.0, 1.0);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 }
@@ -127,6 +134,12 @@ static int init_font(void) {
 // ── init_graphics ─────────────────────────────────────────────────────────────
 
 void init_graphics(void) {
+    int           windowWidth  = 0;
+    int           windowHeight = 0;
+    GLFWmonitor * monitor      = NULL;
+    float         xScale       = 1.0f;
+    float         yScale       = 1.0f;
+
     if (!glfwInit()) {
         LOG_ERROR("glfwInit failed\n");
         exit(EXIT_FAILURE);
@@ -134,8 +147,24 @@ void init_graphics(void) {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
     glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE);
+    glfwWindowHint(GLFW_COCOA_GRAPHICS_SWITCHING, GLFW_TRUE);
 
-    GLFWwindow * win = glfwCreateWindow(1280, 600, WINDOW_TITLE, NULL, NULL);
+    monitor      = glfwGetPrimaryMonitor();
+
+    int           x = 0, y = 0, width = 0, height = 0;
+    glfwGetMonitorWorkarea(monitor, &x, &y, &width, &height);
+    glfwGetMonitorContentScale(monitor, &xScale, &yScale);
+    windowWidth  = (int)((double)TARGET_FRAME_BUFF_WIDTH / xScale);
+    windowHeight = (int)((double)TARGET_FRAME_BUFF_HEIGHT / yScale);
+
+    if ((windowWidth > width) || (windowHeight > height)) {
+        double widthSF  = (double)windowWidth / (double)width;
+        double heightSF = (double)windowHeight / (double)height;
+        double sf       = (heightSF >= widthSF) ? heightSF : widthSF;
+        windowWidth  = (int)((double)windowWidth / sf);
+        windowHeight = (int)((double)windowHeight / sf);
+    }
+    GLFWwindow *  win = glfwCreateWindow(windowWidth, windowHeight, WINDOW_TITLE, NULL, NULL);
 
     if (win == NULL) {
         LOG_ERROR("glfwCreateWindow failed\n");
@@ -155,8 +184,8 @@ void init_graphics(void) {
     glfwSetScrollCallback(win, scroll_cb);
 
     setup_projection(win);
-    glfwSetWindowSizeLimits(win, (int)(1280.0 / gGlobalGuiScale), (int)(600.0 / gGlobalGuiScale), GLFW_DONT_CARE, GLFW_DONT_CARE);
-    glfwSetWindowAspectRatio(win, 1280, 600);
+    glfwSetWindowSizeLimits(win, windowWidth, windowHeight, GLFW_DONT_CARE, GLFW_DONT_CARE);
+    glfwSetWindowAspectRatio(win, windowWidth, windowHeight);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -175,8 +204,14 @@ static void render_frame(GLFWwindow * win) {
     glClearColor(0.15f, 0.15f, 0.15f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    double     logW = TARGET_FRAME_BUFF_WIDTH;
-    double     logH = TARGET_FRAME_BUFF_HEIGHT;
+    double     logW     = (double)get_render_width();
+    double     logH     = TARGET_FRAME_BUFF_HEIGHT;
+
+    // LCD area: 2× the raw 240×64 pixel size, centred in left half of virtual space
+    //double     lcdDispW = LCD_WIDTH * 2.0;
+    //double     lcdDispH = LCD_HEIGHT * 2.0;
+    //double     lcdX     = (logW / 2.0 - lcdDispW) / 2.0;
+    //double     lcdY     = 10.0;
     tRectangle area = {{0.0, 0.0}, {logW, logH}};
 
     z1_render(area);
