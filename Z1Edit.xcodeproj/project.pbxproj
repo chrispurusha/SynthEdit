@@ -26,14 +26,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		49BEB827A7B14F99AC9EC792 /* SynthLib/src */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = SynthLib/src;
+			sourceTree = "<group>";
+		};
 		A04E4EEAFCCE334E00468BB7 /* src */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = src;
-			sourceTree = "<group>";
-		};
-		49BEB827A7B14F99AC9EC792 /* SynthLib */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = SynthLib/src;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -59,7 +59,7 @@
 			isa = PBXGroup;
 			children = (
 				A04E4EEAFCCE334E00468BB7 /* src */,
-				49BEB827A7B14F99AC9EC792 /* SynthLib */,
+				49BEB827A7B14F99AC9EC792 /* SynthLib/src */,
 				A0453C2CFCFF7104004E572A /* Frameworks */,
 				A045332CFCFF6E5F004E572A /* Products */,
 			);
@@ -102,8 +102,8 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
+				49BEB827A7B14F99AC9EC792 /* SynthLib/src */,
 				A04E4EEAFCCE334E00468BB7 /* src */,
-				49BEB827A7B14F99AC9EC792 /* SynthLib */,
 			);
 			name = Z1Edit;
 			packageProductDependencies = (
