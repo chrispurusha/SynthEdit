@@ -155,6 +155,8 @@ void init_graphics(void) {
     glfwSetScrollCallback(win, scroll_cb);
 
     setup_projection(win);
+    glfwSetWindowSizeLimits(win, (int)(1280.0 / gGlobalGuiScale), (int)(600.0 / gGlobalGuiScale), GLFW_DONT_CARE, GLFW_DONT_CARE);
+    glfwSetWindowAspectRatio(win, 1280, 600);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
