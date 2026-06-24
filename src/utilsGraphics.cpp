@@ -831,13 +831,10 @@ bool preload_glyph_textures(const char * fontPath, double fontSize) {
     glGenTextures(1, &textureAtlas);
     glBindTexture(GL_TEXTURE_2D, textureAtlas);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, atlasWidth, atlasHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    // Auto-generate mipmaps when glTexSubImage2D is called (OpenGL 1.4).
-    // glGenerateMipmap (3.0+) is unavailable in the legacy context.
-    glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_TRUE);
 
     // Initialize max ascent and descent
     gMaxAscent  = 0.0;
