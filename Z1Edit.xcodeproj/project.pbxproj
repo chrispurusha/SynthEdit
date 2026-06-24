@@ -31,6 +31,11 @@
 			path = src;
 			sourceTree = "<group>";
 		};
+		49BEB827A7B14F99AC9EC792 /* SynthLib */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = SynthLib;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -54,6 +59,7 @@
 			isa = PBXGroup;
 			children = (
 				A04E4EEAFCCE334E00468BB7 /* src */,
+				49BEB827A7B14F99AC9EC792 /* SynthLib */,
 				A0453C2CFCFF7104004E572A /* Frameworks */,
 				A045332CFCFF6E5F004E572A /* Products */,
 			);
@@ -97,6 +103,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				A04E4EEAFCCE334E00468BB7 /* src */,
+				49BEB827A7B14F99AC9EC792 /* SynthLib */,
 			);
 			name = Z1Edit;
 			packageProductDependencies = (
@@ -308,6 +315,7 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				"HEADER_SEARCH_PATHS[arch=*]" = (
+					"$(PROJECT_DIR)/SynthLib",
 					"$(PROJECT_DIR)/ThirdParty/glfw/include",
 					"$(PROJECT_DIR)/ThirdParty/freetype/include",
 				);
@@ -366,6 +374,7 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				"HEADER_SEARCH_PATHS[arch=*]" = (
+					"$(PROJECT_DIR)/SynthLib",
 					"$(PROJECT_DIR)/ThirdParty/glfw/include",
 					"$(PROJECT_DIR)/ThirdParty/freetype/include",
 				);
