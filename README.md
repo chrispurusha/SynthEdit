@@ -43,7 +43,18 @@ If you already cloned without `--recurse-submodules`:
 git submodule update --init --recursive
 ```
 
-### 2. Build the third-party libraries
+### 2. Update SynthLib (contributors / returning developers)
+
+SynthLib is a shared library submodule pinned to a specific commit. If SynthLib has been updated since you last pulled, advance the pin before building:
+
+```
+git submodule update --remote SynthLib
+git add SynthLib && git commit -m "Update SynthLib"
+```
+
+Do not manually copy files into the `SynthLib/` directory — this will cause conflicts on the next update.
+
+### 3. Build the third-party libraries
 
 All commands run from the root of the cloned repository.
 
@@ -68,11 +79,11 @@ cmake -S SynthLib/ThirdParty/freetype -B SynthLib/ThirdParty/freetype/build \
 cmake --build SynthLib/ThirdParty/freetype/build
 ```
 
-### 3. Build with Xcode
+### 4. Build with Xcode
 
 Open `Z1Edit.xcodeproj` and build normally.
 
-### 4. Code formatting (optional)
+### 5. Code formatting (optional)
 
 After editing source files, run from the repository root:
 
