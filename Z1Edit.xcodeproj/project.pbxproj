@@ -316,8 +316,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				"HEADER_SEARCH_PATHS[arch=*]" = (
 					"$(PROJECT_DIR)/SynthLib/src",
-					"$(PROJECT_DIR)/ThirdParty/glfw/include",
-					"$(PROJECT_DIR)/ThirdParty/freetype/include",
+					"$(PROJECT_DIR)/SynthLib/ThirdParty/glfw/include",
+					"$(PROJECT_DIR)/SynthLib/ThirdParty/freetype/include",
 				);
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -331,8 +331,8 @@
 				MARKETING_VERSION = 1.0;
 				ONLY_ACTIVE_ARCH = YES;
 				"OTHER_LDFLAGS[arch=*]" = (
-					"$(PROJECT_DIR)/ThirdParty/glfw/build/src/libglfw3.a",
-					"$(PROJECT_DIR)/ThirdParty/freetype/build/libfreetype.a",
+					"$(PROJECT_DIR)/SynthLib/ThirdParty/glfw/build/src/libglfw3.a",
+					"$(PROJECT_DIR)/SynthLib/ThirdParty/freetype/build/libfreetype.a",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = Purusha.Z1Edit;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -375,8 +375,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				"HEADER_SEARCH_PATHS[arch=*]" = (
 					"$(PROJECT_DIR)/SynthLib/src",
-					"$(PROJECT_DIR)/ThirdParty/glfw/include",
-					"$(PROJECT_DIR)/ThirdParty/freetype/include",
+					"$(PROJECT_DIR)/SynthLib/ThirdParty/glfw/include",
+					"$(PROJECT_DIR)/SynthLib/ThirdParty/freetype/include",
 				);
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -389,8 +389,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 15.1;
 				MARKETING_VERSION = 1.0;
 				"OTHER_LDFLAGS[arch=*]" = (
-					"$(PROJECT_DIR)/ThirdParty/freetype/build/libfreetype.a",
-					"$(PROJECT_DIR)/ThirdParty/glfw/build/src/libglfw3.a",
+					"$(PROJECT_DIR)/SynthLib/ThirdParty/freetype/build/libfreetype.a",
+					"$(PROJECT_DIR)/SynthLib/ThirdParty/glfw/build/src/libglfw3.a",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = Purusha.Z1Edit;
 				PRODUCT_NAME = "$(TARGET_NAME)";
