@@ -133,6 +133,19 @@ typedef enum {
     eDialModeHorizontal = 2,   // drag left/right; cursor hidden
 } tDialMode;
 
+// ── Scroll state ──────────────────────────────────────────────────────────────
+
+typedef struct {
+    double     xBar;
+    bool       xBarDragging;
+    double     xGrabOffset;
+    tRectangle xThumb;
+    double     yBar;
+    bool       yBarDragging;
+    double     yGrabOffset;
+    tRectangle yThumb;
+} tScrollState;
+
 // ── MIDI device ───────────────────────────────────────────────────────────────
 
 #define Z1_PROG_NAME_MAXLEN    17    // 16 chars + null terminator

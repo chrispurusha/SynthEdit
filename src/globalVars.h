@@ -33,6 +33,7 @@ extern tDialMode       gDialMode;
 // ── GLFW window ───────────────────────────────────────────────────────────────
 extern void *          gWindow;            // GLFWwindow*; void* avoids pulling GLFW into C headers
 extern double          gGlobalGuiScale;
+extern tScrollState    gScrollState;
 
 // ── MIDI / device ─────────────────────────────────────────────────────────────
 extern tZ1Device       gDevice;

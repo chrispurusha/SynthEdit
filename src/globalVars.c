@@ -28,6 +28,7 @@ _Atomic bool    gReDraw         = true;
 
 void *          gWindow         = NULL;
 double          gGlobalGuiScale = 1.0;
+tScrollState    gScrollState    = {0};
 
 tZ1Device       gDevice         = {0};
 MIDIClientRef   gMidiClient     = 0;
