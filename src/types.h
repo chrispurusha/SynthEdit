@@ -20,6 +20,7 @@
 #ifndef __TYPES_H__
 #define __TYPES_H__
 
+#include "defs.h"
 #include "geometry.h"
 
 // ── Colour ────────────────────────────────────────────────────────────────────
