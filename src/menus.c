@@ -17,8 +17,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "synthlibDefs.h"
 #include "defs.h"
+#include "synthlibDefs.h"
 #include "types.h"
 #include "globalVars.h"
 #include "utilsGraphics.h"

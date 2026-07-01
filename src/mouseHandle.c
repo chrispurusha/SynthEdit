@@ -18,6 +18,7 @@
  */
 
 #include "defs.h"
+#include "synthlibDefs.h"
 #include "types.h"
 #include "globalVars.h"
 #include "utilsGraphics.h"

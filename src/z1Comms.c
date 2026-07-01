@@ -20,8 +20,8 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "synthlibDefs.h"
 #include "defs.h"
+#include "synthlibDefs.h"
 #include "types.h"
 #include "globalVars.h"
 #include "midiComms.h"

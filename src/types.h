@@ -21,7 +21,7 @@
 #define __TYPES_H__
 
 #include "defs.h"
-#include "synthlibTypes.h"
+#include "synthlibDefs.h"
 #include "geometry.h"
 
 // ── Colour ────────────────────────────────────────────────────────────────────
