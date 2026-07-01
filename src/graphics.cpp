@@ -29,6 +29,7 @@ extern "C" {
 #include FT_FREETYPE_H
 #pragma clang diagnostic pop
 
+#include "synthlibDefs.h"
 #include "defs.h"
 #include "types.h"
 #include "globalVars.h"

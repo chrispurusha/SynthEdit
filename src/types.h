@@ -21,64 +21,10 @@
 #define __TYPES_H__
 
 #include "defs.h"
+#include "synthlibTypes.h"
 #include "geometry.h"
 
 // ── Colour ────────────────────────────────────────────────────────────────────
-
-typedef struct {
-    double red;
-    double green;
-    double blue;
-} tRgb;
-
-typedef struct {
-    double red;
-    double green;
-    double blue;
-    double alpha;
-} tRgba;
-
-#define RGB_WHITE              {1.0, 1.0, 1.0}
-#define RGB_BLACK              {0.0, 0.0, 0.0}
-#define RGB_GREY               {0.5, 0.5, 0.5}
-#define RGB_BACKGROUND_GREY    {0.30, 0.30, 0.30}
-#define RGB_GREY_2             {0.20, 0.20, 0.20}
-#define RGB_GREY_3             {0.30, 0.30, 0.30}
-#define RGB_GREY_5             {0.50, 0.50, 0.50}
-#define RGB_GREY_7             {0.70, 0.70, 0.70}
-#define RGB_GREEN_ON           {0.00, 0.80, 0.00}
-
-// ── Geometry primitives ───────────────────────────────────────────────────────
-
-typedef struct {
-    tCoord coord1;
-    tCoord coord2rel;
-    tCoord coord3rel;
-} tTriangle;
-
-typedef struct {
-    double u1;
-    double v1;
-    double u2;
-    double v2;
-    double advance_x;
-    int    width;
-    int    height;
-    int    offset_x;
-    int    offset_y;
-} GlyphInfo;
-
-// ── Render area tags ──────────────────────────────────────────────────────────
-
-typedef enum {
-    mainArea   = 0,
-    moduleArea = 1,
-} tArea;
-
-typedef enum {
-    eNoCache = 0,
-    eCache   = 1,
-} tCache;
 
 // ── UI buttons ────────────────────────────────────────────────────────────────
 
@@ -135,17 +81,6 @@ typedef enum {
 } tDialMode;
 
 // ── Scroll state ──────────────────────────────────────────────────────────────
-
-typedef struct {
-    double     xBar;
-    bool       xBarDragging;
-    double     xGrabOffset;
-    tRectangle xThumb;
-    double     yBar;
-    bool       yBarDragging;
-    double     yGrabOffset;
-    tRectangle yThumb;
-} tScrollState;
 
 // ── MIDI device ───────────────────────────────────────────────────────────────
 

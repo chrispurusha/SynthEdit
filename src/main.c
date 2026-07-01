@@ -23,6 +23,7 @@ extern "C" {
 
 #include <signal.h>
 
+#include "synthlibDefs.h"
 #include "defs.h"
 #include "globalVars.h"
 #include "graphics.h"
