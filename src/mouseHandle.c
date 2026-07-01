@@ -42,6 +42,7 @@ extern void glfwGetWindowSize(void *, int *, int *);
 typedef enum {
     eDragNone,
     eDragFilterRouting,
+    eDragFilter2Link,
     eDragFilter1Type,
     eDragFilter1Cutoff,
     eDragFilter1Res,
@@ -131,6 +132,15 @@ static void set_filter_param(uint8_t * ccField, uint8_t * nativeField, uint8_t c
     atomic_store(&gReDraw, true);
 }
 
+static void set_filter2_link(uint8_t v) {
+    if (v == gDevice.filter2Link) {
+        return;
+    }
+    gDevice.filter2Link = v;
+    z1_send_parameter_change(Z1_PARAM_GROUP_PROG, Z1_PARAM_FILTER2_LINK, v);
+    atomic_store(&gReDraw, true);
+}
+
 static void set_filter_routing(uint8_t v) {
     if (v == gDevice.filterRouting) {
         return;
@@ -215,6 +225,8 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
     if (gDevice.connected) {
         if (within_rectangle(coord, z1_filter_routing_dial_rect())) {
             hitTarget = eDragFilterRouting;
+        } else if (within_rectangle(coord, z1_filter2_link_dial_rect())) {
+            hitTarget = eDragFilter2Link;
         } else if (within_rectangle(coord, z1_filter1_type_dial_rect())) {
             hitTarget = eDragFilter1Type;
         } else if (within_rectangle(coord, z1_filter1_dial_rect())) {
@@ -281,6 +293,33 @@ void handle_cursor_pos(void * win, double x, double y) {
             newRouting      = (int)gDevice.filterRouting + step;
         }
         set_filter_routing(clamp_routing(newRouting));
+        return;
+    }
+
+    // F2 Link dial: 2 positions (0=OFF, 1=ON)
+    if (gDragTarget == eDragFilter2Link) {
+        int newLink = 0;
+
+        if (gDialMode == eDialModeRotary) {
+            tCoord logCoord = window_to_logical(win, x, y);
+            double angle    = calculate_mouse_angle(logCoord, z1_filter2_link_dial_rect());
+            newLink = (int)angle_to_value(angle, 2);
+        } else {
+            double delta = 0.0;
+
+            if (gDialMode == eDialModeHorizontal) {
+                delta      = delta_to_logical(win, x - gDragPrevX, true);
+                gDragPrevX = x;
+            } else {
+                delta      = delta_to_logical(win, gDragPrevY - y, false);
+                gDragPrevY = y;
+            }
+            gDragTypeAccum += delta / 30.0;
+            int    step  = (int)gDragTypeAccum;
+            gDragTypeAccum -= (double)step;
+            newLink         = (int)gDevice.filter2Link + step;
+        }
+        set_filter2_link((uint8_t)(newLink >= 1 ? 1 : 0));
         return;
     }
 

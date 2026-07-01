@@ -165,6 +165,7 @@ typedef struct {
     uint8_t  unisonDetune;        // 0-99 cents
     // Real-time CC values (0-127 dial position) and native SysEx values (0-99)
     uint8_t  filterRouting;       // SysEx param 258, value 0-2: SERI1/SERI2/PARA
+    uint8_t  filter2Link;         // SysEx param 259, value 0-1: OFF/ON
     uint8_t  filter1Cutoff;       // CC 85
     uint8_t  filter1CutoffNative; // SysEx param 263
     uint8_t  filter1Resonance;    // CC 86

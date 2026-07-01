@@ -41,10 +41,12 @@ static const char * kCategoryNames[]       = {"Synth-Hard", "Synth-Soft", "E.Pia
                                               "Digital",          "User",       };
 
 static const char * kFilterRoutingNames[]  = {"SERI1", "SERI2", "PARA"};
+static const char * kFilter2LinkNames[]    = {"OFF", "ON"};
 static const char * kFilterTypeNames[]     = {"LPF", "HPF", "BPF", "BRF", "2BPF"};
 
 // Dial rectangles updated each frame; read by mouseHandle for hit-testing
 static tRectangle   gFilterRoutingDialRect = {{0}};
+static tRectangle   gFilter2LinkDialRect   = {{0}};
 static tRectangle   gFilter1TypeDialRect   = {{0}};
 static tRectangle   gFilter1DialRect       = {{0}};
 static tRectangle   gFilter1ResDialRect    = {{0}};
@@ -54,6 +56,10 @@ static tRectangle   gFilter2ResDialRect    = {{0}};
 
 tRectangle z1_filter_routing_dial_rect(void) {
     return gFilterRoutingDialRect;
+}
+
+tRectangle z1_filter2_link_dial_rect(void) {
+    return gFilter2LinkDialRect;
 }
 
 tRectangle z1_filter1_type_dial_rect(void) {
@@ -158,8 +164,11 @@ void z1_render(tRectangle area) {
         const tRgb   routCol = {0.8, 0.8, 0.3};
         uint8_t      fr      = (gDevice.filterRouting <= 2) ? gDevice.filterRouting : 0;
 
+        uint8_t      fl      = gDevice.filter2Link & 0x01;
+
         tDialInfo    dials[] = {
             {&gFilterRoutingDialRect, (uint32_t)fr,                                       0,   3, routCol, "Route",   kFilterRoutingNames},
+            {&gFilter2LinkDialRect,   (uint32_t)fl,                                       0,   2, routCol, "F2 Link", kFilter2LinkNames  },
             {&gFilter1TypeDialRect,   (uint32_t)(f1t - 1),                                0,   5, f1Col,   "F1 Type", kFilterTypeNames   },
             {&gFilter1DialRect,       gDevice.filter1Cutoff,    gDevice.filter1CutoffNative, 127, f1Col,   "F1 Cut",  NULL               },
             {&gFilter1ResDialRect,    gDevice.filter1Resonance, gDevice.filter1ResNative,    127, f1Col,   "F1 Res",  NULL               },
@@ -167,9 +176,9 @@ void z1_render(tRectangle area) {
             {&gFilter2DialRect,       gDevice.filter2Cutoff,    gDevice.filter2CutoffNative, 127, f2Col,   "F2 Cut",  NULL               },
             {&gFilter2ResDialRect,    gDevice.filter2Resonance, gDevice.filter2ResNative,    127, f2Col,   "F2 Res",  NULL               }, };
 
-        for (int i = 0; i < 7; i++) {
-            // gap between Route+F1 group and F2 group (F2 starts at i=4)
-            double     groupGap = (i >= 4) ? gap : 0.0;
+        for (int i = 0; i < 8; i++) {
+            // gap between Route+F2Link+F1 group and F2 group (F2 starts at i=5)
+            double     groupGap = (i >= 5) ? gap : 0.0;
             double     dx       = x + i * spacing + groupGap;
             tRectangle dialRect = {{dx, y}, {dialSz, dialSz}};
             *dials[i].rect = dialRect;
