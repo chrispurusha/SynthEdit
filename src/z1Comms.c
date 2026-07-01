@@ -165,6 +165,11 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
 #define CLAMP99(v)    ((v) <= 99 ? (v) : 99)
 #define TO_CC(n)      ((uint8_t)(((n) * 127UL + 49) / 99))
 
+    if (decodedLen > 311) {
+        uint8_t raw = decoded[311] & 0x03;
+        gDevice.filterRouting = (raw <= 2) ? raw : 0;
+    }
+
     if (decodedLen > 312) {
         gDevice.filter1Type = decoded[312];
 
@@ -262,7 +267,12 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
         gDevice.progName[Z1_PROG_NAME_LEN] = '\0';
         LOG_DEBUG("Program name updated: \"%s\"\n", gDevice.progName);
     } else if (group == Z1_PARAM_GROUP_PROG) {
-        if (paramId == Z1_PARAM_FILTER1_TYPE) {
+        if (paramId == Z1_PARAM_FILTER_ROUTING) {
+            if (value <= 2) {
+                gDevice.filterRouting = (uint8_t)value;
+                LOG_DEBUG("Filter Routing %u\n", (unsigned)value);
+            }
+        } else if (paramId == Z1_PARAM_FILTER1_TYPE) {
             if ((value >= 1) && (value <= 5)) {
                 gDevice.filter1Type = (uint8_t)value;
                 LOG_DEBUG("Filter1 Type %u\n", (unsigned)value);
@@ -306,6 +316,7 @@ void z1_on_connected(void) {
     gDevice.unisonOn            = false;
     gDevice.unisonType          = 0;
     gDevice.unisonDetune        = 0;
+    gDevice.filterRouting       = 0; // SERI1
     gDevice.filter1Type         = 1; // LPF
     gDevice.filter1Cutoff       = 0;
     gDevice.filter1CutoffNative = 0;

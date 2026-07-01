@@ -34,21 +34,27 @@ extern "C" {
 #include "utilsGraphics.h"
 #include "z1Graphics.h"
 
-static const char * kCategoryNames[]     = {"Synth-Hard", "Synth-Soft", "E.Piano",    "Organ",
-                                            "Strings",        "Brass",      "Wind",       "Bell/Mallt",
-                                            "Guitar",         "Bass",       "Perc/Drums", "Vocal",
-                                            "S.E./Natrl",     "Synth-Lead", "Synth-Pad",  "Synth-Comp",
-                                            "Digital",        "User",       };
+static const char * kCategoryNames[]       = {"Synth-Hard", "Synth-Soft", "E.Piano",    "Organ",
+                                              "Strings",          "Brass",      "Wind",       "Bell/Mallt",
+                                              "Guitar",           "Bass",       "Perc/Drums", "Vocal",
+                                              "S.E./Natrl",       "Synth-Lead", "Synth-Pad",  "Synth-Comp",
+                                              "Digital",          "User",       };
 
-static const char * kFilterTypeNames[]   = {"LPF", "HPF", "BPF", "BRF", "2BPF"};
+static const char * kFilterRoutingNames[]  = {"SERI1", "SERI2", "PARA"};
+static const char * kFilterTypeNames[]     = {"LPF", "HPF", "BPF", "BRF", "2BPF"};
 
 // Dial rectangles updated each frame; read by mouseHandle for hit-testing
-static tRectangle   gFilter1TypeDialRect = {{0}};
-static tRectangle   gFilter1DialRect     = {{0}};
-static tRectangle   gFilter1ResDialRect  = {{0}};
-static tRectangle   gFilter2TypeDialRect = {{0}};
-static tRectangle   gFilter2DialRect     = {{0}};
-static tRectangle   gFilter2ResDialRect  = {{0}};
+static tRectangle   gFilterRoutingDialRect = {{0}};
+static tRectangle   gFilter1TypeDialRect   = {{0}};
+static tRectangle   gFilter1DialRect       = {{0}};
+static tRectangle   gFilter1ResDialRect    = {{0}};
+static tRectangle   gFilter2TypeDialRect   = {{0}};
+static tRectangle   gFilter2DialRect       = {{0}};
+static tRectangle   gFilter2ResDialRect    = {{0}};
+
+tRectangle z1_filter_routing_dial_rect(void) {
+    return gFilterRoutingDialRect;
+}
 
 tRectangle z1_filter1_type_dial_rect(void) {
     return gFilter1TypeDialRect;
@@ -140,25 +146,30 @@ void z1_render(tRectangle area) {
                       ? gDevice.filter2Type : 1;
 
         typedef struct {
-            tRectangle * rect;
-            uint32_t     dialVal;    // 0-based value for render_dial
-            uint32_t     nativeVal;  // for cutoff/res; 0 for type dials
-            uint32_t     dialMax;    // max for render_dial: 4 for type, 127 for cutoff/res
-            tRgb         col;
-            const char * label;
-            bool         isType;
+            tRectangle *        rect;
+            uint32_t            dialVal;    // 0-based value for render_dial
+            uint32_t            nativeVal;  // for cutoff/res display; 0 for discrete dials
+            uint32_t            dialMax;    // total positions for render_dial
+            tRgb                col;
+            const char *        label;
+            const char *const * names;      // if non-NULL: discrete dial, show names[dialVal]
         } tDialInfo;
 
-        tDialInfo    dials[] = {
-            {&gFilter1TypeDialRect, (uint32_t)(f1t - 1),                                0,   5, f1Col, "F1 Type", true },
-            {&gFilter1DialRect,     gDevice.filter1Cutoff,    gDevice.filter1CutoffNative, 127, f1Col, "F1 Cut",  false},
-            {&gFilter1ResDialRect,  gDevice.filter1Resonance, gDevice.filter1ResNative,    127, f1Col, "F1 Res",  false},
-            {&gFilter2TypeDialRect, (uint32_t)(f2t - 1),                                0,   5, f2Col, "F2 Type", true },
-            {&gFilter2DialRect,     gDevice.filter2Cutoff,    gDevice.filter2CutoffNative, 127, f2Col, "F2 Cut",  false},
-            {&gFilter2ResDialRect,  gDevice.filter2Resonance, gDevice.filter2ResNative,    127, f2Col, "F2 Res",  false}, };
+        const tRgb   routCol = {0.8, 0.8, 0.3};
+        uint8_t      fr      = (gDevice.filterRouting <= 2) ? gDevice.filterRouting : 0;
 
-        for (int i = 0; i < 6; i++) {
-            double     groupGap = (i >= 3) ? gap : 0.0;
+        tDialInfo    dials[] = {
+            {&gFilterRoutingDialRect, (uint32_t)fr,                                       0,   3, routCol, "Route",   kFilterRoutingNames},
+            {&gFilter1TypeDialRect,   (uint32_t)(f1t - 1),                                0,   5, f1Col,   "F1 Type", kFilterTypeNames   },
+            {&gFilter1DialRect,       gDevice.filter1Cutoff,    gDevice.filter1CutoffNative, 127, f1Col,   "F1 Cut",  NULL               },
+            {&gFilter1ResDialRect,    gDevice.filter1Resonance, gDevice.filter1ResNative,    127, f1Col,   "F1 Res",  NULL               },
+            {&gFilter2TypeDialRect,   (uint32_t)(f2t - 1),                                0,   5, f2Col,   "F2 Type", kFilterTypeNames   },
+            {&gFilter2DialRect,       gDevice.filter2Cutoff,    gDevice.filter2CutoffNative, 127, f2Col,   "F2 Cut",  NULL               },
+            {&gFilter2ResDialRect,    gDevice.filter2Resonance, gDevice.filter2ResNative,    127, f2Col,   "F2 Res",  NULL               }, };
+
+        for (int i = 0; i < 7; i++) {
+            // gap between Route+F1 group and F2 group (F2 starts at i=4)
+            double     groupGap = (i >= 4) ? gap : 0.0;
             double     dx       = x + i * spacing + groupGap;
             tRectangle dialRect = {{dx, y}, {dialSz, dialSz}};
             *dials[i].rect = dialRect;
@@ -167,8 +178,8 @@ void z1_render(tRectangle area) {
 
             char       valBuf[24];
 
-            if (dials[i].isType) {
-                snprintf(valBuf, sizeof(valBuf), "%s", kFilterTypeNames[dials[i].dialVal]);
+            if (dials[i].names) {
+                snprintf(valBuf, sizeof(valBuf), "%s", dials[i].names[dials[i].dialVal]);
             } else {
                 snprintf(valBuf, sizeof(valBuf), "%u (%u)", (unsigned)dials[i].dialVal,
                          (unsigned)dials[i].nativeVal);

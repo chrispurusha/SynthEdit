@@ -84,6 +84,7 @@
 #define Z1_PROG_NAME_LEN                16
 
 // Z1 program parameter IDs (group Z1_PARAM_GROUP_PROG)
+#define Z1_PARAM_FILTER_ROUTING         258 // value 0-2: SERI1/SERI2/PARA; decoded[311] bits 0-1
 #define Z1_PARAM_FILTER1_TYPE           261 // value 1-5: LPF/HPF/BPF/BRF/2BPF; decoded[312]
 #define Z1_PARAM_FILTER1_CUTOFF         263 // value 0-99; confirmed from SysEx capture; decoded[314]
 #define Z1_PARAM_FILTER1_RESONANCE      274 // value 0-99; decoded[325]

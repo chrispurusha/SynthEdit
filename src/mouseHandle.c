@@ -41,6 +41,7 @@ extern void glfwGetWindowSize(void *, int *, int *);
 // ── Dial drag state ───────────────────────────────────────────────────────────
 typedef enum {
     eDragNone,
+    eDragFilterRouting,
     eDragFilter1Type,
     eDragFilter1Cutoff,
     eDragFilter1Res,
@@ -98,6 +99,17 @@ static uint8_t clamp_u8(int v) {
     return (uint8_t)v;
 }
 
+static uint8_t clamp_routing(int v) {
+    if (v < 0) {
+        return 0;
+    }
+
+    if (v > 2) {
+        return 2;
+    }
+    return (uint8_t)v;
+}
+
 static uint8_t clamp_type(int v) {
     if (v < 1) {
         return 1;
@@ -116,6 +128,15 @@ static void set_filter_param(uint8_t * ccField, uint8_t * nativeField, uint8_t c
     *ccField     = value;
     *nativeField = (uint8_t)(value * 99UL / 127);
     midi_send_cc(gDevice.id, cc, value);
+    atomic_store(&gReDraw, true);
+}
+
+static void set_filter_routing(uint8_t v) {
+    if (v == gDevice.filterRouting) {
+        return;
+    }
+    gDevice.filterRouting = v;
+    z1_send_parameter_change(Z1_PARAM_GROUP_PROG, Z1_PARAM_FILTER_ROUTING, v);
     atomic_store(&gReDraw, true);
 }
 
@@ -192,7 +213,9 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
     tDragTarget hitTarget = eDragNone;
 
     if (gDevice.connected) {
-        if (within_rectangle(coord, z1_filter1_type_dial_rect())) {
+        if (within_rectangle(coord, z1_filter_routing_dial_rect())) {
+            hitTarget = eDragFilterRouting;
+        } else if (within_rectangle(coord, z1_filter1_type_dial_rect())) {
             hitTarget = eDragFilter1Type;
         } else if (within_rectangle(coord, z1_filter1_dial_rect())) {
             hitTarget = eDragFilter1Cutoff;
@@ -231,6 +254,33 @@ void handle_cursor_pos(void * win, double x, double y) {
         gDragPrevX = x;
         gDragPrevY = y;
         gDragSkipCount--;
+        return;
+    }
+
+    // Routing dial: 3 positions (0=SERI1, 1=SERI2, 2=PARA)
+    if (gDragTarget == eDragFilterRouting) {
+        int newRouting = 0;
+
+        if (gDialMode == eDialModeRotary) {
+            tCoord logCoord = window_to_logical(win, x, y);
+            double angle    = calculate_mouse_angle(logCoord, z1_filter_routing_dial_rect());
+            newRouting = (int)angle_to_value(angle, 3);
+        } else {
+            double delta = 0.0;
+
+            if (gDialMode == eDialModeHorizontal) {
+                delta      = delta_to_logical(win, x - gDragPrevX, true);
+                gDragPrevX = x;
+            } else {
+                delta      = delta_to_logical(win, gDragPrevY - y, false);
+                gDragPrevY = y;
+            }
+            gDragTypeAccum += delta / 30.0;
+            int    step  = (int)gDragTypeAccum;
+            gDragTypeAccum -= (double)step;
+            newRouting      = (int)gDevice.filterRouting + step;
+        }
+        set_filter_routing(clamp_routing(newRouting));
         return;
     }
 
