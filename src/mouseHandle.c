@@ -40,7 +40,10 @@ extern void glfwGetWindowSize(void *, int *, int *);
 // ── Dial drag state ───────────────────────────────────────────────────────────
 typedef enum {
     eDragNone,
-    eDragFilter1,
+    eDragFilter1Cutoff,
+    eDragFilter1Res,
+    eDragFilter2Cutoff,
+    eDragFilter2Res,
 } tDragTarget;
 
 static tDragTarget gDragTarget = eDragNone;
@@ -58,8 +61,8 @@ static tCoord window_to_logical(void * win, double x, double y) {
 
     glfwGetWindowSize(win, &winW, &winH);
     return (tCoord){
-        .x = (winW > 0) ? (x / winW) * TARGET_FRAME_BUFF_WIDTH : x,
-        .y = (winH > 0) ? (y / winH) * TARGET_FRAME_BUFF_HEIGHT : y,
+        .x = (winW > 0) ? (x / winW) * (get_render_width() / gGlobalGuiScale) : x,
+        .y = (winH > 0) ? (y / winH) * (get_render_height() / gGlobalGuiScale) : y,
     };
 }
 
@@ -71,9 +74,9 @@ static double delta_to_logical(void * win, double winDelta, bool isX) {
     glfwGetWindowSize(win, &winW, &winH);
 
     if (isX) {
-        return (winW > 0) ? (winDelta / winW) * TARGET_FRAME_BUFF_WIDTH : winDelta;
+        return (winW > 0) ? (winDelta / winW) * (get_render_width() / gGlobalGuiScale) : winDelta;
     } else {
-        return (winH > 0) ? (winDelta / winH) * TARGET_FRAME_BUFF_HEIGHT : winDelta;
+        return (winH > 0) ? (winDelta / winH) * (get_render_height() / gGlobalGuiScale) : winDelta;
     }
 }
 
@@ -90,14 +93,30 @@ static uint8_t clamp_u8(int v) {
     return (uint8_t)v;
 }
 
-static void set_filter1_cutoff(uint8_t value) {
-    if (value == gDevice.filter1Cutoff) {
+static void set_filter_param(uint8_t * ccField, uint8_t * nativeField, uint8_t cc, uint8_t value) {
+    if (value == *ccField) {
         return;
     }
-    gDevice.filter1Cutoff       = value;
-    gDevice.filter1CutoffNative = (uint8_t)(value * 99UL / 127);
-    midi_send_cc(gDevice.id, 0x55, value);
+    *ccField     = value;
+    *nativeField = (uint8_t)(value * 99UL / 127);
+    midi_send_cc(gDevice.id, cc, value);
     atomic_store(&gReDraw, true);
+}
+
+static void set_filter1_cutoff(uint8_t v) {
+    set_filter_param(&gDevice.filter1Cutoff, &gDevice.filter1CutoffNative, 0x55, v);
+}
+
+static void set_filter1_res(uint8_t v) {
+    set_filter_param(&gDevice.filter1Resonance, &gDevice.filter1ResNative, 0x56, v);
+}
+
+static void set_filter2_cutoff(uint8_t v) {
+    set_filter_param(&gDevice.filter2Cutoff, &gDevice.filter2CutoffNative, 0x58, v);
+}
+
+static void set_filter2_res(uint8_t v) {
+    set_filter_param(&gDevice.filter2Resonance, &gDevice.filter2ResNative, 0x59, v);
 }
 
 // ── Public handlers ───────────────────────────────────────────────────────────
@@ -133,10 +152,23 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
     if (!pressed) {
         return;
     }
+    // Hit-test filter dials
+    tDragTarget hitTarget = eDragNone;
 
-    // Hit-test filter 1 dial
-    if (gDevice.connected && within_rectangle(coord, z1_filter1_dial_rect())) {
-        gDragTarget = eDragFilter1;
+    if (gDevice.connected) {
+        if (within_rectangle(coord, z1_filter1_dial_rect())) {
+            hitTarget = eDragFilter1Cutoff;
+        } else if (within_rectangle(coord, z1_filter1_res_dial_rect())) {
+            hitTarget = eDragFilter1Res;
+        } else if (within_rectangle(coord, z1_filter2_dial_rect())) {
+            hitTarget = eDragFilter2Cutoff;
+        } else if (within_rectangle(coord, z1_filter2_res_dial_rect())) {
+            hitTarget = eDragFilter2Res;
+        }
+    }
+
+    if (hitTarget != eDragNone) {
+        gDragTarget = hitTarget;
         gDragStartX = x;
         gDragStartY = y;
         gDragPrevX  = x;
@@ -152,25 +184,60 @@ void handle_cursor_pos(void * win, double x, double y) {
     if (gDragTarget == eDragNone) {
         return;
     }
-    int newVal = 0;
+    // Current CC value for the dragged dial (for delta modes)
+    uint8_t    curVal   = 0;
+
+    switch (gDragTarget) {
+        case eDragFilter1Cutoff: curVal = gDevice.filter1Cutoff;
+            break;
+        case eDragFilter1Res:    curVal = gDevice.filter1Resonance;
+            break;
+        case eDragFilter2Cutoff: curVal = gDevice.filter2Cutoff;
+            break;
+        case eDragFilter2Res:    curVal = gDevice.filter2Resonance;
+            break;
+        default:                 return;
+    }
+    // Dial rect for rotary mode
+    tRectangle dialRect = {0};
+
+    switch (gDragTarget) {
+        case eDragFilter1Cutoff: dialRect = z1_filter1_dial_rect();
+            break;
+        case eDragFilter1Res:    dialRect = z1_filter1_res_dial_rect();
+            break;
+        case eDragFilter2Cutoff: dialRect = z1_filter2_dial_rect();
+            break;
+        case eDragFilter2Res:    dialRect = z1_filter2_res_dial_rect();
+            break;
+        default:                 return;
+    }
+    int        newVal   = 0;
 
     if (gDialMode == eDialModeRotary) {
         tCoord logCoord = window_to_logical(win, x, y);
-        double angle    = calculate_mouse_angle(logCoord, z1_filter1_dial_rect());
+        double angle    = calculate_mouse_angle(logCoord, dialRect);
         newVal = (int)angle_to_value(angle, 128);
     } else if (gDialMode == eDialModeVertical) {
         double dy = delta_to_logical(win, gDragPrevY - y, false);
         gDragPrevY = y;
-        newVal     = (int)gDevice.filter1Cutoff + (int)(dy * 127.0 / 200.0);
+        newVal     = (int)curVal + (int)(dy * 127.0 / 200.0);
     } else {
-        // eDialModeHorizontal — right = increase
         double dx = delta_to_logical(win, x - gDragPrevX, true);
         gDragPrevX = x;
-        newVal     = (int)gDevice.filter1Cutoff + (int)(dx * 127.0 / 200.0);
+        newVal     = (int)curVal + (int)(dx * 127.0 / 200.0);
     }
 
-    if (gDragTarget == eDragFilter1) {
-        set_filter1_cutoff(clamp_u8(newVal));
+    switch (gDragTarget) {
+        case eDragFilter1Cutoff: set_filter1_cutoff(clamp_u8(newVal));
+            break;
+        case eDragFilter1Res:    set_filter1_res(clamp_u8(newVal));
+            break;
+        case eDragFilter2Cutoff: set_filter2_cutoff(clamp_u8(newVal));
+            break;
+        case eDragFilter2Res:    set_filter2_res(clamp_u8(newVal));
+            break;
+        default:                                                        break;
     }
 }
 

@@ -85,6 +85,9 @@
 
 // Z1 program parameter IDs (group Z1_PARAM_GROUP_PROG)
 #define Z1_PARAM_FILTER1_CUTOFF         263 // value 0-99; confirmed from SysEx capture
+#define Z1_PARAM_FILTER1_RESONANCE      274 // value 0-99; decoded[325]
+#define Z1_PARAM_FILTER2_CUTOFF         290 // value 0-99; decoded[341]
+#define Z1_PARAM_FILTER2_RESONANCE      301 // value 0-99; decoded[352]
 
 
 // ── Graphics / layout constants (used by utilsGraphics) ──────────────────────

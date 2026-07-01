@@ -158,22 +158,44 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
     if (decodedLen > 22) {
         gDevice.unisonDetune = decoded[22];
     }
+    // Filter native values (0-99) from decoded program dump.
+    // Byte offsets derived from parameter table anchored at decoded[314] = ID 263 (Filter1 Cutoff).
+    // Offsets for resonance/filter2 are unconfirmed by SysEx capture — verify against hardware.
+#define CLAMP99(v)    ((v) <= 99 ? (v) : 99)
+#define TO_CC(n)      ((uint8_t)(((n) * 127UL + 49) / 99))
 
-    // Filter 1 Cutoff native value (0-99) is at byte 314 in the decoded program dump
     if (decodedLen > 314) {
-        uint8_t native = decoded[314] <= 99 ? decoded[314] : 99;
-        gDevice.filter1CutoffNative = native;
-        // Derive initial CC dial position (0-127) from native value
-        gDevice.filter1Cutoff       = (uint8_t)((native * 127UL + 49) / 99);
+        gDevice.filter1CutoffNative = CLAMP99(decoded[314]);
+        gDevice.filter1Cutoff       = TO_CC(gDevice.filter1CutoffNative);
     }
-    LOG_DEBUG("Z1 prog: \"%s\"  cat=%s  voice=%s  unison=%s(%u cents)  f1cut=%u(%u)\n",
+
+    if (decodedLen > 325) {
+        gDevice.filter1ResNative = CLAMP99(decoded[325]);
+        gDevice.filter1Resonance = TO_CC(gDevice.filter1ResNative);
+    }
+
+    if (decodedLen > 341) {
+        gDevice.filter2CutoffNative = CLAMP99(decoded[341]);
+        gDevice.filter2Cutoff       = TO_CC(gDevice.filter2CutoffNative);
+    }
+
+    if (decodedLen > 352) {
+        gDevice.filter2ResNative = CLAMP99(decoded[352]);
+        gDevice.filter2Resonance = TO_CC(gDevice.filter2ResNative);
+    }
+#undef CLAMP99
+#undef TO_CC
+
+    LOG_DEBUG("Z1 prog: \"%s\"  cat=%s  voice=%s  unison=%s(%u cents)  f1cut=%u(%u)  f1res=%u(%u)  f2cut=%u(%u)  f2res=%u(%u)\n",
               gDevice.progName,
               kCategoryNames[gDevice.category],
               kVoiceModeNames[gDevice.voiceMode < 3 ? gDevice.voiceMode : 2],
               gDevice.unisonOn ? kUnisonTypeNames[gDevice.unisonType & 3] : "OFF",
               (unsigned)gDevice.unisonDetune,
-              (unsigned)gDevice.filter1Cutoff,
-              (unsigned)gDevice.filter1CutoffNative);
+              (unsigned)gDevice.filter1Cutoff, (unsigned)gDevice.filter1CutoffNative,
+              (unsigned)gDevice.filter1Resonance, (unsigned)gDevice.filter1ResNative,
+              (unsigned)gDevice.filter2Cutoff, (unsigned)gDevice.filter2CutoffNative,
+              (unsigned)gDevice.filter2Resonance, (unsigned)gDevice.filter2ResNative);
 }
 
 // ── Message handlers ──────────────────────────────────────────────────────────
@@ -215,9 +237,27 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
         gDevice.progName[paramId - 1]      = ((c >= 0x20) && (c <= 0x7F)) ? c : '?';
         gDevice.progName[Z1_PROG_NAME_LEN] = '\0';
         LOG_DEBUG("Program name updated: \"%s\"\n", gDevice.progName);
-    } else if ((group == Z1_PARAM_GROUP_PROG) && (paramId == Z1_PARAM_FILTER1_CUTOFF)) {
-        gDevice.filter1CutoffNative = (uint8_t)(value <= 99 ? value : 99);
-        LOG_DEBUG("Filter 1 Cutoff native updated: %u\n", (unsigned)gDevice.filter1CutoffNative);
+    } else if (group == Z1_PARAM_GROUP_PROG) {
+        uint8_t native = (uint8_t)(value <= 99 ? value : 99);
+        uint8_t cc     = (uint8_t)((native * 127UL + 49) / 99);
+
+        if (paramId == Z1_PARAM_FILTER1_CUTOFF) {
+            gDevice.filter1CutoffNative = native;
+            gDevice.filter1Cutoff       = cc;
+            LOG_DEBUG("Filter1 Cutoff native=%u cc=%u\n", native, cc);
+        } else if (paramId == Z1_PARAM_FILTER1_RESONANCE) {
+            gDevice.filter1ResNative = native;
+            gDevice.filter1Resonance = cc;
+            LOG_DEBUG("Filter1 Resonance native=%u cc=%u\n", native, cc);
+        } else if (paramId == Z1_PARAM_FILTER2_CUTOFF) {
+            gDevice.filter2CutoffNative = native;
+            gDevice.filter2Cutoff       = cc;
+            LOG_DEBUG("Filter2 Cutoff native=%u cc=%u\n", native, cc);
+        } else if (paramId == Z1_PARAM_FILTER2_RESONANCE) {
+            gDevice.filter2ResNative = native;
+            gDevice.filter2Resonance = cc;
+            LOG_DEBUG("Filter2 Resonance native=%u cc=%u\n", native, cc);
+        }
     }
 }
 
@@ -233,6 +273,12 @@ void z1_on_connected(void) {
     gDevice.unisonDetune        = 0;
     gDevice.filter1Cutoff       = 0;
     gDevice.filter1CutoffNative = 0;
+    gDevice.filter1Resonance    = 0;
+    gDevice.filter1ResNative    = 0;
+    gDevice.filter2Cutoff       = 0;
+    gDevice.filter2CutoffNative = 0;
+    gDevice.filter2Resonance    = 0;
+    gDevice.filter2ResNative    = 0;
     atomic_store(&gReDraw, true);
     z1_request_current_program();
 }

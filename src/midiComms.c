@@ -247,8 +247,21 @@ static void midi_notify_cb(const MIDINotification * msg, void * refCon) {
 static void dispatch_cc(uint8_t cc, uint8_t value) {
     LOG_DEBUG("CC 0x%02X val=%u\n", (unsigned)cc, (unsigned)value);
 
-    if (cc == 0x55) {    // CC 85 = Filter 1 Cutoff
+    bool handled = true;
+
+    if (cc == 0x55) {         // CC 85 — Filter1 Cutoff
         gDevice.filter1Cutoff = value;
+    } else if (cc == 0x56) {  // CC 86 — Filter1 Resonance
+        gDevice.filter1Resonance = value;
+    } else if (cc == 0x58) {  // CC 88 — Filter2 Cutoff
+        gDevice.filter2Cutoff = value;
+    } else if (cc == 0x59) {  // CC 89 — Filter2 Resonance
+        gDevice.filter2Resonance = value;
+    } else {
+        handled = false;
+    }
+
+    if (handled) {
         atomic_store(&gReDraw, true);
 
         if (gWakeCb != NULL) {

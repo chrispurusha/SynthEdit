@@ -34,17 +34,32 @@ extern "C" {
 #include "utilsGraphics.h"
 #include "z1Graphics.h"
 
-static const char * kCategoryNames[] = {"Synth-Hard", "Synth-Soft", "E.Piano",    "Organ",
-                                        "Strings",    "Brass",      "Wind",       "Bell/Mallt",
-                                        "Guitar",     "Bass",       "Perc/Drums", "Vocal",
-                                        "S.E./Natrl", "Synth-Lead", "Synth-Pad",  "Synth-Comp",
-                                        "Digital",    "User",       };
+static const char * kCategoryNames[]    = {"Synth-Hard", "Synth-Soft", "E.Piano",    "Organ",
+                                           "Strings",       "Brass",      "Wind",       "Bell/Mallt",
+                                           "Guitar",        "Bass",       "Perc/Drums", "Vocal",
+                                           "S.E./Natrl",    "Synth-Lead", "Synth-Pad",  "Synth-Comp",
+                                           "Digital",       "User",       };
 
-// Dial rectangle updated each frame; read by mouseHandle for hit-testing
-static tRectangle   gFilter1DialRect = {{0}};
+// Dial rectangles updated each frame; read by mouseHandle for hit-testing
+static tRectangle   gFilter1DialRect    = {{0}};
+static tRectangle   gFilter1ResDialRect = {{0}};
+static tRectangle   gFilter2DialRect    = {{0}};
+static tRectangle   gFilter2ResDialRect = {{0}};
 
 tRectangle z1_filter1_dial_rect(void) {
     return gFilter1DialRect;
+}
+
+tRectangle z1_filter1_res_dial_rect(void) {
+    return gFilter1ResDialRect;
+}
+
+tRectangle z1_filter2_dial_rect(void) {
+    return gFilter2DialRect;
+}
+
+tRectangle z1_filter2_res_dial_rect(void) {
+    return gFilter2ResDialRect;
 }
 
 void z1_init_graphics(void) {
@@ -98,28 +113,43 @@ void z1_render(tRectangle area) {
         y += 50.0;
     }
 
-    // ── Filter 1 Cutoff dial ──────────────────────────────────────────────────
+    // ── Filter dials ──────────────────────────────────────────────────────────
     {
-        double     dialSz   = 80.0;
-        tRectangle dialRect = {{x, y}, {dialSz, dialSz}};
-        gFilter1DialRect = dialRect;
+        const double dialSz  = 80.0;
+        const double spacing = 100.0;
+        const tRgb   f1Col   = {0.2, 0.6, 1.0};
+        const tRgb   f2Col   = {0.3, 0.9, 0.5};
 
-        set_rgb_colour((tRgb){0.2, 0.6, 1.0});
-        render_dial(mainArea, dialRect,
-                    (uint32_t)gDevice.filter1Cutoff, 127, 0,
-                    (tRgb){0.2, 0.6, 1.0});
+        typedef struct {
+            tRectangle * rect;
+            uint8_t      cc;
+            uint8_t      native;
+            tRgb         col;
+            const char * label;
+        } tDialInfo;
+        tDialInfo    dials[] = {
+            {&gFilter1DialRect,    gDevice.filter1Cutoff,    gDevice.filter1CutoffNative, f1Col, "F1 Cutoff"},
+            {&gFilter1ResDialRect, gDevice.filter1Resonance, gDevice.filter1ResNative,    f1Col, "F1 Res"   },
+            {&gFilter2DialRect,    gDevice.filter2Cutoff,    gDevice.filter2CutoffNative, f2Col, "F2 Cutoff"},
+            {&gFilter2ResDialRect, gDevice.filter2Resonance, gDevice.filter2ResNative,    f2Col, "F2 Res"   }, };
 
-        // CC value and native (SysEx) value below dial
-        char       valBuf[32];
-        snprintf(valBuf, sizeof(valBuf), "%u  (%u)",
-                 (unsigned)gDevice.filter1Cutoff,
-                 (unsigned)gDevice.filter1CutoffNative);
-        tRectangle valRect  = {{x, y + dialSz + 4.0}, {dialSz * 2.0, 20.0}};
-        set_rgb_colour((tRgb)RGB_GREY_7);
-        render_text(mainArea, valRect, valBuf);
+        for (int i = 0; i < 4; i++) {
+            double     dx       = x + i * spacing;
+            tRectangle dialRect = {{dx, y}, {dialSz, dialSz}};
+            *dials[i].rect = dialRect;
 
-        tRectangle lblRect  = {{x, y + dialSz + 24.0}, {dialSz * 2.0, 20.0}};
-        render_text(mainArea, lblRect, "Filter 1 Cutoff");
+            set_rgb_colour(dials[i].col);
+            render_dial(mainArea, dialRect, (uint32_t)dials[i].cc, 127, 0, dials[i].col);
+
+            char       valBuf[24];
+            snprintf(valBuf, sizeof(valBuf), "%u (%u)", (unsigned)dials[i].cc, (unsigned)dials[i].native);
+            tRectangle valRect  = {{dx, y + dialSz + 4.0}, {spacing, 20.0}};
+            set_rgb_colour((tRgb)RGB_GREY_7);
+            render_text(mainArea, valRect, valBuf);
+
+            tRectangle lblRect  = {{dx, y + dialSz + 24.0}, {spacing, 20.0}};
+            render_text(mainArea, lblRect, dials[i].label);
+        }
     }
 }
 

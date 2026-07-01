@@ -32,8 +32,11 @@ void z1_init_graphics(void);
 // Render the full Z1 editor UI into the current frame
 void z1_render(tRectangle area);
 
-// Returns the last-rendered filter 1 cutoff dial rectangle (for hit-testing)
+// Returns last-rendered dial rectangles (for hit-testing)
 tRectangle z1_filter1_dial_rect(void);
+tRectangle z1_filter1_res_dial_rect(void);
+tRectangle z1_filter2_dial_rect(void);
+tRectangle z1_filter2_res_dial_rect(void);
 
 #ifdef __cplusplus
 }

@@ -171,7 +171,7 @@ void init_graphics(void) {
         glfwTerminate();
         exit(EXIT_FAILURE);
     }
-    gWindow = win;
+    gWindow      = win;
 
     glfwMakeContextCurrent(win);
     glfwSwapInterval(1);
@@ -204,8 +204,8 @@ static void render_frame(GLFWwindow * win) {
     glClearColor(0.15f, 0.15f, 0.15f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    double     logW     = (double)get_render_width();
-    double     logH     = TARGET_FRAME_BUFF_HEIGHT;
+    double     logW = (double)get_render_width() / gGlobalGuiScale;
+    double     logH = (double)get_render_height() / gGlobalGuiScale;
 
     // LCD area: 2× the raw 240×64 pixel size, centred in left half of virtual space
     //double     lcdDispW = LCD_WIDTH * 2.0;
