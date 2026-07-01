@@ -54,6 +54,7 @@ static double      gDragStartX    = 0.0;   // cursor position at press — used 
 static double      gDragStartY    = 0.0;
 static double      gDragPrevX     = 0.0;   // cursor position at previous cursor_pos call — incremental delta
 static double      gDragPrevY     = 0.0;
+static int         gDragSkipCount = 0;     // skip first N cursor_pos events after CURSOR_DISABLED — covers stale events + transition event
 static double      gDragTypeAccum = 0.0;   // sub-step accumulator for discrete type dial
 
 
@@ -165,11 +166,13 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
 
     // Release: end drag; restore cursor only for modes that hid it
     if (!pressed && (gDragTarget != eDragNone)) {
+        gDragSkipCount = 0;
+
         if (gDialMode != eDialModeRotary) {
             glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
             glfwSetCursorPos(win, gDragStartX, gDragStartY);
         }
-        gDragTarget = eDragNone;
+        gDragTarget    = eDragNone;
         return;
     }
 
@@ -213,6 +216,7 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
         gDragTypeAccum = 0.0;
 
         if (gDialMode != eDialModeRotary) {
+            gDragSkipCount = 3;
             glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         }
     }
@@ -223,20 +227,46 @@ void handle_cursor_pos(void * win, double x, double y) {
         return;
     }
 
-    // Type dials: always use vertical delta with sub-step accumulator (no CC)
-    if ((gDragTarget == eDragFilter1Type) || (gDragTarget == eDragFilter2Type)) {
-        double dy   = delta_to_logical(win, gDragPrevY - y, false);
-        gDragPrevY      = y;
-        gDragTypeAccum += dy / 30.0;     // ~30 logical px per step
-        int    step = (int)gDragTypeAccum;
-        gDragTypeAccum -= (double)step;  // keep remainder
+    if (gDragSkipCount > 0) {
+        gDragPrevX = x;
+        gDragPrevY = y;
+        gDragSkipCount--;
+        return;
+    }
 
-        if (step != 0) {
-            if (gDragTarget == eDragFilter1Type) {
-                set_filter1_type(clamp_type((int)gDevice.filter1Type + step));
+    // Type dials: respect gDialMode, use accumulator for delta modes
+    if ((gDragTarget == eDragFilter1Type) || (gDragTarget == eDragFilter2Type)) {
+        tRectangle dialRect = (gDragTarget == eDragFilter1Type)
+                              ? z1_filter1_type_dial_rect()
+                              : z1_filter2_type_dial_rect();
+        int        newType  = 0;
+
+        if (gDialMode == eDialModeRotary) {
+            tCoord logCoord = window_to_logical(win, x, y);
+            double angle    = calculate_mouse_angle(logCoord, dialRect);
+            newType = (int)angle_to_value(angle, 5) + 1;    // 0-4 → type 1-5
+        } else {
+            double delta   = 0.0;
+
+            if (gDialMode == eDialModeHorizontal) {
+                delta      = delta_to_logical(win, x - gDragPrevX, true);
+                gDragPrevX = x;
             } else {
-                set_filter2_type(clamp_type((int)gDevice.filter2Type + step));
+                delta      = delta_to_logical(win, gDragPrevY - y, false);
+                gDragPrevY = y;
             }
+            gDragTypeAccum += delta / 30.0;
+            int    step    = (int)gDragTypeAccum;
+            gDragTypeAccum -= (double)step;
+            int    curType = (gDragTarget == eDragFilter1Type)
+                              ? (int)gDevice.filter1Type : (int)gDevice.filter2Type;
+            newType         = curType + step;
+        }
+
+        if (gDragTarget == eDragFilter1Type) {
+            set_filter1_type(clamp_type(newType));
+        } else {
+            set_filter2_type(clamp_type(newType));
         }
         return;
     }

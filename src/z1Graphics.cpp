@@ -150,10 +150,10 @@ void z1_render(tRectangle area) {
         } tDialInfo;
 
         tDialInfo    dials[] = {
-            {&gFilter1TypeDialRect, (uint32_t)(f1t - 1),                                0,   4, f1Col, "F1 Type", true },
+            {&gFilter1TypeDialRect, (uint32_t)(f1t - 1),                                0,   5, f1Col, "F1 Type", true },
             {&gFilter1DialRect,     gDevice.filter1Cutoff,    gDevice.filter1CutoffNative, 127, f1Col, "F1 Cut",  false},
             {&gFilter1ResDialRect,  gDevice.filter1Resonance, gDevice.filter1ResNative,    127, f1Col, "F1 Res",  false},
-            {&gFilter2TypeDialRect, (uint32_t)(f2t - 1),                                0,   4, f2Col, "F2 Type", true },
+            {&gFilter2TypeDialRect, (uint32_t)(f2t - 1),                                0,   5, f2Col, "F2 Type", true },
             {&gFilter2DialRect,     gDevice.filter2Cutoff,    gDevice.filter2CutoffNative, 127, f2Col, "F2 Cut",  false},
             {&gFilter2ResDialRect,  gDevice.filter2Resonance, gDevice.filter2ResNative,    127, f2Col, "F2 Res",  false}, };
 
