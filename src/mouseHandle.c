@@ -23,6 +23,7 @@
 #include "utilsGraphics.h"
 #include "menus.h"
 #include "midiComms.h"
+#include "z1Comms.h"
 #include "z1Graphics.h"
 #include "mouseHandle.h"
 
@@ -40,17 +41,20 @@ extern void glfwGetWindowSize(void *, int *, int *);
 // ── Dial drag state ───────────────────────────────────────────────────────────
 typedef enum {
     eDragNone,
+    eDragFilter1Type,
     eDragFilter1Cutoff,
     eDragFilter1Res,
+    eDragFilter2Type,
     eDragFilter2Cutoff,
     eDragFilter2Res,
 } tDragTarget;
 
-static tDragTarget gDragTarget = eDragNone;
-static double      gDragStartX = 0.0;   // cursor position at press — used for restore on release
-static double      gDragStartY = 0.0;
-static double      gDragPrevX  = 0.0;   // cursor position at previous cursor_pos call — incremental delta
-static double      gDragPrevY  = 0.0;
+static tDragTarget gDragTarget    = eDragNone;
+static double      gDragStartX    = 0.0;   // cursor position at press — used for restore on release
+static double      gDragStartY    = 0.0;
+static double      gDragPrevX     = 0.0;   // cursor position at previous cursor_pos call — incremental delta
+static double      gDragPrevY     = 0.0;
+static double      gDragTypeAccum = 0.0;   // sub-step accumulator for discrete type dial
 
 
 // ── Coordinate helpers ────────────────────────────────────────────────────────
@@ -93,6 +97,17 @@ static uint8_t clamp_u8(int v) {
     return (uint8_t)v;
 }
 
+static uint8_t clamp_type(int v) {
+    if (v < 1) {
+        return 1;
+    }
+
+    if (v > 5) {
+        return 5;
+    }
+    return (uint8_t)v;
+}
+
 static void set_filter_param(uint8_t * ccField, uint8_t * nativeField, uint8_t cc, uint8_t value) {
     if (value == *ccField) {
         return;
@@ -100,6 +115,24 @@ static void set_filter_param(uint8_t * ccField, uint8_t * nativeField, uint8_t c
     *ccField     = value;
     *nativeField = (uint8_t)(value * 99UL / 127);
     midi_send_cc(gDevice.id, cc, value);
+    atomic_store(&gReDraw, true);
+}
+
+static void set_filter1_type(uint8_t v) {
+    if (v == gDevice.filter1Type) {
+        return;
+    }
+    gDevice.filter1Type = v;
+    z1_send_parameter_change(Z1_PARAM_GROUP_PROG, Z1_PARAM_FILTER1_TYPE, v);
+    atomic_store(&gReDraw, true);
+}
+
+static void set_filter2_type(uint8_t v) {
+    if (v == gDevice.filter2Type) {
+        return;
+    }
+    gDevice.filter2Type = v;
+    z1_send_parameter_change(Z1_PARAM_GROUP_PROG, Z1_PARAM_FILTER2_TYPE, v);
     atomic_store(&gReDraw, true);
 }
 
@@ -156,10 +189,14 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
     tDragTarget hitTarget = eDragNone;
 
     if (gDevice.connected) {
-        if (within_rectangle(coord, z1_filter1_dial_rect())) {
+        if (within_rectangle(coord, z1_filter1_type_dial_rect())) {
+            hitTarget = eDragFilter1Type;
+        } else if (within_rectangle(coord, z1_filter1_dial_rect())) {
             hitTarget = eDragFilter1Cutoff;
         } else if (within_rectangle(coord, z1_filter1_res_dial_rect())) {
             hitTarget = eDragFilter1Res;
+        } else if (within_rectangle(coord, z1_filter2_type_dial_rect())) {
+            hitTarget = eDragFilter2Type;
         } else if (within_rectangle(coord, z1_filter2_dial_rect())) {
             hitTarget = eDragFilter2Cutoff;
         } else if (within_rectangle(coord, z1_filter2_res_dial_rect())) {
@@ -168,11 +205,12 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
     }
 
     if (hitTarget != eDragNone) {
-        gDragTarget = hitTarget;
-        gDragStartX = x;
-        gDragStartY = y;
-        gDragPrevX  = x;
-        gDragPrevY  = y;
+        gDragTarget    = hitTarget;
+        gDragStartX    = x;
+        gDragStartY    = y;
+        gDragPrevX     = x;
+        gDragPrevY     = y;
+        gDragTypeAccum = 0.0;
 
         if (gDialMode != eDialModeRotary) {
             glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -182,6 +220,24 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
 
 void handle_cursor_pos(void * win, double x, double y) {
     if (gDragTarget == eDragNone) {
+        return;
+    }
+
+    // Type dials: always use vertical delta with sub-step accumulator (no CC)
+    if ((gDragTarget == eDragFilter1Type) || (gDragTarget == eDragFilter2Type)) {
+        double dy   = delta_to_logical(win, gDragPrevY - y, false);
+        gDragPrevY      = y;
+        gDragTypeAccum += dy / 30.0;     // ~30 logical px per step
+        int    step = (int)gDragTypeAccum;
+        gDragTypeAccum -= (double)step;  // keep remainder
+
+        if (step != 0) {
+            if (gDragTarget == eDragFilter1Type) {
+                set_filter1_type(clamp_type((int)gDevice.filter1Type + step));
+            } else {
+                set_filter2_type(clamp_type((int)gDevice.filter2Type + step));
+            }
+        }
         return;
     }
     // Current CC value for the dragged dial (for delta modes)

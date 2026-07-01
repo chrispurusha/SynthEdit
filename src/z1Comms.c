@@ -158,11 +158,20 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
     if (decodedLen > 22) {
         gDevice.unisonDetune = decoded[22];
     }
-    // Filter native values (0-99) from decoded program dump.
+    // Filter values from decoded program dump.
     // Byte offsets derived from parameter table anchored at decoded[314] = ID 263 (Filter1 Cutoff).
-    // Offsets for resonance/filter2 are unconfirmed by SysEx capture — verify against hardware.
+    // Type offsets: param 261 = decoded[312], param 288 = decoded[339].
+    // Resonance/filter2 offsets unconfirmed by SysEx capture — verify against hardware.
 #define CLAMP99(v)    ((v) <= 99 ? (v) : 99)
 #define TO_CC(n)      ((uint8_t)(((n) * 127UL + 49) / 99))
+
+    if (decodedLen > 312) {
+        gDevice.filter1Type = decoded[312];
+
+        if ((gDevice.filter1Type < 1) || (gDevice.filter1Type > 5)) {
+            gDevice.filter1Type = 1;
+        }
+    }
 
     if (decodedLen > 314) {
         gDevice.filter1CutoffNative = CLAMP99(decoded[314]);
@@ -172,6 +181,14 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
     if (decodedLen > 325) {
         gDevice.filter1ResNative = CLAMP99(decoded[325]);
         gDevice.filter1Resonance = TO_CC(gDevice.filter1ResNative);
+    }
+
+    if (decodedLen > 339) {
+        gDevice.filter2Type = decoded[339];
+
+        if ((gDevice.filter2Type < 1) || (gDevice.filter2Type > 5)) {
+            gDevice.filter2Type = 1;
+        }
     }
 
     if (decodedLen > 341) {
@@ -186,14 +203,21 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
 #undef CLAMP99
 #undef TO_CC
 
-    LOG_DEBUG("Z1 prog: \"%s\"  cat=%s  voice=%s  unison=%s(%u cents)  f1cut=%u(%u)  f1res=%u(%u)  f2cut=%u(%u)  f2res=%u(%u)\n",
+    static const char * kTypeNames[] = {"LPF", "HPF", "BPF", "BRF", "2BPF"};
+    uint8_t             f1t          = (gDevice.filter1Type >= 1 && gDevice.filter1Type <= 5) ? gDevice.filter1Type : 1;
+    uint8_t             f2t          = (gDevice.filter2Type >= 1 && gDevice.filter2Type <= 5) ? gDevice.filter2Type : 1;
+    LOG_DEBUG("Z1 prog: \"%s\"  cat=%s  voice=%s  unison=%s(%u cents)"
+              "  f1type=%s f1cut=%u(%u) f1res=%u(%u)"
+              "  f2type=%s f2cut=%u(%u) f2res=%u(%u)\n",
               gDevice.progName,
               kCategoryNames[gDevice.category],
               kVoiceModeNames[gDevice.voiceMode < 3 ? gDevice.voiceMode : 2],
               gDevice.unisonOn ? kUnisonTypeNames[gDevice.unisonType & 3] : "OFF",
               (unsigned)gDevice.unisonDetune,
+              kTypeNames[f1t - 1],
               (unsigned)gDevice.filter1Cutoff, (unsigned)gDevice.filter1CutoffNative,
               (unsigned)gDevice.filter1Resonance, (unsigned)gDevice.filter1ResNative,
+              kTypeNames[f2t - 1],
               (unsigned)gDevice.filter2Cutoff, (unsigned)gDevice.filter2CutoffNative,
               (unsigned)gDevice.filter2Resonance, (unsigned)gDevice.filter2ResNative);
 }
@@ -238,6 +262,17 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
         gDevice.progName[Z1_PROG_NAME_LEN] = '\0';
         LOG_DEBUG("Program name updated: \"%s\"\n", gDevice.progName);
     } else if (group == Z1_PARAM_GROUP_PROG) {
+        if (paramId == Z1_PARAM_FILTER1_TYPE) {
+            if ((value >= 1) && (value <= 5)) {
+                gDevice.filter1Type = (uint8_t)value;
+                LOG_DEBUG("Filter1 Type %u\n", (unsigned)value);
+            }
+        } else if (paramId == Z1_PARAM_FILTER2_TYPE) {
+            if ((value >= 1) && (value <= 5)) {
+                gDevice.filter2Type = (uint8_t)value;
+                LOG_DEBUG("Filter2 Type %u\n", (unsigned)value);
+            }
+        }
         uint8_t native = (uint8_t)(value <= 99 ? value : 99);
         uint8_t cc     = (uint8_t)((native * 127UL + 49) / 99);
 
@@ -271,10 +306,12 @@ void z1_on_connected(void) {
     gDevice.unisonOn            = false;
     gDevice.unisonType          = 0;
     gDevice.unisonDetune        = 0;
+    gDevice.filter1Type         = 1; // LPF
     gDevice.filter1Cutoff       = 0;
     gDevice.filter1CutoffNative = 0;
     gDevice.filter1Resonance    = 0;
     gDevice.filter1ResNative    = 0;
+    gDevice.filter2Type         = 1; // LPF
     gDevice.filter2Cutoff       = 0;
     gDevice.filter2CutoffNative = 0;
     gDevice.filter2Resonance    = 0;

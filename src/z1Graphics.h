@@ -33,8 +33,10 @@ void z1_init_graphics(void);
 void z1_render(tRectangle area);
 
 // Returns last-rendered dial rectangles (for hit-testing)
+tRectangle z1_filter1_type_dial_rect(void);
 tRectangle z1_filter1_dial_rect(void);
 tRectangle z1_filter1_res_dial_rect(void);
+tRectangle z1_filter2_type_dial_rect(void);
 tRectangle z1_filter2_dial_rect(void);
 tRectangle z1_filter2_res_dial_rect(void);
 
