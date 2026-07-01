@@ -179,6 +179,10 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
         }
     }
 
+    if (decodedLen > 313) {
+        gDevice.filter1InputTrim = CLAMP99(decoded[313]);
+    }
+
     if (decodedLen > 314) {
         gDevice.filter1CutoffNative = CLAMP99(decoded[314]);
         gDevice.filter1Cutoff       = TO_CC(gDevice.filter1CutoffNative);
@@ -195,6 +199,10 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
         if ((gDevice.filter2Type < 1) || (gDevice.filter2Type > 5)) {
             gDevice.filter2Type = 1;
         }
+    }
+
+    if (decodedLen > 340) {
+        gDevice.filter2InputTrim = CLAMP99(decoded[340]);
     }
 
     if (decodedLen > 341) {
@@ -281,11 +289,17 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
                 gDevice.filter1Type = (uint8_t)value;
                 LOG_DEBUG("Filter1 Type %u\n", (unsigned)value);
             }
+        } else if (paramId == Z1_PARAM_FILTER1_INPUT_TRIM) {
+            gDevice.filter1InputTrim = (uint8_t)(value <= 99 ? value : 99);
+            LOG_DEBUG("Filter1 InputTrim %u\n", (unsigned)gDevice.filter1InputTrim);
         } else if (paramId == Z1_PARAM_FILTER2_TYPE) {
             if ((value >= 1) && (value <= 5)) {
                 gDevice.filter2Type = (uint8_t)value;
                 LOG_DEBUG("Filter2 Type %u\n", (unsigned)value);
             }
+        } else if (paramId == Z1_PARAM_FILTER2_INPUT_TRIM) {
+            gDevice.filter2InputTrim = (uint8_t)(value <= 99 ? value : 99);
+            LOG_DEBUG("Filter2 InputTrim %u\n", (unsigned)gDevice.filter2InputTrim);
         }
         uint8_t native = (uint8_t)(value <= 99 ? value : 99);
         uint8_t cc     = (uint8_t)((native * 127UL + 49) / 99);
@@ -322,6 +336,8 @@ void z1_on_connected(void) {
     gDevice.unisonDetune        = 0;
     gDevice.filterRouting       = 0; // SERI1
     gDevice.filter2Link         = 0; // OFF
+    gDevice.filter1InputTrim    = 0;
+    gDevice.filter2InputTrim    = 0;
     gDevice.filter1Type         = 1; // LPF
     gDevice.filter1Cutoff       = 0;
     gDevice.filter1CutoffNative = 0;

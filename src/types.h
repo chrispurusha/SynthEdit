@@ -166,11 +166,13 @@ typedef struct {
     // Real-time CC values (0-127 dial position) and native SysEx values (0-99)
     uint8_t  filterRouting;       // SysEx param 258, value 0-2: SERI1/SERI2/PARA
     uint8_t  filter2Link;         // SysEx param 259, value 0-1: OFF/ON
+    uint8_t  filter1InputTrim;    // SysEx param 262, value 0-99
     uint8_t  filter1Cutoff;       // CC 85
     uint8_t  filter1CutoffNative; // SysEx param 263
     uint8_t  filter1Resonance;    // CC 86
     uint8_t  filter1ResNative;    // SysEx param 274
     uint8_t  filter1Type;         // SysEx param 261, value 1-5: LPF/HPF/BPF/BRF/2BPF
+    uint8_t  filter2InputTrim;    // SysEx param 289, value 0-99
     uint8_t  filter2Cutoff;       // CC 88
     uint8_t  filter2CutoffNative; // SysEx param 290
     uint8_t  filter2Resonance;    // CC 89

@@ -36,9 +36,11 @@ void z1_render(tRectangle area);
 tRectangle z1_filter_routing_dial_rect(void);
 tRectangle z1_filter2_link_dial_rect(void);
 tRectangle z1_filter1_type_dial_rect(void);
+tRectangle z1_filter1_input_trim_dial_rect(void);
 tRectangle z1_filter1_dial_rect(void);
 tRectangle z1_filter1_res_dial_rect(void);
 tRectangle z1_filter2_type_dial_rect(void);
+tRectangle z1_filter2_input_trim_dial_rect(void);
 tRectangle z1_filter2_dial_rect(void);
 tRectangle z1_filter2_res_dial_rect(void);
 
