@@ -42,16 +42,78 @@ extern "C" {
 #include "misc.h"
 #include "graphics.h"
 
+static float           gContentScale   = 2.0f;
 
 static void setup_projection(GLFWwindow * win);
 
 // ── GLFW callbacks ────────────────────────────────────────────────────────────
 
-static void framebuffer_size_cb(GLFWwindow * win, int w, int h) {
-    (void)w;
-    (void)h;
-    setup_projection(win);
-    atomic_store(&gReDraw, true);
+void framebuffer_size_callback(GLFWwindow * window, int width, int height) {
+    // Update the OpenGL viewport to match the current framebuffer size
+    glViewport(0, 0, width, height);
+    
+    set_render_width(width);  // Inform utilsGraphics
+    set_render_height(height);  // Inform utilsGraphics
+    gGlobalGuiScale = (double)gContentScale * (double)width / (double)TARGET_FRAME_BUFF_WIDTH;
+    
+    // Configure a 2D orthographic projection in framebuffer pixels
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(0, width, height, 0, -1, 1);
+    
+    // Restore the model-view matrix ready for normal rendering
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    
+    gReDraw         = true;
+}
+
+void window_size_callback(GLFWwindow * window, int width, int height) {
+    //save_window_size(width);  // TODO
+}
+
+void window_pos_callback(GLFWwindow * window, int x, int y) {
+    //save_window_pos(x, y); // TODO
+}
+
+void resize_window(int w, int h) {
+    glfwSetWindowSize((GLFWwindow *)gWindow, w, h);
+}
+
+void reposition_window(int x, int y) {
+    glfwSetWindowPos((GLFWwindow *)gWindow, x, y);
+}
+
+void window_close_callback(GLFWwindow * window) {
+    gReDraw = false;
+
+    glfwSetFramebufferSizeCallback((GLFWwindow *)gWindow, NULL);
+    glfwSetWindowCloseCallback((GLFWwindow *)gWindow, NULL);
+    glfwSetKeyCallback((GLFWwindow *)gWindow, NULL);
+    glfwSetCharCallback((GLFWwindow *)gWindow, NULL);
+    glfwSetCursorPosCallback((GLFWwindow *)gWindow, NULL);
+    glfwSetMouseButtonCallback((GLFWwindow *)gWindow, NULL);
+    glfwSetScrollCallback((GLFWwindow *)gWindow, NULL);
+
+    glfwSetWindowShouldClose((GLFWwindow *)gWindow, GLFW_TRUE);
+    glfwPostEmptyEvent();
+}
+
+void set_window_title(const char * filePath) {
+    char         newTitle[100] = {0};
+    const char * filename      = strrchr(filePath, '/');
+
+    if (filename) {
+        filename += 1;  // Skip the slash
+    } else {
+        filename = filePath;
+    }
+    snprintf(newTitle, sizeof(newTitle), "%s - %s", WINDOW_TITLE, filename);
+    glfwSetWindowTitle((GLFWwindow *)gWindow, newTitle);
+}
+
+void error_callback(int error, const char * description) {
+    LOG_ERROR("GLFW error [%d]: %s\n", error, description);
 }
 
 static void window_refresh_cb(GLFWwindow * win) {
@@ -82,6 +144,7 @@ static void scroll_cb(GLFWwindow * win, double dx, double dy) {
     atomic_store(&gReDraw, true);
 }
 
+
 // ── Wake (called from MIDI thread) ───────────────────────────────────────────
 
 void wake_glfw(void) {
@@ -100,7 +163,7 @@ static void setup_projection(GLFWwindow * win) {
     int winH = 0;
     glfwGetWindowSize(win, &winW, &winH);
 
-    gGlobalGuiScale = (winW > 0) ? (double)fbW / (double)winW : 1.0;
+    //gGlobalGuiScale = (winW > 0) ? (double)fbW / (double)winW : 1.0;
 
     set_render_width(fbW);
     set_render_height(fbH);
@@ -112,6 +175,7 @@ static void setup_projection(GLFWwindow * win) {
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 }
+
 
 // ── Font ──────────────────────────────────────────────────────────────────────
 
@@ -135,68 +199,50 @@ static int init_font(void) {
 // ── init_graphics ─────────────────────────────────────────────────────────────
 
 void init_graphics(void) {
-    int           windowWidth  = 0;
-    int           windowHeight = 0;
-    GLFWmonitor * monitor      = NULL;
-    float         xScale       = 1.0f;
-    float         yScale       = 1.0f;
+    char          title[128]        = {0};
+
+    snprintf(title, sizeof(title), "%s - Build %s %s", WINDOW_TITLE, __DATE__, __TIME__);
+
+    glfwSetErrorCallback(error_callback);
 
     if (!glfwInit()) {
-        LOG_ERROR("glfwInit failed\n");
         exit(EXIT_FAILURE);
     }
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+    //register_glfw_wake_cb(wake_glfw);
+    //register_full_patch_change_notify_cb(notify_full_patch_change);
+    //topbar_init_controls();
+
     glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE);
-    glfwWindowHint(GLFW_COCOA_GRAPHICS_SWITCHING, GLFW_TRUE);
+    glfwWindowHint(GLFW_COCOA_GRAPHICS_SWITCHING, GLFW_TRUE);  // Needed for Intel systems with discrete graphics
+    gWindow       = (void *)glfwCreateWindow(TARGET_FRAME_BUFF_WIDTH/4, TARGET_FRAME_BUFF_HEIGHT/4, title, NULL, NULL);
 
-    monitor      = glfwGetPrimaryMonitor();
-
-    int           x = 0, y = 0, width = 0, height = 0;
-    glfwGetMonitorWorkarea(monitor, &x, &y, &width, &height);
-    glfwGetMonitorContentScale(monitor, &xScale, &yScale);
-    windowWidth  = (int)((double)TARGET_FRAME_BUFF_WIDTH / xScale);
-    windowHeight = (int)((double)TARGET_FRAME_BUFF_HEIGHT / yScale);
-
-    if ((windowWidth > width) || (windowHeight > height)) {
-        double widthSF  = (double)windowWidth / (double)width;
-        double heightSF = (double)windowHeight / (double)height;
-        double sf       = (heightSF >= widthSF) ? heightSF : widthSF;
-        windowWidth  = (int)((double)windowWidth / sf);
-        windowHeight = (int)((double)windowHeight / sf);
-    }
-    GLFWwindow *  win = glfwCreateWindow(windowWidth, windowHeight, WINDOW_TITLE, NULL, NULL);
-
-    if (win == NULL) {
-        LOG_ERROR("glfwCreateWindow failed\n");
+    if (!gWindow) {
         glfwTerminate();
         exit(EXIT_FAILURE);
     }
-    gWindow      = win;
+    glfwSetWindowSizeLimits((GLFWwindow *)gWindow, TARGET_FRAME_BUFF_WIDTH/8, TARGET_FRAME_BUFF_HEIGHT/8, GLFW_DONT_CARE, GLFW_DONT_CARE);
+    glfwSetWindowAspectRatio((GLFWwindow *)gWindow, TARGET_FRAME_BUFF_WIDTH, TARGET_FRAME_BUFF_HEIGHT);
 
-    glfwMakeContextCurrent(win);
+    glfwMakeContextCurrent((GLFWwindow *)gWindow);
+    
+    glfwSetFramebufferSizeCallback((GLFWwindow *)gWindow, framebuffer_size_callback);
+    glfwSetWindowSizeCallback((GLFWwindow *)gWindow, window_size_callback);
+    glfwSetWindowPosCallback((GLFWwindow *)gWindow, window_pos_callback);
     glfwSwapInterval(1);
+    glfwSetWindowCloseCallback((GLFWwindow *)gWindow, window_close_callback);
+    //glfwSetKeyCallback((GLFWwindow *)gWindow, key_callback);
+    //glfwSetCharCallback((GLFWwindow *)gWindow, char_event);
+    //glfwSetCursorPosCallback((GLFWwindow *)gWindow, cursor_pos);
+    //glfwSetMouseButtonCallback((GLFWwindow *)gWindow, mouse_button);
+    //glfwSetScrollCallback((GLFWwindow *)gWindow, scroll_event);
 
-    glfwSetFramebufferSizeCallback(win, framebuffer_size_cb);
-    glfwSetWindowRefreshCallback(win, window_refresh_cb);
-    glfwSetMouseButtonCallback(win, mouse_button_cb);
-    glfwSetCursorPosCallback(win, cursor_pos_cb);
-    glfwSetKeyCallback(win, key_cb);
-    glfwSetScrollCallback(win, scroll_cb);
-
-    setup_projection(win);
-    glfwSetWindowSizeLimits(win, windowWidth, windowHeight, GLFW_DONT_CARE, GLFW_DONT_CARE);
-    glfwSetWindowAspectRatio(win, windowWidth, windowHeight);
-
-    glEnable(GL_BLEND);
+	glEnable(GL_BLEND);  // TODO - Assess if G2 edit could benefit from this 
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    init_font();
-    z1_init_graphics();
-
-    register_midi_wake_cb(wake_glfw);
+    init_font(); // TODO - G2 edit could benefit from this if we're loading multiple fonts
+	z1_init_graphics(); // TODO - do we need to call this, since it's currently empty?
+	
+	register_midi_wake_cb(wake_glfw); // TODO - this doesn't belong in here
 }
-
 // ── Render frame ──────────────────────────────────────────────────────────────
 
 static void render_frame(GLFWwindow * win) {
@@ -205,8 +251,8 @@ static void render_frame(GLFWwindow * win) {
     glClearColor(0.15f, 0.15f, 0.15f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    double     logW = (double)get_render_width() / gGlobalGuiScale;
-    double     logH = (double)get_render_height() / gGlobalGuiScale;
+    double     logW = /*(double)get_render_width() /*/ gGlobalGuiScale;
+    double     logH = /*(double)get_render_height() /*/ gGlobalGuiScale;
 
     // LCD area: 2× the raw 240×64 pixel size, centred in left half of virtual space
     //double     lcdDispW = LCD_WIDTH * 2.0;
