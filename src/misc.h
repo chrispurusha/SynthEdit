@@ -26,6 +26,8 @@ extern "C" {
 
 void register_sleep_wake_notifications(void);
 void setup_main_menu(void);
+void save_window_size(int w);
+void save_window_pos(int x, int y);
 
 #ifdef __cplusplus
 }

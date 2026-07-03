@@ -19,6 +19,7 @@
 
 #import "misc.h"
 #import <Cocoa/Cocoa.h>
+#include "defs.h"
 #include "globalVars.h"
 #include "graphics.h"
 #include "midiComms.h"
@@ -69,8 +70,8 @@
 @end
 
 void setup_main_menu(void) {
-    NSMenu *              menuBar    = [[NSApplication sharedApplication] mainMenu];
-    static Z1MenuTarget * target     = nil;
+    NSMenu *              menuBar  = [[NSApplication sharedApplication] mainMenu];
+    static Z1MenuTarget * target   = nil;
 
     if (target == nil) {
         target = [[Z1MenuTarget alloc] init];
@@ -80,44 +81,75 @@ void setup_main_menu(void) {
         menuBar = [[NSMenu alloc] init];
         [[NSApplication sharedApplication] setMainMenu:menuBar];
     }
-    NSUserDefaults *      defaults   = [NSUserDefaults standardUserDefaults];
+    NSUserDefaults *      defaults = [NSUserDefaults standardUserDefaults];
 
     if ([defaults objectForKey:@"dialMode"] != nil) {
         gDialMode = (tDialMode)[defaults integerForKey:@"dialMode"];
     }
-    NSMenuItem *          devMI      = [[NSMenuItem alloc] init];
-    NSMenu *              devMenu    = [[NSMenu alloc] initWithTitle:@"Device"];
-    NSMenuItem *          scanItem   = [[NSMenuItem alloc] initWithTitle:@"Scan Devices"
-                                        action:@selector(scanDevices:)
-                                        keyEquivalent:@"r"];
+
+    if ([defaults objectForKey:@"windowWidth"] != nil) {
+        int savedW = (int)[defaults integerForKey:@"windowWidth"];
+        int savedH = savedW * TARGET_FRAME_BUFF_HEIGHT / TARGET_FRAME_BUFF_WIDTH;
+
+        if (savedW > 0) {
+            resize_window(savedW, savedH);
+        }
+    }
+
+    if ([defaults objectForKey:@"windowX"] != nil && [defaults objectForKey:@"windowY"] != nil) {
+        int savedX = (int)[defaults integerForKey:@"windowX"];
+        int savedY = (int)[defaults integerForKey:@"windowY"];
+
+        reposition_window(savedX, savedY);
+    }
+    NSMenuItem * devMI      = [[NSMenuItem alloc] init];
+    NSMenu *     devMenu    = [[NSMenu alloc] initWithTitle:@"Device"];
+    NSMenuItem * scanItem   = [[NSMenuItem alloc] initWithTitle:@"Scan Devices"
+                               action:@selector(scanDevices:)
+                               keyEquivalent:@"r"];
     [scanItem setTarget:target];
     [devMenu addItem:scanItem];
     [devMI setSubmenu:devMenu];
     [menuBar insertItem:devMI atIndex:1];
 
-    NSMenuItem *          ctrlMI     = [[NSMenuItem alloc] init];
-    NSMenu *              ctrlMenu   = [[NSMenu alloc] initWithTitle:@"Controls"];
+    NSMenuItem * ctrlMI     = [[NSMenuItem alloc] init];
+    NSMenu *     ctrlMenu   = [[NSMenu alloc] initWithTitle:@"Controls"];
 
-    NSMenuItem *          rotaryItem = [[NSMenuItem alloc] initWithTitle:@"Rotary"
-                                        action:@selector(setDialModeRotary:)
-                                        keyEquivalent:@""];
+    NSMenuItem * rotaryItem = [[NSMenuItem alloc] initWithTitle:@"Rotary"
+                               action:@selector(setDialModeRotary:)
+                               keyEquivalent:@""];
     [rotaryItem setTarget:target];
     [ctrlMenu addItem:rotaryItem];
 
-    NSMenuItem *          vertItem   = [[NSMenuItem alloc] initWithTitle:@"Vertical"
-                                        action:@selector(setDialModeVertical:)
-                                        keyEquivalent:@""];
+    NSMenuItem * vertItem   = [[NSMenuItem alloc] initWithTitle:@"Vertical"
+                               action:@selector(setDialModeVertical:)
+                               keyEquivalent:@""];
     [vertItem setTarget:target];
     [ctrlMenu addItem:vertItem];
 
-    NSMenuItem *          horizItem  = [[NSMenuItem alloc] initWithTitle:@"Horizontal"
-                                        action:@selector(setDialModeHorizontal:)
-                                        keyEquivalent:@""];
+    NSMenuItem * horizItem  = [[NSMenuItem alloc] initWithTitle:@"Horizontal"
+                               action:@selector(setDialModeHorizontal:)
+                               keyEquivalent:@""];
     [horizItem setTarget:target];
     [ctrlMenu addItem:horizItem];
 
     [ctrlMI setSubmenu:ctrlMenu];
     [menuBar insertItem:ctrlMI atIndex:2];
+}
+
+void save_window_size(int w) {
+    NSUserDefaults * defaults = [NSUserDefaults standardUserDefaults];
+
+    [defaults setInteger:w forKey:@"windowWidth"];
+    [defaults synchronize];
+}
+
+void save_window_pos(int x, int y) {
+    NSUserDefaults * defaults = [NSUserDefaults standardUserDefaults];
+
+    [defaults setInteger:x forKey:@"windowX"];
+    [defaults setInteger:y forKey:@"windowY"];
+    [defaults synchronize];
 }
 
 void register_sleep_wake_notifications(void) {

@@ -365,8 +365,8 @@ int midi_scan_devices(void) {
 
     // Reset reply buffer and connection state before a fresh scan
     gIdReplyCount = 0;
-    gMidiSource = 0;
-    gMidiDest   = 0;
+    gMidiSource   = 0;
+    gMidiDest     = 0;
     memset(&gDevice, 0, sizeof(gDevice));
 
     for (ItemCount i = 0; i < srcCount; i++) {

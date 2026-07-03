@@ -350,7 +350,7 @@ void z1_on_connected(void) {
     gDevice.filter2CutoffNative = 0;
     gDevice.filter2Resonance    = 0;
     gDevice.filter2ResNative    = 0;
-    gReDraw = true;
+    gReDraw                     = true;
     z1_request_current_program();
 }
 

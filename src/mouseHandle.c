@@ -143,7 +143,7 @@ static void set_filter_param(uint8_t * ccField, uint8_t * nativeField, uint8_t c
     *ccField     = value;
     *nativeField = (uint8_t)(value * 99UL / 127);
     midi_send_cc(gDevice.id, cc, value);
-    gReDraw = true;
+    gReDraw      = true;
 }
 
 static void set_filter1_input_trim(uint8_t v) {
@@ -152,7 +152,7 @@ static void set_filter1_input_trim(uint8_t v) {
     }
     gDevice.filter1InputTrim = v;
     z1_send_parameter_change(Z1_PARAM_GROUP_PROG, Z1_PARAM_FILTER1_INPUT_TRIM, v);
-    gReDraw = true;
+    gReDraw                  = true;
 }
 
 static void set_filter2_input_trim(uint8_t v) {
@@ -161,7 +161,7 @@ static void set_filter2_input_trim(uint8_t v) {
     }
     gDevice.filter2InputTrim = v;
     z1_send_parameter_change(Z1_PARAM_GROUP_PROG, Z1_PARAM_FILTER2_INPUT_TRIM, v);
-    gReDraw = true;
+    gReDraw                  = true;
 }
 
 static void set_filter2_link(uint8_t v) {
@@ -170,7 +170,7 @@ static void set_filter2_link(uint8_t v) {
     }
     gDevice.filter2Link = v;
     z1_send_parameter_change(Z1_PARAM_GROUP_PROG, Z1_PARAM_FILTER2_LINK, v);
-    gReDraw = true;
+    gReDraw             = true;
 }
 
 static void set_filter_routing(uint8_t v) {
@@ -179,7 +179,7 @@ static void set_filter_routing(uint8_t v) {
     }
     gDevice.filterRouting = v;
     z1_send_parameter_change(Z1_PARAM_GROUP_PROG, Z1_PARAM_FILTER_ROUTING, v);
-    gReDraw = true;
+    gReDraw               = true;
 }
 
 static void set_filter1_type(uint8_t v) {
@@ -188,7 +188,7 @@ static void set_filter1_type(uint8_t v) {
     }
     gDevice.filter1Type = v;
     z1_send_parameter_change(Z1_PARAM_GROUP_PROG, Z1_PARAM_FILTER1_TYPE, v);
-    gReDraw = true;
+    gReDraw             = true;
 }
 
 static void set_filter2_type(uint8_t v) {
@@ -197,7 +197,7 @@ static void set_filter2_type(uint8_t v) {
     }
     gDevice.filter2Type = v;
     z1_send_parameter_change(Z1_PARAM_GROUP_PROG, Z1_PARAM_FILTER2_TYPE, v);
-    gReDraw = true;
+    gReDraw             = true;
 }
 
 static void set_filter1_cutoff(uint8_t v) {

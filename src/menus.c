@@ -34,7 +34,7 @@ void open_context_menu(tCoord coord, tMenuItem * items, uint32_t count, uint32_t
     gContextMenu.count     = count;
     gContextMenu.columns   = (columns > 0) ? columns : 1;
     gContextMenu.cellWidth = (cellWidth > 0.0) ? cellWidth : 120.0;
-    gReDraw = true;
+    gReDraw                = true;
 }
 
 bool close_context_menu_if_outside(tCoord coord) {
@@ -49,7 +49,7 @@ bool close_context_menu_if_outside(tCoord coord) {
 
     if (!within_rectangle(coord, menuRect)) {
         gContextMenu.active = false;
-        gReDraw = true;
+        gReDraw             = true;
         return true;
     }
     return false;
@@ -77,7 +77,7 @@ bool handle_context_menu_click(tCoord coord) {
                 gContextMenu.items[i].action(gContextMenu.items[i].index);
             }
             gContextMenu.active = false;
-            gReDraw = true;
+            gReDraw             = true;
             return true;
         }
     }
