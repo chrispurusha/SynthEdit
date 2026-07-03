@@ -42,7 +42,7 @@ extern "C" {
 #include "misc.h"
 #include "graphics.h"
 
-static float           gContentScale   = 2.0f;
+//static float           gContentScale   = 2.0f;
 
 static void setup_projection(GLFWwindow * win);
 
@@ -54,7 +54,7 @@ void framebuffer_size_callback(GLFWwindow * window, int width, int height) {
     
     set_render_width(width);  // Inform utilsGraphics
     set_render_height(height);  // Inform utilsGraphics
-    gGlobalGuiScale = (double)gContentScale * (double)width / (double)TARGET_FRAME_BUFF_WIDTH;
+    gGlobalGuiScale = (double)width / (double)TARGET_FRAME_BUFF_WIDTH;
     
     // Configure a 2D orthographic projection in framebuffer pixels
     glMatrixMode(GL_PROJECTION);

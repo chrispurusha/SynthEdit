@@ -22,6 +22,7 @@
 
 // ── Build toggles ─────────────────────────────────────────────────────────────
 #define ENABLE_DEBUG                1
+#define ENABLE_LOG_DEBUG            1
 
 // ── Application ──────────────────────────────────────────────────────────────
 #define WINDOW_TITLE                "Z1 Edit"
