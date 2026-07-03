@@ -165,7 +165,7 @@ static MIDIEndpointRef find_dest_for_source(MIDIEndpointRef src) {
 // and calls z1_on_connected().  All CoreMIDI lookups happen here — no races.
 
 static void process_identity_replies(void) {
-    uint32_t count = atomic_load(&gIdReplyCount);
+    uint32_t count = gIdReplyCount;
 
     LOG_DEBUG("Processing %u identity replies\n", (unsigned)count);
 
@@ -238,7 +238,7 @@ static void midi_notify_cb(const MIDINotification * msg, void * refCon) {
 
     if (msg->messageID == kMIDIMsgSetupChanged) {
         LOG_DEBUG("CoreMIDI setup changed — scheduling rescan\n");
-        atomic_store(&gRescanNeeded, true);
+        gRescanNeeded = true;
     }
 }
 
@@ -263,7 +263,7 @@ static void dispatch_cc(uint8_t cc, uint8_t value) {
     }
 
     if (handled) {
-        atomic_store(&gReDraw, true);
+        gReDraw = true;
 
         if (gWakeCb != NULL) {
             gWakeCb();
@@ -364,7 +364,7 @@ int midi_scan_devices(void) {
     ItemCount            destCount = MIDIGetNumberOfDestinations();
 
     // Reset reply buffer and connection state before a fresh scan
-    atomic_store(&gIdReplyCount, 0);
+    gIdReplyCount = 0;
     gMidiSource = 0;
     gMidiDest   = 0;
     memset(&gDevice, 0, sizeof(gDevice));
@@ -464,9 +464,9 @@ static void * midi_thread(void * arg) {
         return NULL;
     }
 
-    while (!atomic_load(&gQuitAll)) {
+    while (!gQuitAll) {
         if (!gDevice.connected) {
-            atomic_store(&gRescanNeeded, false);
+            gRescanNeeded = false;
             midi_scan_devices();
             // Pump run loop for 500 ms — collects all identity replies and
             // services any CoreMIDI notifications that arrive during the wait.
@@ -476,7 +476,7 @@ static void * midi_thread(void * arg) {
             if (!gDevice.connected) {
                 // Nothing found — wait up to 2 s in 100 ms slices.  Wakes early
                 // if a setup-change notification fires (via gRescanNeeded).
-                for (int t = 0; t < 20 && !atomic_load(&gRescanNeeded); t++) {
+                for (int t = 0; t < 20 && !gRescanNeeded; t++) {
                     CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.1, false);
                 }
             }

@@ -350,7 +350,7 @@ void z1_on_connected(void) {
     gDevice.filter2CutoffNative = 0;
     gDevice.filter2Resonance    = 0;
     gDevice.filter2ResNative    = 0;
-    atomic_store(&gReDraw, true);
+    gReDraw = true;
     z1_request_current_program();
 }
 
@@ -413,5 +413,5 @@ void z1_handle_message(const uint8_t * data, uint32_t length) {
             LOG_DEBUG("Z1 unhandled func 0x%02X\n", (unsigned)funcId);
             break;
     }
-    atomic_store(&gReDraw, true);
+    gReDraw = true;
 }

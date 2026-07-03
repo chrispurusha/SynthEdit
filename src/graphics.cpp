@@ -118,7 +118,7 @@ void error_callback(int error, const char * description) {
 
 static void window_refresh_cb(GLFWwindow * win) {
     (void)win;
-    atomic_store(&gReDraw, true);
+    gReDraw = true;
 }
 
 static void mouse_button_cb(GLFWwindow * win, int button, int action, int mods) {
@@ -127,7 +127,7 @@ static void mouse_button_cb(GLFWwindow * win, int button, int action, int mods) 
 
     glfwGetCursorPos(win, &x, &y);
     handle_mouse_button(win, button, action, mods, x, y);
-    atomic_store(&gReDraw, true);
+    gReDraw = true;
 }
 
 static void cursor_pos_cb(GLFWwindow * win, double x, double y) {
@@ -136,12 +136,12 @@ static void cursor_pos_cb(GLFWwindow * win, double x, double y) {
 
 static void key_cb(GLFWwindow * win, int key, int scancode, int action, int mods) {
     handle_key(win, key, scancode, action, mods);
-    atomic_store(&gReDraw, true);
+    gReDraw = true;
 }
 
 static void scroll_cb(GLFWwindow * win, double dx, double dy) {
     handle_scroll(win, dx, dy);
-    atomic_store(&gReDraw, true);
+    gReDraw = true;
 }
 
 
@@ -272,7 +272,7 @@ static void render_frame(GLFWwindow * win) {
 void do_graphics_loop(void) {
     GLFWwindow * win = (GLFWwindow *)gWindow;
 
-    while (!atomic_load(&gQuitAll) && !glfwWindowShouldClose(win)) {
+    while (!gQuitAll && !glfwWindowShouldClose(win)) {
         bool reDraw = atomic_exchange(&gReDraw, false);
 
         if (reDraw) {
