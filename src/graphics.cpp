@@ -225,6 +225,8 @@ void init_graphics(void) {
 
     glfwMakeContextCurrent((GLFWwindow *)gWindow);
     
+    framebuffer_size_callback((GLFWwindow *)gWindow, TARGET_FRAME_BUFF_WIDTH, TARGET_FRAME_BUFF_HEIGHT);
+    
     glfwSetFramebufferSizeCallback((GLFWwindow *)gWindow, framebuffer_size_callback);
     glfwSetWindowSizeCallback((GLFWwindow *)gWindow, window_size_callback);
     glfwSetWindowPosCallback((GLFWwindow *)gWindow, window_pos_callback);
