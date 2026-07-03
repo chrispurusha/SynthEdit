@@ -102,10 +102,10 @@ void z1_init_graphics(void) {
 
 void z1_render(tRectangle area) {
     if (!gDevice.connected) {
-        tRectangle r = {{area.coord.x + 20.0, area.coord.y + 20.0}, {400.0, 14.0}};
+        tRectangle r = {{area.coord.x + 300.0, area.coord.y + 2.0}, {800.0, 28.0}};
         set_rgb_colour((tRgb){0.8, 0.4, 0.4});
         render_text(mainArea, r, "No Z1 detected — connect and press Cmd+R to scan");
-        return;
+        //return;
     }
     double x = area.coord.x + 30.0;
     double y = area.coord.y + 20.0;
