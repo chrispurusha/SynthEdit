@@ -25,21 +25,21 @@
 #include "types.h"
 #include "globalVars.h"
 #include "midiComms.h"
-#include "z1Comms.h"
+#include "synthComms.h"
 
 // ── SysEx header helpers ──────────────────────────────────────────────────────
 
 // Minimum length of a valid Z1 SysEx: F0 42 3g 46 <func> F7
-#define Z1_HDR_LEN    5
+#define SYNTH_HDR_LEN    5
 
-static bool is_z1_sysex(const uint8_t * data, uint32_t length) {
-    if (length < Z1_HDR_LEN) {
+static bool is_synth_sysex(const uint8_t * data, uint32_t length) {
+    if (length < SYNTH_HDR_LEN) {
         return false;
     }
     return (data[0] == MIDI_SYSEX_START)
            && (data[1] == KORG_MANUFACTURER_ID)
            && ((data[2] & 0xF0) == 0x30)
-           && (data[3] == Z1_FAMILY_ID);
+           && (data[3] == SYNTH_FAMILY_ID);
 }
 
 // ── 7-to-8 bit decoding ───────────────────────────────────────────────────────
@@ -92,8 +92,8 @@ static uint32_t encode_8to7(const uint8_t * data, uint32_t dataLen, uint8_t * ou
 static uint32_t build_header(uint8_t * buf, uint8_t funcId) {
     buf[0] = MIDI_SYSEX_START;
     buf[1] = KORG_MANUFACTURER_ID;
-    buf[2] = Z1_SYSEX_CHANNEL_BYTE(gDevice.id);
-    buf[3] = Z1_FAMILY_ID;
+    buf[2] = SYNTH_SYSEX_CHANNEL_BYTE(gDevice.id);
+    buf[3] = SYNTH_FAMILY_ID;
     buf[4] = funcId;
     return 5;
 }
@@ -124,7 +124,7 @@ static const char * kUnisonTypeNames[] = {"OFF", "2 voices", "3 voices", "6 voic
 //     22  : Unison Detune            (param 27)
 static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
     // Name (bytes 0-15)
-    uint32_t nameLen = (decodedLen >= Z1_PROG_NAME_LEN) ? Z1_PROG_NAME_LEN : decodedLen;
+    uint32_t nameLen = (decodedLen >= SYNTH_PROG_NAME_LEN) ? SYNTH_PROG_NAME_LEN : decodedLen;
     uint32_t i;
 
     for (i = 0; i < nameLen; i++) {
@@ -272,53 +272,53 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
     LOG_DEBUG("PARAM_CHANGE group=%u param=%u value=%u\n",
               (unsigned)group, (unsigned)paramId, (unsigned)value);
 
-    if ((group == Z1_PARAM_GROUP_PROG) && (paramId >= 1) && (paramId <= Z1_PROG_NAME_LEN)) {
+    if ((group == SYNTH_PARAM_GROUP_PROG) && (paramId >= 1) && (paramId <= SYNTH_PROG_NAME_LEN)) {
         char c = (char)(value & 0x7F);
-        gDevice.progName[paramId - 1]      = ((c >= 0x20) && (c <= 0x7F)) ? c : '?';
-        gDevice.progName[Z1_PROG_NAME_LEN] = '\0';
+        gDevice.progName[paramId - 1]         = ((c >= 0x20) && (c <= 0x7F)) ? c : '?';
+        gDevice.progName[SYNTH_PROG_NAME_LEN] = '\0';
         LOG_DEBUG("Program name updated: \"%s\"\n", gDevice.progName);
-    } else if (group == Z1_PARAM_GROUP_PROG) {
-        if (paramId == Z1_PARAM_FILTER_ROUTING) {
+    } else if (group == SYNTH_PARAM_GROUP_PROG) {
+        if (paramId == SYNTH_PARAM_FILTER_ROUTING) {
             if (value <= 2) {
                 gDevice.filterRouting = (uint8_t)value;
                 LOG_DEBUG("Filter Routing %u\n", (unsigned)value);
             }
-        } else if (paramId == Z1_PARAM_FILTER2_LINK) {
+        } else if (paramId == SYNTH_PARAM_FILTER2_LINK) {
             gDevice.filter2Link = (value != 0) ? 1 : 0;
             LOG_DEBUG("Filter2 Link %u\n", (unsigned)gDevice.filter2Link);
-        } else if (paramId == Z1_PARAM_FILTER1_TYPE) {
+        } else if (paramId == SYNTH_PARAM_FILTER1_TYPE) {
             if ((value >= 1) && (value <= 5)) {
                 gDevice.filter1Type = (uint8_t)value;
                 LOG_DEBUG("Filter1 Type %u\n", (unsigned)value);
             }
-        } else if (paramId == Z1_PARAM_FILTER1_INPUT_TRIM) {
+        } else if (paramId == SYNTH_PARAM_FILTER1_INPUT_TRIM) {
             gDevice.filter1InputTrim = (uint8_t)(value <= 99 ? value : 99);
             LOG_DEBUG("Filter1 InputTrim %u\n", (unsigned)gDevice.filter1InputTrim);
-        } else if (paramId == Z1_PARAM_FILTER2_TYPE) {
+        } else if (paramId == SYNTH_PARAM_FILTER2_TYPE) {
             if ((value >= 1) && (value <= 5)) {
                 gDevice.filter2Type = (uint8_t)value;
                 LOG_DEBUG("Filter2 Type %u\n", (unsigned)value);
             }
-        } else if (paramId == Z1_PARAM_FILTER2_INPUT_TRIM) {
+        } else if (paramId == SYNTH_PARAM_FILTER2_INPUT_TRIM) {
             gDevice.filter2InputTrim = (uint8_t)(value <= 99 ? value : 99);
             LOG_DEBUG("Filter2 InputTrim %u\n", (unsigned)gDevice.filter2InputTrim);
         }
         uint8_t native = (uint8_t)(value <= 99 ? value : 99);
         uint8_t cc     = (uint8_t)((native * 127UL + 49) / 99);
 
-        if (paramId == Z1_PARAM_FILTER1_CUTOFF) {
+        if (paramId == SYNTH_PARAM_FILTER1_CUTOFF) {
             gDevice.filter1CutoffNative = native;
             gDevice.filter1Cutoff       = cc;
             LOG_DEBUG("Filter1 Cutoff native=%u cc=%u\n", native, cc);
-        } else if (paramId == Z1_PARAM_FILTER1_RESONANCE) {
+        } else if (paramId == SYNTH_PARAM_FILTER1_RESONANCE) {
             gDevice.filter1ResNative = native;
             gDevice.filter1Resonance = cc;
             LOG_DEBUG("Filter1 Resonance native=%u cc=%u\n", native, cc);
-        } else if (paramId == Z1_PARAM_FILTER2_CUTOFF) {
+        } else if (paramId == SYNTH_PARAM_FILTER2_CUTOFF) {
             gDevice.filter2CutoffNative = native;
             gDevice.filter2Cutoff       = cc;
             LOG_DEBUG("Filter2 Cutoff native=%u cc=%u\n", native, cc);
-        } else if (paramId == Z1_PARAM_FILTER2_RESONANCE) {
+        } else if (paramId == SYNTH_PARAM_FILTER2_RESONANCE) {
             gDevice.filter2ResNative = native;
             gDevice.filter2Resonance = cc;
             LOG_DEBUG("Filter2 Resonance native=%u cc=%u\n", native, cc);
@@ -328,8 +328,8 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-void z1_on_connected(void) {
-    LOG_DEBUG("Z1 connected (channel byte 0x%02X)\n", Z1_SYSEX_CHANNEL_BYTE(gDevice.id));
+void synth_on_connected(void) {
+    LOG_DEBUG("Z1 connected (channel byte 0x%02X)\n", SYNTH_SYSEX_CHANNEL_BYTE(gDevice.id));
     memset(gDevice.progName, 0, sizeof(gDevice.progName));
     gDevice.category            = 0;
     gDevice.voiceMode           = 2; // default POLY
@@ -351,13 +351,13 @@ void z1_on_connected(void) {
     gDevice.filter2Resonance    = 0;
     gDevice.filter2ResNative    = 0;
     gReDraw                     = true;
-    z1_request_current_program();
+    synth_request_current_program();
 }
 
-void z1_request_current_program(void) {
+void synth_request_current_program(void) {
     // F0 42 3g 46 10 00 F7
     uint8_t  msg[7];
-    uint32_t pos = build_header(msg, Z1_FUNC_CURR_PROG_DUMP_REQ);
+    uint32_t pos = build_header(msg, SYNTH_FUNC_CURR_PROG_DUMP_REQ);
 
     msg[pos++] = 0x00;
     msg[pos++] = MIDI_SYSEX_END;
@@ -365,10 +365,10 @@ void z1_request_current_program(void) {
     LOG_DEBUG("Sent CURR_PROG_DUMP_REQ\n");
 }
 
-void z1_send_parameter_change(uint8_t group, uint16_t paramId, uint16_t value) {
+void synth_send_parameter_change(uint8_t group, uint16_t paramId, uint16_t value) {
     // F0 42 3g 46 41 0mm pp pp vv vv F7
     uint8_t  msg[11];
-    uint32_t pos = build_header(msg, Z1_FUNC_PARAMETER_CHANGE);
+    uint32_t pos = build_header(msg, SYNTH_FUNC_PARAMETER_CHANGE);
 
     msg[pos++] = (uint8_t)(group & 0x0F);
     msg[pos++] = (uint8_t)(paramId & 0x7F);
@@ -379,8 +379,8 @@ void z1_send_parameter_change(uint8_t group, uint16_t paramId, uint16_t value) {
     midi_send(msg, pos);
 }
 
-void z1_handle_message(const uint8_t * data, uint32_t length) {
-    if (!is_z1_sysex(data, length)) {
+void synth_handle_message(const uint8_t * data, uint32_t length) {
+    if (!is_synth_sysex(data, length)) {
         LOG_DEBUG("Ignoring non-Z1 SysEx (len=%u)\n", (unsigned)length);
         return;
     }
@@ -388,25 +388,25 @@ void z1_handle_message(const uint8_t * data, uint32_t length) {
     LOG_DEBUG("Z1 SysEx func=0x%02X len=%u\n", (unsigned)funcId, (unsigned)length);
 
     switch (funcId) {
-        case Z1_FUNC_CURR_PROG_DUMP:
+        case SYNTH_FUNC_CURR_PROG_DUMP:
             handle_curr_prog_dump(data, length);
             break;
-        case Z1_FUNC_PARAMETER_CHANGE:
+        case SYNTH_FUNC_PARAMETER_CHANGE:
             handle_parameter_change(data, length);
             break;
-        case Z1_FUNC_DATA_LOAD_COMPLETED:
+        case SYNTH_FUNC_DATA_LOAD_COMPLETED:
             LOG_DEBUG("Data load completed\n");
             break;
-        case Z1_FUNC_DATA_LOAD_ERROR:
+        case SYNTH_FUNC_DATA_LOAD_ERROR:
             LOG_ERROR("Data load error\n");
             break;
-        case Z1_FUNC_WRITE_COMPLETED:
+        case SYNTH_FUNC_WRITE_COMPLETED:
             LOG_DEBUG("Write completed\n");
             break;
-        case Z1_FUNC_WRITE_ERROR:
+        case SYNTH_FUNC_WRITE_ERROR:
             LOG_ERROR("Write error\n");
             break;
-        case Z1_FUNC_DATA_FORMAT_ERROR:
+        case SYNTH_FUNC_DATA_FORMAT_ERROR:
             LOG_ERROR("Data format error\n");
             break;
         default:

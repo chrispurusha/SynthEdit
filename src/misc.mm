@@ -23,7 +23,7 @@
 #include "globalVars.h"
 #include "graphics.h"
 #include "midiComms.h"
-#include "z1Graphics.h"
+#include "synthGraphics.h"
 
 // Kept alive (and security-scope-accessing) for the app's lifetime once a
 // layouts folder has been resolved — either from a saved bookmark at launch,
@@ -71,7 +71,7 @@ const char * get_saved_layouts_dir(void) {
     return buf;
 }
 
-@interface Z1MenuTarget : NSObject
+@interface SynthMenuTarget : NSObject
 - (void)scanDevices:(id)sender;
 - (void)setDialModeRotary:(id)sender;
 - (void)setDialModeVertical:(id)sender;
@@ -80,7 +80,7 @@ const char * get_saved_layouts_dir(void) {
 - (BOOL)validateMenuItem:(NSMenuItem *)item;
 @end
 
-@implementation Z1MenuTarget
+@implementation SynthMenuTarget
 
 - (void)scanDevices:(id)sender {
     midi_scan_devices();
@@ -117,7 +117,7 @@ const char * get_saved_layouts_dir(void) {
          [[NSUserDefaults standardUserDefaults] setObject:bookmark forKey:@"layoutsDirBookmark"];
          [[NSUserDefaults standardUserDefaults] synchronize];
 
-         z1_set_layouts_dir([[url path] UTF8String]);
+         synth_set_layouts_dir([[url path] UTF8String]);
          wake_glfw();
      }];
 }
@@ -153,18 +153,18 @@ const char * get_saved_layouts_dir(void) {
 @end
 
 void setup_main_menu(void) {
-    NSMenu *              menuBar  = [[NSApplication sharedApplication] mainMenu];
-    static Z1MenuTarget * target   = nil;
+    NSMenu *                 menuBar  = [[NSApplication sharedApplication] mainMenu];
+    static SynthMenuTarget * target   = nil;
 
     if (target == nil) {
-        target = [[Z1MenuTarget alloc] init];
+        target = [[SynthMenuTarget alloc] init];
     }
 
     if (menuBar == nil) {
         menuBar = [[NSMenu alloc] init];
         [[NSApplication sharedApplication] setMainMenu:menuBar];
     }
-    NSUserDefaults *      defaults = [NSUserDefaults standardUserDefaults];
+    NSUserDefaults *         defaults = [NSUserDefaults standardUserDefaults];
 
     if ([defaults objectForKey:@"dialMode"] != nil) {
         gDialMode = (tDialMode)[defaults integerForKey:@"dialMode"];

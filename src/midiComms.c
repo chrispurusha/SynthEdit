@@ -22,7 +22,7 @@
 #include "synthlibDefs.h"
 #include "types.h"
 #include "globalVars.h"
-#include "z1Comms.h"
+#include "synthComms.h"
 #include "midiComms.h"
 
 static void             (*gWakeCb)(void) = NULL;
@@ -162,7 +162,7 @@ static MIDIEndpointRef find_dest_for_source(MIDIEndpointRef src) {
 
 // ── Process buffered identity replies (MIDI thread only) ──────────────────────
 // Scans the reply buffer collected since the last scan, selects the first Z1,
-// and calls z1_on_connected().  All CoreMIDI lookups happen here — no races.
+// and calls synth_on_connected().  All CoreMIDI lookups happen here — no races.
 
 static void process_identity_replies(void) {
     uint32_t count = gIdReplyCount;
@@ -178,8 +178,8 @@ static void process_identity_replies(void) {
                   (unsigned)gIdReplies[i].src);
 
         if (  (gIdReplies[i].mfrId != KORG_MANUFACTURER_ID)
-           || (gIdReplies[i].familyLSB != Z1_FAMILY_ID)
-           || (gIdReplies[i].memberLSB != Z1_MEMBER_ID)) {
+           || (gIdReplies[i].familyLSB != SYNTH_FAMILY_ID)
+           || (gIdReplies[i].memberLSB != SYNTH_MEMBER_ID)) {
             continue;
         }
         MIDIEndpointRef src  = gIdReplies[i].src;
@@ -199,7 +199,7 @@ static void process_identity_replies(void) {
         LOG_DEBUG("Z1 connected: deviceId=0x%02X src=0x%08X dest=0x%08X\n",
                   gDevice.id, (unsigned)src, (unsigned)dest);
 
-        z1_on_connected();
+        synth_on_connected();
 
         if (gWakeCb != NULL) {
             gWakeCb();
@@ -280,7 +280,7 @@ static void dispatch_sysex(MIDIEndpointRef src, const uint8_t * data, uint32_t l
        && (data[4] == MIDI_IDENTITY_REPLY_SUB2)) {
         handle_identity_reply(src, data, length);
     } else {
-        z1_handle_message(data, length);
+        synth_handle_message(data, length);
     }
 
     if (gWakeCb != NULL) {

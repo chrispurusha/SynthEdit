@@ -17,8 +17,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef __Z1_GRAPHICS_H__
-#define __Z1_GRAPHICS_H__
+#ifndef __SYNTH_GRAPHICS_H__
+#define __SYNTH_GRAPHICS_H__
 
 #include "types.h"
 #include "panelConfig.h"
@@ -30,22 +30,22 @@ extern "C" {
 // Called once after OpenGL context is ready — loads z1.txt from the saved
 // layouts folder preference (see get_saved_layouts_dir() in misc.h), or
 // "layouts" (relative to cwd) if no preference has been set yet.
-void z1_init_graphics(void);
+void synth_init_graphics(void);
 
-// Render the full Z1 editor UI into the current frame
-void z1_render(tRectangle area);
+// Render the full editor UI into the current frame
+void synth_render(tRectangle area);
 
 // Points the layouts folder at `dir`, persists nothing itself (the caller —
 // the "Choose Layouts Folder…" menu action — owns persistence), and reloads
 // z1.txt from the new location immediately.
-void z1_set_layouts_dir(const char * dir);
+void synth_set_layouts_dir(const char * dir);
 
 // The "synth"/"filters" section from z1.txt, laid out during the last
-// z1_render() call — dial rects are valid for hit-testing until the next render.
-tPanelSection * z1_filters_section(void);
+// synth_render() call — dial rects are valid for hit-testing until the next render.
+tPanelSection * synth_filters_section(void);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // __Z1_GRAPHICS_H__
+#endif // __SYNTH_GRAPHICS_H__

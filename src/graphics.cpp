@@ -35,7 +35,7 @@ extern "C" {
 #include "globalVars.h"
 #include "utils.h"
 #include "utilsGraphics.h"
-#include "z1Graphics.h"
+#include "synthGraphics.h"
 #include "mouseHandle.h"
 #include "menus.h"
 #include "midiComms.h"
@@ -246,7 +246,7 @@ void init_graphics(void) {
     glEnable(GL_BLEND);               // TODO - Assess if G2 edit could benefit from this
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     init_font();                      // TODO - G2 edit could benefit from this if we're loading multiple fonts
-    z1_init_graphics();               // TODO - do we need to call this, since it's currently empty?
+    synth_init_graphics();            // TODO - do we need to call this, since it's currently empty?
 
     register_midi_wake_cb(wake_glfw); // TODO - this doesn't belong in here
 }
@@ -268,7 +268,7 @@ static void render_frame(GLFWwindow * win) {
     //double     lcdY     = 10.0;
     tRectangle area = {{0.0, 0.0}, {logW, logH}};
 
-    z1_render(area);
+    synth_render(area);
     render_context_menu();
 
     glfwSwapBuffers(win);

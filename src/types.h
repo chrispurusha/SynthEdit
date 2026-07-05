@@ -84,16 +84,16 @@ typedef enum {
 
 // ── MIDI device ───────────────────────────────────────────────────────────────
 
-#define Z1_PROG_NAME_MAXLEN    17    // 16 chars + null terminator
+#define SYNTH_PROG_NAME_MAXLEN    17    // 16 chars + null terminator
 
 typedef struct {
     bool     connected;
-    uint8_t  id;            // MIDI global channel 0-indexed; Z1_SYSEX_CHANNEL_BYTE(id) for header
+    uint8_t  id;            // MIDI global channel 0-indexed; SYNTH_SYSEX_CHANNEL_BYTE(id) for header
     uint16_t family;
     uint16_t member;
     // Program info (decoded from CURR_PROG_DUMP)
-    char     progName[Z1_PROG_NAME_MAXLEN];
-    uint8_t  category;            // 0-17, see kCategoryNames in z1Comms.c
+    char     progName[SYNTH_PROG_NAME_MAXLEN];
+    uint8_t  category;            // 0-17, see kCategoryNames in synthComms.c
     uint8_t  voiceMode;           // 0=MONO_MULTI 1=MONO_SINGLE 2=POLY
     bool     unisonOn;            // Unison SW
     uint8_t  unisonType;          // 0=OFF 1=2voices 2=3voices 3=6voices
@@ -113,6 +113,6 @@ typedef struct {
     uint8_t  filter2Resonance;    // CC 89
     uint8_t  filter2ResNative;    // SysEx param 301
     uint8_t  filter2Type;         // SysEx param 288, value 1-5: LPF/HPF/BPF/BRF/2BPF
-} tZ1Device;
+} tSynthDevice;
 
 #endif // __TYPES_H__

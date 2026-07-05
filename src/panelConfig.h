@@ -18,9 +18,9 @@
  */
 
 // Generic parser for the panel-descriptor text format used by z1.txt (and,
-// eventually, other <device>.txt files). Deliberately has no Z1-Edit-specific
-// dependencies — candidate for promotion into SynthLib once a second project
-// wants it.
+// eventually, other <device>.txt files). Deliberately has no application-
+// specific dependencies — candidate for promotion into SynthLib once a
+// second project wants it.
 
 #ifndef __PANEL_CONFIG_H__
 #define __PANEL_CONFIG_H__

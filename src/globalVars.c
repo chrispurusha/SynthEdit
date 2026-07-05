@@ -28,7 +28,7 @@ _Atomic bool    gReDraw      = true;
 
 void *          gWindow      = NULL;
 
-tZ1Device       gDevice      = {0};
+tSynthDevice    gDevice      = {0};
 MIDIClientRef   gMidiClient  = 0;
 MIDIPortRef     gMidiInPort  = 0;
 MIDIPortRef     gMidiOutPort = 0;

@@ -36,11 +36,11 @@ extern "C" {
 #include "utilsGraphics.h"
 #include "panelConfig.h"
 #include "misc.h"
-#include "z1Graphics.h"
+#include "synthGraphics.h"
 
-#define Z1_LAYOUTS_DIR_DEFAULT    "layouts"    // relative to cwd, used until a folder is chosen/persisted
+#define SYNTH_LAYOUTS_DIR_DEFAULT    "layouts"    // relative to cwd, used until a folder is chosen/persisted
 
-static char         gLayoutsDir[1024] = Z1_LAYOUTS_DIR_DEFAULT;
+static char         gLayoutsDir[1024] = SYNTH_LAYOUTS_DIR_DEFAULT;
 
 static const char * kCategoryNames[]  = {"Synth-Hard", "Synth-Soft", "E.Piano",    "Organ",
                                          "Strings",     "Brass",      "Wind",       "Bell/Mallt",
@@ -48,10 +48,10 @@ static const char * kCategoryNames[]  = {"Synth-Hard", "Synth-Soft", "E.Piano", 
                                          "S.E./Natrl",  "Synth-Lead", "Synth-Pad",  "Synth-Comp",
                                          "Digital",     "User",       };
 
-static tPanelConfig gZ1PanelConfig    = {0};
+static tPanelConfig gSynthPanelConfig = {0};
 
-tPanelSection * z1_filters_section(void) {
-    return find_panel_section(&gZ1PanelConfig, "synth", "filters");
+tPanelSection * synth_filters_section(void) {
+    return find_panel_section(&gSynthPanelConfig, "synth", "filters");
 }
 
 // Live value + native value for a dial, keyed by the id it's given in
@@ -63,7 +63,7 @@ typedef struct {
     uint32_t nativeVal;
 } tDialLiveValue;
 
-static tDialLiveValue z1_dial_live_value(const char * id) {
+static tDialLiveValue synth_dial_live_value(const char * id) {
     uint8_t f1t = (gDevice.filter1Type >= 1 && gDevice.filter1Type <= 5) ? gDevice.filter1Type : 1;
     uint8_t f2t = (gDevice.filter2Type >= 1 && gDevice.filter2Type <= 5) ? gDevice.filter2Type : 1;
     uint8_t fr  = (gDevice.filterRouting <= 2) ? gDevice.filterRouting : 0;
@@ -115,36 +115,36 @@ static tDialLiveValue z1_dial_live_value(const char * id) {
     };
 }
 
-static void z1_reload_panel_config(void) {
+static void synth_reload_panel_config(void) {
     char path[1152];
 
     snprintf(path, sizeof(path), "%s/z1.txt", gLayoutsDir);
 
-    if (!load_panel_config(path, &gZ1PanelConfig)) {
+    if (!load_panel_config(path, &gSynthPanelConfig)) {
         LOG_ERROR("z1: couldn't load '%s' — filter dials will not render\n", path);
     }
     gReDraw = true;
 }
 
-void z1_set_layouts_dir(const char * dir) {
+void synth_set_layouts_dir(const char * dir) {
     if (dir && (dir[0] != '\0')) {
         strncpy(gLayoutsDir, dir, sizeof(gLayoutsDir) - 1);
         gLayoutsDir[sizeof(gLayoutsDir) - 1] = '\0';
     }
-    z1_reload_panel_config();
+    synth_reload_panel_config();
 }
 
-void z1_init_graphics(void) {
+void synth_init_graphics(void) {
     const char * saved = get_saved_layouts_dir();
 
     if (saved) {
         strncpy(gLayoutsDir, saved, sizeof(gLayoutsDir) - 1);
         gLayoutsDir[sizeof(gLayoutsDir) - 1] = '\0';
     }
-    z1_reload_panel_config();
+    synth_reload_panel_config();
 }
 
-void z1_render(tRectangle area) {
+void synth_render(tRectangle area) {
     if (!gDevice.connected) {
         tRectangle r = {{area.coord.x + 300.0, area.coord.y + 2.0}, {800.0, 28.0}};
         set_rgb_colour((tRgb){0.8, 0.4, 0.4});
@@ -196,14 +196,14 @@ void z1_render(tRectangle area) {
     // Layout, colours, ranges and labels all come from layouts/z1.txt via
     // panelConfig — this block only supplies the live values and draws.
     {
-        tPanelSection * section = z1_filters_section();
+        tPanelSection * section = synth_filters_section();
 
         if (section) {
             layout_panel_section(section, (tRectangle){{x, y}, {0, 0}});
 
             for (uint32_t i = 0; i < section->dialCount; i++) {
                 tPanelDial *   dial    = &section->dials[i];
-                tDialLiveValue live    = z1_dial_live_value(dial->id);
+                tDialLiveValue live    = synth_dial_live_value(dial->id);
 
                 render_dial(mainArea, dial->rect, live.dialVal, dial->max, 0, dial->colour);
 

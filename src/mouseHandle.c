@@ -24,8 +24,8 @@
 #include "utilsGraphics.h"
 #include "menus.h"
 #include "midiComms.h"
-#include "z1Comms.h"
-#include "z1Graphics.h"
+#include "synthComms.h"
+#include "synthGraphics.h"
 #include "mouseHandle.h"
 
 // ── GLFW constants (avoids pulling GLFW header into C) ────────────────────────
@@ -66,7 +66,7 @@ static double      gDragTypeAccum = 0.0;   // sub-step accumulator for discrete 
 // Returns a zeroed rect (matches nothing) if the panel config hasn't loaded
 // or the id isn't found, rather than crashing.
 static tRectangle dial_rect(const char * id) {
-    tPanelSection * section = z1_filters_section();
+    tPanelSection * section = synth_filters_section();
     tPanelDial *    dial    = section ? find_panel_dial(section, id) : NULL;
 
     return dial ? dial->rect : (tRectangle){
@@ -162,7 +162,7 @@ static void set_filter1_input_trim(uint8_t v) {
         return;
     }
     gDevice.filter1InputTrim = v;
-    z1_send_parameter_change(Z1_PARAM_GROUP_PROG, Z1_PARAM_FILTER1_INPUT_TRIM, v);
+    synth_send_parameter_change(SYNTH_PARAM_GROUP_PROG, SYNTH_PARAM_FILTER1_INPUT_TRIM, v);
     gReDraw                  = true;
 }
 
@@ -171,7 +171,7 @@ static void set_filter2_input_trim(uint8_t v) {
         return;
     }
     gDevice.filter2InputTrim = v;
-    z1_send_parameter_change(Z1_PARAM_GROUP_PROG, Z1_PARAM_FILTER2_INPUT_TRIM, v);
+    synth_send_parameter_change(SYNTH_PARAM_GROUP_PROG, SYNTH_PARAM_FILTER2_INPUT_TRIM, v);
     gReDraw                  = true;
 }
 
@@ -180,7 +180,7 @@ static void set_filter2_link(uint8_t v) {
         return;
     }
     gDevice.filter2Link = v;
-    z1_send_parameter_change(Z1_PARAM_GROUP_PROG, Z1_PARAM_FILTER2_LINK, v);
+    synth_send_parameter_change(SYNTH_PARAM_GROUP_PROG, SYNTH_PARAM_FILTER2_LINK, v);
     gReDraw             = true;
 }
 
@@ -189,7 +189,7 @@ static void set_filter_routing(uint8_t v) {
         return;
     }
     gDevice.filterRouting = v;
-    z1_send_parameter_change(Z1_PARAM_GROUP_PROG, Z1_PARAM_FILTER_ROUTING, v);
+    synth_send_parameter_change(SYNTH_PARAM_GROUP_PROG, SYNTH_PARAM_FILTER_ROUTING, v);
     gReDraw               = true;
 }
 
@@ -198,7 +198,7 @@ static void set_filter1_type(uint8_t v) {
         return;
     }
     gDevice.filter1Type = v;
-    z1_send_parameter_change(Z1_PARAM_GROUP_PROG, Z1_PARAM_FILTER1_TYPE, v);
+    synth_send_parameter_change(SYNTH_PARAM_GROUP_PROG, SYNTH_PARAM_FILTER1_TYPE, v);
     gReDraw             = true;
 }
 
@@ -207,7 +207,7 @@ static void set_filter2_type(uint8_t v) {
         return;
     }
     gDevice.filter2Type = v;
-    z1_send_parameter_change(Z1_PARAM_GROUP_PROG, Z1_PARAM_FILTER2_TYPE, v);
+    synth_send_parameter_change(SYNTH_PARAM_GROUP_PROG, SYNTH_PARAM_FILTER2_TYPE, v);
     gReDraw             = true;
 }
 

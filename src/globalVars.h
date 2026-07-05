@@ -34,7 +34,7 @@ extern tDialMode       gDialMode;
 extern void *          gWindow;            // GLFWwindow*; void* avoids pulling GLFW into C headers
 
 // ── MIDI / device ─────────────────────────────────────────────────────────────
-extern tZ1Device       gDevice;
+extern tSynthDevice    gDevice;
 extern MIDIClientRef   gMidiClient;
 extern MIDIPortRef     gMidiInPort;
 extern MIDIPortRef     gMidiOutPort;
