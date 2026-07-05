@@ -1,6 +1,6 @@
-# Z1-Edit
+# SynthEdit
 
-A macOS GUI editor for the Korg Z1 synthesizer. Work in progress.
+A macOS GUI editor built to support a variety of synthesizers. Synth-specific data — panel layout, controls, SysEx identity — lives in per-device layout files (see `layouts/`), not hardcoded in the app. Currently supports the Korg Z1 (`layouts/z1.txt`). Work in progress.
 
 If anyone is interested in helping, especially with the GUI side of things, please drop me a line.
 
@@ -89,7 +89,7 @@ cmake --build SynthLib/ThirdParty/freetype/build
 
 ### 4. Build with Xcode
 
-Open `Z1Edit.xcodeproj` and build normally.
+Open `SynthEdit.xcodeproj` and build normally.
 
 ### 5. Code formatting (optional)
 
