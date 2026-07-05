@@ -62,6 +62,17 @@ static double      gDragPrevY     = 0.0;
 static int         gDragSkipCount = 0;     // skip first N cursor_pos events after CURSOR_DISABLED — covers stale events + transition event
 static double      gDragTypeAccum = 0.0;   // sub-step accumulator for discrete type dial
 
+// Looks up a filter dial's current rect by the id it's given in layouts/z1.txt.
+// Returns a zeroed rect (matches nothing) if the panel config hasn't loaded
+// or the id isn't found, rather than crashing.
+static tRectangle dial_rect(const char * id) {
+    tPanelSection * section = z1_filters_section();
+    tPanelDial *    dial    = section ? find_panel_dial(section, id) : NULL;
+
+    return dial ? dial->rect : (tRectangle){
+        0
+    };
+}
 
 // ── Coordinate helpers ────────────────────────────────────────────────────────
 
@@ -255,25 +266,25 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
     tDragTarget hitTarget = eDragNone;
 
     if (gDevice.connected) {
-        if (within_rectangle(coord, z1_filter_routing_dial_rect())) {
+        if (within_rectangle(coord, dial_rect("route"))) {
             hitTarget = eDragFilterRouting;
-        } else if (within_rectangle(coord, z1_filter2_link_dial_rect())) {
+        } else if (within_rectangle(coord, dial_rect("f2link"))) {
             hitTarget = eDragFilter2Link;
-        } else if (within_rectangle(coord, z1_filter1_type_dial_rect())) {
+        } else if (within_rectangle(coord, dial_rect("f1type"))) {
             hitTarget = eDragFilter1Type;
-        } else if (within_rectangle(coord, z1_filter1_input_trim_dial_rect())) {
+        } else if (within_rectangle(coord, dial_rect("f1trim"))) {
             hitTarget = eDragFilter1InputTrim;
-        } else if (within_rectangle(coord, z1_filter1_dial_rect())) {
+        } else if (within_rectangle(coord, dial_rect("f1cut"))) {
             hitTarget = eDragFilter1Cutoff;
-        } else if (within_rectangle(coord, z1_filter1_res_dial_rect())) {
+        } else if (within_rectangle(coord, dial_rect("f1res"))) {
             hitTarget = eDragFilter1Res;
-        } else if (within_rectangle(coord, z1_filter2_type_dial_rect())) {
+        } else if (within_rectangle(coord, dial_rect("f2type"))) {
             hitTarget = eDragFilter2Type;
-        } else if (within_rectangle(coord, z1_filter2_input_trim_dial_rect())) {
+        } else if (within_rectangle(coord, dial_rect("f2trim"))) {
             hitTarget = eDragFilter2InputTrim;
-        } else if (within_rectangle(coord, z1_filter2_dial_rect())) {
+        } else if (within_rectangle(coord, dial_rect("f2cut"))) {
             hitTarget = eDragFilter2Cutoff;
-        } else if (within_rectangle(coord, z1_filter2_res_dial_rect())) {
+        } else if (within_rectangle(coord, dial_rect("f2res"))) {
             hitTarget = eDragFilter2Res;
         }
     }
@@ -311,7 +322,7 @@ void handle_cursor_pos(void * win, double x, double y) {
 
         if (gDialMode == eDialModeRotary) {
             tCoord logCoord = window_to_logical(win, x, y);
-            double angle    = calculate_mouse_angle(logCoord, z1_filter_routing_dial_rect());
+            double angle    = calculate_mouse_angle(logCoord, dial_rect("route"));
             newRouting = (int)angle_to_value(angle, 3);
         } else {
             double delta = 0.0;
@@ -338,7 +349,7 @@ void handle_cursor_pos(void * win, double x, double y) {
 
         if (gDialMode == eDialModeRotary) {
             tCoord logCoord = window_to_logical(win, x, y);
-            double angle    = calculate_mouse_angle(logCoord, z1_filter2_link_dial_rect());
+            double angle    = calculate_mouse_angle(logCoord, dial_rect("f2link"));
             newLink = (int)angle_to_value(angle, 2);
         } else {
             double delta = 0.0;
@@ -362,8 +373,8 @@ void handle_cursor_pos(void * win, double x, double y) {
     // Type dials: respect gDialMode, use accumulator for delta modes
     if ((gDragTarget == eDragFilter1Type) || (gDragTarget == eDragFilter2Type)) {
         tRectangle dialRect = (gDragTarget == eDragFilter1Type)
-                              ? z1_filter1_type_dial_rect()
-                              : z1_filter2_type_dial_rect();
+                              ? dial_rect("f1type")
+                              : dial_rect("f2type");
         int        newType  = 0;
 
         if (gDialMode == eDialModeRotary) {
@@ -420,17 +431,17 @@ void handle_cursor_pos(void * win, double x, double y) {
     tRectangle dialRect   = {0};
 
     switch (gDragTarget) {
-        case eDragFilter1Cutoff:    dialRect = z1_filter1_dial_rect();
+        case eDragFilter1Cutoff:    dialRect = dial_rect("f1cut");
             break;
-        case eDragFilter1Res:       dialRect = z1_filter1_res_dial_rect();
+        case eDragFilter1Res:       dialRect = dial_rect("f1res");
             break;
-        case eDragFilter1InputTrim: dialRect = z1_filter1_input_trim_dial_rect();
+        case eDragFilter1InputTrim: dialRect = dial_rect("f1trim");
             break;
-        case eDragFilter2Cutoff:    dialRect = z1_filter2_dial_rect();
+        case eDragFilter2Cutoff:    dialRect = dial_rect("f2cut");
             break;
-        case eDragFilter2Res:       dialRect = z1_filter2_res_dial_rect();
+        case eDragFilter2Res:       dialRect = dial_rect("f2res");
             break;
-        case eDragFilter2InputTrim: dialRect = z1_filter2_input_trim_dial_rect();
+        case eDragFilter2InputTrim: dialRect = dial_rect("f2trim");
             break;
         default:                    return;
     }

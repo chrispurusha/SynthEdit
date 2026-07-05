@@ -23,12 +23,60 @@
 #include "globalVars.h"
 #include "graphics.h"
 #include "midiComms.h"
+#include "z1Graphics.h"
+
+// Kept alive (and security-scope-accessing) for the app's lifetime once a
+// layouts folder has been resolved — either from a saved bookmark at launch,
+// or from a fresh pick via the menu. macOS revokes access on process exit,
+// so there's no matching stopAccessingSecurityScopedResource on quit.
+static NSURL * gLayoutsDirURL = nil;
+
+static void start_accessing_layouts_dir(NSURL * url) {
+    if (gLayoutsDirURL) {
+        [gLayoutsDirURL stopAccessingSecurityScopedResource];
+    }
+    [url startAccessingSecurityScopedResource];
+    gLayoutsDirURL = url;
+}
+
+// Under App Sandbox, a plain saved path string doesn't carry access rights
+// across launches — only the security-scoped bookmark created at pick time
+// does (see chooseLayoutsFolder: below). Returns NULL if there's no saved
+// bookmark, or it couldn't be resolved (folder moved/deleted, permission
+// revoked, etc.) — callers fall back to the built-in default in that case.
+const char * get_saved_layouts_dir(void) {
+    static char buf[1024];
+    NSData *    bookmark = [[NSUserDefaults standardUserDefaults] dataForKey:@"layoutsDirBookmark"];
+
+    if (!bookmark) {
+        return NULL;
+    }
+    BOOL        stale    = NO;
+    NSError *   error    = nil;
+    NSURL *     url      = [NSURL URLByResolvingBookmarkData:bookmark
+                            options:NSURLBookmarkResolutionWithSecurityScope
+                            relativeToURL:nil
+                            bookmarkDataIsStale:&stale
+                            error:&error];
+
+    if (!url || ![url startAccessingSecurityScopedResource]) {
+        LOG_ERROR("couldn't resolve saved layouts folder bookmark: %s\n",
+                  error ? [[error localizedDescription] UTF8String] : "unknown error");
+        return NULL;
+    }
+    gLayoutsDirURL       = url;
+
+    strncpy(buf, [[url path] UTF8String], sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+    return buf;
+}
 
 @interface Z1MenuTarget : NSObject
 - (void)scanDevices:(id)sender;
 - (void)setDialModeRotary:(id)sender;
 - (void)setDialModeVertical:(id)sender;
 - (void)setDialModeHorizontal:(id)sender;
+- (void)chooseLayoutsFolder:(id)sender;
 - (BOOL)validateMenuItem:(NSMenuItem *)item;
 @end
 
@@ -37,6 +85,41 @@
 - (void)scanDevices:(id)sender {
     midi_scan_devices();
     wake_glfw();
+}
+
+- (void)chooseLayoutsFolder:(id)sender {
+    NSOpenPanel * panel = [NSOpenPanel openPanel];
+
+    [panel setCanChooseFiles:NO];
+    [panel setCanChooseDirectories:YES];
+    [panel setAllowsMultipleSelection:NO];
+    [panel setTitle:@"Choose Layouts Folder"];
+
+    [panel beginWithCompletionHandler:^(NSModalResponse result) {
+         if (result != NSModalResponseOK) {
+             return;
+         }
+         NSURL * url = panel.URL;
+         NSError * error = nil;
+         // Security-scoped bookmark, not just the path — this is what lets the
+         // choice survive across app launches under App Sandbox.
+         NSData * bookmark = [url bookmarkDataWithOptions:NSURLBookmarkCreationWithSecurityScope
+                              includingResourceValuesForKeys:nil
+                              relativeToURL:nil
+                              error:&error];
+
+         if (!bookmark) {
+             LOG_ERROR("couldn't create bookmark for chosen layouts folder: %s\n",
+                       error ? [[error localizedDescription] UTF8String] : "unknown error");
+             return;
+         }
+         start_accessing_layouts_dir(url);
+         [[NSUserDefaults standardUserDefaults] setObject:bookmark forKey:@"layoutsDirBookmark"];
+         [[NSUserDefaults standardUserDefaults] synchronize];
+
+         z1_set_layouts_dir([[url path] UTF8String]);
+         wake_glfw();
+     }];
 }
 
 - (void)setDialModeRotary:(id)sender {
@@ -102,39 +185,49 @@ void setup_main_menu(void) {
 
         reposition_window(savedX, savedY);
     }
-    NSMenuItem * devMI      = [[NSMenuItem alloc] init];
-    NSMenu *     devMenu    = [[NSMenu alloc] initWithTitle:@"Device"];
-    NSMenuItem * scanItem   = [[NSMenuItem alloc] initWithTitle:@"Scan Devices"
-                               action:@selector(scanDevices:)
-                               keyEquivalent:@"r"];
+    NSMenuItem * devMI       = [[NSMenuItem alloc] init];
+    NSMenu *     devMenu     = [[NSMenu alloc] initWithTitle:@"Device"];
+    NSMenuItem * scanItem    = [[NSMenuItem alloc] initWithTitle:@"Scan Devices"
+                                action:@selector(scanDevices:)
+                                keyEquivalent:@"r"];
     [scanItem setTarget:target];
     [devMenu addItem:scanItem];
     [devMI setSubmenu:devMenu];
     [menuBar insertItem:devMI atIndex:1];
 
-    NSMenuItem * ctrlMI     = [[NSMenuItem alloc] init];
-    NSMenu *     ctrlMenu   = [[NSMenu alloc] initWithTitle:@"Controls"];
+    NSMenuItem * ctrlMI      = [[NSMenuItem alloc] init];
+    NSMenu *     ctrlMenu    = [[NSMenu alloc] initWithTitle:@"Controls"];
 
-    NSMenuItem * rotaryItem = [[NSMenuItem alloc] initWithTitle:@"Rotary"
-                               action:@selector(setDialModeRotary:)
-                               keyEquivalent:@""];
+    NSMenuItem * rotaryItem  = [[NSMenuItem alloc] initWithTitle:@"Rotary"
+                                action:@selector(setDialModeRotary:)
+                                keyEquivalent:@""];
     [rotaryItem setTarget:target];
     [ctrlMenu addItem:rotaryItem];
 
-    NSMenuItem * vertItem   = [[NSMenuItem alloc] initWithTitle:@"Vertical"
-                               action:@selector(setDialModeVertical:)
-                               keyEquivalent:@""];
+    NSMenuItem * vertItem    = [[NSMenuItem alloc] initWithTitle:@"Vertical"
+                                action:@selector(setDialModeVertical:)
+                                keyEquivalent:@""];
     [vertItem setTarget:target];
     [ctrlMenu addItem:vertItem];
 
-    NSMenuItem * horizItem  = [[NSMenuItem alloc] initWithTitle:@"Horizontal"
-                               action:@selector(setDialModeHorizontal:)
-                               keyEquivalent:@""];
+    NSMenuItem * horizItem   = [[NSMenuItem alloc] initWithTitle:@"Horizontal"
+                                action:@selector(setDialModeHorizontal:)
+                                keyEquivalent:@""];
     [horizItem setTarget:target];
     [ctrlMenu addItem:horizItem];
 
     [ctrlMI setSubmenu:ctrlMenu];
     [menuBar insertItem:ctrlMI atIndex:2];
+
+    NSMenuItem * layoutsMI   = [[NSMenuItem alloc] init];
+    NSMenu *     layoutsMenu = [[NSMenu alloc] initWithTitle:@"Layouts"];
+    NSMenuItem * chooseItem  = [[NSMenuItem alloc] initWithTitle:@"Choose Layouts Folder…"
+                                action:@selector(chooseLayoutsFolder:)
+                                keyEquivalent:@""];
+    [chooseItem setTarget:target];
+    [layoutsMenu addItem:chooseItem];
+    [layoutsMI setSubmenu:layoutsMenu];
+    [menuBar insertItem:layoutsMI atIndex:3];
 }
 
 void save_window_size(int w) {

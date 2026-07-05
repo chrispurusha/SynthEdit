@@ -29,6 +29,10 @@ void setup_main_menu(void);
 void save_window_size(int w);
 void save_window_pos(int x, int y);
 
+// Returns the persisted "layoutsDir" preference, or NULL if never set.
+// Valid until the next call — copy it if you need to keep it.
+const char * get_saved_layouts_dir(void);
+
 #ifdef __cplusplus
 }
 #endif

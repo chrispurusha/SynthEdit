@@ -28,76 +28,120 @@ extern "C" {
 #pragma clang diagnostic pop
 
 #include <stdio.h>
+#include <string.h>
 #include "defs.h"
 #include "synthlibDefs.h"
 #include "types.h"
 #include "globalVars.h"
 #include "utilsGraphics.h"
+#include "panelConfig.h"
+#include "misc.h"
 #include "z1Graphics.h"
 
-static const char * kCategoryNames[]          = {"Synth-Hard", "Synth-Soft", "E.Piano",    "Organ",
-                                                 "Strings",             "Brass",      "Wind",       "Bell/Mallt",
-                                                 "Guitar",              "Bass",       "Perc/Drums", "Vocal",
-                                                 "S.E./Natrl",          "Synth-Lead", "Synth-Pad",  "Synth-Comp",
-                                                 "Digital",             "User",       };
+#define Z1_LAYOUTS_DIR_DEFAULT    "layouts"    // relative to cwd, used until a folder is chosen/persisted
 
-static const char * kFilterRoutingNames[]     = {"SERI1", "SERI2", "PARA"};
-static const char * kFilter2LinkNames[]       = {"OFF", "ON"};
-static const char * kFilterTypeNames[]        = {"LPF", "HPF", "BPF", "BRF", "2BPF"};
+static char         gLayoutsDir[1024] = Z1_LAYOUTS_DIR_DEFAULT;
 
-// Dial rectangles updated each frame; read by mouseHandle for hit-testing
-static tRectangle   gFilterRoutingDialRect    = {{0}};
-static tRectangle   gFilter2LinkDialRect      = {{0}};
-static tRectangle   gFilter1TypeDialRect      = {{0}};
-static tRectangle   gFilter1InputTrimDialRect = {{0}};
-static tRectangle   gFilter1DialRect          = {{0}};
-static tRectangle   gFilter1ResDialRect       = {{0}};
-static tRectangle   gFilter2TypeDialRect      = {{0}};
-static tRectangle   gFilter2InputTrimDialRect = {{0}};
-static tRectangle   gFilter2DialRect          = {{0}};
-static tRectangle   gFilter2ResDialRect       = {{0}};
+static const char * kCategoryNames[]  = {"Synth-Hard", "Synth-Soft", "E.Piano",    "Organ",
+                                         "Strings",     "Brass",      "Wind",       "Bell/Mallt",
+                                         "Guitar",      "Bass",       "Perc/Drums", "Vocal",
+                                         "S.E./Natrl",  "Synth-Lead", "Synth-Pad",  "Synth-Comp",
+                                         "Digital",     "User",       };
 
-tRectangle z1_filter_routing_dial_rect(void) {
-    return gFilterRoutingDialRect;
+static tPanelConfig gZ1PanelConfig    = {0};
+
+tPanelSection * z1_filters_section(void) {
+    return find_panel_section(&gZ1PanelConfig, "synth", "filters");
 }
 
-tRectangle z1_filter2_link_dial_rect(void) {
-    return gFilter2LinkDialRect;
+// Live value + native value for a dial, keyed by the id it's given in
+// layouts/z1.txt. The descriptor only describes what a control is (position,
+// range, label, display style) — the current value stays here, since it's
+// protocol/device state, not layout data.
+typedef struct {
+    uint32_t dialVal;
+    uint32_t nativeVal;
+} tDialLiveValue;
+
+static tDialLiveValue z1_dial_live_value(const char * id) {
+    uint8_t f1t = (gDevice.filter1Type >= 1 && gDevice.filter1Type <= 5) ? gDevice.filter1Type : 1;
+    uint8_t f2t = (gDevice.filter2Type >= 1 && gDevice.filter2Type <= 5) ? gDevice.filter2Type : 1;
+    uint8_t fr  = (gDevice.filterRouting <= 2) ? gDevice.filterRouting : 0;
+    uint8_t fl  = gDevice.filter2Link & 0x01;
+
+    if (strcmp(id, "route") == 0) {
+        return (tDialLiveValue){
+            (uint32_t)fr, 0
+        };
+    } else if (strcmp(id, "f2link") == 0) {
+        return (tDialLiveValue){
+            (uint32_t)fl, 0
+        };
+    } else if (strcmp(id, "f1type") == 0) {
+        return (tDialLiveValue){
+            (uint32_t)(f1t - 1), 0
+        };
+    } else if (strcmp(id, "f1trim") == 0) {
+        return (tDialLiveValue){
+            gDevice.filter1InputTrim, 0
+        };
+    } else if (strcmp(id, "f1cut") == 0) {
+        return (tDialLiveValue){
+            gDevice.filter1Cutoff, gDevice.filter1CutoffNative
+        };
+    } else if (strcmp(id, "f1res") == 0) {
+        return (tDialLiveValue){
+            gDevice.filter1Resonance, gDevice.filter1ResNative
+        };
+    } else if (strcmp(id, "f2type") == 0) {
+        return (tDialLiveValue){
+            (uint32_t)(f2t - 1), 0
+        };
+    } else if (strcmp(id, "f2trim") == 0) {
+        return (tDialLiveValue){
+            gDevice.filter2InputTrim, 0
+        };
+    } else if (strcmp(id, "f2cut") == 0) {
+        return (tDialLiveValue){
+            gDevice.filter2Cutoff, gDevice.filter2CutoffNative
+        };
+    } else if (strcmp(id, "f2res") == 0) {
+        return (tDialLiveValue){
+            gDevice.filter2Resonance, gDevice.filter2ResNative
+        };
+    }
+    return (tDialLiveValue){
+        0, 0
+    };
 }
 
-tRectangle z1_filter1_type_dial_rect(void) {
-    return gFilter1TypeDialRect;
+static void z1_reload_panel_config(void) {
+    char path[1152];
+
+    snprintf(path, sizeof(path), "%s/z1.txt", gLayoutsDir);
+
+    if (!load_panel_config(path, &gZ1PanelConfig)) {
+        LOG_ERROR("z1: couldn't load '%s' — filter dials will not render\n", path);
+    }
+    gReDraw = true;
 }
 
-tRectangle z1_filter1_input_trim_dial_rect(void) {
-    return gFilter1InputTrimDialRect;
-}
-
-tRectangle z1_filter1_dial_rect(void) {
-    return gFilter1DialRect;
-}
-
-tRectangle z1_filter1_res_dial_rect(void) {
-    return gFilter1ResDialRect;
-}
-
-tRectangle z1_filter2_type_dial_rect(void) {
-    return gFilter2TypeDialRect;
-}
-
-tRectangle z1_filter2_input_trim_dial_rect(void) {
-    return gFilter2InputTrimDialRect;
-}
-
-tRectangle z1_filter2_dial_rect(void) {
-    return gFilter2DialRect;
-}
-
-tRectangle z1_filter2_res_dial_rect(void) {
-    return gFilter2ResDialRect;
+void z1_set_layouts_dir(const char * dir) {
+    if (dir && (dir[0] != '\0')) {
+        strncpy(gLayoutsDir, dir, sizeof(gLayoutsDir) - 1);
+        gLayoutsDir[sizeof(gLayoutsDir) - 1] = '\0';
+    }
+    z1_reload_panel_config();
 }
 
 void z1_init_graphics(void) {
+    const char * saved = get_saved_layouts_dir();
+
+    if (saved) {
+        strncpy(gLayoutsDir, saved, sizeof(gLayoutsDir) - 1);
+        gLayoutsDir[sizeof(gLayoutsDir) - 1] = '\0';
+    }
+    z1_reload_panel_config();
 }
 
 void z1_render(tRectangle area) {
@@ -149,72 +193,39 @@ void z1_render(tRectangle area) {
     }
 
     // ── Filter dials ──────────────────────────────────────────────────────────
-    // Layout: [F1 Type] [F1 Cut] [F1 Res] <gap> [F2 Type] [F2 Cut] [F2 Res]
+    // Layout, colours, ranges and labels all come from layouts/z1.txt via
+    // panelConfig — this block only supplies the live values and draws.
     {
-        const double dialSz  = 40.0;
-        const double spacing = 50.0;
-        const double gap     = 20.0;    // extra space between F1 and F2 groups
-        const tRgb   f1Col   = {0.2, 0.6, 1.0};
-        const tRgb   f2Col   = {0.3, 0.9, 0.5};
+        tPanelSection * section = z1_filters_section();
 
-        uint8_t      f1t     = (gDevice.filter1Type >= 1 && gDevice.filter1Type <= 5)
-                      ? gDevice.filter1Type : 1;
-        uint8_t      f2t     = (gDevice.filter2Type >= 1 && gDevice.filter2Type <= 5)
-                      ? gDevice.filter2Type : 1;
+        if (section) {
+            layout_panel_section(section, (tRectangle){{x, y}, {0, 0}});
 
-        typedef struct {
-            tRectangle *        rect;
-            uint32_t            dialVal;    // 0-based value for render_dial
-            uint32_t            nativeVal;  // CC params: native value shown alongside CC; others: 0
-            uint32_t            dialMax;    // total positions for render_dial
-            tRgb                col;
-            const char *        label;
-            const char *const * names;      // non-NULL: discrete dial, show names[dialVal]
-            bool                sysexOnly;  // true: show dialVal only; false: show "cc (native)"
-        } tDialInfo;
+            for (uint32_t i = 0; i < section->dialCount; i++) {
+                tPanelDial *   dial    = &section->dials[i];
+                tDialLiveValue live    = z1_dial_live_value(dial->id);
 
-        const tRgb   routCol = {0.8, 0.8, 0.3};
-        uint8_t      fr      = (gDevice.filterRouting <= 2) ? gDevice.filterRouting : 0;
+                render_dial(mainArea, dial->rect, live.dialVal, dial->max, 0, dial->colour);
 
-        uint8_t      fl      = gDevice.filter2Link & 0x01;
+                char           valBuf[24];
 
-        tDialInfo    dials[] = {
-            {&gFilterRoutingDialRect,    (uint32_t)fr,                                       0,   3, routCol, "Route",   kFilterRoutingNames, true },
-            {&gFilter2LinkDialRect,      (uint32_t)fl,                                       0,   2, routCol, "F2 Link", kFilter2LinkNames,   true },
-            {&gFilter1TypeDialRect,      (uint32_t)(f1t - 1),                                0,   5, f1Col,   "F1 Type", kFilterTypeNames,    true },
-            {&gFilter1InputTrimDialRect, gDevice.filter1InputTrim,                           0, 100, f1Col,   "F1 Trim", NULL,                true },
-            {&gFilter1DialRect,          gDevice.filter1Cutoff,    gDevice.filter1CutoffNative, 127, f1Col,   "F1 Cut",  NULL,                false},
-            {&gFilter1ResDialRect,       gDevice.filter1Resonance, gDevice.filter1ResNative,    127, f1Col,   "F1 Res",  NULL,                false},
-            {&gFilter2TypeDialRect,      (uint32_t)(f2t - 1),                                0,   5, f2Col,   "F2 Type", kFilterTypeNames,    true },
-            {&gFilter2InputTrimDialRect, gDevice.filter2InputTrim,                           0, 100, f2Col,   "F2 Trim", NULL,                true },
-            {&gFilter2DialRect,          gDevice.filter2Cutoff,    gDevice.filter2CutoffNative, 127, f2Col,   "F2 Cut",  NULL,                false},
-            {&gFilter2ResDialRect,       gDevice.filter2Resonance, gDevice.filter2ResNative,    127, f2Col,   "F2 Res",  NULL,                false}, };
+                if (dial->display == dialDisplayNames) {
+                    snprintf(valBuf, sizeof(valBuf), "%s",
+                             (live.dialVal < dial->nameCount) ? dial->names[live.dialVal] : "?");
+                } else if (dial->display == dialDisplayRaw) {
+                    snprintf(valBuf, sizeof(valBuf), "%u", (unsigned)live.dialVal);
+                } else {
+                    snprintf(valBuf, sizeof(valBuf), "%u (%u)", (unsigned)live.dialVal, (unsigned)live.nativeVal);
+                }
+                tRectangle     valRect = {{dial->rect.coord.x, dial->rect.coord.y + section->dialSize + 4.0},
+                    {section->spacing,                                           12.0}};
+                set_rgb_colour((tRgb)RGB_GREY_7);
+                render_text(mainArea, valRect, valBuf);
 
-        for (int i = 0; i < 10; i++) {
-            // gap between Route+F2Link+F1 group and F2 group (F2 starts at i=6)
-            double     groupGap = (i >= 6) ? gap : 0.0;
-            double     dx       = x + i * spacing + groupGap;
-            tRectangle dialRect = {{dx, y}, {dialSz, dialSz}};
-            *dials[i].rect = dialRect;
-
-            render_dial(mainArea, dialRect, dials[i].dialVal, dials[i].dialMax, 0, dials[i].col);
-
-            char       valBuf[24];
-
-            if (dials[i].names) {
-                snprintf(valBuf, sizeof(valBuf), "%s", dials[i].names[dials[i].dialVal]);
-            } else if (dials[i].sysexOnly) {
-                snprintf(valBuf, sizeof(valBuf), "%u", (unsigned)dials[i].dialVal);
-            } else {
-                snprintf(valBuf, sizeof(valBuf), "%u (%u)", (unsigned)dials[i].dialVal,
-                         (unsigned)dials[i].nativeVal);
+                tRectangle     lblRect = {{dial->rect.coord.x, dial->rect.coord.y + section->dialSize + 18.0},
+                    {section->spacing,                                            12.0}};
+                render_text(mainArea, lblRect, dial->label);
             }
-            tRectangle valRect  = {{dx, y + dialSz + 4.0}, {spacing, 12.0}};
-            set_rgb_colour((tRgb)RGB_GREY_7);
-            render_text(mainArea, valRect, valBuf);
-
-            tRectangle lblRect  = {{dx, y + dialSz + 18.0}, {spacing, 12.0}};
-            render_text(mainArea, lblRect, dials[i].label);
         }
     }
 }

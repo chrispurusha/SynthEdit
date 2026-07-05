@@ -21,28 +21,28 @@
 #define __Z1_GRAPHICS_H__
 
 #include "types.h"
+#include "panelConfig.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// Called once after OpenGL context is ready
+// Called once after OpenGL context is ready — loads z1.txt from the saved
+// layouts folder preference (see get_saved_layouts_dir() in misc.h), or
+// "layouts" (relative to cwd) if no preference has been set yet.
 void z1_init_graphics(void);
 
 // Render the full Z1 editor UI into the current frame
 void z1_render(tRectangle area);
 
-// Returns last-rendered dial rectangles (for hit-testing)
-tRectangle z1_filter_routing_dial_rect(void);
-tRectangle z1_filter2_link_dial_rect(void);
-tRectangle z1_filter1_type_dial_rect(void);
-tRectangle z1_filter1_input_trim_dial_rect(void);
-tRectangle z1_filter1_dial_rect(void);
-tRectangle z1_filter1_res_dial_rect(void);
-tRectangle z1_filter2_type_dial_rect(void);
-tRectangle z1_filter2_input_trim_dial_rect(void);
-tRectangle z1_filter2_dial_rect(void);
-tRectangle z1_filter2_res_dial_rect(void);
+// Points the layouts folder at `dir`, persists nothing itself (the caller —
+// the "Choose Layouts Folder…" menu action — owns persistence), and reloads
+// z1.txt from the new location immediately.
+void z1_set_layouts_dir(const char * dir);
+
+// The "synth"/"filters" section from z1.txt, laid out during the last
+// z1_render() call — dial rects are valid for hit-testing until the next render.
+tPanelSection * z1_filters_section(void);
 
 #ifdef __cplusplus
 }
