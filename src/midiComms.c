@@ -23,6 +23,7 @@
 #include "types.h"
 #include "globalVars.h"
 #include "synthComms.h"
+#include "synthGraphics.h"
 #include "midiComms.h"
 
 static void             (*gWakeCb)(void) = NULL;
@@ -177,9 +178,11 @@ static void process_identity_replies(void) {
                   gIdReplies[i].memberLSB,
                   (unsigned)gIdReplies[i].src);
 
-        if (  (gIdReplies[i].mfrId != KORG_MANUFACTURER_ID)
-           || (gIdReplies[i].familyLSB != SYNTH_FAMILY_ID)
-           || (gIdReplies[i].memberLSB != SYNTH_MEMBER_ID)) {
+        tPanelConfig *  cfg  = synth_panel_config();
+
+        if (  (gIdReplies[i].mfrId != cfg->manufacturerId)
+           || (gIdReplies[i].familyLSB != cfg->familyId)
+           || (gIdReplies[i].memberLSB != cfg->memberId)) {
             continue;
         }
         MIDIEndpointRef src  = gIdReplies[i].src;

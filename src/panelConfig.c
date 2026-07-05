@@ -162,8 +162,10 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
 
     memset(dial, 0, sizeof(*dial));
     strncpy(dial->id, tokens[1], sizeof(dial->id) - 1);
-    dial->gapBefore = *pendingGap;
-    *pendingGap     = 0.0;
+    dial->gapBefore  = *pendingGap;
+    *pendingGap      = 0.0;
+    dial->dumpOffset = -1;   // not present in a program dump unless "dumpOffset=" says otherwise
+    dial->dumpMask   = 0xFF; // whole byte by default
 
     for (uint32_t i = 2; i < tokenCount; i++) {
         char key[32];
@@ -205,6 +207,12 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
             dial->ccNumber = (uint32_t)strtoul(val, NULL, 0);
         } else if (strcmp(key, "nativeMax") == 0) {
             dial->nativeMax = (uint32_t)strtoul(val, NULL, 0);
+        } else if (strcmp(key, "dumpOffset") == 0) {
+            dial->dumpOffset = (int32_t)strtol(val, NULL, 0);
+        } else if (strcmp(key, "dumpShift") == 0) {
+            dial->dumpShift = (uint32_t)strtoul(val, NULL, 0);
+        } else if (strcmp(key, "dumpMask") == 0) {
+            dial->dumpMask = (uint32_t)strtoul(val, NULL, 0);
         } else {
             LOG_ERROR("panelConfig line %u: unknown dial attribute '%s'\n", lineNo, key);
         }
@@ -360,6 +368,16 @@ tPanelSection * find_panel_section(tPanelConfig * config, const char * page, con
 tPanelDial * find_panel_dial(tPanelSection * section, const char * id) {
     for (uint32_t i = 0; i < section->dialCount; i++) {
         if (strcmp(section->dials[i].id, id) == 0) {
+            return &section->dials[i];
+        }
+    }
+
+    return NULL;
+}
+
+tPanelDial * find_panel_dial_by_param(tPanelSection * section, uint32_t group, uint32_t paramId) {
+    for (uint32_t i = 0; i < section->dialCount; i++) {
+        if ((section->dials[i].paramGroup == group) && (section->dials[i].paramId == paramId)) {
             return &section->dials[i];
         }
     }

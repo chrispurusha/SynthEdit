@@ -41,12 +41,11 @@
 #define MIDI_IDENTITY_REQUEST_SUB2    0x01
 #define MIDI_IDENTITY_REPLY_SUB2      0x02
 
-// ── Korg Z1 SysEx constants ───────────────────────────────────────────────────
-#define KORG_MANUFACTURER_ID          0x42
-#define SYNTH_FAMILY_ID               0x46       // Z1 Series Family ID (LSB)
-#define SYNTH_MEMBER_ID               0x01       // Z1 Member ID (LSB)
+// ── SysEx constants ───────────────────────────────────────────────────────────
+// Manufacturer/family/member IDs live in z1.txt (manufacturerId/familyId/
+// memberId), read via synth_panel_config() — not hardcoded here.
 
-// Header: F0 42 (0x30|ch) 46 ...
+// Header: F0 <manufacturerId> (0x30|ch) <familyId> ...
 // ch = MIDI global channel 0-indexed (channel 4 on Z1 panel = 0x03)
 #define SYNTH_SYSEX_CHANNEL_BYTE(ch)    (0x30 | ((ch) & 0x0F))
 
@@ -79,17 +78,9 @@
 // Z1 program name length (parameters 1-16)
 #define SYNTH_PROG_NAME_LEN                16
 
-// Z1 program parameter IDs (group SYNTH_PARAM_GROUP_PROG)
-#define SYNTH_PARAM_FILTER_ROUTING         258 // value 0-2: SERI1/SERI2/PARA; decoded[311] bits 0-1
-#define SYNTH_PARAM_FILTER2_LINK           259 // value 0-1: OFF/ON; decoded[311] bit 2
-#define SYNTH_PARAM_FILTER1_TYPE           261 // value 1-5: LPF/HPF/BPF/BRF/2BPF; decoded[312]
-#define SYNTH_PARAM_FILTER1_INPUT_TRIM     262 // value 0-99; decoded[313]
-#define SYNTH_PARAM_FILTER1_CUTOFF         263 // value 0-99; confirmed from SysEx capture; decoded[314]
-#define SYNTH_PARAM_FILTER1_RESONANCE      274 // value 0-99; decoded[325]
-#define SYNTH_PARAM_FILTER2_TYPE           288 // value 1-5: LPF/HPF/BPF/BRF/2BPF; decoded[339]
-#define SYNTH_PARAM_FILTER2_INPUT_TRIM     289 // value 0-99; decoded[340]
-#define SYNTH_PARAM_FILTER2_CUTOFF         290 // value 0-99; decoded[341]
-#define SYNTH_PARAM_FILTER2_RESONANCE      301 // value 0-99; decoded[352]
+// Per-control SysEx parameter IDs/dump offsets live in z1.txt (group=/param=/
+// dumpOffset=), not here — see panelConfig.h and synthComms.c's generic
+// dial dispatch/decode.
 
 
 // ── Graphics / layout constants (used by utilsGraphics) ──────────────────────

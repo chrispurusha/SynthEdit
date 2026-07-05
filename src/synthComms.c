@@ -37,10 +37,12 @@ static bool is_synth_sysex(const uint8_t * data, uint32_t length) {
     if (length < SYNTH_HDR_LEN) {
         return false;
     }
+    tPanelConfig * cfg = synth_panel_config();
+
     return (data[0] == MIDI_SYSEX_START)
-           && (data[1] == KORG_MANUFACTURER_ID)
+           && (data[1] == cfg->manufacturerId)
            && ((data[2] & 0xF0) == 0x30)
-           && (data[3] == SYNTH_FAMILY_ID);
+           && (data[3] == cfg->familyId);
 }
 
 // ── 7-to-8 bit decoding ───────────────────────────────────────────────────────
@@ -91,12 +93,49 @@ static uint32_t encode_8to7(const uint8_t * data, uint32_t dataLen, uint8_t * ou
 
 // ── Build outgoing Z1 SysEx header ───────────────────────────────────────────
 static uint32_t build_header(uint8_t * buf, uint8_t funcId) {
+    tPanelConfig * cfg = synth_panel_config();
+
     buf[0] = MIDI_SYSEX_START;
-    buf[1] = KORG_MANUFACTURER_ID;
+    buf[1] = (uint8_t)cfg->manufacturerId;
     buf[2] = SYNTH_SYSEX_CHANNEL_BYTE(gDevice.id);
-    buf[3] = SYNTH_FAMILY_ID;
+    buf[3] = (uint8_t)cfg->familyId;
     buf[4] = funcId;
     return 5;
+}
+
+// ── Generic wire value application ───────────────────────────────────────────
+// Applies a raw value received off the wire (either a decoded program-dump
+// byte or a parameter-change value) to a bound dial. If the dial pairs a
+// native value, `rawValue` is the native representation and the storage/CC
+// value is derived from it; otherwise `rawValue` is the storage value
+// directly, clamped to the dial's own [storageOffset, storageOffset+max-1]
+// range. No per-dial knowledge here — it's all driven by the dial's fields.
+static void apply_dial_wire_value(tPanelDial * dial, uint32_t rawValue) {
+    if (!dial || !dial->valuePtr) {
+        return;
+    }
+
+    if (dial->nativeValuePtr && (dial->nativeMax != 0)) {
+        uint32_t native = (rawValue <= dial->nativeMax) ? rawValue : dial->nativeMax;
+
+        *dial->nativeValuePtr = (uint8_t)native;
+        *dial->valuePtr       = (dial->max > 1)
+                                ? (uint8_t)(((native * (dial->max - 1)) + (dial->nativeMax / 2)) / dial->nativeMax)
+                                : 0;
+    } else {
+        int32_t lo = dial->storageOffset;
+        int32_t hi = dial->storageOffset + (int32_t)dial->max - 1;
+        int32_t v  = (int32_t)rawValue;
+
+        if (v < lo) {
+            v = lo;
+        }
+
+        if (v > hi) {
+            v = hi;
+        }
+        *dial->valuePtr = (uint8_t)v;
+    }
 }
 
 // ── Program info extraction ───────────────────────────────────────────────────
@@ -147,71 +186,31 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
     if (decodedLen > 22) {
         gDevice.unisonDetune = decoded[22];
     }
-    // Filter values from decoded program dump.
-    // Byte offsets derived from parameter table anchored at decoded[314] = ID 263 (Filter1 Cutoff).
-    // Type offsets: param 261 = decoded[312], param 288 = decoded[339].
-    // Resonance/filter2 offsets unconfirmed by SysEx capture — verify against hardware.
-#define CLAMP99(v)    ((v) <= 99 ? (v) : 99)
-#define TO_CC(n)      ((uint8_t)(((n) * 127UL + 49) / 99))
-
-    if (decodedLen > 311) {
-        uint8_t raw = decoded[311] & 0x03;
-        gDevice.filterRouting = (raw <= 2) ? raw : 0;
-        gDevice.filter2Link   = (decoded[311] >> 2) & 0x01;
-    }
-
-    if (decodedLen > 312) {
-        gDevice.filter1Type = decoded[312];
-
-        if ((gDevice.filter1Type < 1) || (gDevice.filter1Type > 5)) {
-            gDevice.filter1Type = 1;
-        }
-    }
-
-    if (decodedLen > 313) {
-        gDevice.filter1InputTrim = CLAMP99(decoded[313]);
-    }
-
-    if (decodedLen > 314) {
-        gDevice.filter1CutoffNative = CLAMP99(decoded[314]);
-        gDevice.filter1Cutoff       = TO_CC(gDevice.filter1CutoffNative);
-    }
-
-    if (decodedLen > 325) {
-        gDevice.filter1ResNative = CLAMP99(decoded[325]);
-        gDevice.filter1Resonance = TO_CC(gDevice.filter1ResNative);
-    }
-
-    if (decodedLen > 339) {
-        gDevice.filter2Type = decoded[339];
-
-        if ((gDevice.filter2Type < 1) || (gDevice.filter2Type > 5)) {
-            gDevice.filter2Type = 1;
-        }
-    }
-
-    if (decodedLen > 340) {
-        gDevice.filter2InputTrim = CLAMP99(decoded[340]);
-    }
-
-    if (decodedLen > 341) {
-        gDevice.filter2CutoffNative = CLAMP99(decoded[341]);
-        gDevice.filter2Cutoff       = TO_CC(gDevice.filter2CutoffNative);
-    }
-
-    if (decodedLen > 352) {
-        gDevice.filter2ResNative = CLAMP99(decoded[352]);
-        gDevice.filter2Resonance = TO_CC(gDevice.filter2ResNative);
-    }
-#undef CLAMP99
-#undef TO_CC
-
-    uint8_t         f1t     = (gDevice.filter1Type >= 1 && gDevice.filter1Type <= 5) ? gDevice.filter1Type : 1;
-    uint8_t         f2t     = (gDevice.filter2Type >= 1 && gDevice.filter2Type <= 5) ? gDevice.filter2Type : 1;
-    tPanelConfig *  cfg     = synth_panel_config();
+    // Filter values from decoded program dump — a full-dump byte buffer,
+    // a different wire format from param= change messages. Byte offsets,
+    // bit-packing and native/CC scaling all come from z1.txt (dumpOffset/
+    // dumpShift/dumpMask/nativeMax); no per-dial knowledge lives here.
     tPanelSection * section = synth_filters_section();
+
+    if (section) {
+        for (uint32_t d = 0; d < section->dialCount; d++) {
+            tPanelDial * dial = &section->dials[d];
+
+            if ((dial->dumpOffset >= 0) && (decodedLen > (uint32_t)dial->dumpOffset)) {
+                uint32_t raw = (decoded[dial->dumpOffset] >> dial->dumpShift) & dial->dumpMask;
+                apply_dial_wire_value(dial, raw);
+            }
+        }
+    }
+    tPanelConfig *  cfg     = synth_panel_config();
     tPanelDial *    f1type  = section ? find_panel_dial(section, "f1type") : NULL;
     tPanelDial *    f2type  = section ? find_panel_dial(section, "f2type") : NULL;
+    tPanelDial *    f1cut   = section ? find_panel_dial(section, "f1cut") : NULL;
+    tPanelDial *    f1res   = section ? find_panel_dial(section, "f1res") : NULL;
+    tPanelDial *    f2cut   = section ? find_panel_dial(section, "f2cut") : NULL;
+    tPanelDial *    f2res   = section ? find_panel_dial(section, "f2res") : NULL;
+    uint32_t        f1tVal  = f1type ? get_panel_dial_value(f1type) : 0;
+    uint32_t        f2tVal  = f2type ? get_panel_dial_value(f2type) : 0;
 
     LOG_DEBUG("Z1 prog: \"%s\"  cat=%s  voice=%s  unison=%s(%u cents)"
               "  f1type=%s f1cut=%u(%u) f1res=%u(%u)"
@@ -221,12 +220,12 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
               get_panel_list_item(cfg, "voiceMode", gDevice.voiceMode),
               gDevice.unisonOn ? get_panel_list_item(cfg, "unisonType", gDevice.unisonType - 1) : "OFF",
               (unsigned)gDevice.unisonDetune,
-              (f1type && ((f1t - 1) < f1type->nameCount)) ? f1type->names[f1t - 1] : "?",
-              (unsigned)gDevice.filter1Cutoff, (unsigned)gDevice.filter1CutoffNative,
-              (unsigned)gDevice.filter1Resonance, (unsigned)gDevice.filter1ResNative,
-              (f2type && ((f2t - 1) < f2type->nameCount)) ? f2type->names[f2t - 1] : "?",
-              (unsigned)gDevice.filter2Cutoff, (unsigned)gDevice.filter2CutoffNative,
-              (unsigned)gDevice.filter2Resonance, (unsigned)gDevice.filter2ResNative);
+              (f1type && (f1tVal < f1type->nameCount)) ? f1type->names[f1tVal] : "?",
+              (unsigned)get_panel_dial_value(f1cut), (unsigned)get_panel_dial_native_value(f1cut),
+              (unsigned)get_panel_dial_value(f1res), (unsigned)get_panel_dial_native_value(f1res),
+              (f2type && (f2tVal < f2type->nameCount)) ? f2type->names[f2tVal] : "?",
+              (unsigned)get_panel_dial_value(f2cut), (unsigned)get_panel_dial_native_value(f2cut),
+              (unsigned)get_panel_dial_value(f2res), (unsigned)get_panel_dial_native_value(f2res));
 }
 
 // ── Message handlers ──────────────────────────────────────────────────────────
@@ -269,50 +268,15 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
         gDevice.progName[SYNTH_PROG_NAME_LEN] = '\0';
         LOG_DEBUG("Program name updated: \"%s\"\n", gDevice.progName);
     } else if (group == SYNTH_PARAM_GROUP_PROG) {
-        if (paramId == SYNTH_PARAM_FILTER_ROUTING) {
-            if (value <= 2) {
-                gDevice.filterRouting = (uint8_t)value;
-                LOG_DEBUG("Filter Routing %u\n", (unsigned)value);
-            }
-        } else if (paramId == SYNTH_PARAM_FILTER2_LINK) {
-            gDevice.filter2Link = (value != 0) ? 1 : 0;
-            LOG_DEBUG("Filter2 Link %u\n", (unsigned)gDevice.filter2Link);
-        } else if (paramId == SYNTH_PARAM_FILTER1_TYPE) {
-            if ((value >= 1) && (value <= 5)) {
-                gDevice.filter1Type = (uint8_t)value;
-                LOG_DEBUG("Filter1 Type %u\n", (unsigned)value);
-            }
-        } else if (paramId == SYNTH_PARAM_FILTER1_INPUT_TRIM) {
-            gDevice.filter1InputTrim = (uint8_t)(value <= 99 ? value : 99);
-            LOG_DEBUG("Filter1 InputTrim %u\n", (unsigned)gDevice.filter1InputTrim);
-        } else if (paramId == SYNTH_PARAM_FILTER2_TYPE) {
-            if ((value >= 1) && (value <= 5)) {
-                gDevice.filter2Type = (uint8_t)value;
-                LOG_DEBUG("Filter2 Type %u\n", (unsigned)value);
-            }
-        } else if (paramId == SYNTH_PARAM_FILTER2_INPUT_TRIM) {
-            gDevice.filter2InputTrim = (uint8_t)(value <= 99 ? value : 99);
-            LOG_DEBUG("Filter2 InputTrim %u\n", (unsigned)gDevice.filter2InputTrim);
-        }
-        uint8_t native = (uint8_t)(value <= 99 ? value : 99);
-        uint8_t cc     = (uint8_t)((native * 127UL + 49) / 99);
+        // Generic dispatch: whichever dial (if any) is wired to this
+        // group/paramId in z1.txt gets the value — no per-param knowledge
+        // of what it controls lives here.
+        tPanelSection * section = synth_filters_section();
+        tPanelDial *    dial    = section ? find_panel_dial_by_param(section, group, paramId) : NULL;
 
-        if (paramId == SYNTH_PARAM_FILTER1_CUTOFF) {
-            gDevice.filter1CutoffNative = native;
-            gDevice.filter1Cutoff       = cc;
-            LOG_DEBUG("Filter1 Cutoff native=%u cc=%u\n", native, cc);
-        } else if (paramId == SYNTH_PARAM_FILTER1_RESONANCE) {
-            gDevice.filter1ResNative = native;
-            gDevice.filter1Resonance = cc;
-            LOG_DEBUG("Filter1 Resonance native=%u cc=%u\n", native, cc);
-        } else if (paramId == SYNTH_PARAM_FILTER2_CUTOFF) {
-            gDevice.filter2CutoffNative = native;
-            gDevice.filter2Cutoff       = cc;
-            LOG_DEBUG("Filter2 Cutoff native=%u cc=%u\n", native, cc);
-        } else if (paramId == SYNTH_PARAM_FILTER2_RESONANCE) {
-            gDevice.filter2ResNative = native;
-            gDevice.filter2Resonance = cc;
-            LOG_DEBUG("Filter2 Resonance native=%u cc=%u\n", native, cc);
+        if (dial) {
+            apply_dial_wire_value(dial, value);
+            LOG_DEBUG("Param %u (%s) = %u\n", (unsigned)paramId, dial->label, (unsigned)value);
         }
     }
 }
@@ -322,26 +286,23 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
 void synth_on_connected(void) {
     LOG_DEBUG("Z1 connected (channel byte 0x%02X)\n", SYNTH_SYSEX_CHANNEL_BYTE(gDevice.id));
     memset(gDevice.progName, 0, sizeof(gDevice.progName));
-    gDevice.category            = 0;
-    gDevice.voiceMode           = 2; // default POLY
-    gDevice.unisonOn            = false;
-    gDevice.unisonType          = 0;
-    gDevice.unisonDetune        = 0;
-    gDevice.filterRouting       = 0; // SERI1
-    gDevice.filter2Link         = 0; // OFF
-    gDevice.filter1InputTrim    = 0;
-    gDevice.filter2InputTrim    = 0;
-    gDevice.filter1Type         = 1; // LPF
-    gDevice.filter1Cutoff       = 0;
-    gDevice.filter1CutoffNative = 0;
-    gDevice.filter1Resonance    = 0;
-    gDevice.filter1ResNative    = 0;
-    gDevice.filter2Type         = 1; // LPF
-    gDevice.filter2Cutoff       = 0;
-    gDevice.filter2CutoffNative = 0;
-    gDevice.filter2Resonance    = 0;
-    gDevice.filter2ResNative    = 0;
-    gReDraw                     = true;
+    gDevice.category     = 0;
+    gDevice.voiceMode    = 2; // default POLY
+    gDevice.unisonOn     = false;
+    gDevice.unisonType   = 0;
+    gDevice.unisonDetune = 0;
+
+    // Reset every bound filter dial to its display-space default (0) —
+    // apply_dial_wire_value() already knows how to turn that into the right
+    // storage/native representation per dial, so no per-field defaults here.
+    tPanelSection * section = synth_filters_section();
+
+    if (section) {
+        for (uint32_t d = 0; d < section->dialCount; d++) {
+            apply_dial_wire_value(&section->dials[d], 0);
+        }
+    }
+    gReDraw              = true;
     synth_request_current_program();
 }
 

@@ -84,6 +84,13 @@ typedef struct {
     uint32_t  nativeMax;         // native/SysEx value range when paired with a CC (0 = no native pairing)
     uint8_t * valuePtr;          // bound at runtime to the live storage-space value; NULL until resolved
     uint8_t * nativeValuePtr;    // bound at runtime to the live native value, if any; NULL if unused
+
+    // Where this dial's value lives in a full program-dump byte buffer (a
+    // different wire format from individual parameter-change messages, but
+    // still just data the file describes). -1 = not present in a dump.
+    int32_t  dumpOffset;
+    uint32_t dumpShift;          // bits to shift right before masking (default 0)
+    uint32_t dumpMask;           // mask applied after shifting (default 0xFF = whole byte)
 } tPanelDial;
 
 typedef struct {
@@ -119,6 +126,10 @@ void layout_panel_section(tPanelSection * section, tRectangle origin);
 
 tPanelSection * find_panel_section(tPanelConfig * config, const char * page, const char * section);
 tPanelDial * find_panel_dial(tPanelSection * section, const char * id);
+
+// Looks up the dial wired to a given SysEx parameter group/ID (see the
+// "group="/"param=" file attributes), or NULL if none matches.
+tPanelDial * find_panel_dial_by_param(tPanelSection * section, uint32_t group, uint32_t paramId);
 
 // Returns the index into section->dials[] under `point`, or -1 if none.
 // Call after layout_panel_section() has populated the dials' rects.
