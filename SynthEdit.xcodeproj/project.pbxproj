@@ -21,7 +21,7 @@
 		A02FC5D62D01F68C0084A230 /* CoreMIDI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMIDI.framework; path = System/Library/Frameworks/CoreMIDI.framework; sourceTree = SDKROOT; };
 		A02FC5D82D01F6C20084A230 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		A02FC5DD2D01F7840084A230 /* Quartz.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Quartz.framework; path = System/Library/Frameworks/Quartz.framework; sourceTree = SDKROOT; };
-		A088B1A4FCCE2CC700DD4947 /* Z1Edit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Z1Edit.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A088B1A4FCCE2CC700DD4947 /* SynthEdit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SynthEdit.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A0AA1000FCCE2EA000DD4947 /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -68,7 +68,7 @@
 		A045332CFCFF6E5F004E572A /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A088B1A4FCCE2CC700DD4947 /* Z1Edit.app */,
+				A088B1A4FCCE2CC700DD4947 /* SynthEdit.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -89,9 +89,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A088B1A3FCCE2CC700DD4947 /* Z1Edit */ = {
+		A088B1A3FCCE2CC700DD4947 /* SynthEdit */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A088B1B2FCCE2CC900DD4947 /* Build configuration list for PBXNativeTarget "Z1Edit" */;
+			buildConfigurationList = A088B1B2FCCE2CC900DD4947 /* Build configuration list for PBXNativeTarget "SynthEdit" */;
 			buildPhases = (
 				A088B1A0FCCE2CC700DD4947 /* Sources */,
 				A088B1A1FCCE2CC700DD4947 /* Frameworks */,
@@ -105,11 +105,11 @@
 				49BEB827A7B14F99AC9EC792 /* SynthLib/src */,
 				A04E4EEAFCCE334E00468BB7 /* src */,
 			);
-			name = Z1Edit;
+			name = SynthEdit;
 			packageProductDependencies = (
 			);
 			productName = Z1Edit;
-			productReference = A088B1A4FCCE2CC700DD4947 /* Z1Edit.app */;
+			productReference = A088B1A4FCCE2CC700DD4947 /* SynthEdit.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -126,7 +126,7 @@
 					};
 				};
 			};
-			buildConfigurationList = A045292DFCFF6E5F004E572A /* Build configuration list for PBXProject "Z1Edit" */;
+			buildConfigurationList = A045292DFCFF6E5F004E572A /* Build configuration list for PBXProject "SynthEdit" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -140,7 +140,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				A088B1A3FCCE2CC700DD4947 /* Z1Edit */,
+				A088B1A3FCCE2CC700DD4947 /* SynthEdit */,
 			);
 		};
 /* End PBXProject section */
@@ -409,7 +409,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A045292DFCFF6E5F004E572A /* Build configuration list for PBXProject "Z1Edit" */ = {
+		A045292DFCFF6E5F004E572A /* Build configuration list for PBXProject "SynthEdit" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A045372CFCFF6E5F004E572A /* Debug */,
@@ -418,7 +418,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A088B1B2FCCE2CC900DD4947 /* Build configuration list for PBXNativeTarget "Z1Edit" */ = {
+		A088B1B2FCCE2CC900DD4947 /* Build configuration list for PBXNativeTarget "SynthEdit" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A088B1B0FCCE2CC900DD4947 /* Debug */,
