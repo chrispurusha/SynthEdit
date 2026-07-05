@@ -195,6 +195,16 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
             } else {
                 LOG_ERROR("panelConfig line %u: unknown display '%s'\n", lineNo, val);
             }
+        } else if (strcmp(key, "offset") == 0) {
+            dial->storageOffset = (int32_t)strtol(val, NULL, 0);
+        } else if (strcmp(key, "group") == 0) {
+            dial->paramGroup = (uint32_t)strtoul(val, NULL, 0);
+        } else if (strcmp(key, "param") == 0) {
+            dial->paramId = (uint32_t)strtoul(val, NULL, 0);
+        } else if (strcmp(key, "cc") == 0) {
+            dial->ccNumber = (uint32_t)strtoul(val, NULL, 0);
+        } else if (strcmp(key, "nativeMax") == 0) {
+            dial->nativeMax = (uint32_t)strtoul(val, NULL, 0);
         } else {
             LOG_ERROR("panelConfig line %u: unknown dial attribute '%s'\n", lineNo, key);
         }
@@ -351,4 +361,20 @@ int32_t hit_test_panel_section(tPanelSection * section, tCoord point) {
     }
 
     return -1;
+}
+
+uint32_t get_panel_dial_value(const tPanelDial * dial) {
+    if (!dial || !dial->valuePtr) {
+        return 0;
+    }
+
+    return (uint32_t)(*dial->valuePtr - dial->storageOffset);
+}
+
+uint32_t get_panel_dial_native_value(const tPanelDial * dial) {
+    if (!dial || !dial->nativeValuePtr) {
+        return 0;
+    }
+
+    return (uint32_t)(*dial->nativeValuePtr);
 }

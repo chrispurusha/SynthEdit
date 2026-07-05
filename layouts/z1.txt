@@ -10,10 +10,22 @@
 # blank lines ignored. "gap N" inserts N points of extra space before the
 # next dial (matches the one group-break the current code has, between the
 # F1 and F2 dial groups).
+#
+# Protocol-wiring attributes on a dial (so mouseHandle.c never needs to know
+# what a control *means*, only how to read/write it generically):
+#   group=<n> param=<n>  — SysEx parameter group/ID, sent via a parameter-
+#                           change message when the control has no cc=
+#   cc=<n>                — MIDI CC number; when present, changes are sent as
+#                           a real-time CC instead of a SysEx parameter change
+#   nativeMax=<n>          — native/SysEx value range paired with a cc= dial
+#                           (native = display * nativeMax / (max-1))
+#   offset=<n>             — storage_value = display_value + offset (e.g. the
+#                           "type" dials store 1-5 but display/drag as 0-4)
+# `max` is always the count of display-space positions: values 0..max-1.
 
 # ── Device identity ──────────────────────────────────────────────────────────
 # SysEx header: F0 42 (0x30|channel) 46 01 ... — see defs.h KORG_MANUFACTURER_ID /
-# Z1_FAMILY_ID / Z1_MEMBER_ID / Z1_SYSEX_CHANNEL_BYTE.
+# SYNTH_FAMILY_ID / SYNTH_MEMBER_ID / SYNTH_SYSEX_CHANNEL_BYTE.
 device          Korg Z1
 manufacturerId  0x42
 familyId        0x46
@@ -29,16 +41,16 @@ color route 0.8 0.8 0.3
 color f1    0.2 0.6 1.0
 color f2    0.3 0.9 0.5
 
-dial route  label="Route"    color=route  max=3    names=SERI1,SERI2,PARA
-dial f2link label="F2 Link"  color=route  max=2    names=OFF,ON
-dial f1type label="F1 Type"  color=f1     max=5    names=LPF,HPF,BPF,BRF,2BPF
-dial f1trim label="F1 Trim"  color=f1     max=100  display=raw
-dial f1cut  label="F1 Cut"   color=f1     max=127  display=ccnative
-dial f1res  label="F1 Res"   color=f1     max=127  display=ccnative
+dial route  label="Route"    color=route  max=3    names=SERI1,SERI2,PARA          group=1 param=258
+dial f2link label="F2 Link"  color=route  max=2    names=OFF,ON                    group=1 param=259
+dial f1type label="F1 Type"  color=f1     max=5    names=LPF,HPF,BPF,BRF,2BPF      group=1 param=261 offset=1
+dial f1trim label="F1 Trim"  color=f1     max=100  display=raw                     group=1 param=262
+dial f1cut  label="F1 Cut"   color=f1     max=128  display=ccnative                group=1 param=263 cc=0x55 nativeMax=99
+dial f1res  label="F1 Res"   color=f1     max=128  display=ccnative                group=1 param=274 cc=0x56 nativeMax=99
 
 gap 20
 
-dial f2type label="F2 Type"  color=f2     max=5    names=LPF,HPF,BPF,BRF,2BPF
-dial f2trim label="F2 Trim"  color=f2     max=100  display=raw
-dial f2cut  label="F2 Cut"   color=f2     max=127  display=ccnative
-dial f2res  label="F2 Res"   color=f2     max=127  display=ccnative
+dial f2type label="F2 Type"  color=f2     max=5    names=LPF,HPF,BPF,BRF,2BPF      group=1 param=288 offset=1
+dial f2trim label="F2 Trim"  color=f2     max=100  display=raw                     group=1 param=289
+dial f2cut  label="F2 Cut"   color=f2     max=128  display=ccnative                group=1 param=290 cc=0x58 nativeMax=99
+dial f2res  label="F2 Res"   color=f2     max=128  display=ccnative                group=1 param=301 cc=0x59 nativeMax=99

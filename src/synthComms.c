@@ -415,3 +415,64 @@ void synth_handle_message(const uint8_t * data, uint32_t length) {
     }
     gReDraw = true;
 }
+
+// ── Panel dial <-> gDevice binding ────────────────────────────────────────────
+// The only place that still knows a dial id like "f1cut" means
+// gDevice.filter1Cutoff — everything else (mouseHandle.c, rendering) works
+// generically off the tPanelDial it was resolved into.
+void synth_bind_panel_dials(tPanelSection * section) {
+    if (!section) {
+        return;
+    }
+    struct {
+        const char * id;
+        uint8_t *    value;
+        uint8_t *    native;
+    } bindings[] = {
+        {"route",  &gDevice.filterRouting,      NULL                        },
+        {"f2link", &gDevice.filter2Link,        NULL                        },
+        {"f1type", &gDevice.filter1Type,        NULL                        },
+        {"f1trim", &gDevice.filter1InputTrim,   NULL                        },
+        {"f1cut",  &gDevice.filter1Cutoff,      &gDevice.filter1CutoffNative},
+        {"f1res",  &gDevice.filter1Resonance,   &gDevice.filter1ResNative   },
+        {"f2type", &gDevice.filter2Type,        NULL                        },
+        {"f2trim", &gDevice.filter2InputTrim,   NULL                        },
+        {"f2cut",  &gDevice.filter2Cutoff,      &gDevice.filter2CutoffNative},
+        {"f2res",  &gDevice.filter2Resonance,   &gDevice.filter2ResNative   },
+    };
+
+    for (size_t i = 0; i < (sizeof(bindings) / sizeof(bindings[0])); i++) {
+        tPanelDial * dial = find_panel_dial(section, bindings[i].id);
+
+        if (dial) {
+            dial->valuePtr       = bindings[i].value;
+            dial->nativeValuePtr = bindings[i].native;
+        }
+    }
+}
+
+void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
+    if (!dial || !dial->valuePtr) {
+        return;
+    }
+
+    if ((dial->max > 0) && (displayValue >= dial->max)) {
+        displayValue = dial->max - 1;
+    }
+    uint8_t storageValue = (uint8_t)((int32_t)displayValue + dial->storageOffset);
+
+    if (storageValue == *dial->valuePtr) {
+        return;
+    }
+    *dial->valuePtr = storageValue;
+
+    if (dial->ccNumber != 0) {
+        if (dial->nativeValuePtr && (dial->nativeMax != 0) && (dial->max > 1)) {
+            *dial->nativeValuePtr = (uint8_t)(displayValue * dial->nativeMax / (dial->max - 1));
+        }
+        midi_send_cc(gDevice.id, (uint8_t)dial->ccNumber, storageValue);
+    } else {
+        synth_send_parameter_change((uint8_t)dial->paramGroup, (uint16_t)dial->paramId, storageValue);
+    }
+    gReDraw = true;
+}

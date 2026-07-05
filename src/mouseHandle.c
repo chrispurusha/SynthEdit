@@ -23,7 +23,6 @@
 #include "globalVars.h"
 #include "utilsGraphics.h"
 #include "menus.h"
-#include "midiComms.h"
 #include "synthComms.h"
 #include "synthGraphics.h"
 #include "mouseHandle.h"
@@ -40,39 +39,17 @@ extern void glfwSetCursorPos(void *, double, double);
 extern void glfwGetWindowSize(void *, int *, int *);
 
 // ── Dial drag state ───────────────────────────────────────────────────────────
-typedef enum {
-    eDragNone,
-    eDragFilterRouting,
-    eDragFilter2Link,
-    eDragFilter1Type,
-    eDragFilter1InputTrim,
-    eDragFilter1Cutoff,
-    eDragFilter1Res,
-    eDragFilter2Type,
-    eDragFilter2InputTrim,
-    eDragFilter2Cutoff,
-    eDragFilter2Res,
-} tDragTarget;
-
-static tDragTarget gDragTarget    = eDragNone;
-static double      gDragStartX    = 0.0;   // cursor position at press — used for restore on release
-static double      gDragStartY    = 0.0;
-static double      gDragPrevX     = 0.0;   // cursor position at previous cursor_pos call — incremental delta
-static double      gDragPrevY     = 0.0;
-static int         gDragSkipCount = 0;     // skip first N cursor_pos events after CURSOR_DISABLED — covers stale events + transition event
-static double      gDragTypeAccum = 0.0;   // sub-step accumulator for discrete type dial
-
-// Looks up a filter dial's current rect by the id it's given in layouts/z1.txt.
-// Returns a zeroed rect (matches nothing) if the panel config hasn't loaded
-// or the id isn't found, rather than crashing.
-static tRectangle dial_rect(const char * id) {
-    tPanelSection * section = synth_filters_section();
-    tPanelDial *    dial    = section ? find_panel_dial(section, id) : NULL;
-
-    return dial ? dial->rect : (tRectangle){
-        0
-    };
-}
+// Deliberately just a pointer into whichever tPanelDial was hit — this file
+// has no knowledge of what any given dial *is* (cutoff, resonance, routing,
+// ...). That all comes from the descriptor parsed out of the layout file
+// (see panelConfig.h/synthComms.c) and is looked up generically by rect.
+static tPanelDial * gDraggedDial   = NULL;
+static double       gDragStartX    = 0.0;   // cursor position at press — used for restore on release
+static double       gDragStartY    = 0.0;
+static double       gDragPrevX     = 0.0;   // cursor position at previous cursor_pos call — incremental delta
+static double       gDragPrevY     = 0.0;
+static int          gDragSkipCount = 0;     // skip first N cursor_pos events after CURSOR_DISABLED — covers stale events + transition event
+static double       gDragTypeAccum = 0.0;   // sub-step accumulator for discrete (named) dials
 
 // ── Coordinate helpers ────────────────────────────────────────────────────────
 
@@ -101,130 +78,17 @@ static double delta_to_logical(void * win, double winDelta, bool isX) {
     }
 }
 
-// ── Dial value helpers ────────────────────────────────────────────────────────
-
-static uint8_t clamp_u8(int v) {
+// Clamps to the dial's own display-space range [0, max-1] — the one thing
+// every dial has in common, regardless of what it controls.
+static uint32_t clamp_dial_value(int32_t v, uint32_t max) {
     if (v < 0) {
         return 0;
     }
 
-    if (v > 127) {
-        return 127;
+    if ((max > 0) && ((uint32_t)v >= max)) {
+        return max - 1;
     }
-    return (uint8_t)v;
-}
-
-static uint8_t clamp_trim(int v) {
-    if (v < 0) {
-        return 0;
-    }
-
-    if (v > 99) {
-        return 99;
-    }
-    return (uint8_t)v;
-}
-
-static uint8_t clamp_routing(int v) {
-    if (v < 0) {
-        return 0;
-    }
-
-    if (v > 2) {
-        return 2;
-    }
-    return (uint8_t)v;
-}
-
-static uint8_t clamp_type(int v) {
-    if (v < 1) {
-        return 1;
-    }
-
-    if (v > 5) {
-        return 5;
-    }
-    return (uint8_t)v;
-}
-
-static void set_filter_param(uint8_t * ccField, uint8_t * nativeField, uint8_t cc, uint8_t value) {
-    if (value == *ccField) {
-        return;
-    }
-    *ccField     = value;
-    *nativeField = (uint8_t)(value * 99UL / 127);
-    midi_send_cc(gDevice.id, cc, value);
-    gReDraw      = true;
-}
-
-static void set_filter1_input_trim(uint8_t v) {
-    if (v == gDevice.filter1InputTrim) {
-        return;
-    }
-    gDevice.filter1InputTrim = v;
-    synth_send_parameter_change(SYNTH_PARAM_GROUP_PROG, SYNTH_PARAM_FILTER1_INPUT_TRIM, v);
-    gReDraw                  = true;
-}
-
-static void set_filter2_input_trim(uint8_t v) {
-    if (v == gDevice.filter2InputTrim) {
-        return;
-    }
-    gDevice.filter2InputTrim = v;
-    synth_send_parameter_change(SYNTH_PARAM_GROUP_PROG, SYNTH_PARAM_FILTER2_INPUT_TRIM, v);
-    gReDraw                  = true;
-}
-
-static void set_filter2_link(uint8_t v) {
-    if (v == gDevice.filter2Link) {
-        return;
-    }
-    gDevice.filter2Link = v;
-    synth_send_parameter_change(SYNTH_PARAM_GROUP_PROG, SYNTH_PARAM_FILTER2_LINK, v);
-    gReDraw             = true;
-}
-
-static void set_filter_routing(uint8_t v) {
-    if (v == gDevice.filterRouting) {
-        return;
-    }
-    gDevice.filterRouting = v;
-    synth_send_parameter_change(SYNTH_PARAM_GROUP_PROG, SYNTH_PARAM_FILTER_ROUTING, v);
-    gReDraw               = true;
-}
-
-static void set_filter1_type(uint8_t v) {
-    if (v == gDevice.filter1Type) {
-        return;
-    }
-    gDevice.filter1Type = v;
-    synth_send_parameter_change(SYNTH_PARAM_GROUP_PROG, SYNTH_PARAM_FILTER1_TYPE, v);
-    gReDraw             = true;
-}
-
-static void set_filter2_type(uint8_t v) {
-    if (v == gDevice.filter2Type) {
-        return;
-    }
-    gDevice.filter2Type = v;
-    synth_send_parameter_change(SYNTH_PARAM_GROUP_PROG, SYNTH_PARAM_FILTER2_TYPE, v);
-    gReDraw             = true;
-}
-
-static void set_filter1_cutoff(uint8_t v) {
-    set_filter_param(&gDevice.filter1Cutoff, &gDevice.filter1CutoffNative, 0x55, v);
-}
-
-static void set_filter1_res(uint8_t v) {
-    set_filter_param(&gDevice.filter1Resonance, &gDevice.filter1ResNative, 0x56, v);
-}
-
-static void set_filter2_cutoff(uint8_t v) {
-    set_filter_param(&gDevice.filter2Cutoff, &gDevice.filter2CutoffNative, 0x58, v);
-}
-
-static void set_filter2_res(uint8_t v) {
-    set_filter_param(&gDevice.filter2Resonance, &gDevice.filter2ResNative, 0x59, v);
+    return (uint32_t)v;
 }
 
 // ── Public handlers ───────────────────────────────────────────────────────────
@@ -239,14 +103,14 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
     bool   pressed = (action == GLFW_PRESS);
 
     // Release: end drag; restore cursor only for modes that hid it
-    if (!pressed && (gDragTarget != eDragNone)) {
+    if (!pressed && gDraggedDial) {
         gDragSkipCount = 0;
 
         if (gDialMode != eDialModeRotary) {
             glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
             glfwSetCursorPos(win, gDragStartX, gDragStartY);
         }
-        gDragTarget    = eDragNone;
+        gDraggedDial = NULL;
         return;
     }
 
@@ -262,35 +126,22 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
     if (!pressed) {
         return;
     }
-    // Hit-test filter dials
-    tDragTarget hitTarget = eDragNone;
+
+    // Hit-test the current panel section generically — whatever dial (if
+    // any) is under the cursor, by rect alone. No dial ids referenced here.
+    tPanelDial * hit = NULL;
 
     if (gDevice.connected) {
-        if (within_rectangle(coord, dial_rect("route"))) {
-            hitTarget = eDragFilterRouting;
-        } else if (within_rectangle(coord, dial_rect("f2link"))) {
-            hitTarget = eDragFilter2Link;
-        } else if (within_rectangle(coord, dial_rect("f1type"))) {
-            hitTarget = eDragFilter1Type;
-        } else if (within_rectangle(coord, dial_rect("f1trim"))) {
-            hitTarget = eDragFilter1InputTrim;
-        } else if (within_rectangle(coord, dial_rect("f1cut"))) {
-            hitTarget = eDragFilter1Cutoff;
-        } else if (within_rectangle(coord, dial_rect("f1res"))) {
-            hitTarget = eDragFilter1Res;
-        } else if (within_rectangle(coord, dial_rect("f2type"))) {
-            hitTarget = eDragFilter2Type;
-        } else if (within_rectangle(coord, dial_rect("f2trim"))) {
-            hitTarget = eDragFilter2InputTrim;
-        } else if (within_rectangle(coord, dial_rect("f2cut"))) {
-            hitTarget = eDragFilter2Cutoff;
-        } else if (within_rectangle(coord, dial_rect("f2res"))) {
-            hitTarget = eDragFilter2Res;
+        tPanelSection * section = synth_filters_section();
+        int32_t         hitIdx  = section ? hit_test_panel_section(section, coord) : -1;
+
+        if (hitIdx >= 0) {
+            hit = &section->dials[hitIdx];
         }
     }
 
-    if (hitTarget != eDragNone) {
-        gDragTarget    = hitTarget;
+    if (hit) {
+        gDraggedDial   = hit;
         gDragStartX    = x;
         gDragStartY    = y;
         gDragPrevX     = x;
@@ -305,7 +156,7 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
 }
 
 void handle_cursor_pos(void * win, double x, double y) {
-    if (gDragTarget == eDragNone) {
+    if (!gDraggedDial) {
         return;
     }
 
@@ -316,166 +167,40 @@ void handle_cursor_pos(void * win, double x, double y) {
         return;
     }
 
-    // Routing dial: 3 positions (0=SERI1, 1=SERI2, 2=PARA)
-    if (gDragTarget == eDragFilterRouting) {
-        int newRouting = 0;
-
-        if (gDialMode == eDialModeRotary) {
-            tCoord logCoord = window_to_logical(win, x, y);
-            double angle    = calculate_mouse_angle(logCoord, dial_rect("route"));
-            newRouting = (int)angle_to_value(angle, 3);
-        } else {
-            double delta = 0.0;
-
-            if (gDialMode == eDialModeHorizontal) {
-                delta      = delta_to_logical(win, x - gDragPrevX, true);
-                gDragPrevX = x;
-            } else {
-                delta      = delta_to_logical(win, gDragPrevY - y, false);
-                gDragPrevY = y;
-            }
-            gDragTypeAccum += delta / 30.0;
-            int    step  = (int)gDragTypeAccum;
-            gDragTypeAccum -= (double)step;
-            newRouting      = (int)gDevice.filterRouting + step;
-        }
-        set_filter_routing(clamp_routing(newRouting));
-        return;
-    }
-
-    // F2 Link dial: 2 positions (0=OFF, 1=ON)
-    if (gDragTarget == eDragFilter2Link) {
-        int newLink = 0;
-
-        if (gDialMode == eDialModeRotary) {
-            tCoord logCoord = window_to_logical(win, x, y);
-            double angle    = calculate_mouse_angle(logCoord, dial_rect("f2link"));
-            newLink = (int)angle_to_value(angle, 2);
-        } else {
-            double delta = 0.0;
-
-            if (gDialMode == eDialModeHorizontal) {
-                delta      = delta_to_logical(win, x - gDragPrevX, true);
-                gDragPrevX = x;
-            } else {
-                delta      = delta_to_logical(win, gDragPrevY - y, false);
-                gDragPrevY = y;
-            }
-            gDragTypeAccum += delta / 30.0;
-            int    step  = (int)gDragTypeAccum;
-            gDragTypeAccum -= (double)step;
-            newLink         = (int)gDevice.filter2Link + step;
-        }
-        set_filter2_link((uint8_t)(newLink >= 1 ? 1 : 0));
-        return;
-    }
-
-    // Type dials: respect gDialMode, use accumulator for delta modes
-    if ((gDragTarget == eDragFilter1Type) || (gDragTarget == eDragFilter2Type)) {
-        tRectangle dialRect = (gDragTarget == eDragFilter1Type)
-                              ? dial_rect("f1type")
-                              : dial_rect("f2type");
-        int        newType  = 0;
-
-        if (gDialMode == eDialModeRotary) {
-            tCoord logCoord = window_to_logical(win, x, y);
-            double angle    = calculate_mouse_angle(logCoord, dialRect);
-            newType = (int)angle_to_value(angle, 5) + 1;    // 0-4 → type 1-5
-        } else {
-            double delta   = 0.0;
-
-            if (gDialMode == eDialModeHorizontal) {
-                delta      = delta_to_logical(win, x - gDragPrevX, true);
-                gDragPrevX = x;
-            } else {
-                delta      = delta_to_logical(win, gDragPrevY - y, false);
-                gDragPrevY = y;
-            }
-            gDragTypeAccum += delta / 30.0;
-            int    step    = (int)gDragTypeAccum;
-            gDragTypeAccum -= (double)step;
-            int    curType = (gDragTarget == eDragFilter1Type)
-                              ? (int)gDevice.filter1Type : (int)gDevice.filter2Type;
-            newType         = curType + step;
-        }
-
-        if (gDragTarget == eDragFilter1Type) {
-            set_filter1_type(clamp_type(newType));
-        } else {
-            set_filter2_type(clamp_type(newType));
-        }
-        return;
-    }
-    // Current value and range for the dragged continuous dial
-    uint8_t    curVal     = 0;
-    uint32_t   paramRange = 128;    // 128 for CC params (0-127); 100 for trim (0-99)
-
-    switch (gDragTarget) {
-        case eDragFilter1Cutoff:    curVal = gDevice.filter1Cutoff;
-            break;
-        case eDragFilter1Res:       curVal = gDevice.filter1Resonance;
-            break;
-        case eDragFilter1InputTrim: curVal = gDevice.filter1InputTrim;
-            paramRange                     = 100;
-            break;
-        case eDragFilter2Cutoff:    curVal = gDevice.filter2Cutoff;
-            break;
-        case eDragFilter2Res:       curVal = gDevice.filter2Resonance;
-            break;
-        case eDragFilter2InputTrim: curVal = gDevice.filter2InputTrim;
-            paramRange                     = 100;
-            break;
-        default:                    return;
-    }
-    // Dial rect for rotary mode
-    tRectangle dialRect   = {0};
-
-    switch (gDragTarget) {
-        case eDragFilter1Cutoff:    dialRect = dial_rect("f1cut");
-            break;
-        case eDragFilter1Res:       dialRect = dial_rect("f1res");
-            break;
-        case eDragFilter1InputTrim: dialRect = dial_rect("f1trim");
-            break;
-        case eDragFilter2Cutoff:    dialRect = dial_rect("f2cut");
-            break;
-        case eDragFilter2Res:       dialRect = dial_rect("f2res");
-            break;
-        case eDragFilter2InputTrim: dialRect = dial_rect("f2trim");
-            break;
-        default:                    return;
-    }
-    int        newVal     = 0;
+    uint32_t range  = gDraggedDial->max;
+    int32_t  newVal = (int32_t)get_panel_dial_value(gDraggedDial);
 
     if (gDialMode == eDialModeRotary) {
         tCoord logCoord = window_to_logical(win, x, y);
-        double angle    = calculate_mouse_angle(logCoord, dialRect);
-        newVal = (int)angle_to_value(angle, paramRange);
+        double angle    = calculate_mouse_angle(logCoord, gDraggedDial->rect);
+        newVal = (int32_t)angle_to_value(angle, range);
+    } else if (gDraggedDial->display == dialDisplayNames) {
+        // Discrete/stepped control (few positions): accumulate delta into
+        // whole-step increments rather than mapping delta directly to value.
+        double delta = 0.0;
+
+        if (gDialMode == eDialModeHorizontal) {
+            delta      = delta_to_logical(win, x - gDragPrevX, true);
+            gDragPrevX = x;
+        } else {
+            delta      = delta_to_logical(win, gDragPrevY - y, false);
+            gDragPrevY = y;
+        }
+        gDragTypeAccum += delta / 30.0;
+        int32_t step = (int32_t)gDragTypeAccum;
+        gDragTypeAccum -= (double)step;
+        newVal += step;
     } else if (gDialMode == eDialModeVertical) {
         double dy = delta_to_logical(win, gDragPrevY - y, false);
         gDragPrevY = y;
-        newVal     = (int)curVal + (int)(dy * (double)(paramRange - 1) / 200.0);
+        newVal    += (int32_t)(dy * (double)(range - 1) / 200.0);
     } else {
         double dx = delta_to_logical(win, x - gDragPrevX, true);
         gDragPrevX = x;
-        newVal     = (int)curVal + (int)(dx * (double)(paramRange - 1) / 200.0);
+        newVal    += (int32_t)(dx * (double)(range - 1) / 200.0);
     }
 
-    switch (gDragTarget) {
-        case eDragFilter1Cutoff:    set_filter1_cutoff(clamp_u8(newVal));
-            break;
-        case eDragFilter1Res:       set_filter1_res(clamp_u8(newVal));
-            break;
-        case eDragFilter1InputTrim: set_filter1_input_trim(clamp_trim(newVal));
-            break;
-        case eDragFilter2Cutoff:    set_filter2_cutoff(clamp_u8(newVal));
-            break;
-        case eDragFilter2Res:       set_filter2_res(clamp_u8(newVal));
-            break;
-        case eDragFilter2InputTrim: set_filter2_input_trim(clamp_trim(newVal));
-            break;
-        default:                    break;
-    }
+    synth_set_panel_dial_value(gDraggedDial, clamp_dial_value(newVal, range));
 }
 
 void handle_key(void * win, int key, int scancode, int action, int mods) {
@@ -490,13 +215,19 @@ void handle_scroll(void * win, double dx, double dy) {
     (void)win;
     (void)dx;
 
-    if (!gDevice.connected) {
+    if (!gDevice.connected || gDraggedDial) {
         return;
     }
 
-    // Scroll anywhere nudges the filter dial when no drag is active
-    if (gDragTarget == eDragNone) {
-        int newVal = (int)gDevice.filter1Cutoff + (int)dy;
-        set_filter1_cutoff(clamp_u8(newVal));
+    // Deliberate remaining exception: with no drag active, scroll always
+    // nudges "f1cut" specifically — a synth-editor shortcut, not something
+    // generalizable from a rect-based hit-test, since handle_scroll isn't
+    // given a cursor position to test against.
+    tPanelSection * section = synth_filters_section();
+    tPanelDial *    dial    = section ? find_panel_dial(section, "f1cut") : NULL;
+
+    if (dial) {
+        int32_t newVal = (int32_t)get_panel_dial_value(dial) + (int32_t)dy;
+        synth_set_panel_dial_value(dial, clamp_dial_value(newVal, dial->max));
     }
 }

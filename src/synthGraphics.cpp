@@ -35,6 +35,7 @@ extern "C" {
 #include "globalVars.h"
 #include "utilsGraphics.h"
 #include "panelConfig.h"
+#include "synthComms.h"
 #include "misc.h"
 #include "synthGraphics.h"
 
@@ -54,67 +55,6 @@ tPanelSection * synth_filters_section(void) {
     return find_panel_section(&gSynthPanelConfig, "synth", "filters");
 }
 
-// Live value + native value for a dial, keyed by the id it's given in
-// layouts/z1.txt. The descriptor only describes what a control is (position,
-// range, label, display style) — the current value stays here, since it's
-// protocol/device state, not layout data.
-typedef struct {
-    uint32_t dialVal;
-    uint32_t nativeVal;
-} tDialLiveValue;
-
-static tDialLiveValue synth_dial_live_value(const char * id) {
-    uint8_t f1t = (gDevice.filter1Type >= 1 && gDevice.filter1Type <= 5) ? gDevice.filter1Type : 1;
-    uint8_t f2t = (gDevice.filter2Type >= 1 && gDevice.filter2Type <= 5) ? gDevice.filter2Type : 1;
-    uint8_t fr  = (gDevice.filterRouting <= 2) ? gDevice.filterRouting : 0;
-    uint8_t fl  = gDevice.filter2Link & 0x01;
-
-    if (strcmp(id, "route") == 0) {
-        return (tDialLiveValue){
-            (uint32_t)fr, 0
-        };
-    } else if (strcmp(id, "f2link") == 0) {
-        return (tDialLiveValue){
-            (uint32_t)fl, 0
-        };
-    } else if (strcmp(id, "f1type") == 0) {
-        return (tDialLiveValue){
-            (uint32_t)(f1t - 1), 0
-        };
-    } else if (strcmp(id, "f1trim") == 0) {
-        return (tDialLiveValue){
-            gDevice.filter1InputTrim, 0
-        };
-    } else if (strcmp(id, "f1cut") == 0) {
-        return (tDialLiveValue){
-            gDevice.filter1Cutoff, gDevice.filter1CutoffNative
-        };
-    } else if (strcmp(id, "f1res") == 0) {
-        return (tDialLiveValue){
-            gDevice.filter1Resonance, gDevice.filter1ResNative
-        };
-    } else if (strcmp(id, "f2type") == 0) {
-        return (tDialLiveValue){
-            (uint32_t)(f2t - 1), 0
-        };
-    } else if (strcmp(id, "f2trim") == 0) {
-        return (tDialLiveValue){
-            gDevice.filter2InputTrim, 0
-        };
-    } else if (strcmp(id, "f2cut") == 0) {
-        return (tDialLiveValue){
-            gDevice.filter2Cutoff, gDevice.filter2CutoffNative
-        };
-    } else if (strcmp(id, "f2res") == 0) {
-        return (tDialLiveValue){
-            gDevice.filter2Resonance, gDevice.filter2ResNative
-        };
-    }
-    return (tDialLiveValue){
-        0, 0
-    };
-}
-
 static void synth_reload_panel_config(void) {
     char path[1152];
 
@@ -122,6 +62,8 @@ static void synth_reload_panel_config(void) {
 
     if (!load_panel_config(path, &gSynthPanelConfig)) {
         LOG_ERROR("z1: couldn't load '%s' — filter dials will not render\n", path);
+    } else {
+        synth_bind_panel_dials(synth_filters_section());
     }
     gReDraw = true;
 }
@@ -202,20 +144,21 @@ void synth_render(tRectangle area) {
             layout_panel_section(section, (tRectangle){{x, y}, {0, 0}});
 
             for (uint32_t i = 0; i < section->dialCount; i++) {
-                tPanelDial *   dial    = &section->dials[i];
-                tDialLiveValue live    = synth_dial_live_value(dial->id);
+                tPanelDial * dial      = &section->dials[i];
+                uint32_t     dialVal   = get_panel_dial_value(dial);
 
-                render_dial(mainArea, dial->rect, live.dialVal, dial->max, 0, dial->colour);
+                render_dial(mainArea, dial->rect, dialVal, dial->max, 0, dial->colour);
 
-                char           valBuf[24];
+                char         valBuf[24];
 
                 if (dial->display == dialDisplayNames) {
                     snprintf(valBuf, sizeof(valBuf), "%s",
-                             (live.dialVal < dial->nameCount) ? dial->names[live.dialVal] : "?");
+                             (dialVal < dial->nameCount) ? dial->names[dialVal] : "?");
                 } else if (dial->display == dialDisplayRaw) {
-                    snprintf(valBuf, sizeof(valBuf), "%u", (unsigned)live.dialVal);
+                    snprintf(valBuf, sizeof(valBuf), "%u", (unsigned)dialVal);
                 } else {
-                    snprintf(valBuf, sizeof(valBuf), "%u (%u)", (unsigned)live.dialVal, (unsigned)live.nativeVal);
+                    snprintf(valBuf, sizeof(valBuf), "%u (%u)", (unsigned)dialVal,
+                             (unsigned)get_panel_dial_native_value(dial));
                 }
                 tRectangle     valRect = {{dial->rect.coord.x, dial->rect.coord.y + section->dialSize + 4.0},
                     {section->spacing,                                           12.0}};
