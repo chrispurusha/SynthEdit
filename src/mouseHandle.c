@@ -102,15 +102,23 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
     tCoord coord   = window_to_logical(win, x, y);
     bool   pressed = (action == GLFW_PRESS);
 
-    // Release: end drag; restore cursor only for modes that hid it
+    // Release: end drag; restore cursor only for modes that hid it.
+    // Clear gDraggedDial/gDragSkipCount *before* touching the cursor —
+    // glfwSetCursorPos() can reentrantly invoke handle_cursor_pos() before
+    // returning, and if gDraggedDial were still set at that point, the
+    // reentrant call would apply a bogus delta (computed against
+    // gDragStartX/Y vs. whatever gDragPrevX/Y last held during the drag) to
+    // whichever dial gDraggedDial names — including a different one, if a
+    // fast release-then-press-elsewhere already reassigned it by the time
+    // the reentrant call is actually processed.
     if (!pressed && gDraggedDial) {
         gDragSkipCount = 0;
+        gDraggedDial   = NULL;
 
         if (gDialMode != eDialModeRotary) {
             glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
             glfwSetCursorPos(win, gDragStartX, gDragStartY);
         }
-        gDraggedDial   = NULL;
         return;
     }
 
