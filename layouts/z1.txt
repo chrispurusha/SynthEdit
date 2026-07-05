@@ -22,6 +22,10 @@
 #   offset=<n>             — storage_value = display_value + offset (e.g. the
 #                           "type" dials store 1-5 but display/drag as 0-4)
 # `max` is always the count of display-space positions: values 0..max-1.
+#
+# "list <name> <items>" declares a device-wide named string list, not tied to
+# any dial — e.g. patch-category names shown as plain text. Quote the item
+# string if any item itself contains a space (comma still separates items).
 
 # ── Device identity ──────────────────────────────────────────────────────────
 # SysEx header: F0 42 (0x30|channel) 46 01 ... — see defs.h KORG_MANUFACTURER_ID /
@@ -30,6 +34,11 @@ device          Korg Z1
 manufacturerId  0x42
 familyId        0x46
 memberId        0x01
+
+# ── Named lists ───────────────────────────────────────────────────────────────
+list category    Synth-Hard,Synth-Soft,E.Piano,Organ,Strings,Brass,Wind,Bell/Mallt,Guitar,Bass,Perc/Drums,Vocal,S.E./Natrl,Synth-Lead,Synth-Pad,Synth-Comp,Digital,User
+list voiceMode    "Mono Multi,Mono Single,Poly"
+list unisonType   "2 voices,3 voices,6 voices"
 
 # ── Filters row (Synth page) ─────────────────────────────────────────────────
 page       synth

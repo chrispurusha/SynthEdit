@@ -44,6 +44,10 @@ void synth_set_layouts_dir(const char * dir);
 // synth_render() call — dial rects are valid for hit-testing until the next render.
 tPanelSection * synth_filters_section(void);
 
+// The full parsed config, for callers that need named lists (see
+// get_panel_list_item()/get_panel_list_count()) rather than a specific dial.
+tPanelConfig * synth_panel_config(void);
+
 #ifdef __cplusplus
 }
 #endif

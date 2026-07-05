@@ -43,16 +43,14 @@ extern "C" {
 
 static char         gLayoutsDir[1024] = SYNTH_LAYOUTS_DIR_DEFAULT;
 
-static const char * kCategoryNames[]  = {"Synth-Hard", "Synth-Soft", "E.Piano",    "Organ",
-                                         "Strings",     "Brass",      "Wind",       "Bell/Mallt",
-                                         "Guitar",      "Bass",       "Perc/Drums", "Vocal",
-                                         "S.E./Natrl",  "Synth-Lead", "Synth-Pad",  "Synth-Comp",
-                                         "Digital",     "User",       };
-
 static tPanelConfig gSynthPanelConfig = {0};
 
 tPanelSection * synth_filters_section(void) {
     return find_panel_section(&gSynthPanelConfig, "synth", "filters");
+}
+
+tPanelConfig * synth_panel_config(void) {
+    return &gSynthPanelConfig;
 }
 
 static void synth_reload_panel_config(void) {
@@ -106,29 +104,26 @@ void synth_render(tRectangle area) {
     }
 
     // ── Info row: Category / Voice mode / Unison ──────────────────────────────
+    // Category/voiceMode/unisonType names come from z1.txt's named lists, not
+    // hardcoded here — this block only knows the field values, not their text.
     {
-        static const char * voiceModeNames[]  = {"Mono Multi", "Mono Single", "Poly"};
-        static const char * unisonTypeNames[] = {"2 voices", "3 voices", "6 voices"};
-
-        uint8_t             vm                = (gDevice.voiceMode < 3) ? gDevice.voiceMode : 2;
-        char                infoBuf[128];
-        const char *        uniStr            = "Unison: off";
-        char                uniBuf[48];
+        char         infoBuf[128];
+        const char * uniStr = "Unison: off";
+        char         uniBuf[48];
 
         if (gDevice.unisonOn && (gDevice.unisonType > 0)) {
-            uint8_t ut = (gDevice.unisonType - 1) < 3 ? (gDevice.unisonType - 1) : 2;
             snprintf(uniBuf, sizeof(uniBuf), "Unison: %s  %u cent%s",
-                     unisonTypeNames[ut],
+                     get_panel_list_item(&gSynthPanelConfig, "unisonType", gDevice.unisonType - 1),
                      (unsigned)gDevice.unisonDetune,
                      gDevice.unisonDetune == 1 ? "" : "s");
             uniStr = uniBuf;
         }
         snprintf(infoBuf, sizeof(infoBuf), "%s  |  %s  |  %s",
-                 (gDevice.category < 18) ? kCategoryNames[gDevice.category] : "?",
-                 voiceModeNames[vm],
+                 get_panel_list_item(&gSynthPanelConfig, "category", gDevice.category),
+                 get_panel_list_item(&gSynthPanelConfig, "voiceMode", gDevice.voiceMode),
                  uniStr);
 
-        tRectangle          r                 = {{x, y}, {500.0, 13.0}};
+        tRectangle   r      = {{x, y}, {500.0, 13.0}};
         set_rgb_colour((tRgb)RGB_GREY_7);
         render_text(mainArea, r, infoBuf);
         y += 25.0;
@@ -144,8 +139,8 @@ void synth_render(tRectangle area) {
             layout_panel_section(section, (tRectangle){{x, y}, {0, 0}});
 
             for (uint32_t i = 0; i < section->dialCount; i++) {
-                tPanelDial * dial      = &section->dials[i];
-                uint32_t     dialVal   = get_panel_dial_value(dial);
+                tPanelDial * dial    = &section->dials[i];
+                uint32_t     dialVal = get_panel_dial_value(dial);
 
                 render_dial(mainArea, dial->rect, dialVal, dial->max, 0, dial->colour);
 
@@ -160,12 +155,12 @@ void synth_render(tRectangle area) {
                     snprintf(valBuf, sizeof(valBuf), "%u (%u)", (unsigned)dialVal,
                              (unsigned)get_panel_dial_native_value(dial));
                 }
-                tRectangle     valRect = {{dial->rect.coord.x, dial->rect.coord.y + section->dialSize + 4.0},
+                tRectangle   valRect = {{dial->rect.coord.x, dial->rect.coord.y + section->dialSize + 4.0},
                     {section->spacing,                                           12.0}};
                 set_rgb_colour((tRgb)RGB_GREY_7);
                 render_text(mainArea, valRect, valBuf);
 
-                tRectangle     lblRect = {{dial->rect.coord.x, dial->rect.coord.y + section->dialSize + 18.0},
+                tRectangle   lblRect = {{dial->rect.coord.x, dial->rect.coord.y + section->dialSize + 18.0},
                     {section->spacing,                                            12.0}};
                 render_text(mainArea, lblRect, dial->label);
             }

@@ -25,6 +25,7 @@
 #include "types.h"
 #include "globalVars.h"
 #include "midiComms.h"
+#include "synthGraphics.h"
 #include "synthComms.h"
 
 // ── SysEx header helpers ──────────────────────────────────────────────────────
@@ -98,20 +99,6 @@ static uint32_t build_header(uint8_t * buf, uint8_t funcId) {
     return 5;
 }
 
-// ── Category name table ───────────────────────────────────────────────────────
-// Matches Z1 program category parameter (ID 17), values 0-17
-static const char * kCategoryNames[]   = {
-    "Synth-Hard", "Synth-Soft", "E.Piano",    "Organ",
-    "Strings",    "Brass",      "Wind",       "Bell/Mallt",
-    "Guitar",     "Bass",       "Perc/Drums", "Vocal",
-    "S.E./Natrl", "Synth-Lead", "Synth-Pad",  "Synth-Comp",
-    "Digital",    "User",
-};
-#define kCategoryCount    (sizeof(kCategoryNames) / sizeof(kCategoryNames[0]))
-
-static const char * kVoiceModeNames[]  = {"Mono Multi", "Mono Single", "Poly"};
-static const char * kUnisonTypeNames[] = {"OFF", "2 voices", "3 voices", "6 voices"};
-
 // ── Program info extraction ───────────────────────────────────────────────────
 // Byte layout (derived from Z1 MIDI spec parameter table, packed fields noted):
 //   0-15  : Program Name chars (params 1-16)
@@ -141,7 +128,7 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
     if (decodedLen > 16) {
         gDevice.category = decoded[16] & 0x1F;
 
-        if (gDevice.category >= kCategoryCount) {
+        if (gDevice.category >= get_panel_list_count(synth_panel_config(), "category")) {
             gDevice.category = 0;
         }
     }
@@ -219,21 +206,25 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
 #undef CLAMP99
 #undef TO_CC
 
-    static const char * kTypeNames[] = {"LPF", "HPF", "BPF", "BRF", "2BPF"};
-    uint8_t             f1t          = (gDevice.filter1Type >= 1 && gDevice.filter1Type <= 5) ? gDevice.filter1Type : 1;
-    uint8_t             f2t          = (gDevice.filter2Type >= 1 && gDevice.filter2Type <= 5) ? gDevice.filter2Type : 1;
+    uint8_t         f1t     = (gDevice.filter1Type >= 1 && gDevice.filter1Type <= 5) ? gDevice.filter1Type : 1;
+    uint8_t         f2t     = (gDevice.filter2Type >= 1 && gDevice.filter2Type <= 5) ? gDevice.filter2Type : 1;
+    tPanelConfig *  cfg     = synth_panel_config();
+    tPanelSection * section = synth_filters_section();
+    tPanelDial *    f1type  = section ? find_panel_dial(section, "f1type") : NULL;
+    tPanelDial *    f2type  = section ? find_panel_dial(section, "f2type") : NULL;
+
     LOG_DEBUG("Z1 prog: \"%s\"  cat=%s  voice=%s  unison=%s(%u cents)"
               "  f1type=%s f1cut=%u(%u) f1res=%u(%u)"
               "  f2type=%s f2cut=%u(%u) f2res=%u(%u)\n",
               gDevice.progName,
-              kCategoryNames[gDevice.category],
-              kVoiceModeNames[gDevice.voiceMode < 3 ? gDevice.voiceMode : 2],
-              gDevice.unisonOn ? kUnisonTypeNames[gDevice.unisonType & 3] : "OFF",
+              get_panel_list_item(cfg, "category", gDevice.category),
+              get_panel_list_item(cfg, "voiceMode", gDevice.voiceMode),
+              gDevice.unisonOn ? get_panel_list_item(cfg, "unisonType", gDevice.unisonType - 1) : "OFF",
               (unsigned)gDevice.unisonDetune,
-              kTypeNames[f1t - 1],
+              (f1type && ((f1t - 1) < f1type->nameCount)) ? f1type->names[f1t - 1] : "?",
               (unsigned)gDevice.filter1Cutoff, (unsigned)gDevice.filter1CutoffNative,
               (unsigned)gDevice.filter1Resonance, (unsigned)gDevice.filter1ResNative,
-              kTypeNames[f2t - 1],
+              (f2type && ((f2t - 1) < f2type->nameCount)) ? f2type->names[f2t - 1] : "?",
               (unsigned)gDevice.filter2Cutoff, (unsigned)gDevice.filter2CutoffNative,
               (unsigned)gDevice.filter2Resonance, (unsigned)gDevice.filter2ResNative);
 }
@@ -429,16 +420,16 @@ void synth_bind_panel_dials(tPanelSection * section) {
         uint8_t *    value;
         uint8_t *    native;
     } bindings[] = {
-        {"route",  &gDevice.filterRouting,      NULL                        },
-        {"f2link", &gDevice.filter2Link,        NULL                        },
-        {"f1type", &gDevice.filter1Type,        NULL                        },
-        {"f1trim", &gDevice.filter1InputTrim,   NULL                        },
-        {"f1cut",  &gDevice.filter1Cutoff,      &gDevice.filter1CutoffNative},
-        {"f1res",  &gDevice.filter1Resonance,   &gDevice.filter1ResNative   },
-        {"f2type", &gDevice.filter2Type,        NULL                        },
-        {"f2trim", &gDevice.filter2InputTrim,   NULL                        },
-        {"f2cut",  &gDevice.filter2Cutoff,      &gDevice.filter2CutoffNative},
-        {"f2res",  &gDevice.filter2Resonance,   &gDevice.filter2ResNative   },
+        {"route",  &gDevice.filterRouting,    NULL                        },
+        {"f2link", &gDevice.filter2Link,      NULL                        },
+        {"f1type", &gDevice.filter1Type,      NULL                        },
+        {"f1trim", &gDevice.filter1InputTrim, NULL                        },
+        {"f1cut",  &gDevice.filter1Cutoff,    &gDevice.filter1CutoffNative},
+        {"f1res",  &gDevice.filter1Resonance, &gDevice.filter1ResNative   },
+        {"f2type", &gDevice.filter2Type,      NULL                        },
+        {"f2trim", &gDevice.filter2InputTrim, NULL                        },
+        {"f2cut",  &gDevice.filter2Cutoff,    &gDevice.filter2CutoffNative},
+        {"f2res",  &gDevice.filter2Resonance, &gDevice.filter2ResNative   },
     };
 
     for (size_t i = 0; i < (sizeof(bindings) / sizeof(bindings[0])); i++) {
@@ -474,5 +465,5 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
     } else {
         synth_send_parameter_change((uint8_t)dial->paramGroup, (uint16_t)dial->paramId, storageValue);
     }
-    gReDraw = true;
+    gReDraw         = true;
 }

@@ -93,7 +93,7 @@ typedef struct {
     uint16_t member;
     // Program info (decoded from CURR_PROG_DUMP)
     char     progName[SYNTH_PROG_NAME_MAXLEN];
-    uint8_t  category;            // 0-17, see kCategoryNames in synthComms.c
+    uint8_t  category;            // 0-17, names in z1.txt's "category" list
     uint8_t  voiceMode;           // 0=MONO_MULTI 1=MONO_SINGLE 2=POLY
     bool     unisonOn;            // Unison SW
     uint8_t  unisonType;          // 0=OFF 1=2voices 2=3voices 3=6voices

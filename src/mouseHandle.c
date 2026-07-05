@@ -110,7 +110,7 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
             glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
             glfwSetCursorPos(win, gDragStartX, gDragStartY);
         }
-        gDraggedDial = NULL;
+        gDraggedDial   = NULL;
         return;
     }
 
@@ -126,7 +126,6 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
     if (!pressed) {
         return;
     }
-
     // Hit-test the current panel section generically — whatever dial (if
     // any) is under the cursor, by rect alone. No dial ids referenced here.
     tPanelDial * hit = NULL;
@@ -166,7 +165,6 @@ void handle_cursor_pos(void * win, double x, double y) {
         gDragSkipCount--;
         return;
     }
-
     uint32_t range  = gDraggedDial->max;
     int32_t  newVal = (int32_t)get_panel_dial_value(gDraggedDial);
 
@@ -177,7 +175,7 @@ void handle_cursor_pos(void * win, double x, double y) {
     } else if (gDraggedDial->display == dialDisplayNames) {
         // Discrete/stepped control (few positions): accumulate delta into
         // whole-step increments rather than mapping delta directly to value.
-        double delta = 0.0;
+        double  delta = 0.0;
 
         if (gDialMode == eDialModeHorizontal) {
             delta      = delta_to_logical(win, x - gDragPrevX, true);
@@ -187,9 +185,9 @@ void handle_cursor_pos(void * win, double x, double y) {
             gDragPrevY = y;
         }
         gDragTypeAccum += delta / 30.0;
-        int32_t step = (int32_t)gDragTypeAccum;
+        int32_t step  = (int32_t)gDragTypeAccum;
         gDragTypeAccum -= (double)step;
-        newVal += step;
+        newVal         += step;
     } else if (gDialMode == eDialModeVertical) {
         double dy = delta_to_logical(win, gDragPrevY - y, false);
         gDragPrevY = y;
@@ -199,7 +197,6 @@ void handle_cursor_pos(void * win, double x, double y) {
         gDragPrevX = x;
         newVal    += (int32_t)(dx * (double)(range - 1) / 200.0);
     }
-
     synth_set_panel_dial_value(gDraggedDial, clamp_dial_value(newVal, range));
 }
 
@@ -218,7 +215,6 @@ void handle_scroll(void * win, double dx, double dy) {
     if (!gDevice.connected || gDraggedDial) {
         return;
     }
-
     // Deliberate remaining exception: with no drag active, scroll always
     // nudges "f1cut" specifically — a synth-editor shortcut, not something
     // generalizable from a rect-based hit-test, since handle_scroll isn't

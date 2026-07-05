@@ -33,12 +33,14 @@ extern "C" {
 
 #include "geometry.h"
 
-#define PANEL_ID_LEN          16
-#define PANEL_LABEL_LEN       32
-#define PANEL_MAX_NAMES       8
-#define PANEL_MAX_COLOURS     16
-#define PANEL_MAX_DIALS       32
-#define PANEL_MAX_SECTIONS    8
+#define PANEL_ID_LEN            16
+#define PANEL_LABEL_LEN         32
+#define PANEL_MAX_NAMES         8
+#define PANEL_MAX_COLOURS       16
+#define PANEL_MAX_DIALS         32
+#define PANEL_MAX_SECTIONS      8
+#define PANEL_MAX_LIST_ITEMS    32
+#define PANEL_MAX_LISTS         8
 
 typedef enum {
     dialDisplayRaw = 0,
@@ -51,12 +53,20 @@ typedef struct {
     tRgb colour;
 } tPanelColour;
 
+// A named string list not tied to any dial — e.g. a device's patch-category
+// or voice-mode names, shown as plain text rather than driving a control.
 typedef struct {
-    char         id[PANEL_ID_LEN];              // e.g. "f1cut" — looked up by find_panel_dial()
-    char         label[PANEL_LABEL_LEN];        // e.g. "F1 Cut"
-    char         colourName[PANEL_ID_LEN];      // as written in the file, e.g. "f1"
-    tRgb         colour;                        // resolved against the section's colour table at parse time
-    uint32_t     max;                           // count of valid display-space positions: 0..max-1
+    char     name[PANEL_ID_LEN];
+    char     items[PANEL_MAX_LIST_ITEMS][PANEL_LABEL_LEN];
+    uint32_t itemCount;
+} tPanelList;
+
+typedef struct {
+    char         id[PANEL_ID_LEN];                        // e.g. "f1cut" — looked up by find_panel_dial()
+    char         label[PANEL_LABEL_LEN];                  // e.g. "F1 Cut"
+    char         colourName[PANEL_ID_LEN];                // as written in the file, e.g. "f1"
+    tRgb         colour;                                  // resolved against the section's colour table at parse time
+    uint32_t     max;                                     // count of valid display-space positions: 0..max-1
     tDialDisplay display;
     char         names[PANEL_MAX_NAMES][PANEL_LABEL_LEN]; // populated when display == dialDisplayNames
     uint32_t     nameCount;
@@ -67,13 +77,13 @@ typedef struct {
     // so generic code (mouse handling, rendering) never needs to know what a
     // given dial *means*. All parsed from the file; application code only
     // resolves valuePtr/nativeValuePtr (see e.g. synth_bind_panel_dials()).
-    int32_t      storageOffset;  // storage_value = display_value + storageOffset (e.g. 1-5 vs 0-4 for "type")
-    uint32_t     paramGroup;     // SysEx parameter group
-    uint32_t     paramId;        // SysEx parameter ID
-    uint32_t     ccNumber;       // MIDI CC number; 0 = not CC-controlled (send SysEx param change instead)
-    uint32_t     nativeMax;      // native/SysEx value range when paired with a CC (0 = no native pairing)
-    uint8_t *    valuePtr;       // bound at runtime to the live storage-space value; NULL until resolved
-    uint8_t *    nativeValuePtr; // bound at runtime to the live native value, if any; NULL if unused
+    int32_t   storageOffset;     // storage_value = display_value + storageOffset (e.g. 1-5 vs 0-4 for "type")
+    uint32_t  paramGroup;        // SysEx parameter group
+    uint32_t  paramId;           // SysEx parameter ID
+    uint32_t  ccNumber;          // MIDI CC number; 0 = not CC-controlled (send SysEx param change instead)
+    uint32_t  nativeMax;         // native/SysEx value range when paired with a CC (0 = no native pairing)
+    uint8_t * valuePtr;          // bound at runtime to the live storage-space value; NULL until resolved
+    uint8_t * nativeValuePtr;    // bound at runtime to the live native value, if any; NULL if unused
 } tPanelDial;
 
 typedef struct {
@@ -94,6 +104,8 @@ typedef struct {
     uint32_t      memberId;
     tPanelSection sections[PANEL_MAX_SECTIONS];
     uint32_t      sectionCount;
+    tPanelList    lists[PANEL_MAX_LISTS];
+    uint32_t      listCount;
 } tPanelConfig;
 
 // Parses the file at `path` into `config` (which is zeroed first). Malformed
@@ -116,6 +128,15 @@ int32_t hit_test_panel_section(tPanelSection * section, tCoord point);
 // pure pointer arithmetic, no protocol knowledge. Returns 0 if unbound.
 uint32_t get_panel_dial_value(const tPanelDial * dial);
 uint32_t get_panel_dial_native_value(const tPanelDial * dial);
+
+// Looks up item `index` in the named list `listName` (device-wide, not
+// section-scoped). Returns "?" if the list or index doesn't exist, rather
+// than requiring every call site to bounds-check.
+const char * get_panel_list_item(const tPanelConfig * config, const char * listName, uint32_t index);
+
+// Number of items in the named list, or 0 if it doesn't exist — e.g. for
+// validating/clamping a value parsed off the wire against the list it names.
+uint32_t get_panel_list_count(const tPanelConfig * config, const char * listName);
 
 #ifdef __cplusplus
 }

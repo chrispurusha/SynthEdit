@@ -247,6 +247,20 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
         config->familyId = (uint32_t)strtoul(tokens[1], NULL, 0);
     } else if (strcmp(keyword, "memberId") == 0) {
         config->memberId = (uint32_t)strtoul(tokens[1], NULL, 0);
+    } else if (strcmp(keyword, "list") == 0) {
+        if (tokenCount < 3) {
+            LOG_ERROR("panelConfig line %u: expected 'list <name> <items>'\n", lineNo);
+            return;
+        }
+
+        if (config->listCount >= PANEL_MAX_LISTS) {
+            LOG_ERROR("panelConfig line %u: too many lists (max %u)\n", lineNo, (unsigned)PANEL_MAX_LISTS);
+            return;
+        }
+        tPanelList * list = &config->lists[config->listCount++];
+
+        strncpy(list->name, tokens[1], sizeof(list->name) - 1);
+        list->itemCount = split_csv(tokens[2], list->items, PANEL_MAX_LIST_ITEMS);
     } else if (strcmp(keyword, "page") == 0) {
         if (config->sectionCount >= PANEL_MAX_SECTIONS) {
             LOG_ERROR("panelConfig line %u: too many sections (max %u)\n", lineNo, (unsigned)PANEL_MAX_SECTIONS);
@@ -367,7 +381,6 @@ uint32_t get_panel_dial_value(const tPanelDial * dial) {
     if (!dial || !dial->valuePtr) {
         return 0;
     }
-
     return (uint32_t)(*dial->valuePtr - dial->storageOffset);
 }
 
@@ -375,6 +388,25 @@ uint32_t get_panel_dial_native_value(const tPanelDial * dial) {
     if (!dial || !dial->nativeValuePtr) {
         return 0;
     }
-
     return (uint32_t)(*dial->nativeValuePtr);
+}
+
+const char * get_panel_list_item(const tPanelConfig * config, const char * listName, uint32_t index) {
+    for (uint32_t i = 0; i < config->listCount; i++) {
+        if (strcmp(config->lists[i].name, listName) == 0) {
+            return (index < config->lists[i].itemCount) ? config->lists[i].items[index] : "?";
+        }
+    }
+
+    return "?";
+}
+
+uint32_t get_panel_list_count(const tPanelConfig * config, const char * listName) {
+    for (uint32_t i = 0; i < config->listCount; i++) {
+        if (strcmp(config->lists[i].name, listName) == 0) {
+            return config->lists[i].itemCount;
+        }
+    }
+
+    return 0;
 }
