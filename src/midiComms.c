@@ -366,11 +366,20 @@ int midi_scan_devices(void) {
     ItemCount            srcCount  = MIDIGetNumberOfSources();
     ItemCount            destCount = MIDIGetNumberOfDestinations();
 
-    // Reset reply buffer and connection state before a fresh scan
-    gIdReplyCount = 0;
-    gMidiSource   = 0;
-    gMidiDest     = 0;
-    memset(&gDevice, 0, sizeof(gDevice));
+    // Reset reply buffer and connection-tracking state before a fresh scan.
+    // Deliberately NOT a full memset(&gDevice, ...) — this runs every ~2.5s
+    // from the background scan loop whenever nothing is connected (i.e.
+    // continuously when testing standalone), and gDevice also holds the
+    // current patch/filter values the GUI is showing/editing; wiping the
+    // whole struct here was resetting every dial on a timer, independent of
+    // anything the user did, which looked like it was caused by clicking.
+    gIdReplyCount     = 0;
+    gMidiSource       = 0;
+    gMidiDest         = 0;
+    gDevice.connected = false;
+    gDevice.id        = 0;
+    gDevice.family    = 0;
+    gDevice.member    = 0;
 
     for (ItemCount i = 0; i < srcCount; i++) {
         MIDIEndpointRef src  = MIDIGetSource(i);

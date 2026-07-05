@@ -35,7 +35,6 @@
 #define GLFW_RELEASE            0
 
 extern void glfwSetInputMode(void *, int, int);
-extern void glfwSetCursorPos(void *, double, double);
 extern void glfwGetWindowSize(void *, int *, int *);
 
 // ── Dial drag state ───────────────────────────────────────────────────────────
@@ -44,8 +43,6 @@ extern void glfwGetWindowSize(void *, int *, int *);
 // ...). That all comes from the descriptor parsed out of the layout file
 // (see panelConfig.h/synthComms.c) and is looked up generically by rect.
 static tPanelDial * gDraggedDial   = NULL;
-static double       gDragStartX    = 0.0;   // cursor position at press — used for restore on release
-static double       gDragStartY    = 0.0;
 static double       gDragPrevX     = 0.0;   // cursor position at previous cursor_pos call — incremental delta
 static double       gDragPrevY     = 0.0;
 static int          gDragSkipCount = 0;     // skip first N cursor_pos events after CURSOR_DISABLED — covers stale events + transition event
@@ -102,22 +99,22 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
     tCoord coord   = window_to_logical(win, x, y);
     bool   pressed = (action == GLFW_PRESS);
 
-    // Release: end drag; restore cursor only for modes that hid it.
-    // Clear gDraggedDial/gDragSkipCount *before* touching the cursor —
-    // glfwSetCursorPos() can reentrantly invoke handle_cursor_pos() before
-    // returning, and if gDraggedDial were still set at that point, the
-    // reentrant call would apply a bogus delta (computed against
-    // gDragStartX/Y vs. whatever gDragPrevX/Y last held during the drag) to
-    // whichever dial gDraggedDial names — including a different one, if a
-    // fast release-then-press-elsewhere already reassigned it by the time
-    // the reentrant call is actually processed.
+    // Release: end drag; restore cursor only for modes that hid it. GLFW's
+    // cocoa backend already restores the cursor to wherever it was when
+    // CURSOR_DISABLED was entered (see updateCursorMode() in
+    // cocoa_window.m) as soon as we switch back to NORMAL — an explicit
+    // glfwSetCursorPos() here on top of that was redundant, and two
+    // independent warps in a row (GLFW's automatic one, then ours) risked
+    // landing a pixel or two off from each other, enough to spill into a
+    // neighbouring dial given how tightly packed these are (40px dial,
+    // 10px gap). Clear gDraggedDial before switching cursor mode, not
+    // after — belt and braces against any reentrant callback.
     if (!pressed && gDraggedDial) {
         gDragSkipCount = 0;
         gDraggedDial   = NULL;
 
         if (gDialMode != eDialModeRotary) {
             glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-            glfwSetCursorPos(win, gDragStartX, gDragStartY);
         }
         return;
     }
@@ -156,8 +153,6 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
 
     if (hit) {
         gDraggedDial   = hit;
-        gDragStartX    = x;
-        gDragStartY    = y;
         gDragPrevX     = x;
         gDragPrevY     = y;
         gDragTypeAccum = 0.0;
