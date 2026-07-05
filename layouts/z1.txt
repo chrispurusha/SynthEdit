@@ -1,0 +1,44 @@
+# Z1-Edit device descriptor — device identity + panel layout.
+#
+# Uncomplicated line-based format, not yet parsed by anything: this is a
+# concrete transcription of real data (SysEx identity from defs.h, and the
+# current hand-coded layout in z1Graphics.cpp's `dials[]` table), meant as
+# the first real example to design the config parser/schema against.
+#
+# Syntax: space-separated key=value pairs per line (or bare key value for
+# single-value lines like `device`/`manufacturerId`). Comments start with #,
+# blank lines ignored. "gap N" inserts N points of extra space before the
+# next dial (matches the one group-break the current code has, between the
+# F1 and F2 dial groups).
+
+# ── Device identity ──────────────────────────────────────────────────────────
+# SysEx header: F0 42 (0x30|channel) 46 01 ... — see defs.h KORG_MANUFACTURER_ID /
+# Z1_FAMILY_ID / Z1_MEMBER_ID / Z1_SYSEX_CHANNEL_BYTE.
+device          Korg Z1
+manufacturerId  0x42
+familyId        0x46
+memberId        0x01
+
+# ── Filters row (Synth page) ─────────────────────────────────────────────────
+page       synth
+section    filters
+dialSize   40
+spacing    50
+
+color route 0.8 0.8 0.3
+color f1    0.2 0.6 1.0
+color f2    0.3 0.9 0.5
+
+dial route  label="Route"    color=route  max=3    names=SERI1,SERI2,PARA
+dial f2link label="F2 Link"  color=route  max=2    names=OFF,ON
+dial f1type label="F1 Type"  color=f1     max=5    names=LPF,HPF,BPF,BRF,2BPF
+dial f1trim label="F1 Trim"  color=f1     max=100  display=raw
+dial f1cut  label="F1 Cut"   color=f1     max=127  display=ccnative
+dial f1res  label="F1 Res"   color=f1     max=127  display=ccnative
+
+gap 20
+
+dial f2type label="F2 Type"  color=f2     max=5    names=LPF,HPF,BPF,BRF,2BPF
+dial f2trim label="F2 Trim"  color=f2     max=100  display=raw
+dial f2cut  label="F2 Cut"   color=f2     max=127  display=ccnative
+dial f2res  label="F2 Res"   color=f2     max=127  display=ccnative
