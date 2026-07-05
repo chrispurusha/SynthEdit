@@ -1,5 +1,5 @@
 /*
- * The Z1-Edit application.
+ * The SynthEdit application.
  *
  * Copyright (C) 2026 Chris Turner <chris_purusha@icloud.com>
  *
@@ -25,7 +25,7 @@
 #define ENABLE_LOG_DEBUG            1
 
 // ── Application ──────────────────────────────────────────────────────────────
-#define WINDOW_TITLE                "Z1 Edit"
+#define WINDOW_TITLE                "Synth Edit"
 #define TARGET_FRAME_BUFF_WIDTH     (2560)
 #define TARGET_FRAME_BUFF_HEIGHT    (1440)
 

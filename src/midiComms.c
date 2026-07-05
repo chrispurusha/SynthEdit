@@ -1,5 +1,5 @@
 /*
- * The Z1-Edit application.
+ * The SynthEdit application.
  *
  * Copyright (C) 2026 Chris Turner <chris_purusha@icloud.com>
  *
@@ -445,19 +445,19 @@ static void * midi_thread(void * arg) {
     // block app startup.  The notification callback is tied to this thread's
     // CFRunLoop, which we drive with CFRunLoopRunInMode in place of nanosleep.
     OSStatus err;
-    err = MIDIClientCreate(CFSTR("Z1Edit"), midi_notify_cb, NULL, &gMidiClient);
+    err = MIDIClientCreate(CFSTR("SynthEdit"), midi_notify_cb, NULL, &gMidiClient);
 
     if (err != noErr) {
         LOG_ERROR("MIDIClientCreate failed: %d\n", (int)err);
         return NULL;
     }
-    err = MIDIInputPortCreate(gMidiClient, CFSTR("Z1Edit In"), midi_read_cb, NULL, &gMidiInPort);
+    err = MIDIInputPortCreate(gMidiClient, CFSTR("SynthEdit In"), midi_read_cb, NULL, &gMidiInPort);
 
     if (err != noErr) {
         LOG_ERROR("MIDIInputPortCreate failed: %d\n", (int)err);
         return NULL;
     }
-    err = MIDIOutputPortCreate(gMidiClient, CFSTR("Z1Edit Out"), &gMidiOutPort);
+    err = MIDIOutputPortCreate(gMidiClient, CFSTR("SynthEdit Out"), &gMidiOutPort);
 
     if (err != noErr) {
         LOG_ERROR("MIDIOutputPortCreate failed: %d\n", (int)err);

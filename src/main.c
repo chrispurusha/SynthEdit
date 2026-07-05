@@ -1,5 +1,5 @@
 /*
- * The Z1-Edit application.
+ * The SynthEdit application.
  *
  * Copyright (C) 2026 Chris Turner <chris_purusha@icloud.com>
  *
