@@ -28,16 +28,16 @@
 extern "C" {
 #endif
 
-// Called when a Korg Z1 is identified on the MIDI bus
+// Called when a synth is identified on the MIDI bus
 void synth_on_connected(void);
 
-// Dispatch an incoming Z1 SysEx message (full message including F0 header)
+// Dispatch an incoming synth SysEx message (full message including F0 header)
 void synth_handle_message(const uint8_t * data, uint32_t length);
 
-// Request the currently loaded program from the Z1
+// Request the currently loaded program from the synth
 void synth_request_current_program(void);
 
-// Send a parameter change to the Z1
+// Send a parameter change to the synth
 // group: SYNTH_PARAM_GROUP_*; paramId: 1-based ID from spec; value: raw value
 void synth_send_parameter_change(uint8_t group, uint16_t paramId, uint16_t value);
 

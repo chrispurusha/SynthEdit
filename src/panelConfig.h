@@ -17,7 +17,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-// Generic parser for the panel-descriptor text format used by z1.txt (and,
+// Generic parser for the panel-descriptor text format used by xxxx.txt (and,
 // eventually, other <device>.txt files). Deliberately has no application-
 // specific dependencies — candidate for promotion into SynthLib once a
 // second project wants it.

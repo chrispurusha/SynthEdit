@@ -27,7 +27,7 @@
 extern "C" {
 #endif
 
-// Called once after OpenGL context is ready — loads z1.txt from the saved
+// Called once after OpenGL context is ready — loads xxxx.txt from the saved
 // layouts folder preference (see get_saved_layouts_dir() in misc.h), or
 // "layouts" (relative to cwd) if no preference has been set yet.
 void synth_init_graphics(void);
@@ -37,10 +37,10 @@ void synth_render(tRectangle area);
 
 // Points the layouts folder at `dir`, persists nothing itself (the caller —
 // the "Choose Layouts Folder…" menu action — owns persistence), and reloads
-// z1.txt from the new location immediately.
+// xxxx.txt from the new location immediately.
 void synth_set_layouts_dir(const char * dir);
 
-// The "synth"/"filters" section from z1.txt, laid out during the last
+// The "synth"/"filters" section from xxxx.txt, laid out during the last
 // synth_render() call — dial rects are valid for hit-testing until the next render.
 tPanelSection * synth_filters_section(void);
 

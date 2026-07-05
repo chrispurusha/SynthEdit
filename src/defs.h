@@ -42,14 +42,14 @@
 #define MIDI_IDENTITY_REPLY_SUB2      0x02
 
 // ── SysEx constants ───────────────────────────────────────────────────────────
-// Manufacturer/family/member IDs live in z1.txt (manufacturerId/familyId/
+// Manufacturer/family/member IDs live in xxxx.txt (manufacturerId/familyId/
 // memberId), read via synth_panel_config() — not hardcoded here.
 
 // Header: F0 <manufacturerId> (0x30|ch) <familyId> ...
-// ch = MIDI global channel 0-indexed (channel 4 on Z1 panel = 0x03)
+// ch = MIDI global channel 0-indexed (channel 4 on synth panel = 0x03)
 #define SYNTH_SYSEX_CHANNEL_BYTE(ch)    (0x30 | ((ch) & 0x0F))
 
-// Z1 function IDs (receive from Z1)
+// Synth function IDs (receive from synth)
 #define SYNTH_FUNC_CURR_PROG_DUMP          0x40
 #define SYNTH_FUNC_PROG_DUMP               0x4C
 #define SYNTH_FUNC_CURR_MULTI_DUMP         0x49
@@ -62,23 +62,23 @@
 #define SYNTH_FUNC_WRITE_COMPLETED         0x21
 #define SYNTH_FUNC_WRITE_ERROR             0x22
 
-// Z1 function IDs (send to Z1)
+// Synth function IDs (send to synth)
 #define SYNTH_FUNC_CURR_PROG_DUMP_REQ      0x10
 #define SYNTH_FUNC_PROG_DUMP_REQ           0x1C
 #define SYNTH_FUNC_CURR_MULTI_DUMP_REQ     0x19
 #define SYNTH_FUNC_GLOBAL_MIDI_DUMP_REQ    0x0E
 #define SYNTH_FUNC_PROG_WRITE_REQ          0x11
 
-// Z1 parameter groups (for PARAMETER CHANGE, function 0x41)
+// Synth parameter groups (for PARAMETER CHANGE, function 0x41)
 #define SYNTH_PARAM_GROUP_GLOBAL           0x00
 #define SYNTH_PARAM_GROUP_PROG             0x01
 #define SYNTH_PARAM_GROUP_PATTERN          0x10
 #define SYNTH_PARAM_GROUP_MULTI            0x11
 
-// Z1 program name length (parameters 1-16)
+// Synth program name length (parameters 1-16)
 #define SYNTH_PROG_NAME_LEN                16
 
-// Per-control SysEx parameter IDs/dump offsets live in z1.txt (group=/param=/
+// Per-control SysEx parameter IDs/dump offsets live in xxxx.txt (group=/param=/
 // dumpOffset=), not here — see panelConfig.h and synthComms.c's generic
 // dial dispatch/decode.
 

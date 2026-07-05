@@ -30,7 +30,7 @@
 
 // ── SysEx header helpers ──────────────────────────────────────────────────────
 
-// Minimum length of a valid Z1 SysEx: F0 42 3g 46 <func> F7
+// Minimum length of a valid synth SysEx: F0 42 3g 46 <func> F7
 #define SYNTH_HDR_LEN    5
 
 static bool is_synth_sysex(const uint8_t * data, uint32_t length) {
@@ -91,7 +91,7 @@ static uint32_t encode_8to7(const uint8_t * data, uint32_t dataLen, uint8_t * ou
     return outLen;
 }
 
-// ── Build outgoing Z1 SysEx header ───────────────────────────────────────────
+// ── Build outgoing synth SysEx header ───────────────────────────────────────────
 static uint32_t build_header(uint8_t * buf, uint8_t funcId) {
     tPanelConfig * cfg = synth_panel_config();
 
@@ -139,7 +139,7 @@ static void apply_dial_wire_value(tPanelDial * dial, uint32_t rawValue) {
 }
 
 // ── Program info extraction ───────────────────────────────────────────────────
-// Byte layout (derived from Z1 MIDI spec parameter table, packed fields noted):
+// Byte layout (originally derived from Korg Z1 MIDI spec parameter table, packed fields noted):
 //   0-15  : Program Name chars (params 1-16)
 //     16  : Category          (param 17)
 //     17  : User Group        (param 18)
@@ -188,7 +188,7 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
     }
     // Filter values from decoded program dump — a full-dump byte buffer,
     // a different wire format from param= change messages. Byte offsets,
-    // bit-packing and native/CC scaling all come from z1.txt (dumpOffset/
+    // bit-packing and native/CC scaling all come from synth.txt (dumpOffset/
     // dumpShift/dumpMask/nativeMax); no per-dial knowledge lives here.
     tPanelSection * section = synth_filters_section();
 
@@ -212,7 +212,7 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
     uint32_t        f1tVal  = f1type ? get_panel_dial_value(f1type) : 0;
     uint32_t        f2tVal  = f2type ? get_panel_dial_value(f2type) : 0;
 
-    LOG_DEBUG("Z1 prog: \"%s\"  cat=%s  voice=%s  unison=%s(%u cents)"
+    LOG_DEBUG("Synth prog: \"%s\"  cat=%s  voice=%s  unison=%s(%u cents)"
               "  f1type=%s f1cut=%u(%u) f1res=%u(%u)"
               "  f2type=%s f2cut=%u(%u) f2res=%u(%u)\n",
               gDevice.progName,
@@ -269,7 +269,7 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
         LOG_DEBUG("Program name updated: \"%s\"\n", gDevice.progName);
     } else if (group == SYNTH_PARAM_GROUP_PROG) {
         // Generic dispatch: whichever dial (if any) is wired to this
-        // group/paramId in z1.txt gets the value — no per-param knowledge
+        // group/paramId in xxxx.txt gets the value — no per-param knowledge
         // of what it controls lives here.
         tPanelSection * section = synth_filters_section();
         tPanelDial *    dial    = section ? find_panel_dial_by_param(section, group, paramId) : NULL;
@@ -284,7 +284,7 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
 // ── Public API ────────────────────────────────────────────────────────────────
 
 void synth_on_connected(void) {
-    LOG_DEBUG("Z1 connected (channel byte 0x%02X)\n", SYNTH_SYSEX_CHANNEL_BYTE(gDevice.id));
+    LOG_DEBUG("Synth connected (channel byte 0x%02X)\n", SYNTH_SYSEX_CHANNEL_BYTE(gDevice.id));
     memset(gDevice.progName, 0, sizeof(gDevice.progName));
     gDevice.category     = 0;
     gDevice.voiceMode    = 2; // default POLY
@@ -333,11 +333,11 @@ void synth_send_parameter_change(uint8_t group, uint16_t paramId, uint16_t value
 
 void synth_handle_message(const uint8_t * data, uint32_t length) {
     if (!is_synth_sysex(data, length)) {
-        LOG_DEBUG("Ignoring non-Z1 SysEx (len=%u)\n", (unsigned)length);
+        LOG_DEBUG("Ignoring non-target SysEx (len=%u)\n", (unsigned)length);
         return;
     }
     uint8_t funcId = data[4];
-    LOG_DEBUG("Z1 SysEx func=0x%02X len=%u\n", (unsigned)funcId, (unsigned)length);
+    LOG_DEBUG("Synth SysEx func=0x%02X len=%u\n", (unsigned)funcId, (unsigned)length);
 
     switch (funcId) {
         case SYNTH_FUNC_CURR_PROG_DUMP:
@@ -362,7 +362,7 @@ void synth_handle_message(const uint8_t * data, uint32_t length) {
             LOG_ERROR("Data format error\n");
             break;
         default:
-            LOG_DEBUG("Z1 unhandled func 0x%02X\n", (unsigned)funcId);
+            LOG_DEBUG("Synth unhandled func 0x%02X\n", (unsigned)funcId);
             break;
     }
     gReDraw = true;

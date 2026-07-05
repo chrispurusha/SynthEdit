@@ -56,10 +56,10 @@ tPanelConfig * synth_panel_config(void) {
 static void synth_reload_panel_config(void) {
     char path[1152];
 
-    snprintf(path, sizeof(path), "%s/z1.txt", gLayoutsDir);
+    snprintf(path, sizeof(path), "%s/z1.txt", gLayoutsDir);  // TODO - select synth on load
 
     if (!load_panel_config(path, &gSynthPanelConfig)) {
-        LOG_ERROR("z1: couldn't load '%s' — filter dials will not render\n", path);
+        LOG_ERROR("Synth: couldn't load '%s' — filter dials will not render\n", path);
     } else {
         synth_bind_panel_dials(synth_filters_section());
     }
@@ -88,7 +88,7 @@ void synth_render(tRectangle area) {
     if (!gDevice.connected) {
         tRectangle r = {{area.coord.x + 300.0, area.coord.y + 2.0}, {800.0, 28.0}};
         set_rgb_colour((tRgb){0.8, 0.4, 0.4});
-        render_text(mainArea, r, "No Z1 detected — connect and press Cmd+R to scan");
+        render_text(mainArea, r, "No synth detected — connect and press Cmd+R to scan");
         //return;
     }
     double x = area.coord.x + 30.0;
@@ -104,7 +104,7 @@ void synth_render(tRectangle area) {
     }
 
     // ── Info row: Category / Voice mode / Unison ──────────────────────────────
-    // Category/voiceMode/unisonType names come from z1.txt's named lists, not
+    // Category/voiceMode/unisonType names come from xxxx.txt's named lists, not
     // hardcoded here — this block only knows the field values, not their text.
     {
         char         infoBuf[128];
@@ -130,7 +130,7 @@ void synth_render(tRectangle area) {
     }
 
     // ── Filter dials ──────────────────────────────────────────────────────────
-    // Layout, colours, ranges and labels all come from layouts/z1.txt via
+    // Layout, colours, ranges and labels all come from layouts/xxxx.txt via
     // panelConfig — this block only supplies the live values and draws.
     {
         tPanelSection * section = synth_filters_section();

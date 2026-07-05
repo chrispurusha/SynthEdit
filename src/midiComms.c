@@ -162,7 +162,7 @@ static MIDIEndpointRef find_dest_for_source(MIDIEndpointRef src) {
 }
 
 // ── Process buffered identity replies (MIDI thread only) ──────────────────────
-// Scans the reply buffer collected since the last scan, selects the first Z1,
+// Scans the reply buffer collected since the last scan, selects the first synth
 // and calls synth_on_connected().  All CoreMIDI lookups happen here — no races.
 
 static void process_identity_replies(void) {
@@ -189,7 +189,7 @@ static void process_identity_replies(void) {
         MIDIEndpointRef dest = find_dest_for_source(src);
 
         if (dest == 0) {
-            LOG_ERROR("Z1 found but no matching destination for src=0x%08X\n", (unsigned)src);
+            LOG_ERROR("Synth found but no matching destination for src=0x%08X\n", (unsigned)src);
             continue;
         }
         gDevice.id        = gIdReplies[i].deviceId;
@@ -199,7 +199,7 @@ static void process_identity_replies(void) {
         gMidiSource       = src;
         gMidiDest         = dest;
 
-        LOG_DEBUG("Z1 connected: deviceId=0x%02X src=0x%08X dest=0x%08X\n",
+        LOG_DEBUG("Synth connected: deviceId=0x%02X src=0x%08X dest=0x%08X\n",
                   gDevice.id, (unsigned)src, (unsigned)dest);
 
         synth_on_connected();
@@ -210,7 +210,7 @@ static void process_identity_replies(void) {
         return;
     }
 
-    LOG_DEBUG("No Z1 found in this batch of identity replies\n");
+    LOG_DEBUG("No Synth found in this batch of identity replies\n");
 }
 
 // ── Identity reply callback handler ──────────────────────────────────────────
@@ -246,7 +246,7 @@ static void midi_notify_cb(const MIDINotification * msg, void * refCon) {
 }
 
 // ── CC dispatch ───────────────────────────────────────────────────────────────
-// Only called from midi_read_cb for messages arriving from the Z1's source.
+// Only called from midi_read_cb for messages arriving from the Synth's source.
 
 static void dispatch_cc(uint8_t cc, uint8_t value) {
     LOG_DEBUG("CC 0x%02X val=%u\n", (unsigned)cc, (unsigned)value);
