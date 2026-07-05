@@ -126,17 +126,24 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
     if (!pressed) {
         return;
     }
+
+    // Page-tab row is checked before dial hit-testing so a tab click can't
+    // also be misread as a drag start.
+    if (synth_handle_page_tab_click(coord)) {
+        return;
+    }
     // Hit-test the current panel section generically — whatever dial (if
     // any) is under the cursor, by rect alone. No dial ids referenced here.
-    tPanelDial * hit = NULL;
+    // Not gated on gDevice.connected: dials are bound to gDevice regardless
+    // of whether a real synth is talking to us, so the GUI stays testable
+    // (dragging updates gDevice/tries a MIDI send that quietly no-ops) even
+    // with nothing plugged in.
+    tPanelDial *    hit     = NULL;
+    tPanelSection * section = synth_current_page_section();
+    int32_t         hitIdx  = section ? hit_test_panel_section(section, coord) : -1;
 
-    if (gDevice.connected) {
-        tPanelSection * section = synth_filters_section();
-        int32_t         hitIdx  = section ? hit_test_panel_section(section, coord) : -1;
-
-        if (hitIdx >= 0) {
-            hit = &section->dials[hitIdx];
-        }
+    if (hitIdx >= 0) {
+        hit = &section->dials[hitIdx];
     }
 
     if (hit) {
@@ -212,14 +219,15 @@ void handle_scroll(void * win, double dx, double dy) {
     (void)win;
     (void)dx;
 
-    if (!gDevice.connected || gDraggedDial) {
+    if (gDraggedDial) {
         return;
     }
     // Deliberate remaining exception: with no drag active, scroll always
     // nudges "f1cut" specifically — a synth-editor shortcut, not something
     // generalizable from a rect-based hit-test, since handle_scroll isn't
-    // given a cursor position to test against.
-    tPanelSection * section = synth_filters_section();
+    // given a cursor position to test against. Only applies while the page
+    // showing "f1cut" is actually active — no-ops harmlessly otherwise.
+    tPanelSection * section = synth_current_page_section();
     tPanelDial *    dial    = section ? find_panel_dial(section, "f1cut") : NULL;
 
     if (dial) {

@@ -45,8 +45,8 @@ list category    Synth-Hard,Synth-Soft,E.Piano,Organ,Strings,Brass,Wind,Bell/Mal
 list voiceMode    "Mono Multi,Mono Single,Poly"
 list unisonType   "2 voices,3 voices,6 voices"
 
-# ── Filters row (Synth page) ─────────────────────────────────────────────────
-page       synth
+# ── Filters row (Synthesis page) ─────────────────────────────────────────────
+page       synthesis
 section    filters
 dialSize   40
 spacing    50
@@ -68,3 +68,12 @@ dial f2type label="F2 Type"  color=f2     max=5    names=LPF,HPF,BPF,BRF,2BPF   
 dial f2trim label="F2 Trim"  color=f2     max=100  display=raw                     group=1 param=289 dumpOffset=340
 dial f2cut  label="F2 Cut"   color=f2     max=128  display=ccnative                group=1 param=290 cc=0x58 nativeMax=99 dumpOffset=341
 dial f2res  label="F2 Res"   color=f2     max=128  display=ccnative                group=1 param=301 cc=0x59 nativeMax=99 dumpOffset=352
+
+# ── Effects page ──────────────────────────────────────────────────────────────
+# Placeholder — no controls transcribed yet. The page exists so the page-tab
+# row has something to switch to; add dials here once the Effects parameters
+# are worked out, same as the Synthesis page above.
+page       effects
+section    effects
+dialSize   40
+spacing    50

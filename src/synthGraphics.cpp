@@ -27,6 +27,7 @@ extern "C" {
 #include <GLFW/glfw3.h>
 #pragma clang diagnostic pop
 
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 #include "defs.h"
@@ -40,17 +41,122 @@ extern "C" {
 #include "synthGraphics.h"
 
 #define SYNTH_LAYOUTS_DIR_DEFAULT    "layouts"    // relative to cwd, used until a folder is chosen/persisted
+#define SYNTH_MAX_PAGE_TABS          PANEL_MAX_SECTIONS
 
-static char         gLayoutsDir[1024] = SYNTH_LAYOUTS_DIR_DEFAULT;
+static char         gLayoutsDir[1024]              = SYNTH_LAYOUTS_DIR_DEFAULT;
 
-static tPanelConfig gSynthPanelConfig = {0};
+static tPanelConfig gSynthPanelConfig              = {0};
 
 tPanelSection * synth_filters_section(void) {
-    return find_panel_section(&gSynthPanelConfig, "synth", "filters");
+    return find_panel_section(&gSynthPanelConfig, "synthesis", "filters");
 }
 
 tPanelConfig * synth_panel_config(void) {
     return &gSynthPanelConfig;
+}
+
+// ── Page tabs ─────────────────────────────────────────────────────────────────
+// One tab per distinct "page" value across gSynthPanelConfig's sections (today
+// that's "synthesis"/"effects", but nothing here names either specifically —
+// add a page to the file and a tab appears for it automatically).
+typedef struct {
+    char       page[PANEL_ID_LEN];
+    tRectangle rect;
+} tPageTab;
+
+static tPageTab     gPageTabs[SYNTH_MAX_PAGE_TABS] = {0};
+static uint32_t     gPageTabCount                  = 0;
+static char         gCurrentPage[PANEL_ID_LEN]     = {0};
+
+const char * synth_current_page(void) {
+    return gCurrentPage;
+}
+
+void synth_set_current_page(const char * page) {
+    if (page && (page[0] != '\0')) {
+        strncpy(gCurrentPage, page, sizeof(gCurrentPage) - 1);
+        gCurrentPage[sizeof(gCurrentPage) - 1] = '\0';
+        gReDraw                                = true;
+    }
+}
+
+tPanelSection * synth_current_page_section(void) {
+    for (uint32_t i = 0; i < gSynthPanelConfig.sectionCount; i++) {
+        if (strcmp(gSynthPanelConfig.sections[i].page, gCurrentPage) == 0) {
+            return &gSynthPanelConfig.sections[i];
+        }
+    }
+
+    return NULL;
+}
+
+bool synth_handle_page_tab_click(tCoord coord) {
+    for (uint32_t i = 0; i < gPageTabCount; i++) {
+        if (within_rectangle(coord, gPageTabs[i].rect)) {
+            synth_set_current_page(gPageTabs[i].page);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// Rebuilds gPageTabs from the config's distinct page names and renders them
+// as a button row at `origin`, returning the height consumed. Defaults
+// gCurrentPage to the first page seen if it isn't set (or no longer exists).
+static double render_page_tabs(tRectangle origin) {
+    gPageTabCount = 0;
+
+    for (uint32_t i = 0; i < gSynthPanelConfig.sectionCount; i++) {
+        const char * page  = gSynthPanelConfig.sections[i].page;
+        bool         known = false;
+
+        for (uint32_t t = 0; t < gPageTabCount; t++) {
+            if (strcmp(gPageTabs[t].page, page) == 0) {
+                known = true;
+                break;
+            }
+        }
+
+        if (!known && (gPageTabCount < SYNTH_MAX_PAGE_TABS)) {
+            strncpy(gPageTabs[gPageTabCount].page, page, sizeof(gPageTabs[gPageTabCount].page) - 1);
+            gPageTabCount++;
+        }
+    }
+
+    if ((gCurrentPage[0] == '\0') && (gPageTabCount > 0)) {
+        synth_set_current_page(gPageTabs[0].page);
+    }
+    const double tabHeight = 24.0;
+    const double tabGap    = 6.0;
+    double       x         = origin.coord.x;
+
+    for (uint32_t i = 0; i < gPageTabCount; i++) {
+        char       label[PANEL_LABEL_LEN];
+
+        strncpy(label, gPageTabs[i].page, sizeof(label) - 1);
+        label[sizeof(label) - 1] = '\0';
+
+        if (label[0] != '\0') {
+            label[0] = (char)toupper((unsigned char)label[0]);
+        }
+        // Measure at tabHeight, not an arbitrary font size — draw_button()
+        // scales rendered text to the full height of the rect it's given
+        // (internal_render_text: scaleFactor = rectangle.size.h / ...), so
+        // the width measurement has to match that same height or the box
+        // ends up too narrow for what actually gets drawn.
+        double     width  = get_text_width(label, tabHeight, eNoCache); // ~8px padding each side
+        tRectangle rect   = {{x, origin.coord.y}, {width, tabHeight}};
+        bool       active = strcmp(gPageTabs[i].page, gCurrentPage) == 0;
+
+        // RGB_GREY_7, not RGB_BACKGROUND_GREY — the latter is a dark grey in
+        // this build, too low-contrast for draw_button's fixed black text.
+        draw_button(mainArea, rect, label, active ? (tRgb)RGB_GREEN_ON : (tRgb)RGB_GREY_7);
+        gPageTabs[i].rect        = rect;
+        x                       += width + tabGap;
+    }
+
+    return (gPageTabCount > 0) ? (tabHeight + 12.0) : 0.0;
 }
 
 static void synth_reload_panel_config(void) {
@@ -94,6 +200,9 @@ void synth_render(tRectangle area) {
     double x = area.coord.x + 30.0;
     double y = area.coord.y + 20.0;
 
+    // ── Page tabs ──────────────────────────────────────────────────────────────
+    y += render_page_tabs({{x, y}, {0, 0}});
+
     // ── Program name ──────────────────────────────────────────────────────────
     {
         tRectangle   r  = {{x, y}, {450.0, 26.0}};
@@ -129,11 +238,12 @@ void synth_render(tRectangle area) {
         y += 25.0;
     }
 
-    // ── Filter dials ──────────────────────────────────────────────────────────
+    // ── Active page's dials ─────────────────────────────────────────────────────
     // Layout, colours, ranges and labels all come from layouts/xxxx.txt via
-    // panelConfig — this block only supplies the live values and draws.
+    // panelConfig — this block only supplies the live values and draws. Which
+    // section renders follows the active page tab, not a fixed section name.
     {
-        tPanelSection * section = synth_filters_section();
+        tPanelSection * section = synth_current_page_section();
 
         if (section) {
             layout_panel_section(section, (tRectangle){{x, y}, {0, 0}});

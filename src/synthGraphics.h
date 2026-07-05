@@ -40,13 +40,29 @@ void synth_render(tRectangle area);
 // xxxx.txt from the new location immediately.
 void synth_set_layouts_dir(const char * dir);
 
-// The "synth"/"filters" section from xxxx.txt, laid out during the last
-// synth_render() call — dial rects are valid for hit-testing until the next render.
+// The "synthesis"/"filters" section from xxxx.txt, laid out during the last
+// synth_render() call — dial rects are valid for hit-testing until the next
+// render. Always resolves to this section regardless of which page is
+// currently active on screen: incoming device state must update it either way.
 tPanelSection * synth_filters_section(void);
 
 // The full parsed config, for callers that need named lists (see
 // get_panel_list_item()/get_panel_list_count()) rather than a specific dial.
 tPanelConfig * synth_panel_config(void);
+
+// The section for whichever page is currently showing on screen (see
+// synth_set_current_page()), or NULL if the config has no sections yet.
+// This is what mouse handling should hit-test/drag against — unlike
+// synth_filters_section(), it changes with the active page.
+tPanelSection * synth_current_page_section(void);
+
+const char * synth_current_page(void);
+void synth_set_current_page(const char * page);
+
+// Hit-tests the page-tab row laid out during the last synth_render() call.
+// If a tab was hit, switches the current page and returns true (so the
+// caller can treat the click as consumed rather than also dial-hit-testing).
+bool synth_handle_page_tab_click(tCoord coord);
 
 #ifdef __cplusplus
 }
