@@ -365,6 +365,18 @@ static void connect_without_identity(void) {
 
     synth_on_connected();
 
+    // Ask the device to report its own current state, if the file declares
+    // one (see the tPanelConfig field comment in panelConfig.h) — e.g. Moog's
+    // "dump current CC values" command. The replies arrive as ordinary CC
+    // messages through the normal dispatch_cc() path below, which is also
+    // where the real MIDI channel gets learned from them (midiChannel above
+    // is only ever a first guess for a device with no identity reply to read
+    // it from).
+    if (cfg->stateRequestSysExLen > 0) {
+        midi_send(cfg->stateRequestSysEx, cfg->stateRequestSysExLen);
+        LOG_DEBUG("Sent device state request (%u bytes)\n", (unsigned)cfg->stateRequestSysExLen);
+    }
+
     if (gWakeCb != NULL) {
         gWakeCb();
     }
@@ -384,9 +396,22 @@ static void midi_notify_cb(const MIDINotification * msg, void * refCon) {
 // ── CC dispatch ───────────────────────────────────────────────────────────────
 // Only called from midi_read_cb for messages arriving from the Synth's source.
 
-static void dispatch_cc(uint8_t cc, uint8_t value) {
-    LOG_DEBUG("CC 0x%02X val=%u\n", (unsigned)cc, (unsigned)value);
+static void dispatch_cc(uint8_t channel, uint8_t cc, uint8_t value) {
+    LOG_DEBUG("CC ch=%u 0x%02X val=%u\n", (unsigned)(channel + 1), (unsigned)cc, (unsigned)value);
 
+    // For a device with no identity reply to read a channel from (see
+    // "identityQuery no" in panelConfig.h), midiChannel in the file is only
+    // ever a first guess — the device's own outgoing traffic is the real
+    // source of truth. Once anything arrives, lock onto whatever channel it
+    // actually used, so gDevice.id (and therefore every future midi_send_cc())
+    // tracks the real hardware instead of a possibly-stale config value. Devices
+    // that DO support identity already got a trustworthy channel from the
+    // identity reply itself (handle_identity_reply()), so leave those alone.
+    if (!synth_panel_config()->supportsIdentity && (gDevice.id != channel)) {
+        LOG_DEBUG("Auto-detected device MIDI channel: %u (was %u)\n",
+                  (unsigned)(channel + 1), (unsigned)(gDevice.id + 1));
+        gDevice.id = channel;
+    }
     // Generic: whichever dial (if any) has this cc= in the device's own
     // <device>.txt gets the value — no per-device CC list here.
     bool handled = synth_handle_cc(cc, value);
@@ -468,7 +493,7 @@ static void midi_read_cb(const MIDIPacketList * pktList, void * readProcRefCon, 
                         // set by connect_without_identity() for a device with
                         // no identity reply to correlate a specific one from.
                         if (gDevice.connected && ((gMidiSource == 0) || (src == gMidiSource))) {
-                            dispatch_cc(gMsgData[0], gMsgData[1]);
+                            dispatch_cc((uint8_t)(gMsgStatus & 0x0F), gMsgData[0], gMsgData[1]);
                         }
                         gMsgDataLen = 0;    // ready for running status
                     }

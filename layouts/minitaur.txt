@@ -1,100 +1,85 @@
-# voyager.txt — Moog (Minimoog) Voyager device descriptor.
+# minitaur.txt — Moog Minitaur device descriptor.
 #
-# manufacturerId: Moog Music is recalled (not sourced from a document) to
-#   hold the classic single-byte ID 0x04 — Moog is old enough a company to
-#   very likely have a single-byte ID from MIDI's early manufacturer-ID
-#   assignments (unlike Novation's 3-byte extended one in sn2.txt). Now
-#   doubly confirmed: it matches byte 2 of both a real Voyager patch-dump
-#   SysEx and a real Minitaur patch-dump SysEx captured on real hardware.
+# manufacturerId: 0x04 (Moog) — shared with voyager.txt; matches byte 2 of a
+# real Minitaur patch-dump SysEx captured on real hardware in an earlier
+# session (see voyager.txt's own manufacturerId comment).
 #
-# familyId / memberId: no informed guess at all — left as 0x00 placeholders.
-# Moot in practice: see identityQuery below.
+# modelId: there's no separate config field for this (it's Moog's own
+# proprietary third header byte, not part of the Universal Identity Reply
+# scheme manufacturerId/familyId/memberId model), so it only ever appears
+# inline in stateRequestSysEx below — 0x08. CONFIRMED, and this is exactly
+# what distinguishes this file from voyager.txt's byte at the same position
+# (0x01): sending 0x08 gets a genuine Minitaur reply every time; sending
+# voyager.txt's 0x01 with the same 0x1B function code gets nothing back from
+# the Voyager (tested 2026-07-06 — see voyager.txt's stateRequestSysEx
+# comment for the full story of how these two got disambiguated after an
+# initial mixup with both devices live at once).
 #
-# identityQuery no: real hardware testing (capturing the official Moog
-# editor's SysEx traffic against a Minitaur on initial connection) showed
-# Moog gear doesn't answer a Universal Device Inquiry at all — it talks
-# proprietary SysEx (F0 04 <modelId> ...) from the very first message, no
-# identity handshake step. So there's no reply to correlate a source/
-# destination pair or a channel from; instead this connects using
+# familyId / memberId: no informed guess — left as 0x00 placeholders, moot
+# in practice since identityQuery is no (see below).
+#
+# identityQuery no: Moog gear doesn't answer a Universal Device Inquiry at
+# all — same finding as voyager.txt, same manufacturer, presumably a shared
+# trait across Moog's non-identity-answering analog line. Connects using
 # midiChannel/midiPort below directly (see connect_without_identity() in
 # midiComms.c).
 #
-# midiChannel: set this to whatever channel the real Voyager is set to (its
-# own front-panel MIDI/Local settings) — CONFIRMED as channel 8. There's no
-# way to auto-detect it without an identity reply.
+# midiChannel 11: observed directly from this Minitaur's own traffic — every
+# stateRequestSysEx reply captured (two separate sessions, 2026-07-06) came
+# back with the same channel nibble (status byte 0xBA = Control Change,
+# channel 11 1-indexed). Not verified against the unit's own front-panel MIDI
+# setting the way voyager.txt's channel 8 was (by turning a knob and watching
+# the resulting live CC) — this one comes only from the dump reply's own
+# channel byte. Matters less than usual anyway: dispatch_cc() in midiComms.c
+# auto-corrects gDevice.id to whatever channel a no-identity device's own
+# traffic actually uses the first time anything arrives, so this is only ever
+# a first guess for sending before we've heard anything back.
 #
-# midiPort: with no identity reply, there's also nothing to correlate the
-# right MIDI destination from — CoreMIDI was picking "IAC Driver Bus 1" (an
-# unrelated virtual port that happened to enumerate first) instead of the
-# real interface the Voyager is actually on. Names it explicitly; matched
-# case-insensitively as a substring against each destination's display name
-# (see find_destination_by_name() in midiComms.c). Adjust this if the
-# interface is ever renamed or the Voyager is moved to a different one.
+# midiPort: this Minitaur enumerates as its own named CoreMIDI port ("Moog
+# Minitaur") rather than sitting behind a separate MIDI interface the way the
+# Voyager sits behind "Elektron TM-1" — matched case-insensitively as a
+# substring against each destination's display name (see
+# find_destination_by_name() in midiComms.c). Adjust if the unit is ever
+# renamed or moved to a different interface.
 #
-# stateRequestSysEx is deliberately NOT set here. F0 04 08 1B 00 00 F7 is
-# documented on Moog's own forum (thread title: "Minitaur feature request")
-# as a MINITAUR command that dumps its current CC value for every internal
-# parameter — an initial test (2026-07-06) over this Elektron TM-1 connection
-# appeared to get a ~70-CC reply back, but that was with a probe that
-# connected every MIDI source to one input port with no way to tell them
-# apart, and a real Minitaur happened to also be connected as its own MIDI
-# port at that exact moment. A follow-up test with a source-tagged listener,
-# same command, same connection, both devices live — EVERY reply came
-# tagged "from Moog Minitaur", none from Elektron TM-1/Voyager. So this was
-# never a Voyager response at all; byte 3 = 0x08 is the Minitaur's own model
-# ID, not something Voyager answers to. No Voyager-specific equivalent found
-# in any public source checked (a SysEx-documentation GitHub repo, midi.guide's
-# Voyager page, the manual's own MIDI Implementation Chart appendix — which
-# marks SysEx "not supported" outright, though that chart is generic
-# MIDI-compliance boilerplate and doesn't cover proprietary dumps, which the
-# forum confirms exist for full patches from OS 2.x on — just not this one).
-# The underlying mechanism (send-on-connect + channel autodetect from
-# whatever replies) is real, generic infrastructure — see
-# connect_without_identity()/dispatch_cc() in midiComms.c — and would apply
-# immediately to a future minitaur.txt using this exact command, just not to
-# this file until a genuine Voyager-side equivalent turns up.
+# stateRequestSysEx F0 04 08 1B 00 00 F7 — documented on Moog's own forum
+# (thread title: "Minitaur feature request") as a command that makes the
+# Minitaur dump its current CC value for every internal parameter.
+# CONFIRMED genuinely from this Minitaur specifically: resent with a
+# source-tagged listener (distinguishing which physical MIDI port a reply
+# actually came from, after the mixup mentioned above) and every single reply
+# was tagged "from Moog Minitaur" — none from anywhere else. Sent once via
+# midi_send() right after connect_without_identity() connects (see
+# midiComms.c); replies arrive as ordinary CC messages through the normal
+# dispatch_cc() path, same as any live knob move — so the panel below
+# populates from real hardware state on connect rather than showing defaults
+# until every control is physically touched.
 #
-# cutoff/res: BOTH CONFIRMED against real hardware — turning each physical
-# knob from 0 produces a paired MSB/LSB CC (MIDI's standard 14-bit coarse/
-# fine convention, controller N + N+32), not a plain 7-bit CC:
-#   cutoff: CC 0x13 (19, MSB) / CC 0x33 (51, LSB)
-#   res:    CC 0x15 (21, MSB) / CC 0x35 (53, LSB)
-# Both started as "Sound Controller" cc=74/71 guesses, which were wrong on
-# both counts (wrong number AND wrong shape — plain CC vs 14-bit pair). See
-# ccLsb= below — a generic capability (synthComms.c/panelConfig.c), not
-# specific to the Voyager. max=16384 (14-bit: 0..16383) rather than a plain
-# CC's 128.
-#
-# Everything below other than cutoff/res comes from a third-party Ctrlr
-# panel (ctrlr.org, "Mouge Voyeur" by Roman Kubiak, panelDevice=Voyager),
-# not a fresh hardware capture. Ctrlr panels are zlib-compressed JUCE
-# ValueTree binary blobs — this one was parsed with a small script written
-# against the exact serialization code in JUCE's own
-# juce_ValueTree.cpp/juce_Variant.cpp/juce_OutputStream.cpp (fetched from
-# upstream, not guessed from the hex), which consumed the entire decompressed
-# stream with no leftover bytes — strong confirmation the parse is exact.
-# Cross-check: that panel's own Cutoff (CC19/51) and Resonance (CC21/53)
-# assignments are byte-for-byte identical to the hardware-confirmed ones
-# above, which is a real (if not conclusive) signal the rest of its CC map is
-# accurate too. Continuous controls use the same 14-bit MSB/LSB pair
-# convention as cutoff/res (max=16384). The remaining controls (toggles,
-# switches, octave/source/destination/shaping selectors) are plain
-# single-byte CCs whose real value is NOT a plain 0..N-1 index — e.g. a
-# 6-position selector sends raw bytes 0/16/32/48/64/80 and a toggle sends
-# 0/127, not 0..5 or 0/1 — so they're declared "display=raw max=128" (shows
-# the literal CC byte) rather than "names=...": this file format's names=
-# assumes the raw value already IS the display index, and giving these
-# friendly names would need a sparse value->name table the dial model
-# doesn't support yet. Unlike cutoff/res, treat all of these as unconfirmed
-# against real hardware until checked.
-device          Moog Voyager
-description     Cutoff/Resonance confirmed on hardware; rest from a Ctrlr panel (unconfirmed)
+# Dial map: same CC numbers as voyager.txt (Ctrlr-panel-derived — see that
+# file's own comment for the full provenance/parsing story), which makes
+# sense given both instruments share the same underlying Moog analog synth
+# engine. Cross-validated harder here than on the Voyager side, though:
+# of these 51 dials, 34 (22 of 28 fourteen-bit pairs, 12 of 23 single-byte
+# ones) came back with live values in the captured dump reply above — direct
+# confirmation those CCs genuinely exist on this hardware, not just inferred
+# from a third-party panel. The other 17 didn't appear in that particular
+# dump (missing: mwAmount, pedalAmount, osc1Wave, osc2Wave, osc2Freq,
+# extLevel, lfoSync, releaseSwitch, mwSource, mwDestination, osc1Octave,
+# osc2Octave, osc3Octave, oscSync, oscFM, osc3KB, osc3Toggle) — could be
+# state-dependent (only touched/non-default params get echoed), or genuinely
+# not present on a Minitaur (no keybed, so a true "mod wheel" may not apply
+# the same way it does on Voyager, for instance). Labels below are inherited
+# from the Voyager-oriented Ctrlr panel too, so treat the wording (not the CC
+# numbers) as unconfirmed against this unit's actual front-panel labelling.
+device          Moog Minitaur
+description     stateRequestSysEx confirmed on hardware; CC map cross-validated against a real dump reply (34/51), rest unconfirmed
 manufacturerId  0x04
 familyId        0x00
 memberId        0x00
 identityQuery   no
-midiChannel     8
-midiPort        Elektron TM-1
+midiChannel     11
+midiPort        Moog Minitaur
+stateRequestSysEx 0xF0 0x04 0x08 0x1B 0x00 0x00 0xF7
 
 # ── Filters page ──────────────────────────────────────────────────────────────
 page       filters

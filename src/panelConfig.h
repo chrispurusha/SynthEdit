@@ -160,7 +160,17 @@ typedef struct {
     // midiComms.c matches it case-insensitively against each destination's
     // display name. Empty (the default) falls back to the first destination
     // found, same as before this existed.
-    char          midiPortName[64];           // only meaningful when !supportsIdentity
+    char midiPortName[64];                    // only meaningful when !supportsIdentity
+
+    // Optional SysEx sent right after connecting (see connect_without_identity()
+    // in midiComms.c) — asks the device to report its own current state instead
+    // of leaving every dial showing a stale/default value until physically
+    // touched. Device-specific (e.g. Moog's own "dump current CC values"
+    // command); set via the file's "stateRequestSysEx <hex> <hex> ..." line.
+    // 0 length (the default) means don't send anything, unchanged from before
+    // this existed.
+    uint8_t       stateRequestSysEx[32];
+    uint32_t      stateRequestSysExLen;
     tPanelSection sections[PANEL_MAX_SECTIONS];
     uint32_t      sectionCount;
     tPanelList    lists[PANEL_MAX_LISTS];

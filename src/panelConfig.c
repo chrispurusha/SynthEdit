@@ -283,6 +283,19 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
         config->midiChannel = (uint32_t)strtoul(tokens[1], NULL, 0);
     } else if (strcmp(keyword, "midiPort") == 0) {
         join_tokens(tokens, 1, tokenCount, config->midiPortName, sizeof(config->midiPortName));
+    } else if (strcmp(keyword, "stateRequestSysEx") == 0) {
+        uint32_t valueCount = tokenCount - 1;
+
+        if (valueCount > (uint32_t)sizeof(config->stateRequestSysEx)) {
+            LOG_ERROR("panelConfig line %u: stateRequestSysEx too long (max %u bytes)\n",
+                      lineNo, (unsigned)sizeof(config->stateRequestSysEx));
+            valueCount = (uint32_t)sizeof(config->stateRequestSysEx);
+        }
+        config->stateRequestSysExLen = valueCount;
+
+        for (uint32_t b = 0; b < valueCount; b++) {
+            config->stateRequestSysEx[b] = (uint8_t)strtoul(tokens[1 + b], NULL, 0);
+        }
     } else if (strcmp(keyword, "list") == 0) {
         if (tokenCount < 3) {
             LOG_ERROR("panelConfig line %u: expected 'list <name> <items>'\n", lineNo);

@@ -29,6 +29,15 @@
 #   scrollDial <id>        — dial id (found in any section) that plain
 #                           mouse-wheel scroll nudges when nothing is being
 #                           dragged; omit for no such shortcut
+#   stateRequestSysEx <hex> <hex> ... — sent once right after connecting (see
+#                           connect_without_identity() in midiComms.c) to ask
+#                           the device to report its own current state,
+#                           instead of leaving every dial at a stale/default
+#                           value until physically touched. Device-specific
+#                           (e.g. Moog's own "dump current CC values" command
+#                           — see layouts/voyager.txt); omit if the device has
+#                           no such command. Replies arrive as ordinary CC/
+#                           SysEx messages through the normal dispatch path.
 #
 # Section-level:
 #   hidden                 — this section is named device state (e.g.
