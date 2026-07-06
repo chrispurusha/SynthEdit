@@ -57,7 +57,7 @@ memberId        0x01
 progNameLen     16
 scrollDial      f1cut
 
-# ── Program info (Synthesis page, not rendered as dials — see "hidden" above)
+# ── Program info (Oscillators page, not rendered as dials — see "hidden" above)
 # Byte layout (Program Common section of the parameter table):
 #   0-15 : Program Name chars (params 1-16, see progNameLen above)
 #    16  : Category                          (param 17)
@@ -65,7 +65,7 @@ scrollDial      f1cut
 #    21  : bits0-1 = Unison Type, bit2 = Unison SW, bit3 = Unison Mode
 #          (params 24/25/26)
 #    22  : Unison Detune                     (param 27)
-page       synthesis
+page       oscillators
 section    info
 hidden
 
@@ -76,12 +76,14 @@ dial unisonSW label="Unison SW" max=2 group=1 param=25 dumpOffset=21 dumpShift=2
 dial unisonMode label="Unison Mode" max=2 group=1 param=26 dumpOffset=21 dumpShift=3 dumpMask=0x01 names=FIXED,DYNAMIC
 dial unisonDetune label="Detune" max=100 display=raw group=1 param=27 dumpOffset=22
 
-# ── Oscillator section (Synthesis page) ──────────────────────────────────────
-# Sits above Filters below, matching the official parameter table's own order
-# (OSC Common/OSC1/OSC2/SUB OSC/Noise Generator/Mixer, IDs 163-257, then Filter
-# at 258+). dumpOffset values here are NOT taken from a SysEx capture (unlike
-# the Filter anchor at dumpOffset=311 below) — they're derived by walking the
-# official parameter table's own per-section byte subtotals (Program Common=25,
+# ── Oscillator section (Oscillators page) ────────────────────────────────────
+# Precedes Filter in the official parameter table's own order (OSC Common/
+# OSC1/OSC2/SUB OSC/Noise Generator/Mixer, IDs 163-257, then Filter at 258+ —
+# now its own "Filters" page, split out once the combined page's dial rows ran
+# off the bottom of the window). dumpOffset values here are NOT taken from a
+# SysEx capture (unlike the Filter anchor at dumpOffset=311 on the Filters
+# page) — they're derived by walking the official parameter table's own
+# per-section byte subtotals (Program Common=25,
 # EG1-4=19 each, LFO1-4=11 each, OSC Common=9, OSC1/OSC2=52 each, SUB OSC=14,
 # Noise Generator=8, Mixer=31) and summing byte-for-byte through each row,
 # respecting bit-packed groups. That running total lands on exactly 311 for the
@@ -97,7 +99,7 @@ dial unisonDetune label="Detune" max=100 display=raw group=1 param=27 dumpOffset
 # convention yet. Inferred from the manual's documented value ranges, not
 # confirmed against a live capture; treat the signed meaning as unconfirmed
 # until checked against hardware.
-page       synthesis
+page       oscillators
 section    oscCommon
 dialSize   40
 spacing    50
@@ -112,7 +114,7 @@ dial portSW      label="Porta"     color=common max=2   names=OFF,ON          gr
 dial portMode    label="Porta Mode" color=common max=2  names=NORMAL,FINGERED group=1 param=170 dumpOffset=150 dumpShift=1 dumpMask=0x01
 dial portTime    label="Porta Time" color=common max=100 display=raw          group=1 param=171 dumpOffset=151
 
-page       synthesis
+page       oscillators
 section    osc1
 dialSize   40
 spacing    50
@@ -125,7 +127,7 @@ dial o1semi label="O1 Semi" color=osc1 max=25  display=raw                    gr
 dial o1fine label="O1 Fine" color=osc1 max=101 display=raw                    group=1 param=177 dumpOffset=157
 dial o1freq label="O1 Freq" color=osc1 max=201 display=raw                    group=1 param=178 dumpOffset=158
 
-page       synthesis
+page       oscillators
 section    osc2
 dialSize   40
 spacing    50
@@ -138,7 +140,7 @@ dial o2semi label="O2 Semi" color=osc2 max=25  display=raw                    gr
 dial o2fine label="O2 Fine" color=osc2 max=101 display=raw                    group=1 param=191 dumpOffset=209
 dial o2freq label="O2 Freq" color=osc2 max=201 display=raw                    group=1 param=192 dumpOffset=210
 
-page       synthesis
+page       oscillators
 section    subOsc
 dialSize   40
 spacing    50
@@ -151,7 +153,7 @@ dial subfine label="Sub Fine" color=sub max=101 display=raw          group=1 par
 dial subfreq label="Sub Freq" color=sub max=201 display=raw          group=1 param=205 dumpOffset=261
 dial subwave label="Sub Wave" color=sub max=4   names=SAW,SQU,TRI,SIN group=1 param=215 dumpOffset=271
 
-page       synthesis
+page       oscillators
 section    noise
 dialSize   40
 spacing    50
@@ -163,7 +165,7 @@ dial noisetrim label="Noise Trim" color=noise max=100 display=raw            gro
 dial noisecut  label="Noise Cut"  color=noise max=100 display=raw            group=1 param=218 dumpOffset=274
 dial noiseres  label="Noise Res"  color=noise max=100 display=raw            group=1 param=223 dumpOffset=279
 
-page       synthesis
+page       oscillators
 section    mixer
 dialSize   40
 spacing    50
@@ -193,8 +195,11 @@ dial mo2sw    label="O2 SW"    color=mixsw max=2 names=OFF,ON group=1 param=255 
 dial msubsw   label="Sub SW"   color=mixsw max=2 names=OFF,ON group=1 param=256 dumpOffset=310 dumpShift=2 dumpMask=0x01
 dial mnoisesw label="Noise SW" color=mixsw max=2 names=OFF,ON group=1 param=257 dumpOffset=310 dumpShift=3 dumpMask=0x01
 
-# ── Filters row (Synthesis page) ─────────────────────────────────────────────
-page       synthesis
+# ── Filters row (Filters page) ────────────────────────────────────────────────
+# Its own page, not stacked under Oscillators — a single page's worth of
+# Filter sections (core knobs + keytrack + modulation + "-B" sub-filter,
+# ×2) already runs off the bottom of the window on its own.
+page       filters
 section    filters
 dialSize   40
 spacing    50
@@ -205,6 +210,7 @@ color f2    0.3 0.9 0.5
 
 dial route  label="Route"    color=route  max=3    names=SERI1,SERI2,PARA          group=1 param=258 dumpOffset=311 dumpMask=0x03
 dial f2link label="F2 Link"  color=route  max=2    names=OFF,ON                    group=1 param=259 dumpOffset=311 dumpShift=2 dumpMask=0x01
+dial fegtgt label="EG Target" color=route max=3    names=FLT1,FLT2,FLT1&2          group=1 param=260 offset=1 dumpOffset=311 dumpShift=4 dumpMask=0x03
 dial f1type label="F1 Type"  color=f1     max=5    names=LPF,HPF,BPF,BRF,2BPF      group=1 param=261 offset=1 dumpOffset=312
 dial f1trim label="F1 Trim"  color=f1     max=100  display=raw                     group=1 param=262 dumpOffset=313
 dial f1cut  label="F1 Cut"   color=f1     max=128  display=ccnative                group=1 param=263 cc=0x55 nativeMax=99 dumpOffset=314
@@ -217,10 +223,119 @@ dial f2trim label="F2 Trim"  color=f2     max=100  display=raw                  
 dial f2cut  label="F2 Cut"   color=f2     max=128  display=ccnative                group=1 param=290 cc=0x58 nativeMax=99 dumpOffset=341
 dial f2res  label="F2 Res"   color=f2     max=128  display=ccnative                group=1 param=301 cc=0x59 nativeMax=99 dumpOffset=352
 
+# ── Filter1/Filter2 keyboard track, modulation, and "-B" sub-filter (Filters
+# page) — the remaining Filter parameters (258-314) beyond the core knobs
+# above. dumpOffset values are pure sequential arithmetic from the confirmed
+# anchor (dumpOffset(id) = 312 + (id-261) for every id in 261-314; the file's
+# own byte-per-ID layout has no further bit-packing after the single packed
+# byte at dumpOffset=311 above) — cross-checked against every existing
+# anchor above (f1type=312, f1res=325, f2type=339, f2trim=340, f2cut=341,
+# f2res=352 all fall exactly where that formula predicts), but like the
+# Oscillator section, not confirmed against a live capture beyond that.
+#
+# Signed Intensity values (-99~+99) are raw 0-198, shown unconverted — same
+# convention/caveat as the Oscillator section's signed values above.
+# "Mod Source" dials (0-48, "Mod.Source List 1") show the raw index rather
+# than a name — that list's 49 entries haven't been transcribed from the
+# manual yet.
+page       filters
+section    filter1kt
+dialSize   40
+spacing    50
+
+color f1kt 0.2 0.6 1.0
+
+dial f1lowkey  label="F1 Lo Key"  color=f1kt max=128 display=raw group=1 param=264 dumpOffset=315
+dial f1highkey label="F1 Hi Key"  color=f1kt max=128 display=raw group=1 param=265 dumpOffset=316
+dial f1lowint  label="F1 Lo Int"  color=f1kt max=199 display=raw group=1 param=266 dumpOffset=317
+dial f1highint label="F1 Hi Int"  color=f1kt max=199 display=raw group=1 param=267 dumpOffset=318
+
+page       filters
+section    filter1mod
+dialSize   40
+spacing    50
+
+color f1mod 0.2 0.6 1.0
+
+dial f1modeg     label="F1 Mod EG"      color=f1mod max=5  names=EG1,EG2,EG3,EG4,A.EG group=1 param=268 offset=1 dumpOffset=319
+dial f1modegint  label="F1 ModEG Int"   color=f1mod max=199 display=raw              group=1 param=269 dumpOffset=320
+dial f1mod1src   label="F1 Mod1 Src"    color=f1mod max=49  display=raw              group=1 param=270 dumpOffset=321
+dial f1mod1int   label="F1 Mod1 Int"    color=f1mod max=199 display=raw              group=1 param=271 dumpOffset=322
+dial f1mod2src   label="F1 Mod2 Src"    color=f1mod max=49  display=raw              group=1 param=272 dumpOffset=323
+dial f1mod2int   label="F1 Mod2 Int"    color=f1mod max=199 display=raw              group=1 param=273 dumpOffset=324
+dial f1resmodsrc label="F1 Res Mod Src" color=f1mod max=49  display=raw              group=1 param=275 dumpOffset=326
+dial f1resmodint label="F1 Res Mod Int" color=f1mod max=199 display=raw              group=1 param=276 dumpOffset=327
+
+page       filters
+section    filter1b
+dialSize   40
+spacing    50
+
+color f1b 0.2 0.6 1.0
+
+dial f1btrim      label="F1B Trim"     color=f1b max=100 display=raw group=1 param=277 dumpOffset=328
+dial f1bcut       label="F1B Cutoff"   color=f1b max=100 display=raw group=1 param=278 dumpOffset=329
+dial f1blowkey    label="F1B Lo Key"   color=f1b max=128 display=raw group=1 param=279 dumpOffset=330
+dial f1bhighkey   label="F1B Hi Key"   color=f1b max=128 display=raw group=1 param=280 dumpOffset=331
+dial f1blowint    label="F1B Lo Int"   color=f1b max=199 display=raw group=1 param=281 dumpOffset=332
+dial f1bhighint   label="F1B Hi Int"   color=f1b max=199 display=raw group=1 param=282 dumpOffset=333
+dial f1bmodegint  label="F1B ModEG"    color=f1b max=199 display=raw group=1 param=283 dumpOffset=334
+dial f1bmod1int   label="F1B Mod1"     color=f1b max=199 display=raw group=1 param=284 dumpOffset=335
+dial f1bmod2int   label="F1B Mod2"     color=f1b max=199 display=raw group=1 param=285 dumpOffset=336
+dial f1bres       label="F1B Res"      color=f1b max=100 display=raw group=1 param=286 dumpOffset=337
+dial f1bresmodint label="F1B Res Mod"  color=f1b max=199 display=raw group=1 param=287 dumpOffset=338
+
+page       filters
+section    filter2kt
+dialSize   40
+spacing    50
+
+color f2kt 0.3 0.9 0.5
+
+dial f2lowkey  label="F2 Lo Key"  color=f2kt max=128 display=raw group=1 param=291 dumpOffset=342
+dial f2highkey label="F2 Hi Key"  color=f2kt max=128 display=raw group=1 param=292 dumpOffset=343
+dial f2lowint  label="F2 Lo Int"  color=f2kt max=199 display=raw group=1 param=293 dumpOffset=344
+dial f2highint label="F2 Hi Int"  color=f2kt max=199 display=raw group=1 param=294 dumpOffset=345
+
+page       filters
+section    filter2mod
+dialSize   40
+spacing    50
+
+color f2mod 0.3 0.9 0.5
+
+dial f2modeg     label="F2 Mod EG"      color=f2mod max=5  names=EG1,EG2,EG3,EG4,A.EG group=1 param=295 offset=1 dumpOffset=346
+dial f2modegint  label="F2 ModEG Int"   color=f2mod max=199 display=raw              group=1 param=296 dumpOffset=347
+dial f2mod1src   label="F2 Mod1 Src"    color=f2mod max=49  display=raw              group=1 param=297 dumpOffset=348
+dial f2mod1int   label="F2 Mod1 Int"    color=f2mod max=199 display=raw              group=1 param=298 dumpOffset=349
+dial f2mod2src   label="F2 Mod2 Src"    color=f2mod max=49  display=raw              group=1 param=299 dumpOffset=350
+dial f2mod2int   label="F2 Mod2 Int"    color=f2mod max=199 display=raw              group=1 param=300 dumpOffset=351
+dial f2resmodsrc label="F2 Res Mod Src" color=f2mod max=49  display=raw              group=1 param=302 dumpOffset=353
+dial f2resmodint label="F2 Res Mod Int" color=f2mod max=199 display=raw              group=1 param=303 dumpOffset=354
+
+page       filters
+section    filter2b
+dialSize   40
+spacing    50
+
+color f2b 0.3 0.9 0.5
+
+dial f2btrim      label="F2B Trim"     color=f2b max=100 display=raw group=1 param=304 dumpOffset=355
+dial f2bcut       label="F2B Cutoff"   color=f2b max=100 display=raw group=1 param=305 dumpOffset=356
+dial f2blowkey    label="F2B Lo Key"   color=f2b max=128 display=raw group=1 param=306 dumpOffset=357
+dial f2bhighkey   label="F2B Hi Key"   color=f2b max=128 display=raw group=1 param=307 dumpOffset=358
+dial f2blowint    label="F2B Lo Int"   color=f2b max=199 display=raw group=1 param=308 dumpOffset=359
+dial f2bhighint   label="F2B Hi Int"   color=f2b max=199 display=raw group=1 param=309 dumpOffset=360
+dial f2bmodegint  label="F2B ModEG"    color=f2b max=199 display=raw group=1 param=310 dumpOffset=361
+dial f2bmod1int   label="F2B Mod1"     color=f2b max=199 display=raw group=1 param=311 dumpOffset=362
+dial f2bmod2int   label="F2B Mod2"     color=f2b max=199 display=raw group=1 param=312 dumpOffset=363
+dial f2bres       label="F2B Res"      color=f2b max=100 display=raw group=1 param=313 dumpOffset=364
+dial f2bresmodint label="F2B Res Mod"  color=f2b max=199 display=raw group=1 param=314 dumpOffset=365
+
 # ── Effects page ──────────────────────────────────────────────────────────────
 # Placeholder — no controls transcribed yet. The page exists so the page-tab
 # row has something to switch to; add dials here once the Effects parameters
-# are worked out, same as the Synthesis page above.
+# are worked out, same as the Oscillators/Filters pages above.
 page       effects
 section    effects
 dialSize   40

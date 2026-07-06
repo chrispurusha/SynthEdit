@@ -38,7 +38,7 @@ extern "C" {
 #define PANEL_MAX_NAMES         20
 #define PANEL_MAX_COLOURS       16
 #define PANEL_MAX_DIALS         32
-#define PANEL_MAX_SECTIONS      16
+#define PANEL_MAX_SECTIONS      32
 #define PANEL_MAX_LIST_ITEMS    32
 #define PANEL_MAX_LISTS         8
 
