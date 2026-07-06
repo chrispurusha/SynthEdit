@@ -59,16 +59,39 @@
 # 03/06) — same header shape, same mode bytes, same device-ID-defaults-to-0
 # convention, no discrepancies.
 #
-# Not yet parsed into dial values: the reply's ~144 payload bytes are a
-# genuine bit-packed stream (7 usable bits per byte, values spanning byte
-# boundaries at arbitrary bit offsets — e.g. LFO Rate is 16 bits split
-# 3+7+6 across three bytes), which the dumpOffset/dumpShift/dumpMask model
-# (used by z1.txt) doesn't support yet — that assumes a value lives inside
-# one byte. The full bit-exact byte map for both Panel Dump and Single
-# Preset Dump is in the spec PDF if/when that gets built. For now this just
-# gets a live reply on connect; dispatch_sysex() passes it to
-# synth_handle_message() same as any other SysEx, which currently has no
-# handler for this shape and drops it silently.
+# dumpFormat moog / productId 0x01: the Panel Dump reply's ~147 payload bytes
+# are a genuine bit-packed stream — 7 usable bits per byte, a value's bits
+# spanning byte boundaries at arbitrary offsets (e.g. Filter Cutoff is 16
+# bits split across bytes 59-62) — nothing like Korg's one-byte-per-param
+# dump layout (z1.txt), which is what is_synth_sysex()/extract_prog_info() in
+# synthComms.c assume by default. "dumpFormat moog" switches to the parallel
+# is_moog_sysex()/extract_moog_panel_info() path instead: header shape
+# F0 <mfrId> <productId> <deviceId> <mode> ... (see stateRequestSysEx above),
+# values read via read_bitpacked_field() using each dial's dumpOffset (first
+# byte) + dumpBitOffset (0-6, which bit of that byte) + dumpBitWidth.
+#
+# CONFIRMED against real hardware (2026-07-06): set Filter Cutoff/Resonance
+# to known 14-bit CC values (12000/3000) via CC, requested a Panel Dump,
+# decoded per the spec PDF's byte map — got EXACTLY 48000/12000 (value*4,
+# i.e. the dump's 16-bit range is the 14-bit CC value left-shifted 2, low 2
+# bits always 0). So every dumpBitOffset/dumpBitWidth below is set to skip
+# those 2 low bits and read 14, not 16 — lands each dial's dump-derived value
+# on the exact same 0..16383 scale its own CC already uses, no separate
+# scaling step needed. Getting here also caught a real bug: an early attempt
+# conflated a bit's position WITHIN ITS BYTE (0-6) with its significance
+# WITHIN THE FIELD (0-15) — using the field-significance number directly to
+# extract a bit from a 7-bit byte silently reads 0 for anything above 6.
+# Fixed in read_bitpacked_field()/synthComms.c, and this exact live test is
+# what caught it.
+#
+# Wired this way for the 27 dials sharing the identical 16-bit-contiguous
+# pattern (envelopes, levels, filter params, LFO/glide/mod-wheel/pedal
+# rate-or-amount); NOT independently confirmed per-dial the way cutoff/res
+# were, just structurally identical and derived from the same spec byte map.
+# A handful of smaller fields sharing a byte with unrelated toggles (octave
+# selectors, wheel/pedal source/destination) are deliberately left CC-only —
+# see the PDF-parsing session notes: those decode to multiples of 32 rather
+# than a dense small range, plausible but unconfirmed, not wired to dump.
 #
 # cutoff/res: BOTH CONFIRMED against real hardware — turning each physical
 # knob from 0 produces a paired MSB/LSB CC (MIDI's standard 14-bit coarse/
@@ -112,6 +135,8 @@ identityQuery   no
 midiChannel     8
 midiPort        Elektron TM-1
 stateRequestSysEx 0xF0 0x04 0x01 0x00 0x05 0xF7
+dumpFormat      moog
+productId       0x01
 
 # ── Filters page ──────────────────────────────────────────────────────────────
 page       filters
@@ -121,10 +146,10 @@ spacing    50
 
 color f 0.2 0.6 1.0
 
-dial cutoff      label="Cutoff"     color=f max=16384 display=raw cc=0x13 ccLsb=0x33
-dial res         label="Resonance"  color=f max=16384 display=raw cc=0x15 ccLsb=0x35
-dial fltSpacing  label="Spacing"    color=f max=16384 display=raw cc=0x14 ccLsb=0x34
-dial fltKBAmount label="KB Amount"  color=f max=16384 display=raw cc=0x16 ccLsb=0x36
+dial cutoff      label="Cutoff"     color=f max=16384 display=raw cc=0x13 ccLsb=0x33 dumpOffset=59 dumpBitOffset=1 dumpBitWidth=14
+dial res         label="Resonance"  color=f max=16384 display=raw cc=0x15 ccLsb=0x35 dumpOffset=61 dumpBitOffset=3 dumpBitWidth=14
+dial fltSpacing  label="Spacing"    color=f max=16384 display=raw cc=0x14 ccLsb=0x34 dumpOffset=45 dumpBitOffset=3 dumpBitWidth=14
+dial fltKBAmount label="KB Amount"  color=f max=16384 display=raw cc=0x16 ccLsb=0x36 dumpOffset=66 dumpBitOffset=0 dumpBitWidth=14
 dial fltMode     label="Mode"       color=f max=128   display=raw cc=86
 
 # ── Oscillators page ──────────────────────────────────────────────────────────
@@ -136,8 +161,8 @@ spacing    50
 color o1 0.9 0.4 0.2
 
 dial osc1Octave label="Octave" color=o1 max=128   display=raw cc=74
-dial osc1Wave   label="Wave"   color=o1 max=16384 display=raw cc=0x09 ccLsb=0x29
-dial osc1Level  label="Level"  color=o1 max=16384 display=raw cc=0x0F ccLsb=0x2F
+dial osc1Wave   label="Wave"   color=o1 max=16384 display=raw cc=0x09 ccLsb=0x29 dumpOffset=38 dumpBitOffset=4 dumpBitWidth=14
+dial osc1Level  label="Level"  color=o1 max=16384 display=raw cc=0x0F ccLsb=0x2F dumpOffset=50 dumpBitOffset=0 dumpBitWidth=14
 dial osc1Toggle label="On"     color=o1 max=128   display=raw cc=82
 
 page       oscillators
@@ -148,9 +173,9 @@ spacing    50
 color o2 0.4 0.8 0.5
 
 dial osc2Octave label="Octave" color=o2 max=128   display=raw cc=75
-dial osc2Wave   label="Wave"   color=o2 max=16384 display=raw cc=0x0B ccLsb=0x2B
-dial osc2Freq   label="Freq"   color=o2 max=16384 display=raw cc=0x0A ccLsb=0x2A
-dial osc2Level  label="Level"  color=o2 max=16384 display=raw cc=0x10 ccLsb=0x30
+dial osc2Wave   label="Wave"   color=o2 max=16384 display=raw cc=0x0B ccLsb=0x2B dumpOffset=40 dumpBitOffset=6 dumpBitWidth=14
+dial osc2Freq   label="Freq"   color=o2 max=16384 display=raw cc=0x0A ccLsb=0x2A dumpOffset=34 dumpBitOffset=0 dumpBitWidth=14
+dial osc2Level  label="Level"  color=o2 max=16384 display=raw cc=0x10 ccLsb=0x30 dumpOffset=52 dumpBitOffset=2 dumpBitWidth=14
 dial osc2Toggle label="On"     color=o2 max=128   display=raw cc=83
 
 page       oscillators
@@ -161,9 +186,9 @@ spacing    50
 color o3 0.6 0.5 0.9
 
 dial osc3Octave    label="Octave"     color=o3 max=128   display=raw cc=76
-dial osc3Wave      label="Wave"       color=o3 max=16384 display=raw cc=0x0D ccLsb=0x2D
-dial osc3Freq      label="Freq"       color=o3 max=16384 display=raw cc=0x0C ccLsb=0x2C
-dial osc3Level     label="Level"      color=o3 max=16384 display=raw cc=0x11 ccLsb=0x31
+dial osc3Wave      label="Wave"       color=o3 max=16384 display=raw cc=0x0D ccLsb=0x2D dumpOffset=43 dumpBitOffset=1 dumpBitWidth=14
+dial osc3Freq      label="Freq"       color=o3 max=16384 display=raw cc=0x0C ccLsb=0x2C dumpOffset=36 dumpBitOffset=2 dumpBitWidth=14
+dial osc3Level     label="Level"      color=o3 max=16384 display=raw cc=0x11 ccLsb=0x31 dumpOffset=54 dumpBitOffset=4 dumpBitWidth=14
 dial osc3Toggle    label="On"         color=o3 max=128   display=raw cc=84
 dial osc3KB        label="KB Track"   color=o3 max=128   display=raw cc=79
 dial osc3FreqRange label="Freq Range" color=o3 max=128   display=raw cc=80
@@ -175,7 +200,7 @@ spacing    50
 
 color m 0.7 0.7 0.7
 
-dial noiseLevel  label="Noise"     color=m max=16384 display=raw cc=0x12 ccLsb=0x32
+dial noiseLevel  label="Noise"     color=m max=16384 display=raw cc=0x12 ccLsb=0x32 dumpOffset=56 dumpBitOffset=6 dumpBitWidth=14
 dial noiseToggle label="Noise On"  color=m max=128   display=raw cc=85
 dial extLevel    label="External"  color=m max=16384 display=raw cc=0x0E ccLsb=0x2E
 dial extToggle   label="Ext On"    color=m max=128   display=raw cc=81
@@ -190,11 +215,11 @@ spacing    50
 
 color fe 0.9 0.6 0.2
 
-dial fltEnvAttack  label="Attack"  color=fe max=16384 display=raw cc=0x17 ccLsb=0x37
-dial fltEnvDecay   label="Decay"   color=fe max=16384 display=raw cc=0x18 ccLsb=0x38
-dial fltEnvSustain label="Sustain" color=fe max=16384 display=raw cc=0x19 ccLsb=0x39
-dial fltEnvRelease label="Release" color=fe max=16384 display=raw cc=0x1A ccLsb=0x3A
-dial fltEnvAmount  label="Amount"  color=fe max=16384 display=raw cc=0x1B ccLsb=0x3B
+dial fltEnvAttack  label="Attack"  color=fe max=16384 display=raw cc=0x17 ccLsb=0x37 dumpOffset=70 dumpBitOffset=4 dumpBitWidth=14
+dial fltEnvDecay   label="Decay"   color=fe max=16384 display=raw cc=0x18 ccLsb=0x38 dumpOffset=72 dumpBitOffset=6 dumpBitWidth=14
+dial fltEnvSustain label="Sustain" color=fe max=16384 display=raw cc=0x19 ccLsb=0x39 dumpOffset=75 dumpBitOffset=1 dumpBitWidth=14
+dial fltEnvRelease label="Release" color=fe max=16384 display=raw cc=0x1A ccLsb=0x3A dumpOffset=77 dumpBitOffset=3 dumpBitWidth=14
+dial fltEnvAmount  label="Amount"  color=fe max=16384 display=raw cc=0x1B ccLsb=0x3B dumpOffset=63 dumpBitOffset=5 dumpBitWidth=14
 
 page       envelopes
 section    volEnv
@@ -203,10 +228,10 @@ spacing    50
 
 color ve 0.3 0.7 0.9
 
-dial volEnvAttack  label="Attack"  color=ve max=16384 display=raw cc=0x1C ccLsb=0x3C
-dial volEnvDecay   label="Decay"   color=ve max=16384 display=raw cc=0x1D ccLsb=0x3D
-dial volEnvSustain label="Sustain" color=ve max=16384 display=raw cc=0x1E ccLsb=0x3E
-dial volEnvRelease label="Release" color=ve max=16384 display=raw cc=0x1F ccLsb=0x3F
+dial volEnvAttack  label="Attack"  color=ve max=16384 display=raw cc=0x1C ccLsb=0x3C dumpOffset=79 dumpBitOffset=5 dumpBitWidth=14
+dial volEnvDecay   label="Decay"   color=ve max=16384 display=raw cc=0x1D ccLsb=0x3D dumpOffset=82 dumpBitOffset=0 dumpBitWidth=14
+dial volEnvSustain label="Sustain" color=ve max=16384 display=raw cc=0x1E ccLsb=0x3E dumpOffset=84 dumpBitOffset=2 dumpBitWidth=14
+dial volEnvRelease label="Release" color=ve max=16384 display=raw cc=0x1F ccLsb=0x3F dumpOffset=86 dumpBitOffset=4 dumpBitWidth=14
 dial gateToggle    label="Gate"    color=ve max=128   display=raw cc=87
 
 # ── Modulation page ───────────────────────────────────────────────────────────
@@ -217,7 +242,7 @@ spacing    50
 
 color lf 0.8 0.3 0.3
 
-dial lfoRate label="Rate" color=lf max=16384 display=raw cc=0x03 ccLsb=0x23
+dial lfoRate label="Rate" color=lf max=16384 display=raw cc=0x03 ccLsb=0x23 dumpOffset=24 dumpBitOffset=6 dumpBitWidth=14
 dial lfoSync label="Sync" color=lf max=128   display=raw cc=67
 
 page       modulation
@@ -230,7 +255,7 @@ color mw 0.3 0.6 0.8
 dial mwSource      label="Source"      color=mw max=128   display=raw cc=68
 dial mwDestination label="Destination" color=mw max=128   display=raw cc=69
 dial mwShaping     label="Shaping"     color=mw max=128   display=raw cc=70
-dial mwAmount      label="Amount"      color=mw max=16384 display=raw cc=0x06 ccLsb=0x26
+dial mwAmount      label="Amount"      color=mw max=16384 display=raw cc=0x06 ccLsb=0x26 dumpOffset=29 dumpBitOffset=3 dumpBitWidth=14
 
 page       modulation
 section    pedal
@@ -242,7 +267,7 @@ color pd 0.5 0.8 0.4
 dial pedalSource      label="Source"      color=pd max=128   display=raw cc=71
 dial pedalDestination label="Destination" color=pd max=128   display=raw cc=72
 dial pedalShaping     label="Shaping"     color=pd max=128   display=raw cc=73
-dial pedalAmount      label="Amount"      color=pd max=16384 display=raw cc=0x08 ccLsb=0x28
+dial pedalAmount      label="Amount"      color=pd max=16384 display=raw cc=0x08 ccLsb=0x28 dumpOffset=31 dumpBitOffset=5 dumpBitWidth=14
 
 # ── Global page ───────────────────────────────────────────────────────────────
 page       global
@@ -252,7 +277,7 @@ spacing    50
 
 color g 0.5 0.5 0.5
 
-dial volume        label="Volume"      color=g max=16384 display=raw cc=0x07 ccLsb=0x27
+dial volume        label="Volume"      color=g max=16384 display=raw cc=0x07 ccLsb=0x27 dumpOffset=88 dumpBitOffset=6 dumpBitWidth=14
 dial glide         label="Glide"       color=g max=128   display=raw cc=65
-dial glideRate     label="Glide Rate"  color=g max=16384 display=raw cc=0x05 ccLsb=0x25
+dial glideRate     label="Glide Rate"  color=g max=16384 display=raw cc=0x05 ccLsb=0x25 dumpOffset=27 dumpBitOffset=1 dumpBitWidth=14
 dial releaseSwitch label="Release Sw" color=g max=128   display=raw cc=88

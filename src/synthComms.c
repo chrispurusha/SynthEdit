@@ -47,6 +47,22 @@ static bool is_synth_sysex(const uint8_t * data, uint32_t length) {
            && (data[n + 2] == cfg->familyId);
 }
 
+// Moog's own dump SysEx header shape (see moogStyleDump in panelConfig.h):
+// F0 <manufacturerId> <productId> <deviceId> <mode> ... F7 — nothing like the
+// Korg-style header above (no "0x30|channel" byte, no familyId in that
+// position). deviceId isn't checked here — it's whatever the unit's own
+// front-panel SysEx ID is set to, not something this app assigns.
+static bool is_moog_sysex(const uint8_t * data, uint32_t length) {
+    tPanelConfig * cfg = synth_panel_config();
+
+    if (length < 5) { // F0 + mfrId(1) + productId + deviceId + mode
+        return false;
+    }
+    return (data[0] == MIDI_SYSEX_START)
+           && (data[1] == cfg->manufacturerId[0])
+           && (data[2] == cfg->productId);
+}
+
 // ── 7-to-8 bit decoding ───────────────────────────────────────────────────────
 // Korg packs 7 data bytes into 8 MIDI bytes.
 // Byte 0 of each group holds the MSBs (bit6 = MSB of byte1, bit5 = MSB of byte2, …)
@@ -144,7 +160,15 @@ static void apply_dial_wire_value(tPanelDial * dial, uint32_t rawValue) {
         if (v > hi) {
             v = hi;
         }
-        dial->value = (uint8_t)v;
+        // dial->value is uint32_t (wide enough for a 14-bit CC pair or a
+        // 16-bit Moog dump field, per its own field comment in
+        // panelConfig.h) — truncating to uint8_t here was a latent bug that
+        // never bit anything before now: Z1's Korg-style dump values and
+        // parameter-change values are always <=255, and the CC-pair path in
+        // synth_handle_cc() below sets dial->value directly rather than
+        // going through this function. Moog's 16-bit bit-packed dump fields
+        // are the first caller that actually needs the width.
+        dial->value = (uint32_t)v;
     }
 }
 
@@ -200,6 +224,65 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
     LOG_DEBUG("Synth prog: \"%s\" — %u dial(s) updated from dump\n", gDevice.progName, (unsigned)updated);
 }
 
+// ── Moog-style bit-packed dump extraction ─────────────────────────────────────
+// Moog's Panel/Preset Dump SysEx packs values as a continuous bitstream, 7
+// usable bits per byte (byte's bit 6 done -> next byte's bit 0), rather than
+// Korg's one-value-per-byte layout above. A dial opts into this by setting
+// dumpBitWidth > 0 (see panelConfig.h); dumpOffset is still its first byte,
+// dumpBitOffset (0-6) is which bit of that byte holds the value's LSB.
+// Confirmed byte-for-byte against real Voyager hardware (2026-07-06): set
+// Filter Cutoff/Resonance to known CC values, requested a Panel Dump,
+// decoded — exact match both times.
+static uint32_t read_bitpacked_field(const uint8_t * payload, uint32_t payloadLen,
+                                     int32_t byteOffset, uint32_t bitOffset, uint32_t bitWidth) {
+    uint32_t value       = 0;
+    uint32_t globalStart = (uint32_t)byteOffset * 7 + bitOffset;
+
+    for (uint32_t k = 0; k < bitWidth; k++) {
+        uint32_t globalBit = globalStart + k;
+        uint32_t byteIdx   = globalBit / 7;
+        uint32_t column    = globalBit % 7;
+
+        if (byteIdx >= payloadLen) {
+            break; // truncated capture — leave remaining (higher) bits at 0
+        }
+        uint32_t bit       = (payload[byteIdx] >> column) & 1;
+        value |= bit << k;
+    }
+
+    return value;
+}
+
+// Same role as extract_prog_info() above, but for Moog's bit-packed dump
+// shape — every dial with dumpBitWidth > 0 gets its value from
+// read_bitpacked_field() instead of the single-byte dumpShift/dumpMask path.
+// No prog-name handling (Moog's Panel Dump isn't tied to a named preset slot
+// the way a Single Preset Dump is — see the format's own spec comment in
+// voyager.txt).
+static void extract_moog_panel_info(const uint8_t * payload, uint32_t payloadLen) {
+    tPanelConfig * cfg     = synth_panel_config();
+    uint32_t       updated = 0;
+
+    for (uint32_t s = 0; s < cfg->sectionCount; s++) {
+        tPanelSection * section = &cfg->sections[s];
+
+        for (uint32_t d = 0; d < section->dialCount; d++) {
+            tPanelDial * dial = &section->dials[d];
+
+            if (dial->dumpBitWidth == 0) {
+                continue;
+            }
+            uint32_t     raw  = read_bitpacked_field(payload, payloadLen, dial->dumpOffset,
+                                                     dial->dumpBitOffset, dial->dumpBitWidth);
+            apply_dial_wire_value(dial, raw);
+            updated++;
+        }
+    }
+
+    LOG_DEBUG("Moog panel dump: %u dial(s) updated (%u payload bytes)\n",
+              (unsigned)updated, (unsigned)payloadLen);
+}
+
 // ── Message handlers ──────────────────────────────────────────────────────────
 
 static void handle_curr_prog_dump(const uint8_t * data, uint32_t length) {
@@ -223,6 +306,24 @@ static void handle_curr_prog_dump(const uint8_t * data, uint32_t length) {
               (unsigned)payloadLen, (unsigned)decodedLen);
 
     extract_prog_info(decoded, decodedLen);
+}
+
+// Format: F0 <mfrId(1)> <productId> <deviceId> <mode> <payload...> F7 — see
+// moogStyleDump in panelConfig.h. No 7-to-8 decode needed here (unlike Korg's
+// handle_curr_prog_dump() above) — Moog's payload bytes are already usable
+// directly, each one individually 7-bit safe rather than 8 groups of 7 real
+// data bytes plus an MSB-collector byte.
+static void handle_moog_panel_dump(const uint8_t * data, uint32_t length) {
+    const uint32_t  skip       = 5; // F0 + mfrId + productId + deviceId + mode
+
+    if (length < skip + 1) {
+        LOG_ERROR("Moog panel dump too short (%u)\n", (unsigned)length);
+        return;
+    }
+    const uint8_t * payload    = data + skip;
+    uint32_t        payloadLen = length - skip - 1; // exclude trailing F7
+
+    extract_moog_panel_info(payload, payloadLen);
 }
 
 static void handle_parameter_change(const uint8_t * data, uint32_t length) {
@@ -347,6 +448,27 @@ bool synth_handle_cc(uint8_t cc, uint8_t value) {
 }
 
 void synth_handle_message(const uint8_t * data, uint32_t length) {
+    if (synth_panel_config()->moogStyleDump) {
+        // Entirely separate header shape and dispatch from the Korg-style
+        // path below (see is_moog_sysex()/handle_moog_panel_dump()) — mode
+        // 0x02 (Panel Dump) is the only reply this app currently requests
+        // (see stateRequestSysEx/"Panel Dump Request" in voyager.txt), so
+        // that's the only mode handled; anything else is logged and ignored.
+        if (!is_moog_sysex(data, length)) {
+            LOG_DEBUG("Ignoring non-target SysEx (len=%u)\n", (unsigned)length);
+            return;
+        }
+        uint8_t mode = data[4];
+
+        if (mode == 0x02) {
+            handle_moog_panel_dump(data, length);
+        } else {
+            LOG_DEBUG("Moog SysEx unhandled mode 0x%02X\n", (unsigned)mode);
+        }
+        gReDraw = true;
+        return;
+    }
+
     if (!is_synth_sysex(data, length)) {
         LOG_DEBUG("Ignoring non-target SysEx (len=%u)\n", (unsigned)length);
         return;

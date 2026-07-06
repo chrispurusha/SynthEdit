@@ -102,6 +102,23 @@ typedef struct {
     int32_t  dumpOffset;
     uint32_t dumpShift;          // bits to shift right before masking (default 0)
     uint32_t dumpMask;           // mask applied after shifting (default 0xFF = whole byte)
+
+    // Alternative to dumpShift/dumpMask above for a dump format where a
+    // value's bits are packed continuously across MULTIPLE bytes at 7 usable
+    // bits each (Moog's Panel/Preset Dump SysEx — see moogStyleDump in
+    // tPanelConfig below), rather than living inside one byte. dumpBitWidth=0
+    // (the default) means "not this kind of field" — use dumpShift/dumpMask
+    // on the single dumpOffset byte instead, unchanged from before this
+    // existed. When dumpBitWidth > 0: dumpOffset is still this field's first
+    // relevant byte, and dumpBitOffset (0-6) is which of that byte's 7 usable
+    // bits holds the field's LEAST significant bit — confirmed empirically
+    // against real Voyager hardware (set Filter Cutoff/Resonance to known CC
+    // values, requested a Panel Dump, decoded bit-for-bit) that a field's
+    // bits then continue in strict ascending significance through the
+    // 7-bit-per-byte stream (byte's bit 6 done -> next byte's bit 0), with
+    // no padding except where a genuinely separate field's bits interleave.
+    uint32_t dumpBitOffset;
+    uint32_t dumpBitWidth;
 } tPanelDial;
 
 typedef struct {
@@ -169,8 +186,22 @@ typedef struct {
     // command); set via the file's "stateRequestSysEx <hex> <hex> ..." line.
     // 0 length (the default) means don't send anything, unchanged from before
     // this existed.
-    uint8_t       stateRequestSysEx[32];
-    uint32_t      stateRequestSysExLen;
+    uint8_t  stateRequestSysEx[32];
+    uint32_t stateRequestSysExLen;
+
+    // Moog's own dump SysEx has a completely different header shape from the
+    // Korg-style one is_synth_sysex()/synth_handle_message() assume by
+    // default (F0 <mfrId> <0x30|channel> <familyId> <func> ...): it's
+    // F0 <mfrId> <productId> <deviceId> <mode> ... instead — see
+    // "Voyager System Exclusive Panel Dump Format" (lintronics.de). Set via
+    // "dumpFormat moog" + "productId <hex>" in the file; false/0 (the
+    // default) leaves every existing Korg-style device (Z1) unaffected.
+    // productId is Moog's own proprietary header byte (e.g. 0x01 Voyager,
+    // 0x08 Minitaur) — distinct from familyId/memberId (the Universal
+    // Identity Reply scheme), which is moot anyway for a device with
+    // identityQuery no.
+    bool          moogStyleDump;
+    uint8_t       productId;
     tPanelSection sections[PANEL_MAX_SECTIONS];
     uint32_t      sectionCount;
     tPanelList    lists[PANEL_MAX_LISTS];

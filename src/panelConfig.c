@@ -216,6 +216,10 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
             dial->dumpShift = (uint32_t)strtoul(val, NULL, 0);
         } else if (strcmp(key, "dumpMask") == 0) {
             dial->dumpMask = (uint32_t)strtoul(val, NULL, 0);
+        } else if (strcmp(key, "dumpBitOffset") == 0) {
+            dial->dumpBitOffset = (uint32_t)strtoul(val, NULL, 0);
+        } else if (strcmp(key, "dumpBitWidth") == 0) {
+            dial->dumpBitWidth = (uint32_t)strtoul(val, NULL, 0);
         } else {
             LOG_ERROR("panelConfig line %u: unknown dial attribute '%s'\n", lineNo, key);
         }
@@ -296,6 +300,10 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
         for (uint32_t b = 0; b < valueCount; b++) {
             config->stateRequestSysEx[b] = (uint8_t)strtoul(tokens[1 + b], NULL, 0);
         }
+    } else if (strcmp(keyword, "dumpFormat") == 0) {
+        config->moogStyleDump = (strcmp(tokens[1], "moog") == 0);
+    } else if (strcmp(keyword, "productId") == 0) {
+        config->productId = (uint8_t)strtoul(tokens[1], NULL, 0);
     } else if (strcmp(keyword, "list") == 0) {
         if (tokenCount < 3) {
             LOG_ERROR("panelConfig line %u: expected 'list <name> <items>'\n", lineNo);
