@@ -41,8 +41,31 @@
 # ccLsb= below — a generic capability (synthComms.c/panelConfig.c), not
 # specific to the Voyager. max=16384 (14-bit: 0..16383) rather than a plain
 # CC's 128.
+#
+# Everything below other than cutoff/res comes from a third-party Ctrlr
+# panel (ctrlr.org, "Mouge Voyeur" by Roman Kubiak, panelDevice=Voyager),
+# not a fresh hardware capture. Ctrlr panels are zlib-compressed JUCE
+# ValueTree binary blobs — this one was parsed with a small script written
+# against the exact serialization code in JUCE's own
+# juce_ValueTree.cpp/juce_Variant.cpp/juce_OutputStream.cpp (fetched from
+# upstream, not guessed from the hex), which consumed the entire decompressed
+# stream with no leftover bytes — strong confirmation the parse is exact.
+# Cross-check: that panel's own Cutoff (CC19/51) and Resonance (CC21/53)
+# assignments are byte-for-byte identical to the hardware-confirmed ones
+# above, which is a real (if not conclusive) signal the rest of its CC map is
+# accurate too. Continuous controls use the same 14-bit MSB/LSB pair
+# convention as cutoff/res (max=16384). The remaining controls (toggles,
+# switches, octave/source/destination/shaping selectors) are plain
+# single-byte CCs whose real value is NOT a plain 0..N-1 index — e.g. a
+# 6-position selector sends raw bytes 0/16/32/48/64/80 and a toggle sends
+# 0/127, not 0..5 or 0/1 — so they're declared "display=raw max=128" (shows
+# the literal CC byte) rather than "names=...": this file format's names=
+# assumes the raw value already IS the display index, and giving these
+# friendly names would need a sparse value->name table the dial model
+# doesn't support yet. Unlike cutoff/res, treat all of these as unconfirmed
+# against real hardware until checked.
 device          Moog Voyager
-description     Cutoff and Resonance confirmed against real hardware (14-bit CC pairs)
+description     Cutoff/Resonance confirmed on hardware; rest from a Ctrlr panel (unconfirmed)
 manufacturerId  0x04
 familyId        0x00
 memberId        0x00
@@ -58,5 +81,138 @@ spacing    50
 
 color f 0.2 0.6 1.0
 
-dial cutoff label="Cutoff"    color=f max=16384 display=raw cc=0x13 ccLsb=0x33
-dial res    label="Resonance" color=f max=16384 display=raw cc=0x15 ccLsb=0x35
+dial cutoff      label="Cutoff"     color=f max=16384 display=raw cc=0x13 ccLsb=0x33
+dial res         label="Resonance"  color=f max=16384 display=raw cc=0x15 ccLsb=0x35
+dial fltSpacing  label="Spacing"    color=f max=16384 display=raw cc=0x14 ccLsb=0x34
+dial fltKBAmount label="KB Amount"  color=f max=16384 display=raw cc=0x16 ccLsb=0x36
+dial fltMode     label="Mode"       color=f max=128   display=raw cc=86
+
+# ── Oscillators page ──────────────────────────────────────────────────────────
+page       oscillators
+section    osc1
+dialSize   40
+spacing    50
+
+color o1 0.9 0.4 0.2
+
+dial osc1Octave label="Octave" color=o1 max=128   display=raw cc=74
+dial osc1Wave   label="Wave"   color=o1 max=16384 display=raw cc=0x09 ccLsb=0x29
+dial osc1Level  label="Level"  color=o1 max=16384 display=raw cc=0x0F ccLsb=0x2F
+dial osc1Toggle label="On"     color=o1 max=128   display=raw cc=82
+
+page       oscillators
+section    osc2
+dialSize   40
+spacing    50
+
+color o2 0.4 0.8 0.5
+
+dial osc2Octave label="Octave" color=o2 max=128   display=raw cc=75
+dial osc2Wave   label="Wave"   color=o2 max=16384 display=raw cc=0x0B ccLsb=0x2B
+dial osc2Freq   label="Freq"   color=o2 max=16384 display=raw cc=0x0A ccLsb=0x2A
+dial osc2Level  label="Level"  color=o2 max=16384 display=raw cc=0x10 ccLsb=0x30
+dial osc2Toggle label="On"     color=o2 max=128   display=raw cc=83
+
+page       oscillators
+section    osc3
+dialSize   40
+spacing    50
+
+color o3 0.6 0.5 0.9
+
+dial osc3Octave    label="Octave"     color=o3 max=128   display=raw cc=76
+dial osc3Wave      label="Wave"       color=o3 max=16384 display=raw cc=0x0D ccLsb=0x2D
+dial osc3Freq      label="Freq"       color=o3 max=16384 display=raw cc=0x0C ccLsb=0x2C
+dial osc3Level     label="Level"      color=o3 max=16384 display=raw cc=0x11 ccLsb=0x31
+dial osc3Toggle    label="On"         color=o3 max=128   display=raw cc=84
+dial osc3KB        label="KB Track"   color=o3 max=128   display=raw cc=79
+dial osc3FreqRange label="Freq Range" color=o3 max=128   display=raw cc=80
+
+page       oscillators
+section    mixer
+dialSize   40
+spacing    50
+
+color m 0.7 0.7 0.7
+
+dial noiseLevel  label="Noise"     color=m max=16384 display=raw cc=0x12 ccLsb=0x32
+dial noiseToggle label="Noise On"  color=m max=128   display=raw cc=85
+dial extLevel    label="External"  color=m max=16384 display=raw cc=0x0E ccLsb=0x2E
+dial extToggle   label="Ext On"    color=m max=128   display=raw cc=81
+dial oscSync     label="1->2 Sync" color=m max=128   display=raw cc=77
+dial oscFM       label="FM"        color=m max=128   display=raw cc=78
+
+# ── Envelopes page ────────────────────────────────────────────────────────────
+page       envelopes
+section    filterEnv
+dialSize   40
+spacing    50
+
+color fe 0.9 0.6 0.2
+
+dial fltEnvAttack  label="Attack"  color=fe max=16384 display=raw cc=0x17 ccLsb=0x37
+dial fltEnvDecay   label="Decay"   color=fe max=16384 display=raw cc=0x18 ccLsb=0x38
+dial fltEnvSustain label="Sustain" color=fe max=16384 display=raw cc=0x19 ccLsb=0x39
+dial fltEnvRelease label="Release" color=fe max=16384 display=raw cc=0x1A ccLsb=0x3A
+dial fltEnvAmount  label="Amount"  color=fe max=16384 display=raw cc=0x1B ccLsb=0x3B
+
+page       envelopes
+section    volEnv
+dialSize   40
+spacing    50
+
+color ve 0.3 0.7 0.9
+
+dial volEnvAttack  label="Attack"  color=ve max=16384 display=raw cc=0x1C ccLsb=0x3C
+dial volEnvDecay   label="Decay"   color=ve max=16384 display=raw cc=0x1D ccLsb=0x3D
+dial volEnvSustain label="Sustain" color=ve max=16384 display=raw cc=0x1E ccLsb=0x3E
+dial volEnvRelease label="Release" color=ve max=16384 display=raw cc=0x1F ccLsb=0x3F
+dial gateToggle    label="Gate"    color=ve max=128   display=raw cc=87
+
+# ── Modulation page ───────────────────────────────────────────────────────────
+page       modulation
+section    lfo
+dialSize   40
+spacing    50
+
+color lf 0.8 0.3 0.3
+
+dial lfoRate label="Rate" color=lf max=16384 display=raw cc=0x03 ccLsb=0x23
+dial lfoSync label="Sync" color=lf max=128   display=raw cc=67
+
+page       modulation
+section    modWheel
+dialSize   40
+spacing    50
+
+color mw 0.3 0.6 0.8
+
+dial mwSource      label="Source"      color=mw max=128   display=raw cc=68
+dial mwDestination label="Destination" color=mw max=128   display=raw cc=69
+dial mwShaping     label="Shaping"     color=mw max=128   display=raw cc=70
+dial mwAmount      label="Amount"      color=mw max=16384 display=raw cc=0x06 ccLsb=0x26
+
+page       modulation
+section    pedal
+dialSize   40
+spacing    50
+
+color pd 0.5 0.8 0.4
+
+dial pedalSource      label="Source"      color=pd max=128   display=raw cc=71
+dial pedalDestination label="Destination" color=pd max=128   display=raw cc=72
+dial pedalShaping     label="Shaping"     color=pd max=128   display=raw cc=73
+dial pedalAmount      label="Amount"      color=pd max=16384 display=raw cc=0x08 ccLsb=0x28
+
+# ── Global page ───────────────────────────────────────────────────────────────
+page       global
+section    global
+dialSize   40
+spacing    50
+
+color g 0.5 0.5 0.5
+
+dial volume        label="Volume"      color=g max=16384 display=raw cc=0x07 ccLsb=0x27
+dial glide         label="Glide"       color=g max=128   display=raw cc=65
+dial glideRate     label="Glide Rate"  color=g max=16384 display=raw cc=0x05 ccLsb=0x25
+dial releaseSwitch label="Release Sw" color=g max=128   display=raw cc=88

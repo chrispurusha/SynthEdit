@@ -71,23 +71,10 @@ const char * get_saved_layouts_dir(void) {
     return buf;
 }
 
-@interface SynthMenuTarget : NSObject
-- (void)scanDevices:(id)sender;
-- (void)setDialModeRotary:(id)sender;
-- (void)setDialModeVertical:(id)sender;
-- (void)setDialModeHorizontal:(id)sender;
-- (void)chooseLayoutsFolder:(id)sender;
-- (BOOL)validateMenuItem:(NSMenuItem *)item;
-@end
-
-@implementation SynthMenuTarget
-
-- (void)scanDevices:(id)sender {
-    midi_scan_devices();
-    wake_glfw();
-}
-
-- (void)chooseLayoutsFolder:(id)sender {
+// Shared by the "Choose Layouts Folder…" menu action and the automatic
+// prompt synth_choose_config_file() triggers when the current folder has no
+// valid <device>.txt in it.
+static void do_choose_layouts_folder(void) {
     NSOpenPanel * panel = [NSOpenPanel openPanel];
 
     [panel setCanChooseFiles:NO];
@@ -120,6 +107,30 @@ const char * get_saved_layouts_dir(void) {
          synth_set_layouts_dir([[url path] UTF8String]);
          wake_glfw();
      }];
+}
+
+void prompt_choose_layouts_folder(void) {
+    do_choose_layouts_folder();
+}
+
+@interface SynthMenuTarget : NSObject
+- (void)scanDevices:(id)sender;
+- (void)setDialModeRotary:(id)sender;
+- (void)setDialModeVertical:(id)sender;
+- (void)setDialModeHorizontal:(id)sender;
+- (void)chooseLayoutsFolder:(id)sender;
+- (BOOL)validateMenuItem:(NSMenuItem *)item;
+@end
+
+@implementation SynthMenuTarget
+
+- (void)scanDevices:(id)sender {
+    midi_scan_devices();
+    wake_glfw();
+}
+
+- (void)chooseLayoutsFolder:(id)sender {
+    do_choose_layouts_folder();
 }
 
 - (void)setDialModeRotary:(id)sender {

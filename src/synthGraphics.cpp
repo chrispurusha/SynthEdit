@@ -214,11 +214,17 @@ static void synth_reload_panel_config(void) {
 // "description" lines) and switches gConfigFileName to whichever was picked.
 // If the user cancels, whatever gConfigFileName already held is left alone
 // rather than blocking startup.
+//
+// Zero candidates (no folder ever chosen, or the saved one moved/was
+// emptied) instead puts up the same folder picker as the "Choose Layouts
+// Folder…" menu item, asynchronously — synth_set_layouts_dir() re-enters
+// this whole function once the user actually picks something.
 static void synth_choose_config_file(void) {
     tPanelConfigCandidate candidates[PANEL_MAX_CANDIDATES];
     uint32_t              count = scan_panel_configs(gLayoutsDir, candidates, PANEL_MAX_CANDIDATES);
 
     if (count == 0) {
+        prompt_choose_layouts_folder();
         return;
     }
 

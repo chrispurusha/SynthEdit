@@ -33,6 +33,13 @@ void save_window_pos(int x, int y);
 // Valid until the next call — copy it if you need to keep it.
 const char * get_saved_layouts_dir(void);
 
+// Puts up the same "Choose Layouts Folder…" NSOpenPanel as the Layouts menu
+// item, asynchronously. Called from synth_choose_config_file() when the
+// current layouts folder (saved bookmark, or the built-in default) has zero
+// valid <device>.txt files in it — covers both "never set a folder yet" and
+// "the folder moved/was emptied" without special-casing either.
+void prompt_choose_layouts_folder(void);
+
 #ifdef __cplusplus
 }
 #endif
