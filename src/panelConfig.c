@@ -24,7 +24,7 @@
 #include "synthlibDefs.h"
 #include "panelConfig.h"
 
-#define PANEL_LINE_LEN      256
+#define PANEL_LINE_LEN      512
 #define PANEL_MAX_TOKENS    16
 #define PANEL_TOKEN_LEN     64
 
@@ -255,6 +255,10 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
         config->familyId = (uint32_t)strtoul(tokens[1], NULL, 0);
     } else if (strcmp(keyword, "memberId") == 0) {
         config->memberId = (uint32_t)strtoul(tokens[1], NULL, 0);
+    } else if (strcmp(keyword, "progNameLen") == 0) {
+        config->progNameLen = (uint32_t)strtoul(tokens[1], NULL, 0);
+    } else if (strcmp(keyword, "scrollDial") == 0) {
+        strncpy(config->scrollDialId, tokens[1], sizeof(config->scrollDialId) - 1);
     } else if (strcmp(keyword, "list") == 0) {
         if (tokenCount < 3) {
             LOG_ERROR("panelConfig line %u: expected 'list <name> <items>'\n", lineNo);
@@ -290,6 +294,10 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
     } else if (strcmp(keyword, "spacing") == 0) {
         if (*currentSection) {
             (*currentSection)->spacing = strtod(tokens[1], NULL);
+        }
+    } else if (strcmp(keyword, "hidden") == 0) {
+        if (*currentSection) {
+            (*currentSection)->hidden = true;
         }
     } else if (strcmp(keyword, "gap") == 0) {
         *pendingGap += strtod(tokens[1], NULL);
@@ -328,6 +336,20 @@ bool load_panel_config(const char * path, tPanelConfig * config) {
         lineNo++;
 
         size_t len = strlen(line);
+
+        // A physical line longer than PANEL_LINE_LEN-1 leaves fgets() without
+        // its trailing newline — the remainder would otherwise be read as a
+        // bogus separate "line" (garbage directive) by the next fgets() call.
+        // Detect that and discard the rest of the real line instead, so an
+        // over-long line degrades to "this one line didn't fully load"
+        // rather than corrupting parsing of everything after it.
+        if ((len == sizeof(line) - 1) && (line[len - 1] != '\n')) {
+            LOG_ERROR("panelConfig line %u: line longer than %u bytes, truncated\n", lineNo, (unsigned)sizeof(line) - 1);
+            int c;
+
+            while (((c = fgetc(file)) != EOF) && (c != '\n')) {
+            }
+        }
 
         while ((len > 0) && ((line[len - 1] == '\n') || (line[len - 1] == '\r'))) {
             line[--len] = '\0';
@@ -375,10 +397,36 @@ tPanelDial * find_panel_dial(tPanelSection * section, const char * id) {
     return NULL;
 }
 
+tPanelDial * find_panel_dial_anywhere(tPanelConfig * config, const char * id) {
+    for (uint32_t s = 0; s < config->sectionCount; s++) {
+        tPanelDial * dial = find_panel_dial(&config->sections[s], id);
+
+        if (dial) {
+            return dial;
+        }
+    }
+
+    return NULL;
+}
+
 tPanelDial * find_panel_dial_by_param(tPanelSection * section, uint32_t group, uint32_t paramId) {
     for (uint32_t i = 0; i < section->dialCount; i++) {
         if ((section->dials[i].paramGroup == group) && (section->dials[i].paramId == paramId)) {
             return &section->dials[i];
+        }
+    }
+
+    return NULL;
+}
+
+tPanelDial * find_panel_dial_by_cc(tPanelConfig * config, uint8_t cc) {
+    for (uint32_t s = 0; s < config->sectionCount; s++) {
+        tPanelSection * section = &config->sections[s];
+
+        for (uint32_t i = 0; i < section->dialCount; i++) {
+            if ((section->dials[i].ccNumber != 0) && (section->dials[i].ccNumber == cc)) {
+                return &section->dials[i];
+            }
         }
     }
 
@@ -396,17 +444,17 @@ int32_t hit_test_panel_section(tPanelSection * section, tCoord point) {
 }
 
 uint32_t get_panel_dial_value(const tPanelDial * dial) {
-    if (!dial || !dial->valuePtr) {
+    if (!dial) {
         return 0;
     }
-    return (uint32_t)(*dial->valuePtr - dial->storageOffset);
+    return (uint32_t)(dial->value - dial->storageOffset);
 }
 
 uint32_t get_panel_dial_native_value(const tPanelDial * dial) {
-    if (!dial || !dial->nativeValuePtr) {
+    if (!dial) {
         return 0;
     }
-    return (uint32_t)(*dial->nativeValuePtr);
+    return (uint32_t)dial->nativeValue;
 }
 
 const char * get_panel_list_item(const tPanelConfig * config, const char * listName, uint32_t index) {

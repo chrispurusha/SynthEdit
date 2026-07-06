@@ -47,10 +47,6 @@ static char         gLayoutsDir[1024]              = SYNTH_LAYOUTS_DIR_DEFAULT;
 
 static tPanelConfig gSynthPanelConfig              = {0};
 
-tPanelSection * synth_filters_section(void) {
-    return find_panel_section(&gSynthPanelConfig, "synthesis", "filters");
-}
-
 tPanelConfig * synth_panel_config(void) {
     return &gSynthPanelConfig;
 }
@@ -84,8 +80,10 @@ uint32_t synth_current_page_sections(tPanelSection * outSections[], uint32_t max
     uint32_t count = 0;
 
     for (uint32_t i = 0; (i < gSynthPanelConfig.sectionCount) && (count < maxSections); i++) {
-        if (strcmp(gSynthPanelConfig.sections[i].page, gCurrentPage) == 0) {
-            outSections[count++] = &gSynthPanelConfig.sections[i];
+        tPanelSection * section = &gSynthPanelConfig.sections[i];
+
+        if (!section->hidden && (strcmp(section->page, gCurrentPage) == 0)) {
+            outSections[count++] = section;
         }
     }
 
@@ -161,6 +159,41 @@ static double render_page_tabs(tRectangle origin) {
     return (gPageTabCount > 0) ? (tabHeight + 12.0) : 0.0;
 }
 
+// Widens a section's spacing (floor: whatever dialSize/spacing the file gave
+// it) to fit its own widest label or discrete-name text — render_text() draws
+// unclipped by rectangle width (see internal_render_text() in
+// utilsGraphics.cpp), so anything wider than the column it's given visually
+// bleeds into the next dial's text. Generic: works for any section from any
+// device config, not a fixed value tuned for one device's longest string.
+// Idempotent — recomputing against an already-widened spacing yields the
+// same result, so calling this every frame is fine.
+static double section_required_spacing(tPanelSection * section) {
+    const double textHeight = 12.0; // matches the value/label render_text() calls below
+    const double padding    = 8.0;
+    double       required   = section->spacing;
+
+    for (uint32_t i = 0; i < section->dialCount; i++) {
+        tPanelDial * dial   = &section->dials[i];
+        double       labelW = get_text_width(dial->label, textHeight, eNoCache) + padding;
+
+        if (labelW > required) {
+            required = labelW;
+        }
+
+        if (dial->display == dialDisplayNames) {
+            for (uint32_t n = 0; n < dial->nameCount; n++) {
+                double nameW = get_text_width(dial->names[n], textHeight, eNoCache) + padding;
+
+                if (nameW > required) {
+                    required = nameW;
+                }
+            }
+        }
+    }
+
+    return required;
+}
+
 static void synth_reload_panel_config(void) {
     char path[1152];
 
@@ -168,10 +201,6 @@ static void synth_reload_panel_config(void) {
 
     if (!load_panel_config(path, &gSynthPanelConfig)) {
         LOG_ERROR("Synth: couldn't load '%s' — dials will not render\n", path);
-    } else {
-        for (uint32_t s = 0; s < gSynthPanelConfig.sectionCount; s++) {
-            synth_bind_panel_dials(&gSynthPanelConfig.sections[s]);
-        }
     }
     gReDraw = true;
 }
@@ -216,27 +245,42 @@ void synth_render(tRectangle area) {
         y += 32.0;
     }
 
-    // ── Info row: Category / Voice mode / Unison ──────────────────────────────
-    // Category/voiceMode/unisonType names come from xxxx.txt's named lists, not
-    // hardcoded here — this block only knows the field values, not their text.
+    // ── Info row: every dial in a `hidden` section, anywhere in the config ────
+    // (e.g. the Z1's Category/Voice/Unison* — see layouts/z1.txt) — shown as
+    // "label: value" text rather than a rendered control. Fully generic: this
+    // block has no idea what any of these dials mean, so a different device
+    // with different (or no) hidden dials needs no change here.
     {
-        char         infoBuf[128];
-        const char * uniStr = "Unison: off";
-        char         uniBuf[48];
+        char infoBuf[256] = {0};
 
-        if (gDevice.unisonOn && (gDevice.unisonType > 0)) {
-            snprintf(uniBuf, sizeof(uniBuf), "Unison: %s  %u cent%s",
-                     get_panel_list_item(&gSynthPanelConfig, "unisonType", gDevice.unisonType - 1),
-                     (unsigned)gDevice.unisonDetune,
-                     gDevice.unisonDetune == 1 ? "" : "s");
-            uniStr = uniBuf;
+        for (uint32_t s = 0; s < gSynthPanelConfig.sectionCount; s++) {
+            tPanelSection * section = &gSynthPanelConfig.sections[s];
+
+            if (!section->hidden) {
+                continue;
+            }
+
+            for (uint32_t d = 0; d < section->dialCount; d++) {
+                tPanelDial * dial    = &section->dials[d];
+                uint32_t     dialVal = get_panel_dial_value(dial);
+                char         valStr[32];
+
+                if (dial->display == dialDisplayNames) {
+                    snprintf(valStr, sizeof(valStr), "%s", (dialVal < dial->nameCount) ? dial->names[dialVal] : "?");
+                } else {
+                    snprintf(valStr, sizeof(valStr), "%u", (unsigned)dialVal);
+                }
+                char         pair[64];
+                snprintf(pair, sizeof(pair), "%s: %s", dial->label, valStr);
+
+                if (infoBuf[0] != '\0') {
+                    strncat(infoBuf, "  |  ", sizeof(infoBuf) - strlen(infoBuf) - 1);
+                }
+                strncat(infoBuf, pair, sizeof(infoBuf) - strlen(infoBuf) - 1);
+            }
         }
-        snprintf(infoBuf, sizeof(infoBuf), "%s  |  %s  |  %s",
-                 get_panel_list_item(&gSynthPanelConfig, "category", gDevice.category),
-                 get_panel_list_item(&gSynthPanelConfig, "voiceMode", gDevice.voiceMode),
-                 uniStr);
 
-        tRectangle   r      = {{x, y}, {500.0, 13.0}};
+        tRectangle r = {{x, y}, {700.0, 13.0}};
         set_rgb_colour((tRgb)RGB_GREY_7);
         render_text(mainArea, r, infoBuf);
         y += 25.0;
@@ -257,6 +301,7 @@ void synth_render(tRectangle area) {
         for (uint32_t sIdx = 0; sIdx < sectionCount; sIdx++) {
             tPanelSection * section = sections[sIdx];
 
+            section->spacing = section_required_spacing(section);
             layout_panel_section(section, (tRectangle){{x, y}, {0, 0}});
 
             for (uint32_t i = 0; i < section->dialCount; i++) {

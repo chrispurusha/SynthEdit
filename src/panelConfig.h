@@ -75,15 +75,17 @@ typedef struct {
 
     // Protocol wiring — describes how to read/write/send this control's value,
     // so generic code (mouse handling, rendering) never needs to know what a
-    // given dial *means*. All parsed from the file; application code only
-    // resolves valuePtr/nativeValuePtr (see e.g. synth_bind_panel_dials()).
-    int32_t   storageOffset;     // storage_value = display_value + storageOffset (e.g. 1-5 vs 0-4 for "type")
-    uint32_t  paramGroup;        // SysEx parameter group
-    uint32_t  paramId;           // SysEx parameter ID
-    uint32_t  ccNumber;          // MIDI CC number; 0 = not CC-controlled (send SysEx param change instead)
-    uint32_t  nativeMax;         // native/SysEx value range when paired with a CC (0 = no native pairing)
-    uint8_t * valuePtr;          // bound at runtime to the live storage-space value; NULL until resolved
-    uint8_t * nativeValuePtr;    // bound at runtime to the live native value, if any; NULL if unused
+    // given dial *means*. All parsed from the file. The dial owns its own
+    // live value/nativeValue directly (see get_panel_dial_value() etc.) —
+    // there is no separate application-side struct/binding step for any of
+    // this, which is what makes a new device just a new <device>.txt file.
+    int32_t  storageOffset;     // storage_value = display_value + storageOffset (e.g. 1-5 vs 0-4 for "type")
+    uint32_t paramGroup;        // SysEx parameter group
+    uint32_t paramId;           // SysEx parameter ID
+    uint32_t ccNumber;          // MIDI CC number; 0 = not CC-controlled (send SysEx param change instead)
+    uint32_t nativeMax;         // native/SysEx value range when paired with a CC (0 = no native pairing)
+    uint8_t  value;             // live storage-space value (display_value + storageOffset)
+    uint8_t  nativeValue;       // live native value, if nativeMax != 0; unused otherwise
 
     // Where this dial's value lives in a full program-dump byte buffer (a
     // different wire format from individual parameter-change messages, but
@@ -94,10 +96,14 @@ typedef struct {
 } tPanelDial;
 
 typedef struct {
-    char         page[PANEL_ID_LEN];
-    char         section[PANEL_ID_LEN];
-    double       dialSize;
-    double       spacing;
+    char   page[PANEL_ID_LEN];
+    char   section[PANEL_ID_LEN];
+    double dialSize;
+    double spacing;
+    bool   hidden;               // true: not a rendered control/page-tab target, just named
+                                 // device state (e.g. program category, voice mode, unison) —
+                                 // shown as plain "label: value" text instead of a dial widget.
+                                 // Still parsed/bound/dump-scanned exactly like any other section.
     tPanelColour colours[PANEL_MAX_COLOURS];
     uint32_t     colourCount;
     tPanelDial   dials[PANEL_MAX_DIALS];
@@ -109,6 +115,10 @@ typedef struct {
     uint32_t      manufacturerId;
     uint32_t      familyId;
     uint32_t      memberId;
+    uint32_t      progNameLen;                // count of leading dump bytes that are program-name ASCII chars
+                                              // (also param IDs 1..progNameLen on the live parameter-change path)
+    char          scrollDialId[PANEL_ID_LEN]; // dial id (found in any section) that plain mouse-wheel
+    // scroll nudges when nothing is being dragged; empty = no shortcut
     tPanelSection sections[PANEL_MAX_SECTIONS];
     uint32_t      sectionCount;
     tPanelList    lists[PANEL_MAX_LISTS];
@@ -127,16 +137,28 @@ void layout_panel_section(tPanelSection * section, tRectangle origin);
 tPanelSection * find_panel_section(tPanelConfig * config, const char * page, const char * section);
 tPanelDial * find_panel_dial(tPanelSection * section, const char * id);
 
+// Same as find_panel_dial(), but searches every section in the config rather
+// than one already-known section — for generic code (an info-text row, a
+// scroll-shortcut) that only has a dial id and no reason to know which
+// section it lives in.
+tPanelDial * find_panel_dial_anywhere(tPanelConfig * config, const char * id);
+
 // Looks up the dial wired to a given SysEx parameter group/ID (see the
 // "group="/"param=" file attributes), or NULL if none matches.
 tPanelDial * find_panel_dial_by_param(tPanelSection * section, uint32_t group, uint32_t paramId);
+
+// Looks up the dial wired to a given MIDI CC number (see the "cc=" file
+// attribute) across every section in the config, or NULL if none matches —
+// for real-time CC dispatch, which (unlike a SysEx parameter change) carries
+// no section/group context to narrow the search.
+tPanelDial * find_panel_dial_by_cc(tPanelConfig * config, uint8_t cc);
 
 // Returns the index into section->dials[] under `point`, or -1 if none.
 // Call after layout_panel_section() has populated the dials' rects.
 int32_t hit_test_panel_section(tPanelSection * section, tCoord point);
 
-// Display-space value (0..max-1), read via the bound valuePtr/nativeValuePtr —
-// pure pointer arithmetic, no protocol knowledge. Returns 0 if unbound.
+// Display-space value (0..max-1) — pure arithmetic on the dial's own stored
+// value, no protocol knowledge.
 uint32_t get_panel_dial_value(const tPanelDial * dial);
 uint32_t get_panel_dial_native_value(const tPanelDial * dial);
 

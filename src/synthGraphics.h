@@ -40,12 +40,6 @@ void synth_render(tRectangle area);
 // xxxx.txt from the new location immediately.
 void synth_set_layouts_dir(const char * dir);
 
-// The "synthesis"/"filters" section from xxxx.txt, laid out during the last
-// synth_render() call — dial rects are valid for hit-testing until the next
-// render. Always resolves to this section regardless of which page is
-// currently active on screen: incoming device state must update it either way.
-tPanelSection * synth_filters_section(void);
-
 // The full parsed config, for callers that need named lists (see
 // get_panel_list_item()/get_panel_list_count()) rather than a specific dial.
 tPanelConfig * synth_panel_config(void);
@@ -53,10 +47,10 @@ tPanelConfig * synth_panel_config(void);
 // Every section belonging to whichever page is currently showing on screen
 // (see synth_set_current_page()), in layout-file order — that order is what
 // determines top-to-bottom stacking when rendered (see synth_render()) and
-// the order mouse handling should search when hit-testing/dragging. Unlike
-// synth_filters_section(), this changes with the active page. Writes at most
-// maxSections pointers into outSections and returns how many were written;
-// each section's dial rects stay valid until the next synth_render() call.
+// the order mouse handling should search when hit-testing/dragging. Writes at
+// most maxSections pointers into outSections and returns how many were
+// written; each section's dial rects stay valid until the next
+// synth_render() call.
 uint32_t synth_current_page_sections(tPanelSection * outSections[], uint32_t maxSections);
 
 const char * synth_current_page(void);

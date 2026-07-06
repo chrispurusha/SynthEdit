@@ -105,23 +105,26 @@ static uint32_t build_header(uint8_t * buf, uint8_t funcId) {
 
 // ── Generic wire value application ───────────────────────────────────────────
 // Applies a raw value received off the wire (either a decoded program-dump
-// byte or a parameter-change value) to a bound dial. If the dial pairs a
-// native value, `rawValue` is the native representation and the storage/CC
-// value is derived from it; otherwise `rawValue` is the storage value
-// directly, clamped to the dial's own [storageOffset, storageOffset+max-1]
-// range. No per-dial knowledge here — it's all driven by the dial's fields.
+// byte or a parameter-change value) to a dial's own storage. If the dial
+// pairs a native value, `rawValue` is the native representation and the
+// storage/CC value is derived from it; otherwise `rawValue` is the storage
+// value directly, clamped to the dial's own [storageOffset,
+// storageOffset+max-1] range. No per-dial knowledge here — it's all driven
+// by the dial's fields, which is what lets any device's dials (not just the
+// ones a particular <device>.txt happens to declare) go through this
+// unchanged.
 static void apply_dial_wire_value(tPanelDial * dial, uint32_t rawValue) {
-    if (!dial || !dial->valuePtr) {
+    if (!dial) {
         return;
     }
 
-    if (dial->nativeValuePtr && (dial->nativeMax != 0)) {
+    if (dial->nativeMax != 0) {
         uint32_t native = (rawValue <= dial->nativeMax) ? rawValue : dial->nativeMax;
 
-        *dial->nativeValuePtr = (uint8_t)native;
-        *dial->valuePtr       = (dial->max > 1)
-                                ? (uint8_t)(((native * (dial->max - 1)) + (dial->nativeMax / 2)) / dial->nativeMax)
-                                : 0;
+        dial->nativeValue = (uint8_t)native;
+        dial->value       = (dial->max > 1)
+                            ? (uint8_t)(((native * (dial->max - 1)) + (dial->nativeMax / 2)) / dial->nativeMax)
+                            : 0;
     } else {
         int32_t lo = dial->storageOffset;
         int32_t hi = dial->storageOffset + (int32_t)dial->max - 1;
@@ -134,24 +137,27 @@ static void apply_dial_wire_value(tPanelDial * dial, uint32_t rawValue) {
         if (v > hi) {
             v = hi;
         }
-        *dial->valuePtr = (uint8_t)v;
+        dial->value = (uint8_t)v;
     }
 }
 
 // ── Program info extraction ───────────────────────────────────────────────────
-// Byte layout (originally derived from Korg Z1 MIDI spec parameter table, packed fields noted):
-//   0-15  : Program Name chars (params 1-16)
-//     16  : Category          (param 17)
-//     17  : User Group        (param 18)
-//     18  : Hold[0] + KeyPriority[1:2] + VoiceAssignMode[3:4]  (params 19-21, packed)
-//     19  : Retrigger Controller     (param 22)
-//     20  : Retrigger Threshold      (param 23)
-//     21  : UnisonType[0:1] + UnisonSW[2] + UnisonMode[3]      (params 24-26, packed)
-//     22  : Unison Detune            (param 27)
+// Everything about what a decoded program dump contains — name length, every
+// other field's byte offset/bit-packing/native scaling — comes from the
+// device's own <device>.txt (progNameLen, and each dial's dumpOffset/
+// dumpShift/dumpMask/nativeMax); nothing device-specific lives here. Category,
+// voice mode, unison and the like aren't special-cased: on the Z1 they're
+// just dials in a `hidden` section (rendered as plain text rather than a
+// circular control — see synth_render()), wired up exactly like Filter's or
+// Oscillator's dials.
 static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
-    // Name (bytes 0-15)
-    uint32_t nameLen = (decodedLen >= SYNTH_PROG_NAME_LEN) ? SYNTH_PROG_NAME_LEN : decodedLen;
-    uint32_t i;
+    tPanelConfig * cfg     = synth_panel_config();
+    uint32_t       nameLen = (decodedLen >= cfg->progNameLen) ? cfg->progNameLen : decodedLen;
+
+    if (nameLen >= sizeof(gDevice.progName)) {
+        nameLen = sizeof(gDevice.progName) - 1;
+    }
+    uint32_t       i;
 
     for (i = 0; i < nameLen; i++) {
         char c = (char)decoded[i];
@@ -163,36 +169,12 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
     }
     gDevice.progName[i] = '\0';
 
-    // Category (byte 16)
-    if (decodedLen > 16) {
-        gDevice.category = decoded[16] & 0x1F;
-
-        if (gDevice.category >= get_panel_list_count(synth_panel_config(), "category")) {
-            gDevice.category = 0;
-        }
-    }
-
-    // Voice assign mode (byte 18, bits 3-4)
-    if (decodedLen > 18) {
-        gDevice.voiceMode = (decoded[18] >> 3) & 0x03;
-    }
-
-    // Unison (byte 21: bits 0-1 = type, bit 2 = SW; byte 22 = detune)
-    if (decodedLen > 21) {
-        gDevice.unisonType = decoded[21] & 0x03;
-        gDevice.unisonOn   = (decoded[21] >> 2) & 0x01;
-    }
-
-    if (decodedLen > 22) {
-        gDevice.unisonDetune = decoded[22];
-    }
-    // Values from decoded program dump — a full-dump byte buffer, a different
-    // wire format from param= change messages. Byte offsets, bit-packing and
-    // native/CC scaling all come from synth.txt (dumpOffset/dumpShift/
-    // dumpMask/nativeMax); no per-dial knowledge lives here. Every section
-    // gets scanned, not just Filters — Oscillator's dials live in their own
-    // sections (oscCommon/osc1/osc2/subOsc/noise/mixer) alongside Filters.
-    tPanelConfig *  cfg     = synth_panel_config();
+    // Every other value from the decoded program dump — a full-dump byte
+    // buffer, a different wire format from param= change messages. Byte
+    // offsets, bit-packing and native/CC scaling all come from the device's
+    // own <device>.txt (dumpOffset/dumpShift/dumpMask/nativeMax); no per-dial
+    // knowledge lives here. Every section gets scanned, hidden or not.
+    uint32_t       updated = 0;
 
     for (uint32_t s = 0; s < cfg->sectionCount; s++) {
         tPanelSection * dumpSection = &cfg->sections[s];
@@ -203,34 +185,12 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
             if ((dial->dumpOffset >= 0) && (decodedLen > (uint32_t)dial->dumpOffset)) {
                 uint32_t raw = (decoded[dial->dumpOffset] >> dial->dumpShift) & dial->dumpMask;
                 apply_dial_wire_value(dial, raw);
+                updated++;
             }
         }
     }
 
-    tPanelSection * section = synth_filters_section();
-    tPanelDial *    f1type  = section ? find_panel_dial(section, "f1type") : NULL;
-    tPanelDial *    f2type  = section ? find_panel_dial(section, "f2type") : NULL;
-    tPanelDial *    f1cut   = section ? find_panel_dial(section, "f1cut") : NULL;
-    tPanelDial *    f1res   = section ? find_panel_dial(section, "f1res") : NULL;
-    tPanelDial *    f2cut   = section ? find_panel_dial(section, "f2cut") : NULL;
-    tPanelDial *    f2res   = section ? find_panel_dial(section, "f2res") : NULL;
-    uint32_t        f1tVal  = f1type ? get_panel_dial_value(f1type) : 0;
-    uint32_t        f2tVal  = f2type ? get_panel_dial_value(f2type) : 0;
-
-    LOG_DEBUG("Synth prog: \"%s\"  cat=%s  voice=%s  unison=%s(%u cents)"
-              "  f1type=%s f1cut=%u(%u) f1res=%u(%u)"
-              "  f2type=%s f2cut=%u(%u) f2res=%u(%u)\n",
-              gDevice.progName,
-              get_panel_list_item(cfg, "category", gDevice.category),
-              get_panel_list_item(cfg, "voiceMode", gDevice.voiceMode),
-              gDevice.unisonOn ? get_panel_list_item(cfg, "unisonType", gDevice.unisonType - 1) : "OFF",
-              (unsigned)gDevice.unisonDetune,
-              (f1type && (f1tVal < f1type->nameCount)) ? f1type->names[f1tVal] : "?",
-              (unsigned)get_panel_dial_value(f1cut), (unsigned)get_panel_dial_native_value(f1cut),
-              (unsigned)get_panel_dial_value(f1res), (unsigned)get_panel_dial_native_value(f1res),
-              (f2type && (f2tVal < f2type->nameCount)) ? f2type->names[f2tVal] : "?",
-              (unsigned)get_panel_dial_value(f2cut), (unsigned)get_panel_dial_native_value(f2cut),
-              (unsigned)get_panel_dial_value(f2res), (unsigned)get_panel_dial_native_value(f2res));
+    LOG_DEBUG("Synth prog: \"%s\" — %u dial(s) updated from dump\n", gDevice.progName, (unsigned)updated);
 }
 
 // ── Message handlers ──────────────────────────────────────────────────────────
@@ -260,25 +220,28 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
     if (length < 10) {
         return;
     }
-    uint8_t  group   = data[5] & 0x0F;
-    uint16_t paramId = (uint16_t)(data[6] | ((uint16_t)(data[7] & 0x7F) << 7));
-    uint16_t value   = (uint16_t)(data[8] | ((uint16_t)(data[9] & 0x7F) << 7));
+    uint8_t        group   = data[5] & 0x0F;
+    uint16_t       paramId = (uint16_t)(data[6] | ((uint16_t)(data[7] & 0x7F) << 7));
+    uint16_t       value   = (uint16_t)(data[8] | ((uint16_t)(data[9] & 0x7F) << 7));
 
     LOG_DEBUG("PARAM_CHANGE group=%u param=%u value=%u\n",
               (unsigned)group, (unsigned)paramId, (unsigned)value);
 
-    if ((group == SYNTH_PARAM_GROUP_PROG) && (paramId >= 1) && (paramId <= SYNTH_PROG_NAME_LEN)) {
+    tPanelConfig * cfg     = synth_panel_config();
+
+    if (  (group == SYNTH_PARAM_GROUP_PROG) && (paramId >= 1) && (paramId <= cfg->progNameLen)
+       && (paramId < sizeof(gDevice.progName))) {
         char c = (char)(value & 0x7F);
-        gDevice.progName[paramId - 1]         = ((c >= 0x20) && (c <= 0x7F)) ? c : '?';
-        gDevice.progName[SYNTH_PROG_NAME_LEN] = '\0';
+        gDevice.progName[paramId - 1]                                                                                   = ((c >= 0x20) && (c <= 0x7F)) ? c : '?';
+        gDevice.progName[cfg->progNameLen < sizeof(gDevice.progName) ? cfg->progNameLen : sizeof(gDevice.progName) - 1] = '\0';
         LOG_DEBUG("Program name updated: \"%s\"\n", gDevice.progName);
     } else if (group == SYNTH_PARAM_GROUP_PROG) {
         // Generic dispatch: whichever dial (if any) is wired to this
         // group/paramId in xxxx.txt gets the value — no per-param knowledge
-        // of what it controls lives here. Searches every section (Filters,
-        // Oscillator's several sections, ...), not just Filters.
-        tPanelConfig * cfg  = synth_panel_config();
-        tPanelDial *   dial = NULL;
+        // of what it controls lives here. Searches every section, hidden or
+        // not (Filters, Oscillator's several sections, Z1's hidden
+        // category/voice/unison section, ...).
+        tPanelDial * dial = NULL;
 
         for (uint32_t s = 0; (s < cfg->sectionCount) && !dial; s++) {
             dial = find_panel_dial_by_param(&cfg->sections[s], group, paramId);
@@ -296,16 +259,11 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
 void synth_on_connected(void) {
     LOG_DEBUG("Synth connected (channel byte 0x%02X)\n", SYNTH_SYSEX_CHANNEL_BYTE(gDevice.id));
     memset(gDevice.progName, 0, sizeof(gDevice.progName));
-    gDevice.category     = 0;
-    gDevice.voiceMode    = 2; // default POLY
-    gDevice.unisonOn     = false;
-    gDevice.unisonType   = 0;
-    gDevice.unisonDetune = 0;
 
-    // Reset every bound dial, in every section, to its display-space default
+    // Reset every dial, in every section, to its own display-space default
     // (0) — apply_dial_wire_value() already knows how to turn that into the
     // right storage/native representation per dial, so no per-field defaults
-    // here.
+    // here; there's nothing device-specific left to reset in gDevice itself.
     tPanelConfig * cfg = synth_panel_config();
 
     for (uint32_t s = 0; s < cfg->sectionCount; s++) {
@@ -316,7 +274,7 @@ void synth_on_connected(void) {
         }
     }
 
-    gReDraw              = true;
+    gReDraw = true;
     synth_request_current_program();
 }
 
@@ -343,6 +301,21 @@ void synth_send_parameter_change(uint8_t group, uint16_t paramId, uint16_t value
     msg[pos++] = (uint8_t)((value >> 7) & 0x7F);
     msg[pos++] = MIDI_SYSEX_END;
     midi_send(msg, pos);
+}
+
+bool synth_handle_cc(uint8_t cc, uint8_t value) {
+    tPanelDial * dial = find_panel_dial_by_cc(synth_panel_config(), cc);
+
+    if (!dial) {
+        return false;
+    }
+    // A live CC message already carries a storage/display-space value (0-127
+    // for a standard MIDI CC), not a native one — unlike apply_dial_wire_value()
+    // above (used for SysEx-sourced raw values), so this writes dial->value
+    // directly and leaves nativeValue at whatever the last SysEx-sourced
+    // update left it.
+    dial->value = value;
+    return true;
 }
 
 void synth_handle_message(const uint8_t * data, uint32_t length) {
@@ -382,89 +355,8 @@ void synth_handle_message(const uint8_t * data, uint32_t length) {
     gReDraw = true;
 }
 
-// ── Panel dial <-> gDevice binding ────────────────────────────────────────────
-// The only place that still knows a dial id like "f1cut" means
-// gDevice.filter1Cutoff — everything else (mouseHandle.c, rendering) works
-// generically off the tPanelDial it was resolved into.
-void synth_bind_panel_dials(tPanelSection * section) {
-    if (!section) {
-        return;
-    }
-    struct {
-        const char * id;
-        uint8_t *    value;
-        uint8_t *    native;
-    } bindings[] = {
-        {"route",       &gDevice.filterRouting,        NULL                        },
-        {"f2link",      &gDevice.filter2Link,          NULL                        },
-        {"f1type",      &gDevice.filter1Type,          NULL                        },
-        {"f1trim",      &gDevice.filter1InputTrim,     NULL                        },
-        {"f1cut",       &gDevice.filter1Cutoff,        &gDevice.filter1CutoffNative},
-        {"f1res",       &gDevice.filter1Resonance,     &gDevice.filter1ResNative   },
-        {"f2type",      &gDevice.filter2Type,          NULL                        },
-        {"f2trim",      &gDevice.filter2InputTrim,     NULL                        },
-        {"f2cut",       &gDevice.filter2Cutoff,        &gDevice.filter2CutoffNative},
-        {"f2res",       &gDevice.filter2Resonance,     &gDevice.filter2ResNative   },
-        // Oscillator section (oscCommon/osc1/osc2/subOsc/noise/mixer) — same
-        // "id in the file means this gDevice field" convention as Filters
-        // above. find_panel_dial() below is a no-op for any id not present in
-        // whichever section is passed in, so it's harmless to list every
-        // oscillator id here even though this function is called once per
-        // section, not once for the whole device.
-        {"pbIntPlus",   &gDevice.pitchBendIntPlus,     NULL                        },
-        {"pbIntMinus",  &gDevice.pitchBendIntMinus,    NULL                        },
-        {"pbStepPlus",  &gDevice.pitchBendStepPlus,    NULL                        },
-        {"pbStepMinus", &gDevice.pitchBendStepMinus,   NULL                        },
-        {"portSW",      &gDevice.portamentoSW,         NULL                        },
-        {"portMode",    &gDevice.portamentoMode,       NULL                        },
-        {"portTime",    &gDevice.portamentoTime,       NULL                        },
-        {"o1type",      &gDevice.osc1Type,             NULL                        },
-        {"o1oct",       &gDevice.osc1Octave,           NULL                        },
-        {"o1semi",      &gDevice.osc1SemiTone,         NULL                        },
-        {"o1fine",      &gDevice.osc1FineTune,         NULL                        },
-        {"o1freq",      &gDevice.osc1FreqOffset,       NULL                        },
-        {"o2type",      &gDevice.osc2Type,             NULL                        },
-        {"o2oct",       &gDevice.osc2Octave,           NULL                        },
-        {"o2semi",      &gDevice.osc2SemiTone,         NULL                        },
-        {"o2fine",      &gDevice.osc2FineTune,         NULL                        },
-        {"o2freq",      &gDevice.osc2FreqOffset,       NULL                        },
-        {"suboct",      &gDevice.subOscOctave,         NULL                        },
-        {"subsemi",     &gDevice.subOscSemiTone,       NULL                        },
-        {"subfine",     &gDevice.subOscFineTune,       NULL                        },
-        {"subfreq",     &gDevice.subOscFreqOffset,     NULL                        },
-        {"subwave",     &gDevice.subOscWaveForm,       NULL                        },
-        {"noisetype",   &gDevice.noiseFilterType,      NULL                        },
-        {"noisetrim",   &gDevice.noiseFilterTrim,      NULL                        },
-        {"noisecut",    &gDevice.noiseFilterCutoff,    NULL                        },
-        {"noiseres",    &gDevice.noiseFilterResonance, NULL                        },
-        {"mo1o1",       &gDevice.mixerOsc1Out1,        NULL                        },
-        {"mo1o2",       &gDevice.mixerOsc1Out2,        NULL                        },
-        {"mo2o1",       &gDevice.mixerOsc2Out1,        NULL                        },
-        {"mo2o2",       &gDevice.mixerOsc2Out2,        NULL                        },
-        {"msubo1",      &gDevice.mixerSubOut1,         NULL                        },
-        {"msubo2",      &gDevice.mixerSubOut2,         NULL                        },
-        {"mnoiseo1",    &gDevice.mixerNoiseOut1,       NULL                        },
-        {"mnoiseo2",    &gDevice.mixerNoiseOut2,       NULL                        },
-        {"mfbo1",       &gDevice.mixerFeedbackOut1,    NULL                        },
-        {"mfbo2",       &gDevice.mixerFeedbackOut2,    NULL                        },
-        {"mo1sw",       &gDevice.mixerOsc1SW,          NULL                        },
-        {"mo2sw",       &gDevice.mixerOsc2SW,          NULL                        },
-        {"msubsw",      &gDevice.mixerSubSW,           NULL                        },
-        {"mnoisesw",    &gDevice.mixerNoiseSW,         NULL                        },
-    };
-
-    for (size_t i = 0; i < (sizeof(bindings) / sizeof(bindings[0])); i++) {
-        tPanelDial * dial = find_panel_dial(section, bindings[i].id);
-
-        if (dial) {
-            dial->valuePtr       = bindings[i].value;
-            dial->nativeValuePtr = bindings[i].native;
-        }
-    }
-}
-
 void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
-    if (!dial || !dial->valuePtr) {
+    if (!dial) {
         return;
     }
 
@@ -473,18 +365,18 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
     }
     uint8_t storageValue = (uint8_t)((int32_t)displayValue + dial->storageOffset);
 
-    if (storageValue == *dial->valuePtr) {
+    if (storageValue == dial->value) {
         return;
     }
-    *dial->valuePtr = storageValue;
+    dial->value = storageValue;
 
     if (dial->ccNumber != 0) {
-        if (dial->nativeValuePtr && (dial->nativeMax != 0) && (dial->max > 1)) {
-            *dial->nativeValuePtr = (uint8_t)(displayValue * dial->nativeMax / (dial->max - 1));
+        if ((dial->nativeMax != 0) && (dial->max > 1)) {
+            dial->nativeValue = (uint8_t)(displayValue * dial->nativeMax / (dial->max - 1));
         }
         midi_send_cc(gDevice.id, (uint8_t)dial->ccNumber, storageValue);
     } else {
         synth_send_parameter_change((uint8_t)dial->paramGroup, (uint16_t)dial->paramId, storageValue);
     }
-    gReDraw         = true;
+    gReDraw     = true;
 }

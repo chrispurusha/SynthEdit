@@ -34,6 +34,13 @@ void synth_on_connected(void);
 // Dispatch an incoming synth SysEx message (full message including F0 header)
 void synth_handle_message(const uint8_t * data, uint32_t length);
 
+// Applies an incoming real-time MIDI CC value to whichever dial (in any
+// section) has a matching ccNumber= in the device's <device>.txt — generic
+// over any device's CC assignments, not a fixed per-device CC list. Returns
+// true if a dial was found and updated (so the caller knows whether to
+// redraw), false as a harmless no-op otherwise.
+bool synth_handle_cc(uint8_t cc, uint8_t value);
+
 // Request the currently loaded program from the synth
 void synth_request_current_program(void);
 
@@ -41,14 +48,7 @@ void synth_request_current_program(void);
 // group: SYNTH_PARAM_GROUP_*; paramId: 1-based ID from spec; value: raw value
 void synth_send_parameter_change(uint8_t group, uint16_t paramId, uint16_t value);
 
-// Resolves each dial's valuePtr/nativeValuePtr in `section` to the live
-// gDevice field it names in the layout file (by id) — the one place that
-// still knows "f1cut means gDevice.filter1Cutoff". Call once after a
-// successful load_panel_config(). Unknown ids are left unbound (get/set on
-// them become no-ops rather than crashing).
-void synth_bind_panel_dials(tPanelSection * section);
-
-// Applies `displayValue` (clamped to [0, dial->max-1]) to a bound dial: writes
+// Applies `displayValue` (clamped to [0, dial->max-1]) to a dial: writes
 // storage_value = displayValue + dial->storageOffset, computes the native
 // value if the dial pairs one, and sends the appropriate protocol message
 // (CC if dial->ccNumber is set, else a SysEx parameter change) — entirely

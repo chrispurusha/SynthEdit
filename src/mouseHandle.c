@@ -230,19 +230,23 @@ void handle_scroll(void * win, double dx, double dy) {
         return;
     }
     // Deliberate remaining exception: with no drag active, scroll always
-    // nudges "f1cut" specifically — a synth-editor shortcut, not something
-    // generalizable from a rect-based hit-test, since handle_scroll isn't
-    // given a cursor position to test against. Only applies while the page
-    // showing "f1cut" is actually active — no-ops harmlessly otherwise.
-    // "f1cut" lives in the Filters section specifically, but Filters is now
-    // one of several stacked sections on the page, so all of them get
-    // searched rather than assuming the (no longer singular) page section.
+    // nudges one shortcut dial — not something generalizable from a
+    // rect-based hit-test, since handle_scroll isn't given a cursor position
+    // to test against. Which dial (if any) is entirely up to the device's own
+    // <device>.txt ("scrollDial <id>" — empty/absent means no shortcut).
+    // Only applies while the page holding that dial's section is actually
+    // active — no-ops harmlessly otherwise.
+    tPanelConfig *  cfg          = synth_panel_config();
+
+    if (cfg->scrollDialId[0] == '\0') {
+        return;
+    }
     tPanelSection * sections[PANEL_MAX_SECTIONS];
     uint32_t        sectionCount = synth_current_page_sections(sections, PANEL_MAX_SECTIONS);
     tPanelDial *    dial         = NULL;
 
     for (uint32_t s = 0; (s < sectionCount) && !dial; s++) {
-        dial = find_panel_dial(sections[s], "f1cut");
+        dial = find_panel_dial(sections[s], cfg->scrollDialId);
     }
 
     if (dial) {

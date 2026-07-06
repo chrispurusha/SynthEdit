@@ -75,12 +75,10 @@
 #define SYNTH_PARAM_GROUP_PATTERN          0x10
 #define SYNTH_PARAM_GROUP_MULTI            0x11
 
-// Synth program name length (parameters 1-16)
-#define SYNTH_PROG_NAME_LEN                16
-
-// Per-control SysEx parameter IDs/dump offsets live in xxxx.txt (group=/param=/
-// dumpOffset=), not here — see panelConfig.h and synthComms.c's generic
-// dial dispatch/decode.
+// Program name length (parameters 1..progNameLen), CC assignments, and every
+// per-control SysEx parameter ID/dump offset all live in <device>.txt
+// (progNameLen/group=/param=/cc=/dumpOffset=), not here — see panelConfig.h
+// and synthComms.c's generic dial dispatch/decode.
 
 
 // ── Graphics / layout constants (used by utilsGraphics) ──────────────────────
