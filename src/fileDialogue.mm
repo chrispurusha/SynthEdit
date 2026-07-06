@@ -77,3 +77,39 @@ void open_file_write_dialogue_async(tFileDialogueCallback callback, const char *
     });
 }
 
+int32_t show_device_choice_dialogue(const char * title, const char * message, const char *const * labels, uint32_t count) {
+    if (count == 0) {
+        return -1;
+    }
+    NSString *      titleString   = [NSString stringWithUTF8String:(title ? title : "")];
+    NSString *      messageString = [NSString stringWithUTF8String:(message ? message : "")];
+
+    NSAlert *       alert         = [[NSAlert alloc] init];
+
+    [alert setAlertStyle:NSAlertStyleInformational];
+    [alert setMessageText:titleString];
+    [alert setInformativeText:messageString];
+    [alert addButtonWithTitle:@"Choose"];
+    [alert addButtonWithTitle:@"Cancel"];
+
+    NSPopUpButton * popup         = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(0, 0, 360, 24) pullsDown:NO];
+
+    for (uint32_t i = 0; i < count; i++) {
+        [popup addItemWithTitle:[NSString stringWithUTF8String:labels[i]]];
+    }
+
+    [alert setAccessoryView:popup];
+    [[alert window] setInitialFirstResponder:popup];
+
+    // Synchronous: no dispatch_async wrapper. Called at startup, before
+    // GLFW's Cocoa run loop is pumping — an async block's completion handler
+    // wouldn't fire yet, but NSApplication/the window already exist by this
+    // point (init_graphics() creates them before calling here), which is all
+    // a modal alert's own private run loop needs.
+    NSModalResponse response      = [alert runModal];
+
+    if (response != NSAlertFirstButtonReturn) {
+        return -1;
+    }
+    return (int32_t)[popup indexOfSelectedItem];
+}

@@ -11,7 +11,18 @@
 # F1 and F2 dial groups).
 #
 # Device-level (not tied to any page/section):
-#   device / manufacturerId / familyId / memberId — SysEx identity
+#   device <name>          — SysEx identity + shown in the startup device
+#                           chooser when the layouts folder holds more than
+#                           one <device>.txt (see scan_panel_configs())
+#   description <text>     — one-line summary shown alongside `device` in
+#                           that same chooser; optional, purely cosmetic
+#   manufacturerId <hex> [<hex> <hex>] — 1 value = classic single-byte ID
+#                           (e.g. Korg 0x42); 3 values = an "extended" ID
+#                           (e.g. Novation) for manufacturers registered
+#                           after single-byte IDs ran out (MIDI spec signals
+#                           this with a leading 0x00, matched the same way in
+#                           the Universal Identity Reply)
+#   familyId / memberId    — SysEx identity, single-byte
 #   progNameLen <n>        — count of leading program-dump bytes (and live
 #                           parameter IDs 1..n) that are program-name ASCII
 #                           characters
@@ -51,6 +62,7 @@
 # ── Device identity ──────────────────────────────────────────────────────────
 # SysEx header: F0 42 (0x30|channel) 46 01 ...
 device          Korg Z1
+description     Full Oscillator + Filter sections, from the real MIDI spec PDF
 manufacturerId  0x42
 familyId        0x46
 memberId        0x01

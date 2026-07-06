@@ -111,8 +111,18 @@ typedef struct {
 } tPanelSection;
 
 typedef struct {
-    char          deviceName[PANEL_LABEL_LEN];
-    uint32_t      manufacturerId;
+    char deviceName[PANEL_LABEL_LEN];
+    char description[128]; // one-line summary from the file's "description"
+                           // directive — shown in the startup device chooser
+                           // (see scan_panel_configs()); empty if the file
+                           // doesn't declare one.
+    // 1 byte for a classic manufacturer ID (e.g. Korg 0x42), or 3 bytes for an
+    // "extended" ID (e.g. likely Novation — companies registered after
+    // single-byte IDs ran out; MIDI spec signals this with a leading 0x00).
+    // manufacturerIdLen is always 1 or 3, set by how many values the file's
+    // "manufacturerId" line gives.
+    uint8_t       manufacturerId[3];
+    uint32_t      manufacturerIdLen;
     uint32_t      familyId;
     uint32_t      memberId;
     uint32_t      progNameLen;                // count of leading dump bytes that are program-name ASCII chars
@@ -152,6 +162,24 @@ tPanelDial * find_panel_dial_by_param(tPanelSection * section, uint32_t group, u
 // for real-time CC dispatch, which (unlike a SysEx parameter change) carries
 // no section/group context to narrow the search.
 tPanelDial * find_panel_dial_by_cc(tPanelConfig * config, uint8_t cc);
+
+#define PANEL_MAX_CANDIDATES    16
+
+// One <device>.txt found by scan_panel_configs() — just enough to present a
+// choice, not a full parsed config (that only happens for whichever one gets
+// picked).
+typedef struct {
+    char filename[64];         // e.g. "z1.txt" — relative to the scanned dir
+    char deviceName[PANEL_LABEL_LEN];
+    char description[128];
+} tPanelConfigCandidate;
+
+// Scans `dir` for every "*.txt" file, fully parsing each (they're small — no
+// separate lightweight-header-only parser) into a scratch config just to
+// pull out its device/description, and returns how many were found (capped
+// at maxCandidates). Used to build a startup device chooser when more than
+// one config is present; a single match needs no chooser at all.
+uint32_t scan_panel_configs(const char * dir, tPanelConfigCandidate * outCandidates, uint32_t maxCandidates);
 
 // Returns the index into section->dials[] under `point`, or -1 if none.
 // Call after layout_panel_section() has populated the dials' rects.

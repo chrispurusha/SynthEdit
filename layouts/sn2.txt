@@ -1,0 +1,51 @@
+# sn2.txt — Novation Supernova 2 device descriptor.
+#
+# Deliberately minimal, and UNCONFIRMED in a way z1.txt isn't: z1.txt was
+# built against two real MIDI implementation PDFs; this file has no
+# reference document behind it at all — it's a best-effort placeholder the
+# user explicitly asked for, to prove the same generic panelConfig/
+# synthComms/synthGraphics/mouseHandle code (no C changes) can drive a
+# second, unrelated device given nothing but a new <device>.txt. Treat every
+# value below as needing verification against real hardware or a manual
+# before trusting it.
+#
+# manufacturerId: Novation Digital Music Systems is recalled (not sourced
+#   from a document) to hold the 3-byte extended ID 00 20 29 — extended IDs
+#   are the norm for companies registered after single-byte IDs ran out,
+#   which is why this file exercises the multi-byte manufacturerId support
+#   added to synthComms.c/midiComms.c alongside it. Could be wrong.
+# familyId / memberId: no informed guess at all — left as 0x00 placeholders.
+#   Easiest real fix: connect an actual Supernova 2, launch the app (with
+#   this file picked at the startup chooser), and read the debug console —
+#   process_identity_replies() in midiComms.c logs
+#   "reply[N]: mfrLen=... mfr[0]=... fam=... mem=..." for EVERY identity
+#   reply it sees, whether or not it matches this file's configured values,
+#   which is exactly z1.txt's own manufacturerId/familyId/memberId were
+#   confirmed. Once real values are known, replace the placeholders below
+#   and auto-connect + SysEx (if a real dump/parameter-change protocol is
+#   ever added) will work; until then dragging still updates the on-screen
+#   dial, but no CC reaches real hardware (MIDI send targets the device
+#   found at connect time, which won't happen with wrong identity bytes).
+#
+# No SysEx program-dump or parameter-change protocol is attempted here at
+# all (unlike z1.txt) — no dumpOffset/group=/param= on either dial below,
+# only cc=. Filter Cutoff/Resonance on CC 74/71 are the standard MIDI "Sound
+# Controller" assignments a lot of period hardware maps front-panel filter
+# knobs to; plausible for this device but, like everything else here, not
+# confirmed for it specifically.
+device          Novation Supernova 2
+description     UNCONFIRMED placeholder — Filter Cutoff/Resonance via standard CC only, no SysEx
+manufacturerId  0x00 0x20 0x29
+familyId        0x00
+memberId        0x00
+
+# ── Filters page ──────────────────────────────────────────────────────────────
+page       filters
+section    filters
+dialSize   40
+spacing    50
+
+color f 0.2 0.6 1.0
+
+dial cutoff label="Cutoff"    color=f max=128 display=raw cc=74
+dial res    label="Resonance" color=f max=128 display=raw cc=71

@@ -20,6 +20,8 @@
 #ifndef FILE_DIALOG_H
 #define FILE_DIALOG_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -28,6 +30,15 @@ typedef void (*tFileDialogueCallback)(const char * path);
 
 void open_file_read_dialogue_async(tFileDialogueCallback callback);
 void open_file_write_dialogue_async(tFileDialogueCallback callback, const char * defaultName);
+
+// Synchronous (unlike the two above) — blocks until the user responds, using
+// [NSAlert runModal] directly rather than the async dispatch pattern the
+// others use. Meant for the one-time startup device chooser, called before
+// GLFW's Cocoa run loop is pumping events (an async completion handler
+// wouldn't fire yet at that point); NSApplication/the window already exist
+// by then, which is all a modal alert needs. Presents `labels[0..count-1]`
+// in a dropdown; returns the chosen index, or -1 if cancelled.
+int32_t show_device_choice_dialogue(const char * title, const char * message, const char *const * labels, uint32_t count);
 
 #ifdef __cplusplus
 }

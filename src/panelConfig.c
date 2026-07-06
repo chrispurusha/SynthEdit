@@ -17,6 +17,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -249,8 +250,23 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
 
     if (strcmp(keyword, "device") == 0) {
         join_tokens(tokens, 1, tokenCount, config->deviceName, sizeof(config->deviceName));
+    } else if (strcmp(keyword, "description") == 0) {
+        join_tokens(tokens, 1, tokenCount, config->description, sizeof(config->description));
     } else if (strcmp(keyword, "manufacturerId") == 0) {
-        config->manufacturerId = (uint32_t)strtoul(tokens[1], NULL, 0);
+        // 1 value = classic single-byte ID (e.g. Korg 0x42); 3 values = an
+        // "extended" ID (e.g. Novation) for manufacturers registered after
+        // single-byte IDs ran out — see the tPanelConfig field comment.
+        uint32_t valueCount = tokenCount - 1;
+
+        if ((valueCount != 1) && (valueCount != 3)) {
+            LOG_ERROR("panelConfig line %u: manufacturerId needs 1 or 3 byte values, got %u\n", lineNo, (unsigned)valueCount);
+            valueCount = 1;
+        }
+        config->manufacturerIdLen = valueCount;
+
+        for (uint32_t b = 0; b < valueCount; b++) {
+            config->manufacturerId[b] = (uint8_t)strtoul(tokens[1 + b], NULL, 0);
+        }
     } else if (strcmp(keyword, "familyId") == 0) {
         config->familyId = (uint32_t)strtoul(tokens[1], NULL, 0);
     } else if (strcmp(keyword, "memberId") == 0) {
@@ -475,4 +491,40 @@ uint32_t get_panel_list_count(const tPanelConfig * config, const char * listName
     }
 
     return 0;
+}
+
+uint32_t scan_panel_configs(const char * dir, tPanelConfigCandidate * outCandidates, uint32_t maxCandidates) {
+    DIR *               dp    = opendir(dir);
+
+    if (!dp) {
+        LOG_ERROR("scan_panel_configs: couldn't open '%s'\n", dir);
+        return 0;
+    }
+    uint32_t            count = 0;
+    static tPanelConfig scratch;    // one config at a time — too big for the stack, parsed and discarded per file
+    struct dirent *     entry;
+
+    while ((count < maxCandidates) && ((entry = readdir(dp)) != NULL)) {
+        size_t                  nameLen   = strlen(entry->d_name);
+
+        if ((nameLen < 5) || (strcmp(entry->d_name + nameLen - 4, ".txt") != 0)) {
+            continue;
+        }
+        char                    path[1152];
+        snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
+
+        if (!load_panel_config(path, &scratch)) {
+            continue;
+        }
+        tPanelConfigCandidate * candidate = &outCandidates[count++];
+
+        strncpy(candidate->filename, entry->d_name, sizeof(candidate->filename) - 1);
+        candidate->filename[sizeof(candidate->filename) - 1]       = '\0';
+        strncpy(candidate->deviceName, scratch.deviceName, sizeof(candidate->deviceName) - 1);
+        candidate->deviceName[sizeof(candidate->deviceName) - 1]   = '\0';
+        strncpy(candidate->description, scratch.description, sizeof(candidate->description) - 1);
+        candidate->description[sizeof(candidate->description) - 1] = '\0';
+    }
+    closedir(dp);
+    return count;
 }

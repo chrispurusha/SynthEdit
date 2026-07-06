@@ -39,9 +39,10 @@ static pthread_mutex_t  gSendMutex    = PTHREAD_MUTEX_INITIALIZER;
 static struct {
     MIDIEndpointRef src;
     uint8_t         deviceId;    // data[2]
-    uint8_t         mfrId;       // data[5]
-    uint8_t         familyLSB;   // data[6]
-    uint8_t         memberLSB;   // data[8]
+    uint8_t         mfrId[3];    // data[5..] — 1 or 3 bytes, see mfrIdLen
+    uint32_t        mfrIdLen;    // 1 (classic) or 3 (extended, data[5]==0x00)
+    uint8_t         familyLSB;   // data[5+mfrIdLen]
+    uint8_t         memberLSB;   // data[5+mfrIdLen+2]
 }                       gIdReplies[MAX_IDENTITY_REPLIES];
 
 static _Atomic uint32_t gIdReplyCount = 0;
@@ -171,16 +172,18 @@ static void process_identity_replies(void) {
     LOG_DEBUG("Processing %u identity replies\n", (unsigned)count);
 
     for (uint32_t i = 0; i < count; i++) {
-        LOG_DEBUG("  reply[%u]: mfr=0x%02X fam=0x%02X mem=0x%02X src=0x%08X\n",
+        LOG_DEBUG("  reply[%u]: mfrLen=%u mfr[0]=0x%02X fam=0x%02X mem=0x%02X src=0x%08X\n",
                   (unsigned)i,
-                  gIdReplies[i].mfrId,
+                  (unsigned)gIdReplies[i].mfrIdLen,
+                  gIdReplies[i].mfrId[0],
                   gIdReplies[i].familyLSB,
                   gIdReplies[i].memberLSB,
                   (unsigned)gIdReplies[i].src);
 
         tPanelConfig *  cfg  = synth_panel_config();
 
-        if (  (gIdReplies[i].mfrId != cfg->manufacturerId)
+        if (  (gIdReplies[i].mfrIdLen != cfg->manufacturerIdLen)
+           || (memcmp(gIdReplies[i].mfrId, cfg->manufacturerId, cfg->manufacturerIdLen) != 0)
            || (gIdReplies[i].familyLSB != cfg->familyId)
            || (gIdReplies[i].memberLSB != cfg->memberId)) {
             continue;
@@ -219,18 +222,29 @@ static void process_identity_replies(void) {
 // happens later in process_identity_replies() on the MIDI thread.
 
 static void handle_identity_reply(MIDIEndpointRef src, const uint8_t * data, uint32_t length) {
-    // F0 7E <device_id> 06 02 <mfr_id> <fam_lsb> <fam_msb> <mem_lsb> <mem_msb> ... F7
+    // F0 7E <device_id> 06 02 <mfr_id: 1 or 3 bytes> <fam_lsb> <fam_msb>
+    // <mem_lsb> <mem_msb> ... F7 — a leading 0x00 in the mfr_id field (a
+    // standard MIDI convention, same one <device>.txt's manufacturerId uses)
+    // means an "extended" 3-byte ID follows rather than a classic 1-byte one;
+    // this shifts family/member the same way a device's own manufacturerIdLen
+    // shifts synthComms.c's per-message offsets.
     if (length < 10) {
         return;
     }
-    uint32_t idx = atomic_fetch_add(&gIdReplyCount, 1);
+    uint32_t mfrLen = (data[5] == 0x00) ? 3 : 1;
+
+    if (length < (uint32_t)(5 + mfrLen + 4)) {
+        return;
+    }
+    uint32_t idx    = atomic_fetch_add(&gIdReplyCount, 1);
 
     if (idx < MAX_IDENTITY_REPLIES) {
         gIdReplies[idx].src       = src;
         gIdReplies[idx].deviceId  = data[2];
-        gIdReplies[idx].mfrId     = data[5];
-        gIdReplies[idx].familyLSB = data[6];
-        gIdReplies[idx].memberLSB = data[8];
+        gIdReplies[idx].mfrIdLen  = mfrLen;
+        memcpy(gIdReplies[idx].mfrId, &data[5], mfrLen);
+        gIdReplies[idx].familyLSB = data[5 + mfrLen];
+        gIdReplies[idx].memberLSB = data[5 + mfrLen + 2];
     }
 }
 

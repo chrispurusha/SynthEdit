@@ -38,6 +38,7 @@ extern "C" {
 #include "panelConfig.h"
 #include "synthComms.h"
 #include "misc.h"
+#include "fileDialogue.h"
 #include "synthGraphics.h"
 
 #define SYNTH_LAYOUTS_DIR_DEFAULT    "layouts"    // relative to cwd, used until a folder is chosen/persisted
@@ -194,10 +195,12 @@ static double section_required_spacing(tPanelSection * section) {
     return required;
 }
 
+static char gConfigFileName[64] = "z1.txt"; // fallback if the layouts dir can't be scanned at all
+
 static void synth_reload_panel_config(void) {
     char path[1152];
 
-    snprintf(path, sizeof(path), "%s/z1.txt", gLayoutsDir);  // TODO - select synth on load
+    snprintf(path, sizeof(path), "%s/%s", gLayoutsDir, gConfigFileName);
 
     if (!load_panel_config(path, &gSynthPanelConfig)) {
         LOG_ERROR("Synth: couldn't load '%s' — dials will not render\n", path);
@@ -205,11 +208,53 @@ static void synth_reload_panel_config(void) {
     gReDraw = true;
 }
 
+// Scans gLayoutsDir for every <device>.txt it contains; a single match is
+// used directly (no prompt — nothing to choose), but more than one presents
+// a chooser (device name + description, from each file's own "device"/
+// "description" lines) and switches gConfigFileName to whichever was picked.
+// If the user cancels, whatever gConfigFileName already held is left alone
+// rather than blocking startup.
+static void synth_choose_config_file(void) {
+    tPanelConfigCandidate candidates[PANEL_MAX_CANDIDATES];
+    uint32_t              count = scan_panel_configs(gLayoutsDir, candidates, PANEL_MAX_CANDIDATES);
+
+    if (count == 0) {
+        return;
+    }
+
+    if (count == 1) {
+        strncpy(gConfigFileName, candidates[0].filename, sizeof(gConfigFileName) - 1);
+        gConfigFileName[sizeof(gConfigFileName) - 1] = '\0';
+        return;
+    }
+    char                  labelBuf[PANEL_MAX_CANDIDATES][200];
+    const char *          labels[PANEL_MAX_CANDIDATES];
+
+    for (uint32_t i = 0; i < count; i++) {
+        if (candidates[i].description[0] != '\0') {
+            snprintf(labelBuf[i], sizeof(labelBuf[i]), "%s \xe2\x80\x94 %s", candidates[i].deviceName, candidates[i].description);
+        } else {
+            snprintf(labelBuf[i], sizeof(labelBuf[i]), "%s", candidates[i].deviceName);
+        }
+        labels[i] = labelBuf[i];
+    }
+
+    int32_t               chosen = show_device_choice_dialogue("Choose Device",
+                                                               "More than one device configuration was found in the layouts folder.",
+                                                               labels, count);
+
+    if (chosen >= 0) {
+        strncpy(gConfigFileName, candidates[(uint32_t)chosen].filename, sizeof(gConfigFileName) - 1);
+        gConfigFileName[sizeof(gConfigFileName) - 1] = '\0';
+    }
+}
+
 void synth_set_layouts_dir(const char * dir) {
     if (dir && (dir[0] != '\0')) {
         strncpy(gLayoutsDir, dir, sizeof(gLayoutsDir) - 1);
         gLayoutsDir[sizeof(gLayoutsDir) - 1] = '\0';
     }
+    synth_choose_config_file();
     synth_reload_panel_config();
 }
 
@@ -220,6 +265,7 @@ void synth_init_graphics(void) {
         strncpy(gLayoutsDir, saved, sizeof(gLayoutsDir) - 1);
         gLayoutsDir[sizeof(gLayoutsDir) - 1] = '\0';
     }
+    synth_choose_config_file();
     synth_reload_panel_config();
 }
 

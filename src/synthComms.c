@@ -29,20 +29,22 @@
 #include "synthComms.h"
 
 // ── SysEx header helpers ──────────────────────────────────────────────────────
-
-// Minimum length of a valid synth SysEx: F0 42 3g 46 <func> F7
-#define SYNTH_HDR_LEN    5
+// Header shape: F0 <manufacturerId: 1 or 3 bytes> <0x30|channel> <familyId>
+// <func> ... F7. manufacturerIdLen (1 for a classic ID like Korg's 0x42, 3 for
+// an extended one like Novation's) shifts every offset after it — nothing
+// here hardcodes "1 byte", so a device with either length works unchanged.
 
 static bool is_synth_sysex(const uint8_t * data, uint32_t length) {
-    if (length < SYNTH_HDR_LEN) {
+    tPanelConfig * cfg = synth_panel_config();
+    uint32_t       n   = cfg->manufacturerIdLen;
+
+    if (length < (uint32_t)(4 + n)) { // F0 + mfr(n) + channel + familyId
         return false;
     }
-    tPanelConfig * cfg = synth_panel_config();
-
     return (data[0] == MIDI_SYSEX_START)
-           && (data[1] == cfg->manufacturerId)
-           && ((data[2] & 0xF0) == 0x30)
-           && (data[3] == cfg->familyId);
+           && (memcmp(&data[1], cfg->manufacturerId, n) == 0)
+           && ((data[n + 1] & 0xF0) == 0x30)
+           && (data[n + 2] == cfg->familyId);
 }
 
 // ── 7-to-8 bit decoding ───────────────────────────────────────────────────────
@@ -94,13 +96,18 @@ static uint32_t encode_8to7(const uint8_t * data, uint32_t dataLen, uint8_t * ou
 // ── Build outgoing synth SysEx header ───────────────────────────────────────────
 static uint32_t build_header(uint8_t * buf, uint8_t funcId) {
     tPanelConfig * cfg = synth_panel_config();
+    uint32_t       pos = 0;
 
-    buf[0] = MIDI_SYSEX_START;
-    buf[1] = (uint8_t)cfg->manufacturerId;
-    buf[2] = SYNTH_SYSEX_CHANNEL_BYTE(gDevice.id);
-    buf[3] = (uint8_t)cfg->familyId;
-    buf[4] = funcId;
-    return 5;
+    buf[pos++] = MIDI_SYSEX_START;
+
+    for (uint32_t b = 0; b < cfg->manufacturerIdLen; b++) {
+        buf[pos++] = cfg->manufacturerId[b];
+    }
+
+    buf[pos++] = SYNTH_SYSEX_CHANNEL_BYTE(gDevice.id);
+    buf[pos++] = (uint8_t)cfg->familyId;
+    buf[pos++] = funcId;
+    return pos;
 }
 
 // ── Generic wire value application ───────────────────────────────────────────
@@ -196,14 +203,18 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
 // ── Message handlers ──────────────────────────────────────────────────────────
 
 static void handle_curr_prog_dump(const uint8_t * data, uint32_t length) {
-    // Format: F0 42 3g 46 40 01 [7-bit encoded data...] F7
-    // Payload starts at data[5] (skip header 4 bytes + func byte + 0x01 byte)
-    if (length < 7) {
+    // Format: F0 <mfrId> 3g 46 40 01 [7-bit encoded data...] F7
+    // Payload starts right after the header (F0+mfrId+chan+fam+func = 4+n
+    // bytes) plus the extra "01" sub-byte this dump function has.
+    tPanelConfig *  cfg        = synth_panel_config();
+    uint32_t        skip       = 5 + cfg->manufacturerIdLen;
+
+    if (length < skip + 1) {
         LOG_ERROR("CURR_PROG_DUMP too short (%u)\n", (unsigned)length);
         return;
     }
-    const uint8_t * payload    = data + 6;            // skip F0 42 3g 46 40 01
-    uint32_t        payloadLen = length - 7;          // exclude leading 6 + trailing F7
+    const uint8_t * payload    = data + skip;         // skip header + func + 0x01
+    uint32_t        payloadLen = length - skip - 1;   // exclude leading skip + trailing F7
 
     static uint8_t  decoded[4096];
     uint32_t        decodedLen = decode_7to8(payload, payloadLen, decoded, sizeof(decoded));
@@ -215,19 +226,21 @@ static void handle_curr_prog_dump(const uint8_t * data, uint32_t length) {
 }
 
 static void handle_parameter_change(const uint8_t * data, uint32_t length) {
-    // Format: F0 42 3g 46 41 0mm pp pp vv vv F7
-    // group(m), paramLSB, paramMSB, valueLSB, valueMSB
-    if (length < 10) {
+    // Format: F0 <mfrId> 3g 46 41 0mm pp pp vv vv F7
+    // group(m), paramLSB, paramMSB, valueLSB, valueMSB start right after the
+    // header (F0+mfrId+chan+fam+func = 4+n bytes).
+    tPanelConfig * cfg     = synth_panel_config();
+    uint32_t       base    = 4 + cfg->manufacturerIdLen;
+
+    if (length < base + 5) {
         return;
     }
-    uint8_t        group   = data[5] & 0x0F;
-    uint16_t       paramId = (uint16_t)(data[6] | ((uint16_t)(data[7] & 0x7F) << 7));
-    uint16_t       value   = (uint16_t)(data[8] | ((uint16_t)(data[9] & 0x7F) << 7));
+    uint8_t        group   = data[base] & 0x0F;
+    uint16_t       paramId = (uint16_t)(data[base + 1] | ((uint16_t)(data[base + 2] & 0x7F) << 7));
+    uint16_t       value   = (uint16_t)(data[base + 3] | ((uint16_t)(data[base + 4] & 0x7F) << 7));
 
     LOG_DEBUG("PARAM_CHANGE group=%u param=%u value=%u\n",
               (unsigned)group, (unsigned)paramId, (unsigned)value);
-
-    tPanelConfig * cfg     = synth_panel_config();
 
     if (  (group == SYNTH_PARAM_GROUP_PROG) && (paramId >= 1) && (paramId <= cfg->progNameLen)
        && (paramId < sizeof(gDevice.progName))) {
@@ -323,7 +336,7 @@ void synth_handle_message(const uint8_t * data, uint32_t length) {
         LOG_DEBUG("Ignoring non-target SysEx (len=%u)\n", (unsigned)length);
         return;
     }
-    uint8_t funcId = data[4];
+    uint8_t funcId = data[3 + synth_panel_config()->manufacturerIdLen];
     LOG_DEBUG("Synth SysEx func=0x%02X len=%u\n", (unsigned)funcId, (unsigned)length);
 
     switch (funcId) {
