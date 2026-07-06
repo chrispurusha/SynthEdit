@@ -31,28 +31,44 @@
 # (see find_destination_by_name() in midiComms.c). Adjust this if the
 # interface is ever renamed or the Voyager is moved to a different one.
 #
-# stateRequestSysEx is deliberately NOT set here. F0 04 08 1B 00 00 F7 is
-# documented on Moog's own forum (thread title: "Minitaur feature request")
-# as a MINITAUR command that dumps its current CC value for every internal
-# parameter — an initial test (2026-07-06) over this Elektron TM-1 connection
-# appeared to get a ~70-CC reply back, but that was with a probe that
-# connected every MIDI source to one input port with no way to tell them
-# apart, and a real Minitaur happened to also be connected as its own MIDI
-# port at that exact moment. A follow-up test with a source-tagged listener,
-# same command, same connection, both devices live — EVERY reply came
-# tagged "from Moog Minitaur", none from Elektron TM-1/Voyager. So this was
-# never a Voyager response at all; byte 3 = 0x08 is the Minitaur's own model
-# ID, not something Voyager answers to. No Voyager-specific equivalent found
-# in any public source checked (a SysEx-documentation GitHub repo, midi.guide's
-# Voyager page, the manual's own MIDI Implementation Chart appendix — which
-# marks SysEx "not supported" outright, though that chart is generic
-# MIDI-compliance boilerplate and doesn't cover proprietary dumps, which the
-# forum confirms exist for full patches from OS 2.x on — just not this one).
-# The underlying mechanism (send-on-connect + channel autodetect from
-# whatever replies) is real, generic infrastructure — see
-# connect_without_identity()/dispatch_cc() in midiComms.c — and would apply
-# immediately to a future minitaur.txt using this exact command, just not to
-# this file until a genuine Voyager-side equivalent turns up.
+# stateRequestSysEx F0 04 01 00 05 F7 — the REAL, documented mechanism,
+# from "Voyager System Exclusive Panel Dump Format" (lintronics.de), a
+# genuine Voyager SysEx protocol spec, not a guess or a borrowed Minitaur
+# command (see the abandoned attempt this replaced in git history — that one
+# turned out to be answering from a Minitaur that happened to also be
+# connected, never from the Voyager at all). Per that document, the header is
+# F0 04 01 <DI-no> <SysExMode> ...:
+#   byte2 = 01           — Product ID (Voyager) — matches this file's own
+#                           captured "Preset 1" dump byte-for-byte
+#   byte3 = <DI-no>       — Device ID, 0-127, default 0 (confirmed from the
+#                           same captured dump)
+#   byte4 = <SysExMode>   — 01=All Presets Dump, 02=Panel Dump, 03=Single
+#                           Preset Dump, 04=All Presets Dump REQUEST,
+#                           05=Panel Dump REQUEST, 06=Single Preset Dump
+#                           REQUEST (+ program number byte)
+# "Panel Dump" (mode 02) is specifically the live current-knob-state — no
+# preset number field, unlike a Single Preset Dump — so its REQUEST (mode 05)
+# is exactly the "what are your current settings" mechanism this device file
+# needs. CONFIRMED on real hardware (2026-07-06): sent F0 04 01 00 05 F7 to
+# Elektron TM-1, got a 146-byte reply back starting F0 04 01 00 02 ... — mode
+# 02, Panel Dump, exactly as documented. Sent once via midi_send() right
+# after connect_without_identity() connects (see midiComms.c). Independently
+# corroborated by a second source the same day, using different terminology
+# for the same thing ("Panel Sound Request"/"edit buffer" for mode 05/02,
+# preset dumps carrying their own explicit <preset_number> byte for mode
+# 03/06) — same header shape, same mode bytes, same device-ID-defaults-to-0
+# convention, no discrepancies.
+#
+# Not yet parsed into dial values: the reply's ~144 payload bytes are a
+# genuine bit-packed stream (7 usable bits per byte, values spanning byte
+# boundaries at arbitrary bit offsets — e.g. LFO Rate is 16 bits split
+# 3+7+6 across three bytes), which the dumpOffset/dumpShift/dumpMask model
+# (used by z1.txt) doesn't support yet — that assumes a value lives inside
+# one byte. The full bit-exact byte map for both Panel Dump and Single
+# Preset Dump is in the spec PDF if/when that gets built. For now this just
+# gets a live reply on connect; dispatch_sysex() passes it to
+# synth_handle_message() same as any other SysEx, which currently has no
+# handler for this shape and drops it silently.
 #
 # cutoff/res: BOTH CONFIRMED against real hardware — turning each physical
 # knob from 0 produces a paired MSB/LSB CC (MIDI's standard 14-bit coarse/
@@ -95,6 +111,7 @@ memberId        0x00
 identityQuery   no
 midiChannel     8
 midiPort        Elektron TM-1
+stateRequestSysEx 0xF0 0x04 0x01 0x00 0x05 0xF7
 
 # ── Filters page ──────────────────────────────────────────────────────────────
 page       filters
