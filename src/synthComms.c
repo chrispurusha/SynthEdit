@@ -313,8 +313,21 @@ static void handle_curr_prog_dump(const uint8_t * data, uint32_t length) {
 // handle_curr_prog_dump() above) — Moog's payload bytes are already usable
 // directly, each one individually 7-bit safe rather than 8 groups of 7 real
 // data bytes plus an MSB-collector byte.
+//
+// skip is 1 (just F0), NOT 5 (F0+mfrId+productId+deviceId+mode) — every
+// dumpOffset/dumpBitOffset in voyager.txt was derived directly from "Voyager
+// System Exclusive Panel Dump Format"'s OWN byte numbering, which counts
+// "byte 1" as the manufacturer ID itself (immediately after F0), so mfrId/
+// productId/deviceId/mode are bytes 1-4 of that scheme, not header bytes to
+// be skipped before it starts. Using skip=5 here silently shifted every
+// field read 4 bytes deeper into the stream than every dumpOffset assumed —
+// found by setting Cutoff/Resonance/Spacing/KB Amount all to hardware
+// maximum and noticing two of the four dials still showed old, unrelated
+// values (reading into a neighboring field's bytes) while the other two
+// only happened to look right because a neighboring field was also
+// coincidentally near-max at the time.
 static void handle_moog_panel_dump(const uint8_t * data, uint32_t length) {
-    const uint32_t  skip       = 5; // F0 + mfrId + productId + deviceId + mode
+    const uint32_t  skip       = 1; // F0 only
 
     if (length < skip + 1) {
         LOG_ERROR("Moog panel dump too short (%u)\n", (unsigned)length);
