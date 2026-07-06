@@ -9,16 +9,19 @@
 # for Novation Digital Music Systems was recalled correctly on the first
 # try; familyId/memberId were pure placeholders before this and are now real.
 #
-# Still deliberately minimal, and still UNCONFIRMED in every other respect —
-# no SysEx program-dump or parameter-change protocol is attempted here at
+# CC numbers CONFIRMED too (2026-07-06), and were NOT the standard MIDI
+# "Sound Controller" assignments (74/71) originally guessed here — turning
+# the real hardware's Cutoff/Resonance knobs and watching dispatch_cc()'s
+# own "CC 0x.. val=.." log line (midiComms.c — logged for every incoming CC
+# regardless of whether any dial matches it) showed the Supernova 2 actually
+# uses CC 0x69 (105)/0x6A (106). Left as a cautionary comment: don't assume
+# "standard" CC assignments hold for a specific device without checking.
+#
+# Still no SysEx program-dump or parameter-change protocol attempted here at
 # all (unlike z1.txt, which was built against two real MIDI implementation
-# PDFs) — no dumpOffset/group=/param= on either dial below, only cc=. Filter
-# Cutoff/Resonance on CC 74/71 are the standard MIDI "Sound Controller"
-# assignments a lot of period hardware maps front-panel filter knobs to;
-# plausible for this device but not confirmed for it specifically — worth
-# checking they actually move the right knobs on real hardware.
+# PDFs) — no dumpOffset/group=/param= on either dial below, only cc=.
 device          Novation Supernova 2
-description     Filter Cutoff/Resonance via standard CC; identity confirmed against real hardware, no SysEx yet
+description     Filter Cutoff/Resonance via confirmed real CC; identity + CC numbers checked against hardware, no SysEx yet
 manufacturerId  0x00 0x20 0x29
 familyId        0x01
 memberId        0x24
@@ -31,5 +34,5 @@ spacing    50
 
 color f 0.2 0.6 1.0
 
-dial cutoff label="Cutoff"    color=f max=128 display=raw cc=74
-dial res    label="Resonance" color=f max=128 display=raw cc=71
+dial cutoff label="Cutoff"    color=f max=128 display=raw cc=0x69
+dial res    label="Resonance" color=f max=128 display=raw cc=0x6A
