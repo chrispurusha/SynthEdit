@@ -1,43 +1,27 @@
 # sn2.txt — Novation Supernova 2 device descriptor.
 #
-# Deliberately minimal, and UNCONFIRMED in a way z1.txt isn't: z1.txt was
-# built against two real MIDI implementation PDFs; this file has no
-# reference document behind it at all — it's a best-effort placeholder the
-# user explicitly asked for, to prove the same generic panelConfig/
-# synthComms/synthGraphics/mouseHandle code (no C changes) can drive a
-# second, unrelated device given nothing but a new <device>.txt. Treat every
-# value below as needing verification against real hardware or a manual
-# before trusting it.
+# Identity CONFIRMED against a real Supernova 2's own Identity Reply
+# (2026-07-06): reply[0]: mfrLen=3 mfr=00:20:29 fam=0x01 mem=0x24 — read
+# straight off the debug console via process_identity_replies() in
+# midiComms.c, which logs that line for every identity reply it sees whether
+# or not it matches the currently-loaded config (that's how these three
+# values got corrected from a guess to confirmed). manufacturerId 00:20:29
+# for Novation Digital Music Systems was recalled correctly on the first
+# try; familyId/memberId were pure placeholders before this and are now real.
 #
-# manufacturerId: Novation Digital Music Systems is recalled (not sourced
-#   from a document) to hold the 3-byte extended ID 00 20 29 — extended IDs
-#   are the norm for companies registered after single-byte IDs ran out,
-#   which is why this file exercises the multi-byte manufacturerId support
-#   added to synthComms.c/midiComms.c alongside it. Could be wrong.
-# familyId / memberId: no informed guess at all — left as 0x00 placeholders.
-#   Easiest real fix: connect an actual Supernova 2, launch the app (with
-#   this file picked at the startup chooser), and read the debug console —
-#   process_identity_replies() in midiComms.c logs
-#   "reply[N]: mfrLen=... mfr[0]=... fam=... mem=..." for EVERY identity
-#   reply it sees, whether or not it matches this file's configured values,
-#   which is exactly z1.txt's own manufacturerId/familyId/memberId were
-#   confirmed. Once real values are known, replace the placeholders below
-#   and auto-connect + SysEx (if a real dump/parameter-change protocol is
-#   ever added) will work; until then dragging still updates the on-screen
-#   dial, but no CC reaches real hardware (MIDI send targets the device
-#   found at connect time, which won't happen with wrong identity bytes).
-#
-# No SysEx program-dump or parameter-change protocol is attempted here at
-# all (unlike z1.txt) — no dumpOffset/group=/param= on either dial below,
-# only cc=. Filter Cutoff/Resonance on CC 74/71 are the standard MIDI "Sound
-# Controller" assignments a lot of period hardware maps front-panel filter
-# knobs to; plausible for this device but, like everything else here, not
-# confirmed for it specifically.
+# Still deliberately minimal, and still UNCONFIRMED in every other respect —
+# no SysEx program-dump or parameter-change protocol is attempted here at
+# all (unlike z1.txt, which was built against two real MIDI implementation
+# PDFs) — no dumpOffset/group=/param= on either dial below, only cc=. Filter
+# Cutoff/Resonance on CC 74/71 are the standard MIDI "Sound Controller"
+# assignments a lot of period hardware maps front-panel filter knobs to;
+# plausible for this device but not confirmed for it specifically — worth
+# checking they actually move the right knobs on real hardware.
 device          Novation Supernova 2
-description     UNCONFIRMED placeholder — Filter Cutoff/Resonance via standard CC only, no SysEx
+description     Filter Cutoff/Resonance via standard CC; identity confirmed against real hardware, no SysEx yet
 manufacturerId  0x00 0x20 0x29
-familyId        0x00
-memberId        0x00
+familyId        0x01
+memberId        0x24
 
 # ── Filters page ──────────────────────────────────────────────────────────────
 page       filters

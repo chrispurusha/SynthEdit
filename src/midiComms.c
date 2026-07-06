@@ -172,10 +172,17 @@ static void process_identity_replies(void) {
     LOG_DEBUG("Processing %u identity replies\n", (unsigned)count);
 
     for (uint32_t i = 0; i < count; i++) {
-        LOG_DEBUG("  reply[%u]: mfrLen=%u mfr[0]=0x%02X fam=0x%02X mem=0x%02X src=0x%08X\n",
+        // Full mfrId dump (not just byte 0) — this is the line to read off
+        // when bringing up a new <device>.txt's manufacturerId/familyId/
+        // memberId from a real device, matched or not (see sn2.txt's own
+        // comments for how the Supernova 2's placeholders were meant to be
+        // replaced this way).
+        LOG_DEBUG("  reply[%u]: mfrLen=%u mfr=%02X:%02X:%02X fam=0x%02X mem=0x%02X src=0x%08X\n",
                   (unsigned)i,
                   (unsigned)gIdReplies[i].mfrIdLen,
                   gIdReplies[i].mfrId[0],
+                  gIdReplies[i].mfrId[1],
+                  gIdReplies[i].mfrId[2],
                   gIdReplies[i].familyLSB,
                   gIdReplies[i].memberLSB,
                   (unsigned)gIdReplies[i].src);
@@ -242,6 +249,7 @@ static void handle_identity_reply(MIDIEndpointRef src, const uint8_t * data, uin
         gIdReplies[idx].src       = src;
         gIdReplies[idx].deviceId  = data[2];
         gIdReplies[idx].mfrIdLen  = mfrLen;
+        memset(gIdReplies[idx].mfrId, 0, sizeof(gIdReplies[idx].mfrId)); // clean display for the mfrLen==1 case — see process_identity_replies()'s log line
         memcpy(gIdReplies[idx].mfrId, &data[5], mfrLen);
         gIdReplies[idx].familyLSB = data[5 + mfrLen];
         gIdReplies[idx].memberLSB = data[5 + mfrLen + 2];
