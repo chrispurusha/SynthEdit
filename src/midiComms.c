@@ -256,6 +256,120 @@ static void handle_identity_reply(MIDIEndpointRef src, const uint8_t * data, uin
     }
 }
 
+// ── Source connection ─────────────────────────────────────────────────────────
+// Connects every currently-visible MIDI source to gMidiInPort so its data
+// reaches midi_read_cb(). Shared by midi_scan_devices() (which also fires off
+// an identity request to every destination) and connect_without_identity()
+// (which skips that request but still needs to hear incoming CC).
+
+static void connect_all_midi_sources(void) {
+    ItemCount srcCount = MIDIGetNumberOfSources();
+
+    for (ItemCount i = 0; i < srcCount; i++) {
+        MIDIEndpointRef src  = MIDIGetSource(i);
+        CFStringRef     name = NULL;
+        MIDIObjectGetStringProperty(src, kMIDIPropertyDisplayName, &name);
+
+        if (name != NULL) {
+            char buf[128] = {0};
+            CFStringGetCString(name, buf, sizeof(buf), kCFStringEncodingUTF8);
+            CFRelease(name);
+            LOG_DEBUG("MIDI source %lu: %s (ref=0x%08X)\n", (unsigned long)i, buf, (unsigned)src);
+        }
+        MIDIPortConnectSource(gMidiInPort, src, (void *)(uintptr_t)src);
+    }
+}
+
+// ── Destination lookup by name ────────────────────────────────────────────────
+// For a no-identity device with "midiPort <name>" set (see panelConfig.h) —
+// case-insensitive substring match against each destination's display name.
+// Returns 0 if none matches (including when there's nothing to match against
+// yet, e.g. the interface hasn't enumerated over USB at startup).
+
+static MIDIEndpointRef find_destination_by_name(const char * substr) {
+    if ((substr == NULL) || (substr[0] == '\0')) {
+        return 0;
+    }
+    CFStringRef     needle    = CFStringCreateWithCString(NULL, substr, kCFStringEncodingUTF8);
+
+    if (needle == NULL) {
+        return 0;
+    }
+    MIDIEndpointRef found     = 0;
+    ItemCount       destCount = MIDIGetNumberOfDestinations();
+
+    for (ItemCount i = 0; i < destCount && found == 0; i++) {
+        MIDIEndpointRef dest = MIDIGetDestination(i);
+        CFStringRef     name = NULL;
+        MIDIObjectGetStringProperty(dest, kMIDIPropertyDisplayName, &name);
+
+        if (name == NULL) {
+            MIDIObjectGetStringProperty(dest, kMIDIPropertyName, &name);
+        }
+
+        if (name != NULL) {
+            if (CFStringFind(name, needle, kCFCompareCaseInsensitive).location != kCFNotFound) {
+                found = dest;
+            }
+            CFRelease(name);
+        }
+    }
+
+    CFRelease(needle);
+    return found;
+}
+
+// ── Connect without an identity query ─────────────────────────────────────────
+// For a device whose <device>.txt sets "identityQuery no" (see panelConfig.h) —
+// some hardware (confirmed for Moog's Minitaur, presumably also the Voyager)
+// never answers a Universal Device Inquiry at all, so midi_scan_devices()'s
+// request would just go unanswered forever. There is no reply to correlate a
+// specific source/destination pair or a channel from, so this connects using
+// the file's own "midiChannel" directive for the channel and, if given,
+// "midiPort" to pick the right destination out of possibly several (e.g. an
+// unrelated "IAC Driver Bus 1" enumerating before the real interface) —
+// otherwise falls back to the first destination found, same as before
+// midiPort existed. Leaves gMidiSource at 0 — midi_read_cb()'s CC gate treats
+// that as "accept from any connected source" rather than requiring a specific
+// one, since there's nothing to correlate a source from either.
+
+static void connect_without_identity(void) {
+    ItemCount       destCount = MIDIGetNumberOfDestinations();
+
+    if (destCount == 0) {
+        return; // nothing to send to yet — caller retries after a short wait
+    }
+    tPanelConfig *  cfg       = synth_panel_config();
+    MIDIEndpointRef dest      = 0;
+
+    if (cfg->midiPortName[0] != '\0') {
+        dest = find_destination_by_name(cfg->midiPortName);
+
+        if (dest == 0) {
+            return; // named port not visible yet — caller retries after a short wait
+        }
+    } else {
+        dest = MIDIGetDestination(0);
+    }
+    connect_all_midi_sources();
+
+    gMidiDest         = dest;
+    gMidiSource       = 0;
+    gDevice.id        = (uint8_t)((cfg->midiChannel > 0) ? (cfg->midiChannel - 1) : 0);
+    gDevice.family    = 0;
+    gDevice.member    = 0;
+    gDevice.connected = true;
+
+    LOG_DEBUG("Synth connected without identity query: channel=%u dest=0x%08X\n",
+              (unsigned)(gDevice.id + 1), (unsigned)gMidiDest);
+
+    synth_on_connected();
+
+    if (gWakeCb != NULL) {
+        gWakeCb();
+    }
+}
+
 // ── MIDI notification callback ────────────────────────────────────────────────
 
 static void midi_notify_cb(const MIDINotification * msg, void * refCon) {
@@ -350,7 +464,10 @@ static void midi_read_cb(const MIDIPacketList * pktList, void * readProcRefCon, 
 
                     // CC is a 3-byte message (status + 2 data bytes)
                     if (((gMsgStatus & 0xF0) == 0xB0) && (gMsgDataLen == 2)) {
-                        if (gDevice.connected && (src == gMidiSource)) {
+                        // gMidiSource == 0 means "accept from any source" —
+                        // set by connect_without_identity() for a device with
+                        // no identity reply to correlate a specific one from.
+                        if (gDevice.connected && ((gMidiSource == 0) || (src == gMidiSource))) {
                             dispatch_cc(gMsgData[0], gMsgData[1]);
                         }
                         gMsgDataLen = 0;    // ready for running status
@@ -375,7 +492,6 @@ int midi_scan_devices(void) {
         MIDI_SYSEX_END
     };
 
-    ItemCount            srcCount  = MIDIGetNumberOfSources();
     ItemCount            destCount = MIDIGetNumberOfDestinations();
 
     // Reset reply buffer and connection-tracking state before a fresh scan.
@@ -393,19 +509,7 @@ int midi_scan_devices(void) {
     gDevice.family    = 0;
     gDevice.member    = 0;
 
-    for (ItemCount i = 0; i < srcCount; i++) {
-        MIDIEndpointRef src  = MIDIGetSource(i);
-        CFStringRef     name = NULL;
-        MIDIObjectGetStringProperty(src, kMIDIPropertyDisplayName, &name);
-
-        if (name != NULL) {
-            char buf[128] = {0};
-            CFStringGetCString(name, buf, sizeof(buf), kCFStringEncodingUTF8);
-            CFRelease(name);
-            LOG_DEBUG("MIDI source %lu: %s (ref=0x%08X)\n", (unsigned long)i, buf, (unsigned)src);
-        }
-        MIDIPortConnectSource(gMidiInPort, src, (void *)(uintptr_t)src);
-    }
+    connect_all_midi_sources();
 
     for (ItemCount i = 0; i < destCount; i++) {
         MIDIEndpointRef dest = MIDIGetDestination(i);
@@ -421,7 +525,7 @@ int midi_scan_devices(void) {
         midi_send_to(idReq, sizeof(idReq), dest);
     }
 
-    if ((srcCount > 0) && (destCount > 0)) {
+    if ((MIDIGetNumberOfSources() > 0) && (destCount > 0)) {
         return EXIT_SUCCESS;
     }
     LOG_DEBUG("No MIDI sources/destinations found\n");
@@ -491,17 +595,35 @@ static void * midi_thread(void * arg) {
     while (!gQuitAll) {
         if (!gDevice.connected) {
             gRescanNeeded = false;
-            midi_scan_devices();
-            // Pump run loop for 500 ms — collects all identity replies and
-            // services any CoreMIDI notifications that arrive during the wait.
-            CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.5, false);
-            process_identity_replies();
 
-            if (!gDevice.connected) {
-                // Nothing found — wait up to 2 s in 100 ms slices.  Wakes early
-                // if a setup-change notification fires (via gRescanNeeded).
-                for (int t = 0; t < 20 && !gRescanNeeded; t++) {
-                    CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.1, false);
+            if (!synth_panel_config()->supportsIdentity) {
+                // Some hardware (confirmed for Moog's Minitaur, presumably
+                // also the Voyager) never answers a Universal Device Inquiry
+                // at all — sending one and waiting would just hang forever.
+                // Skip the poll entirely per the device's own "identityQuery
+                // no" directive and connect directly instead.
+                connect_without_identity();
+
+                if (!gDevice.connected) {
+                    // No destination visible yet — wait up to 2 s in 100 ms
+                    // slices, same shape as the "nothing found" wait below.
+                    for (int t = 0; t < 20 && !gRescanNeeded; t++) {
+                        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.1, false);
+                    }
+                }
+            } else {
+                midi_scan_devices();
+                // Pump run loop for 500 ms — collects all identity replies and
+                // services any CoreMIDI notifications that arrive during the wait.
+                CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.5, false);
+                process_identity_replies();
+
+                if (!gDevice.connected) {
+                    // Nothing found — wait up to 2 s in 100 ms slices.  Wakes early
+                    // if a setup-change notification fires (via gRescanNeeded).
+                    for (int t = 0; t < 20 && !gRescanNeeded; t++) {
+                        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.1, false);
+                    }
                 }
             }
         } else {

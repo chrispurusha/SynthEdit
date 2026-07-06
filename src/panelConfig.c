@@ -206,6 +206,8 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
             dial->paramId = (uint32_t)strtoul(val, NULL, 0);
         } else if (strcmp(key, "cc") == 0) {
             dial->ccNumber = (uint32_t)strtoul(val, NULL, 0);
+        } else if (strcmp(key, "ccLsb") == 0) {
+            dial->ccLsbNumber = (uint32_t)strtoul(val, NULL, 0);
         } else if (strcmp(key, "nativeMax") == 0) {
             dial->nativeMax = (uint32_t)strtoul(val, NULL, 0);
         } else if (strcmp(key, "dumpOffset") == 0) {
@@ -275,6 +277,12 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
         config->progNameLen = (uint32_t)strtoul(tokens[1], NULL, 0);
     } else if (strcmp(keyword, "scrollDial") == 0) {
         strncpy(config->scrollDialId, tokens[1], sizeof(config->scrollDialId) - 1);
+    } else if (strcmp(keyword, "identityQuery") == 0) {
+        config->supportsIdentity = (strcmp(tokens[1], "no") != 0);
+    } else if (strcmp(keyword, "midiChannel") == 0) {
+        config->midiChannel = (uint32_t)strtoul(tokens[1], NULL, 0);
+    } else if (strcmp(keyword, "midiPort") == 0) {
+        join_tokens(tokens, 1, tokenCount, config->midiPortName, sizeof(config->midiPortName));
     } else if (strcmp(keyword, "list") == 0) {
         if (tokenCount < 3) {
             LOG_ERROR("panelConfig line %u: expected 'list <name> <items>'\n", lineNo);
@@ -342,6 +350,7 @@ bool load_panel_config(const char * path, tPanelConfig * config) {
         return false;
     }
     memset(config, 0, sizeof(*config));
+    config->supportsIdentity = true; // overridden by an explicit "identityQuery no" line
 
     tPanelSection * currentSection = NULL;
     double          pendingGap     = 0.0;
@@ -440,7 +449,8 @@ tPanelDial * find_panel_dial_by_cc(tPanelConfig * config, uint8_t cc) {
         tPanelSection * section = &config->sections[s];
 
         for (uint32_t i = 0; i < section->dialCount; i++) {
-            if ((section->dials[i].ccNumber != 0) && (section->dials[i].ccNumber == cc)) {
+            if (  ((section->dials[i].ccNumber != 0) && (section->dials[i].ccNumber == cc))
+               || ((section->dials[i].ccLsbNumber != 0) && (section->dials[i].ccLsbNumber == cc))) {
                 return &section->dials[i];
             }
         }

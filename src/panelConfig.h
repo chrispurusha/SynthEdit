@@ -83,8 +83,17 @@ typedef struct {
     uint32_t paramGroup;        // SysEx parameter group
     uint32_t paramId;           // SysEx parameter ID
     uint32_t ccNumber;          // MIDI CC number; 0 = not CC-controlled (send SysEx param change instead)
+    // MIDI's own 14-bit CC convention: controller N (0-31) carries the coarse/
+    // MSB half, N+32 the fine/LSB half — combined value = (msb<<7)|lsb, giving
+    // 0..16383 instead of a plain CC's 0..127. 0 = ccNumber alone is a plain
+    // 7-bit CC (default; existing single-cc dials are unaffected). Set via the
+    // file's "ccLsb=" dial attribute alongside "cc=".
+    uint32_t ccLsbNumber;
+    uint8_t  ccMsbLatched;      // last raw byte seen on ccNumber; only meaningful when ccLsbNumber != 0
+    uint8_t  ccLsbLatched;      // last raw byte seen on ccLsbNumber; only meaningful when ccLsbNumber != 0
     uint32_t nativeMax;         // native/SysEx value range when paired with a CC (0 = no native pairing)
-    uint8_t  value;             // live storage-space value (display_value + storageOffset)
+    uint32_t value;             // live storage-space value (display_value + storageOffset); wide enough
+                                // for a 14-bit CC pair, not just a single byte
     uint8_t  nativeValue;       // live native value, if nativeMax != 0; unused otherwise
 
     // Where this dial's value lives in a full program-dump byte buffer (a
@@ -121,14 +130,37 @@ typedef struct {
     // single-byte IDs ran out; MIDI spec signals this with a leading 0x00).
     // manufacturerIdLen is always 1 or 3, set by how many values the file's
     // "manufacturerId" line gives.
-    uint8_t       manufacturerId[3];
-    uint32_t      manufacturerIdLen;
-    uint32_t      familyId;
-    uint32_t      memberId;
-    uint32_t      progNameLen;                // count of leading dump bytes that are program-name ASCII chars
+    uint8_t  manufacturerId[3];
+    uint32_t manufacturerIdLen;
+    uint32_t familyId;
+    uint32_t memberId;
+    uint32_t progNameLen;                     // count of leading dump bytes that are program-name ASCII chars
                                               // (also param IDs 1..progNameLen on the live parameter-change path)
-    char          scrollDialId[PANEL_ID_LEN]; // dial id (found in any section) that plain mouse-wheel
+    char     scrollDialId[PANEL_ID_LEN];      // dial id (found in any section) that plain mouse-wheel
     // scroll nudges when nothing is being dragged; empty = no shortcut
+
+    // Some hardware (e.g. Moog's Minitaur/Voyager) never answers a Universal
+    // Device Inquiry at all — confirmed by capturing the vendor's own editor,
+    // which talks proprietary SysEx from the first message with no identity
+    // handshake step. For such a device, set "identityQuery no" in the file:
+    // this skips the inquiry/wait/reply cycle entirely rather than polling
+    // and timing out. Defaults to true (load_panel_config() sets it right
+    // after the zeroing memset), so existing files that never mention it are
+    // unaffected. "midiChannel" (1-indexed, as written by a human) is then
+    // the only way to know which channel to talk on, since there's no
+    // identity reply to read gDevice.id from; ignored when identityQuery is
+    // true, where the reply's own channel byte is authoritative instead.
+    bool     supportsIdentity;
+    uint32_t midiChannel;                     // 1-indexed; only meaningful when !supportsIdentity
+    // With no identity reply, there's also nothing to correlate the right MIDI
+    // destination from — the port a device without identity support sits on
+    // (e.g. "Elektron TM-1") isn't necessarily whatever CoreMIDI happens to
+    // enumerate first (e.g. an unrelated "IAC Driver Bus 1"). "midiPort <name
+    // substring>" names it explicitly; connect_without_identity() in
+    // midiComms.c matches it case-insensitively against each destination's
+    // display name. Empty (the default) falls back to the first destination
+    // found, same as before this existed.
+    char          midiPortName[64];           // only meaningful when !supportsIdentity
     tPanelSection sections[PANEL_MAX_SECTIONS];
     uint32_t      sectionCount;
     tPanelList    lists[PANEL_MAX_LISTS];

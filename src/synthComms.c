@@ -322,12 +322,27 @@ bool synth_handle_cc(uint8_t cc, uint8_t value) {
     if (!dial) {
         return false;
     }
-    // A live CC message already carries a storage/display-space value (0-127
-    // for a standard MIDI CC), not a native one — unlike apply_dial_wire_value()
-    // above (used for SysEx-sourced raw values), so this writes dial->value
-    // directly and leaves nativeValue at whatever the last SysEx-sourced
-    // update left it.
-    dial->value = value;
+
+    if (dial->ccLsbNumber == 0) {
+        // A live CC message already carries a storage/display-space value
+        // (0-127 for a standard MIDI CC), not a native one — unlike
+        // apply_dial_wire_value() above (used for SysEx-sourced raw values),
+        // so this writes dial->value directly and leaves nativeValue at
+        // whatever the last SysEx-sourced update left it.
+        dial->value = value;
+    } else {
+        // 14-bit CC pair (MIDI's own coarse/fine convention: controller N is
+        // the MSB, N+32 the LSB — see the ccLsbNumber comment in
+        // panelConfig.h). Each half arrives as its own ordinary CC message,
+        // so latch whichever half just came in and recombine against the
+        // other half's last-known value.
+        if (cc == dial->ccNumber) {
+            dial->ccMsbLatched = value;
+        } else {
+            dial->ccLsbLatched = value;
+        }
+        dial->value = ((uint32_t)dial->ccMsbLatched << 7) | dial->ccLsbLatched;
+    }
     return true;
 }
 
@@ -376,7 +391,7 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
     if ((dial->max > 0) && (displayValue >= dial->max)) {
         displayValue = dial->max - 1;
     }
-    uint8_t storageValue = (uint8_t)((int32_t)displayValue + dial->storageOffset);
+    uint32_t storageValue = (uint32_t)((int32_t)displayValue + dial->storageOffset);
 
     if (storageValue == dial->value) {
         return;
@@ -387,9 +402,20 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
         if ((dial->nativeMax != 0) && (dial->max > 1)) {
             dial->nativeValue = (uint8_t)(displayValue * dial->nativeMax / (dial->max - 1));
         }
-        midi_send_cc(gDevice.id, (uint8_t)dial->ccNumber, storageValue);
+
+        if (dial->ccLsbNumber != 0) {
+            // 14-bit CC pair — see the ccLsbNumber comment in panelConfig.h.
+            // Keep the latches in sync so a later single-half incoming update
+            // recombines against the half we just sent, not a stale one.
+            dial->ccMsbLatched = (uint8_t)((storageValue >> 7) & 0x7F);
+            dial->ccLsbLatched = (uint8_t)(storageValue & 0x7F);
+            midi_send_cc(gDevice.id, (uint8_t)dial->ccNumber, dial->ccMsbLatched);
+            midi_send_cc(gDevice.id, (uint8_t)dial->ccLsbNumber, dial->ccLsbLatched);
+        } else {
+            midi_send_cc(gDevice.id, (uint8_t)dial->ccNumber, (uint8_t)storageValue);
+        }
     } else {
-        synth_send_parameter_change((uint8_t)dial->paramGroup, (uint16_t)dial->paramId, storageValue);
+        synth_send_parameter_change((uint8_t)dial->paramGroup, (uint16_t)dial->paramId, (uint8_t)storageValue);
     }
-    gReDraw     = true;
+    gReDraw = true;
 }
