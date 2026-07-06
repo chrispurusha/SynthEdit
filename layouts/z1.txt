@@ -45,6 +45,123 @@ list category    Synth-Hard,Synth-Soft,E.Piano,Organ,Strings,Brass,Wind,Bell/Mal
 list voiceMode    "Mono Multi,Mono Single,Poly"
 list unisonType   "2 voices,3 voices,6 voices"
 
+# ── Oscillator section (Synthesis page) ──────────────────────────────────────
+# Sits above Filters below, matching the official parameter table's own order
+# (OSC Common/OSC1/OSC2/SUB OSC/Noise Generator/Mixer, IDs 163-257, then Filter
+# at 258+). dumpOffset values here are NOT taken from a SysEx capture (unlike
+# the Filter anchor at dumpOffset=311 below) — they're derived by walking the
+# official parameter table's own per-section byte subtotals (Program Common=25,
+# EG1-4=19 each, LFO1-4=11 each, OSC Common=9, OSC1/OSC2=52 each, SUB OSC=14,
+# Noise Generator=8, Mixer=31) and summing byte-for-byte through each row,
+# respecting bit-packed groups. That running total lands on exactly 311 for the
+# start of Filter, matching the confirmed anchor already relied on below — a
+# strong cross-check, though the live param= path (used for every dial here)
+# needs none of this arithmetic and is unaffected either way, since a
+# PARAMETER CHANGE message carries the logical parameter ID directly.
+#
+# Signed-range values (Semi Tone, Fine Tune, Frequency Offset, Pitch Bend
+# Intensity) are shown here as the raw unsigned byte from the wire/dump — e.g.
+# Semi Tone's raw range is 0-24 for a displayed -12~+12 — rather than
+# translating to a signed display, since this format has no offset-label
+# convention yet. Inferred from the manual's documented value ranges, not
+# confirmed against a live capture; treat the signed meaning as unconfirmed
+# until checked against hardware.
+page       synthesis
+section    oscCommon
+dialSize   40
+spacing    50
+
+color common 0.9 0.7 0.3
+
+dial pbIntPlus   label="PB Int+"   color=common max=85  display=raw group=1 param=163 dumpOffset=145
+dial pbIntMinus  label="PB Int-"   color=common max=85  display=raw group=1 param=164 dumpOffset=146
+dial pbStepPlus  label="PB Step+"  color=common max=16  display=raw group=1 param=165 dumpOffset=147 dumpMask=0x0F
+dial pbStepMinus label="PB Step-"  color=common max=16  display=raw group=1 param=166 dumpOffset=147 dumpShift=4 dumpMask=0x0F
+dial portSW      label="Porta"     color=common max=2   names=OFF,ON          group=1 param=169 dumpOffset=150 dumpMask=0x01
+dial portMode    label="Porta Mode" color=common max=2  names=NORMAL,FINGERED group=1 param=170 dumpOffset=150 dumpShift=1 dumpMask=0x01
+dial portTime    label="Porta Time" color=common max=100 display=raw          group=1 param=171 dumpOffset=151
+
+page       synthesis
+section    osc1
+dialSize   40
+spacing    50
+
+color osc1 0.4 0.7 0.9
+
+dial o1type label="O1 Type" color=osc1 max=13  names=Standard,Comb,VPM,Resonance,RingMod,CrossMod,Sync,Organ,E.Piano,Brass,Reed,Plucked,Bowed group=1 param=174 dumpOffset=154
+dial o1oct  label="O1 Oct"  color=osc1 max=4   names="32',16',8',4'"          group=1 param=175 dumpOffset=155
+dial o1semi label="O1 Semi" color=osc1 max=25  display=raw                    group=1 param=176 dumpOffset=156
+dial o1fine label="O1 Fine" color=osc1 max=101 display=raw                    group=1 param=177 dumpOffset=157
+dial o1freq label="O1 Freq" color=osc1 max=201 display=raw                    group=1 param=178 dumpOffset=158
+
+page       synthesis
+section    osc2
+dialSize   40
+spacing    50
+
+color osc2 0.5 0.9 0.6
+
+dial o2type label="O2 Type" color=osc2 max=9   names=Standard,Comb,VPM,Resonance,RingMod,CrossMod,Sync,Organ,E.Piano group=1 param=188 dumpOffset=206
+dial o2oct  label="O2 Oct"  color=osc2 max=4   names="32',16',8',4'"          group=1 param=189 dumpOffset=207
+dial o2semi label="O2 Semi" color=osc2 max=25  display=raw                    group=1 param=190 dumpOffset=208
+dial o2fine label="O2 Fine" color=osc2 max=101 display=raw                    group=1 param=191 dumpOffset=209
+dial o2freq label="O2 Freq" color=osc2 max=201 display=raw                    group=1 param=192 dumpOffset=210
+
+page       synthesis
+section    subOsc
+dialSize   40
+spacing    50
+
+color sub 0.8 0.5 0.9
+
+dial suboct  label="Sub Oct"  color=sub max=4   names="32',16',8',4'" group=1 param=202 dumpOffset=258
+dial subsemi label="Sub Semi" color=sub max=25  display=raw          group=1 param=203 dumpOffset=259
+dial subfine label="Sub Fine" color=sub max=101 display=raw          group=1 param=204 dumpOffset=260
+dial subfreq label="Sub Freq" color=sub max=201 display=raw          group=1 param=205 dumpOffset=261
+dial subwave label="Sub Wave" color=sub max=4   names=SAW,SQU,TRI,SIN group=1 param=215 dumpOffset=271
+
+page       synthesis
+section    noise
+dialSize   40
+spacing    50
+
+color noise 0.6 0.6 0.6
+
+dial noisetype label="Noise Type" color=noise max=4   names=THRU,LPF,HPF,BPF group=1 param=216 dumpOffset=272
+dial noisetrim label="Noise Trim" color=noise max=100 display=raw            group=1 param=217 dumpOffset=273
+dial noisecut  label="Noise Cut"  color=noise max=100 display=raw            group=1 param=218 dumpOffset=274
+dial noiseres  label="Noise Res"  color=noise max=100 display=raw            group=1 param=223 dumpOffset=279
+
+page       synthesis
+section    mixer
+dialSize   40
+spacing    50
+
+color mix1      0.4 0.7 0.9
+color mix2      0.5 0.9 0.6
+color mixsub    0.8 0.5 0.9
+color mixnoise  0.6 0.6 0.6
+color mixfb     0.9 0.6 0.3
+color mixsw     0.8 0.8 0.3
+
+dial mo1o1    label="O1 Out1"    color=mix1     max=100 display=raw group=1 param=224 dumpOffset=280
+dial mo1o2    label="O1 Out2"    color=mix1     max=100 display=raw group=1 param=227 dumpOffset=283
+dial mo2o1    label="O2 Out1"    color=mix2     max=100 display=raw group=1 param=230 dumpOffset=286
+dial mo2o2    label="O2 Out2"    color=mix2     max=100 display=raw group=1 param=233 dumpOffset=289
+dial msubo1   label="Sub Out1"   color=mixsub   max=100 display=raw group=1 param=236 dumpOffset=292
+dial msubo2   label="Sub Out2"   color=mixsub   max=100 display=raw group=1 param=239 dumpOffset=295
+dial mnoiseo1 label="Noise Out1" color=mixnoise max=100 display=raw group=1 param=242 dumpOffset=298
+dial mnoiseo2 label="Noise Out2" color=mixnoise max=100 display=raw group=1 param=245 dumpOffset=301
+dial mfbo1    label="FB Out1"    color=mixfb    max=100 display=raw group=1 param=248 dumpOffset=304
+dial mfbo2    label="FB Out2"    color=mixfb    max=100 display=raw group=1 param=251 dumpOffset=307
+
+gap 10
+
+dial mo1sw    label="O1 SW"    color=mixsw max=2 names=OFF,ON group=1 param=254 dumpOffset=310 dumpMask=0x01
+dial mo2sw    label="O2 SW"    color=mixsw max=2 names=OFF,ON group=1 param=255 dumpOffset=310 dumpShift=1 dumpMask=0x01
+dial msubsw   label="Sub SW"   color=mixsw max=2 names=OFF,ON group=1 param=256 dumpOffset=310 dumpShift=2 dumpMask=0x01
+dial mnoisesw label="Noise SW" color=mixsw max=2 names=OFF,ON group=1 param=257 dumpOffset=310 dumpShift=3 dumpMask=0x01
+
 # ── Filters row (Synthesis page) ─────────────────────────────────────────────
 page       synthesis
 section    filters

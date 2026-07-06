@@ -137,18 +137,22 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
     if (synth_handle_page_tab_click(coord)) {
         return;
     }
-    // Hit-test the current panel section generically — whatever dial (if
-    // any) is under the cursor, by rect alone. No dial ids referenced here.
-    // Not gated on gDevice.connected: dials are bound to gDevice regardless
-    // of whether a real synth is talking to us, so the GUI stays testable
-    // (dragging updates gDevice/tries a MIDI send that quietly no-ops) even
-    // with nothing plugged in.
-    tPanelDial *    hit     = NULL;
-    tPanelSection * section = synth_current_page_section();
-    int32_t         hitIdx  = section ? hit_test_panel_section(section, coord) : -1;
+    // Hit-test every section on the current panel page generically —
+    // whatever dial (if any) is under the cursor, by rect alone. No dial ids
+    // referenced here. Not gated on gDevice.connected: dials are bound to
+    // gDevice regardless of whether a real synth is talking to us, so the GUI
+    // stays testable (dragging updates gDevice/tries a MIDI send that quietly
+    // no-ops) even with nothing plugged in.
+    tPanelDial *    hit          = NULL;
+    tPanelSection * sections[PANEL_MAX_SECTIONS];
+    uint32_t        sectionCount = synth_current_page_sections(sections, PANEL_MAX_SECTIONS);
 
-    if (hitIdx >= 0) {
-        hit = &section->dials[hitIdx];
+    for (uint32_t s = 0; (s < sectionCount) && !hit; s++) {
+        int32_t hitIdx = hit_test_panel_section(sections[s], coord);
+
+        if (hitIdx >= 0) {
+            hit = &sections[s]->dials[hitIdx];
+        }
     }
 
     if (hit) {
@@ -230,8 +234,16 @@ void handle_scroll(void * win, double dx, double dy) {
     // generalizable from a rect-based hit-test, since handle_scroll isn't
     // given a cursor position to test against. Only applies while the page
     // showing "f1cut" is actually active — no-ops harmlessly otherwise.
-    tPanelSection * section = synth_current_page_section();
-    tPanelDial *    dial    = section ? find_panel_dial(section, "f1cut") : NULL;
+    // "f1cut" lives in the Filters section specifically, but Filters is now
+    // one of several stacked sections on the page, so all of them get
+    // searched rather than assuming the (no longer singular) page section.
+    tPanelSection * sections[PANEL_MAX_SECTIONS];
+    uint32_t        sectionCount = synth_current_page_sections(sections, PANEL_MAX_SECTIONS);
+    tPanelDial *    dial         = NULL;
+
+    for (uint32_t s = 0; (s < sectionCount) && !dial; s++) {
+        dial = find_panel_dial(sections[s], "f1cut");
+    }
 
     if (dial) {
         int32_t newVal = (int32_t)get_panel_dial_value(dial) + (int32_t)dy;

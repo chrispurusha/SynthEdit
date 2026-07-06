@@ -80,14 +80,16 @@ void synth_set_current_page(const char * page) {
     }
 }
 
-tPanelSection * synth_current_page_section(void) {
-    for (uint32_t i = 0; i < gSynthPanelConfig.sectionCount; i++) {
+uint32_t synth_current_page_sections(tPanelSection * outSections[], uint32_t maxSections) {
+    uint32_t count = 0;
+
+    for (uint32_t i = 0; (i < gSynthPanelConfig.sectionCount) && (count < maxSections); i++) {
         if (strcmp(gSynthPanelConfig.sections[i].page, gCurrentPage) == 0) {
-            return &gSynthPanelConfig.sections[i];
+            outSections[count++] = &gSynthPanelConfig.sections[i];
         }
     }
 
-    return NULL;
+    return count;
 }
 
 bool synth_handle_page_tab_click(tCoord coord) {
@@ -165,9 +167,11 @@ static void synth_reload_panel_config(void) {
     snprintf(path, sizeof(path), "%s/z1.txt", gLayoutsDir);  // TODO - select synth on load
 
     if (!load_panel_config(path, &gSynthPanelConfig)) {
-        LOG_ERROR("Synth: couldn't load '%s' — filter dials will not render\n", path);
+        LOG_ERROR("Synth: couldn't load '%s' — dials will not render\n", path);
     } else {
-        synth_bind_panel_dials(synth_filters_section());
+        for (uint32_t s = 0; s < gSynthPanelConfig.sectionCount; s++) {
+            synth_bind_panel_dials(&gSynthPanelConfig.sections[s]);
+        }
     }
     gReDraw = true;
 }
@@ -241,11 +245,18 @@ void synth_render(tRectangle area) {
     // ── Active page's dials ─────────────────────────────────────────────────────
     // Layout, colours, ranges and labels all come from layouts/xxxx.txt via
     // panelConfig — this block only supplies the live values and draws. Which
-    // section renders follows the active page tab, not a fixed section name.
+    // section(s) render follows the active page tab, not a fixed section
+    // name. A page can hold several sections (e.g. Oscillator's several
+    // sections stacked above Filters on the Synthesis page) — each is laid
+    // out as its own row, in the file's declaration order, one below the
+    // last.
     {
-        tPanelSection * section = synth_current_page_section();
+        tPanelSection * sections[PANEL_MAX_SECTIONS];
+        uint32_t        sectionCount = synth_current_page_sections(sections, PANEL_MAX_SECTIONS);
 
-        if (section) {
+        for (uint32_t sIdx = 0; sIdx < sectionCount; sIdx++) {
+            tPanelSection * section = sections[sIdx];
+
             layout_panel_section(section, (tRectangle){{x, y}, {0, 0}});
 
             for (uint32_t i = 0; i < section->dialCount; i++) {
@@ -274,6 +285,8 @@ void synth_render(tRectangle area) {
                     {section->spacing,                                            12.0}};
                 render_text(mainArea, lblRect, dial->label);
             }
+
+            y += section->dialSize + 46.0; // dial + value/label text + gap before next stacked section
         }
     }
 }

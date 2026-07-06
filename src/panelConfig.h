@@ -35,10 +35,10 @@ extern "C" {
 
 #define PANEL_ID_LEN            16
 #define PANEL_LABEL_LEN         32
-#define PANEL_MAX_NAMES         8
+#define PANEL_MAX_NAMES         20
 #define PANEL_MAX_COLOURS       16
 #define PANEL_MAX_DIALS         32
-#define PANEL_MAX_SECTIONS      8
+#define PANEL_MAX_SECTIONS      16
 #define PANEL_MAX_LIST_ITEMS    32
 #define PANEL_MAX_LISTS         8
 

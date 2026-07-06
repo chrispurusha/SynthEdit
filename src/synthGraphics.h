@@ -50,11 +50,14 @@ tPanelSection * synth_filters_section(void);
 // get_panel_list_item()/get_panel_list_count()) rather than a specific dial.
 tPanelConfig * synth_panel_config(void);
 
-// The section for whichever page is currently showing on screen (see
-// synth_set_current_page()), or NULL if the config has no sections yet.
-// This is what mouse handling should hit-test/drag against — unlike
-// synth_filters_section(), it changes with the active page.
-tPanelSection * synth_current_page_section(void);
+// Every section belonging to whichever page is currently showing on screen
+// (see synth_set_current_page()), in layout-file order — that order is what
+// determines top-to-bottom stacking when rendered (see synth_render()) and
+// the order mouse handling should search when hit-testing/dragging. Unlike
+// synth_filters_section(), this changes with the active page. Writes at most
+// maxSections pointers into outSections and returns how many were written;
+// each section's dial rects stay valid until the next synth_render() call.
+uint32_t synth_current_page_sections(tPanelSection * outSections[], uint32_t maxSections);
 
 const char * synth_current_page(void);
 void synth_set_current_page(const char * page);

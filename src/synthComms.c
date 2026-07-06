@@ -186,15 +186,19 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
     if (decodedLen > 22) {
         gDevice.unisonDetune = decoded[22];
     }
-    // Filter values from decoded program dump — a full-dump byte buffer,
-    // a different wire format from param= change messages. Byte offsets,
-    // bit-packing and native/CC scaling all come from synth.txt (dumpOffset/
-    // dumpShift/dumpMask/nativeMax); no per-dial knowledge lives here.
-    tPanelSection * section = synth_filters_section();
+    // Values from decoded program dump — a full-dump byte buffer, a different
+    // wire format from param= change messages. Byte offsets, bit-packing and
+    // native/CC scaling all come from synth.txt (dumpOffset/dumpShift/
+    // dumpMask/nativeMax); no per-dial knowledge lives here. Every section
+    // gets scanned, not just Filters — Oscillator's dials live in their own
+    // sections (oscCommon/osc1/osc2/subOsc/noise/mixer) alongside Filters.
+    tPanelConfig *  cfg     = synth_panel_config();
 
-    if (section) {
-        for (uint32_t d = 0; d < section->dialCount; d++) {
-            tPanelDial * dial = &section->dials[d];
+    for (uint32_t s = 0; s < cfg->sectionCount; s++) {
+        tPanelSection * dumpSection = &cfg->sections[s];
+
+        for (uint32_t d = 0; d < dumpSection->dialCount; d++) {
+            tPanelDial * dial = &dumpSection->dials[d];
 
             if ((dial->dumpOffset >= 0) && (decodedLen > (uint32_t)dial->dumpOffset)) {
                 uint32_t raw = (decoded[dial->dumpOffset] >> dial->dumpShift) & dial->dumpMask;
@@ -202,7 +206,8 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
             }
         }
     }
-    tPanelConfig *  cfg     = synth_panel_config();
+
+    tPanelSection * section = synth_filters_section();
     tPanelDial *    f1type  = section ? find_panel_dial(section, "f1type") : NULL;
     tPanelDial *    f2type  = section ? find_panel_dial(section, "f2type") : NULL;
     tPanelDial *    f1cut   = section ? find_panel_dial(section, "f1cut") : NULL;
@@ -270,9 +275,14 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
     } else if (group == SYNTH_PARAM_GROUP_PROG) {
         // Generic dispatch: whichever dial (if any) is wired to this
         // group/paramId in xxxx.txt gets the value — no per-param knowledge
-        // of what it controls lives here.
-        tPanelSection * section = synth_filters_section();
-        tPanelDial *    dial    = section ? find_panel_dial_by_param(section, group, paramId) : NULL;
+        // of what it controls lives here. Searches every section (Filters,
+        // Oscillator's several sections, ...), not just Filters.
+        tPanelConfig * cfg  = synth_panel_config();
+        tPanelDial *   dial = NULL;
+
+        for (uint32_t s = 0; (s < cfg->sectionCount) && !dial; s++) {
+            dial = find_panel_dial_by_param(&cfg->sections[s], group, paramId);
+        }
 
         if (dial) {
             apply_dial_wire_value(dial, value);
@@ -292,16 +302,20 @@ void synth_on_connected(void) {
     gDevice.unisonType   = 0;
     gDevice.unisonDetune = 0;
 
-    // Reset every bound filter dial to its display-space default (0) —
-    // apply_dial_wire_value() already knows how to turn that into the right
-    // storage/native representation per dial, so no per-field defaults here.
-    tPanelSection * section = synth_filters_section();
+    // Reset every bound dial, in every section, to its display-space default
+    // (0) — apply_dial_wire_value() already knows how to turn that into the
+    // right storage/native representation per dial, so no per-field defaults
+    // here.
+    tPanelConfig * cfg = synth_panel_config();
 
-    if (section) {
+    for (uint32_t s = 0; s < cfg->sectionCount; s++) {
+        tPanelSection * section = &cfg->sections[s];
+
         for (uint32_t d = 0; d < section->dialCount; d++) {
             apply_dial_wire_value(&section->dials[d], 0);
         }
     }
+
     gReDraw              = true;
     synth_request_current_program();
 }
@@ -381,16 +395,62 @@ void synth_bind_panel_dials(tPanelSection * section) {
         uint8_t *    value;
         uint8_t *    native;
     } bindings[] = {
-        {"route",  &gDevice.filterRouting,    NULL                        },
-        {"f2link", &gDevice.filter2Link,      NULL                        },
-        {"f1type", &gDevice.filter1Type,      NULL                        },
-        {"f1trim", &gDevice.filter1InputTrim, NULL                        },
-        {"f1cut",  &gDevice.filter1Cutoff,    &gDevice.filter1CutoffNative},
-        {"f1res",  &gDevice.filter1Resonance, &gDevice.filter1ResNative   },
-        {"f2type", &gDevice.filter2Type,      NULL                        },
-        {"f2trim", &gDevice.filter2InputTrim, NULL                        },
-        {"f2cut",  &gDevice.filter2Cutoff,    &gDevice.filter2CutoffNative},
-        {"f2res",  &gDevice.filter2Resonance, &gDevice.filter2ResNative   },
+        {"route",       &gDevice.filterRouting,        NULL                        },
+        {"f2link",      &gDevice.filter2Link,          NULL                        },
+        {"f1type",      &gDevice.filter1Type,          NULL                        },
+        {"f1trim",      &gDevice.filter1InputTrim,     NULL                        },
+        {"f1cut",       &gDevice.filter1Cutoff,        &gDevice.filter1CutoffNative},
+        {"f1res",       &gDevice.filter1Resonance,     &gDevice.filter1ResNative   },
+        {"f2type",      &gDevice.filter2Type,          NULL                        },
+        {"f2trim",      &gDevice.filter2InputTrim,     NULL                        },
+        {"f2cut",       &gDevice.filter2Cutoff,        &gDevice.filter2CutoffNative},
+        {"f2res",       &gDevice.filter2Resonance,     &gDevice.filter2ResNative   },
+        // Oscillator section (oscCommon/osc1/osc2/subOsc/noise/mixer) — same
+        // "id in the file means this gDevice field" convention as Filters
+        // above. find_panel_dial() below is a no-op for any id not present in
+        // whichever section is passed in, so it's harmless to list every
+        // oscillator id here even though this function is called once per
+        // section, not once for the whole device.
+        {"pbIntPlus",   &gDevice.pitchBendIntPlus,     NULL                        },
+        {"pbIntMinus",  &gDevice.pitchBendIntMinus,    NULL                        },
+        {"pbStepPlus",  &gDevice.pitchBendStepPlus,    NULL                        },
+        {"pbStepMinus", &gDevice.pitchBendStepMinus,   NULL                        },
+        {"portSW",      &gDevice.portamentoSW,         NULL                        },
+        {"portMode",    &gDevice.portamentoMode,       NULL                        },
+        {"portTime",    &gDevice.portamentoTime,       NULL                        },
+        {"o1type",      &gDevice.osc1Type,             NULL                        },
+        {"o1oct",       &gDevice.osc1Octave,           NULL                        },
+        {"o1semi",      &gDevice.osc1SemiTone,         NULL                        },
+        {"o1fine",      &gDevice.osc1FineTune,         NULL                        },
+        {"o1freq",      &gDevice.osc1FreqOffset,       NULL                        },
+        {"o2type",      &gDevice.osc2Type,             NULL                        },
+        {"o2oct",       &gDevice.osc2Octave,           NULL                        },
+        {"o2semi",      &gDevice.osc2SemiTone,         NULL                        },
+        {"o2fine",      &gDevice.osc2FineTune,         NULL                        },
+        {"o2freq",      &gDevice.osc2FreqOffset,       NULL                        },
+        {"suboct",      &gDevice.subOscOctave,         NULL                        },
+        {"subsemi",     &gDevice.subOscSemiTone,       NULL                        },
+        {"subfine",     &gDevice.subOscFineTune,       NULL                        },
+        {"subfreq",     &gDevice.subOscFreqOffset,     NULL                        },
+        {"subwave",     &gDevice.subOscWaveForm,       NULL                        },
+        {"noisetype",   &gDevice.noiseFilterType,      NULL                        },
+        {"noisetrim",   &gDevice.noiseFilterTrim,      NULL                        },
+        {"noisecut",    &gDevice.noiseFilterCutoff,    NULL                        },
+        {"noiseres",    &gDevice.noiseFilterResonance, NULL                        },
+        {"mo1o1",       &gDevice.mixerOsc1Out1,        NULL                        },
+        {"mo1o2",       &gDevice.mixerOsc1Out2,        NULL                        },
+        {"mo2o1",       &gDevice.mixerOsc2Out1,        NULL                        },
+        {"mo2o2",       &gDevice.mixerOsc2Out2,        NULL                        },
+        {"msubo1",      &gDevice.mixerSubOut1,         NULL                        },
+        {"msubo2",      &gDevice.mixerSubOut2,         NULL                        },
+        {"mnoiseo1",    &gDevice.mixerNoiseOut1,       NULL                        },
+        {"mnoiseo2",    &gDevice.mixerNoiseOut2,       NULL                        },
+        {"mfbo1",       &gDevice.mixerFeedbackOut1,    NULL                        },
+        {"mfbo2",       &gDevice.mixerFeedbackOut2,    NULL                        },
+        {"mo1sw",       &gDevice.mixerOsc1SW,          NULL                        },
+        {"mo2sw",       &gDevice.mixerOsc2SW,          NULL                        },
+        {"msubsw",      &gDevice.mixerSubSW,           NULL                        },
+        {"mnoisesw",    &gDevice.mixerNoiseSW,         NULL                        },
     };
 
     for (size_t i = 0; i < (sizeof(bindings) / sizeof(bindings[0])); i++) {
