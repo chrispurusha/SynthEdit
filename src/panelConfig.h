@@ -203,17 +203,25 @@ typedef struct {
     bool    moogStyleDump;
     uint8_t productId;
 
-    // Where a Single Preset Dump's name field lives (Moog-style devices
-    // only — see extract_moog_preset_name() in synthComms.c). presetNameLen
-    // 8-bit characters, read from the SAME continuous 7-bit-per-byte
-    // bitstream dumpOffset/dumpBitOffset/dumpBitWidth already use for the
-    // numeric panel fields — presetNameOffset/presetNameBitOffset are that
-    // scheme's byte/bit position for the name's first character, not a
-    // separate encoding. Reverse-engineered from one real Voyager Single
-    // Preset Dump capture (preset 1, "FILTER BUBBLES" — see voyager.txt);
-    // not from any published spec. presetNameOffset defaults to -1 ("no name
-    // field declared"), set in load_panel_config(), same convention as each
-    // dial's own dumpOffset default.
+    // Where a name field lives in each of the two Moog-style dump replies
+    // (moogStyleDump devices only — see extract_moog_name() in
+    // synthComms.c). Same continuous 7-bit-per-byte bitstream
+    // dumpOffset/dumpBitOffset/dumpBitWidth already use for the numeric
+    // panel fields — the Offset/BitOffset pair below is just that scheme's
+    // byte/bit position for the name's first (of Len) 8-bit characters, not
+    // a separate encoding. Two separate fields, not one shared offset,
+    // because the two dump types' name fields don't live at the same
+    // position — Single Preset Dump's is 1 byte later than Panel Dump's,
+    // presumably for a preset-number byte Panel Dump has no reason to carry.
+    // Reverse-engineered from real Voyager captures (2026-07-07): Panel Dump
+    // from whatever the currently-loaded patch was ("FROM A DISTANCE"),
+    // Single Preset Dump from preset 1 ("FILTER BUBBLES") — not from any
+    // published spec. Both offsets default to -1 ("no name field declared"),
+    // set in load_panel_config(), same convention as each dial's own
+    // dumpOffset default.
+    int32_t       panelNameOffset;
+    uint32_t      panelNameBitOffset;
+    uint32_t      panelNameLen;
     int32_t       presetNameOffset;
     uint32_t      presetNameBitOffset;
     uint32_t      presetNameLen;

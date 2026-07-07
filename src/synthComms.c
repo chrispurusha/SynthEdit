@@ -254,15 +254,79 @@ static uint32_t read_bitpacked_field(const uint8_t * payload, uint32_t payloadLe
     return value;
 }
 
+// Decodes a name field into gDevice.progName, if `offset` >= 0 (the
+// tPanelConfig field comment explains why Panel Dump and Single Preset Dump
+// each need their own offset/bitOffset/len rather than sharing one). Each
+// character is 8 bits read from the same continuous 7-bit-per-byte
+// bitstream the numeric panel fields use (read_bitpacked_field() above), one
+// after another starting at offset/bitOffset.
+//
+// Reverse-engineered against four real captures (Voyager preset 1, "FILTER
+// BUBBLES"; a Panel Dump, "FROM A DISTANCE"; preset 2, "Really Heavy"; and
+// a Panel Dump, "Velocity"/"Temple Bells"): the raw field is two fixed-width
+// 12-char lines — matching the Voyager's 2-line LCD — with NO dedicated
+// separator byte anywhere in it. Each line's 12th byte (field index 11 and
+// 23) is really just that line's own 12th character, with its high bit set
+// (e.g. 'y' 0x79 -> 0xF9, 's' 0x73 -> 0xF3) — "Really Heavy" and "Temple
+// Bells" are what exposed this: each has a real (non-space) 12th character
+// on one of its lines, which an earlier version of this code/config mistook
+// for a fixed 0xA0 separator marker (silently dropped) or ran past the
+// field's then-assumed 20-char length (silently truncated) respectively.
+// "FILTER BUBBLES" and "FROM A DISTANCE" both worked under the old, wrong
+// model purely by coincidence: neither line runs past 11 real characters, so
+// each line's 12th byte is always plain padding — a space, or (once bit 7 is
+// considered) nothing at index 23 to even reach. Masking off bit 7 before
+// checking printability — rather than treating any high-bit byte as
+// whitespace — decodes all four correctly, and collapsing runs of (masked)
+// whitespace to one space still turns padded lines like "FILTER      " +
+// "BUBBLES     " into "FILTER BUBBLES" generically, for any device whose
+// name field turns out to follow the same padded-lines shape.
+static void extract_moog_name(const uint8_t * payload, uint32_t payloadLen, int32_t offset, uint32_t bitOffset, uint32_t len) {
+    if ((offset < 0) || (len == 0)) {
+        return;
+    }
+    uint32_t globalBit    = (uint32_t)offset * 7 + bitOffset;
+    uint32_t outLen       = 0;
+    bool     lastWasSpace = false;
+
+    for (uint32_t i = 0; (i < len) && (outLen < sizeof(gDevice.progName) - 1); i++) {
+        uint32_t byteOffset = globalBit / 7;
+        uint32_t bo         = globalBit % 7;
+        uint32_t raw        = read_bitpacked_field(payload, payloadLen, (int32_t)byteOffset, bo, 8);
+        uint8_t  ch         = (uint8_t)(raw & 0x7F); // strip the line-boundary marker's high bit — see comment above
+        bool     printable  = (ch >= 0x20) && (ch < 0x7F) && (ch != ' ');
+
+        if (printable) {
+            gDevice.progName[outLen++] = (char)ch;
+            lastWasSpace               = false;
+        } else if (!lastWasSpace && (outLen > 0)) {
+            gDevice.progName[outLen++] = ' ';
+            lastWasSpace               = true;
+        }
+        globalBit += 8;
+    }
+
+    while ((outLen > 0) && (gDevice.progName[outLen - 1] == ' ')) {
+        outLen--;
+    }
+    gDevice.progName[outLen] = '\0';
+    LOG_DEBUG("Decoded name: \"%s\"\n", gDevice.progName);
+}
+
 // Same role as extract_prog_info() above, but for Moog's bit-packed dump
 // shape — every dial with dumpBitWidth > 0 gets its value from
 // read_bitpacked_field() instead of the single-byte dumpShift/dumpMask path.
-// No prog-name handling (Moog's Panel Dump isn't tied to a named preset slot
-// the way a Single Preset Dump is — see the format's own spec comment in
-// voyager.txt).
+// Also decodes the name field (see extract_moog_name() above) — a Panel
+// Dump IS tied to a name after all (unlike what its own spec comment
+// suggests: it just doesn't call it a "preset" name since Panel Dump
+// reflects the live edit buffer, not necessarily an unmodified stored
+// preset) — confirmed by capture, see panelNameOffset's own comment in
+// panelConfig.h.
 static void extract_moog_panel_info(const uint8_t * payload, uint32_t payloadLen) {
     tPanelConfig * cfg     = synth_panel_config();
     uint32_t       updated = 0;
+
+    extract_moog_name(payload, payloadLen, cfg->panelNameOffset, cfg->panelNameBitOffset, cfg->panelNameLen);
 
     for (uint32_t s = 0; s < cfg->sectionCount; s++) {
         tPanelSection * section = &cfg->sections[s];
@@ -342,58 +406,14 @@ static void handle_moog_panel_dump(const uint8_t * data, uint32_t length) {
     extract_moog_panel_info(payload, payloadLen);
 }
 
-// Decodes a Single Preset Dump's name field into gDevice.progName, if the
-// device's file declared one (presetNameOffset >= 0 — see the tPanelConfig
-// field comment in panelConfig.h). Each character is 8 bits read from the
-// same continuous 7-bit-per-byte bitstream the numeric panel fields use
-// (read_bitpacked_field() above), one after another starting at
-// presetNameOffset/presetNameBitOffset.
-//
-// Reverse-engineered against one real capture (Voyager preset 1, "FILTER
-// BUBBLES"): the raw field turned out to be two fixed-width, space-padded
-// lines — matching the Voyager's 2-line LCD — with one non-ASCII byte
-// (0xA0, a space with the high bit set) marking the line break, not a
-// single contiguous name string. Rather than also declaring where that
-// break falls (which would only make this MORE Voyager-specific), every
-// non-printable byte is treated as whitespace and runs of whitespace are
-// collapsed to one space — turning "FILTER     <0xA0>BUBBLES " back into
-// "FILTER BUBBLES" generically, for any device whose name field turns out
-// to follow the same padded-lines shape.
-static void extract_moog_preset_name(const uint8_t * payload, uint32_t payloadLen) {
-    tPanelConfig * cfg          = synth_panel_config();
-
-    if ((cfg->presetNameOffset < 0) || (cfg->presetNameLen == 0)) {
-        return;
-    }
-    uint32_t       globalBit    = (uint32_t)cfg->presetNameOffset * 7 + cfg->presetNameBitOffset;
-    uint32_t       outLen       = 0;
-    bool           lastWasSpace = false;
-
-    for (uint32_t i = 0; (i < cfg->presetNameLen) && (outLen < sizeof(gDevice.progName) - 1); i++) {
-        uint32_t byteOffset = globalBit / 7;
-        uint32_t bitOffset  = globalBit % 7;
-        uint32_t raw        = read_bitpacked_field(payload, payloadLen, (int32_t)byteOffset, bitOffset, 8);
-        bool     printable  = (raw >= 0x20) && (raw < 0x7F);
-
-        if (printable) {
-            gDevice.progName[outLen++] = (char)raw;
-            lastWasSpace               = false;
-        } else if (!lastWasSpace && (outLen > 0)) {
-            gDevice.progName[outLen++] = ' ';
-            lastWasSpace               = true;
-        }
-        globalBit += 8;
-    }
-
-    while ((outLen > 0) && (gDevice.progName[outLen - 1] == ' ')) {
-        outLen--;
-    }
-    gDevice.progName[outLen] = '\0';
-    LOG_DEBUG("Preset name: \"%s\"\n", gDevice.progName);
-}
-
 // Format: F0 <mfrId> <productId> <deviceId> 03 <payload...> F7 — the reply to
-// synth_request_single_preset_dump()'s mode 0x06 request.
+// synth_request_single_preset_dump()'s mode 0x06 request. Only decodes the
+// name (extract_moog_name() above, at presetNameOffset rather than
+// panelNameOffset — see the tPanelConfig field comment for why they
+// differ) — Backup > Patch by Number is this reply's only other consumer
+// (synth_backup_capture_dump() below), and that treats the dial data as an
+// opaque blob rather than decoding it into gDevice/the dials, so there's no
+// dumpOffset table to feed it through the way handle_moog_panel_dump() does.
 static void handle_moog_single_preset_dump(const uint8_t * data, uint32_t length) {
     const uint32_t  skip       = 1; // F0 only — see handle_moog_panel_dump()'s comment on why
 
@@ -403,8 +423,9 @@ static void handle_moog_single_preset_dump(const uint8_t * data, uint32_t length
     }
     const uint8_t * payload    = data + skip;
     uint32_t        payloadLen = length - skip - 1; // exclude trailing F7
+    tPanelConfig *  cfg        = synth_panel_config();
 
-    extract_moog_preset_name(payload, payloadLen);
+    extract_moog_name(payload, payloadLen, cfg->presetNameOffset, cfg->presetNameBitOffset, cfg->presetNameLen);
     synth_backup_capture_dump(data, length, eBackupExpectPreset); // no-op unless a by-number Backup is pending — see synthBackup.c; after the name decode so a by-number backup's default filename can use it
 }
 

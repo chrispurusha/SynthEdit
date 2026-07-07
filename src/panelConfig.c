@@ -279,6 +279,12 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
         config->memberId = (uint32_t)strtoul(tokens[1], NULL, 0);
     } else if (strcmp(keyword, "progNameLen") == 0) {
         config->progNameLen = (uint32_t)strtoul(tokens[1], NULL, 0);
+    } else if (strcmp(keyword, "panelNameOffset") == 0) {
+        config->panelNameOffset = (int32_t)strtol(tokens[1], NULL, 0);
+    } else if (strcmp(keyword, "panelNameBitOffset") == 0) {
+        config->panelNameBitOffset = (uint32_t)strtoul(tokens[1], NULL, 0);
+    } else if (strcmp(keyword, "panelNameLen") == 0) {
+        config->panelNameLen = (uint32_t)strtoul(tokens[1], NULL, 0);
     } else if (strcmp(keyword, "presetNameOffset") == 0) {
         config->presetNameOffset = (int32_t)strtol(tokens[1], NULL, 0);
     } else if (strcmp(keyword, "presetNameBitOffset") == 0) {
@@ -378,6 +384,7 @@ bool load_panel_config(const char * path, tPanelConfig * config) {
     }
     memset(config, 0, sizeof(*config));
     config->supportsIdentity = true;  // overridden by an explicit "identityQuery no" line
+    config->panelNameOffset  = -1;    // overridden by an explicit "panelNameOffset" line
     config->presetNameOffset = -1;    // overridden by an explicit "presetNameOffset" line
 
     tPanelSection * currentSection = NULL;

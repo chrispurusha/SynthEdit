@@ -154,25 +154,45 @@ productId       0x01
 # presetNameOffset/presetNameBitOffset/presetNameLen — Single Preset Dump's
 # (mode 0x03) name field, in the same dumpOffset/dumpBitOffset terms every
 # numeric field below uses (byte position within payload=data+1, i.e.
-# counting mfrId as byte 1 — see the header comment above). NOT present in a
-# Panel Dump (mode 0x02) — Moog's own doc for that format doesn't mention a
-# name, matching the manual's "Panel Dump isn't tied to a named preset slot".
+# counting mfrId as byte 1 — see the header comment above).
 #
 # CONFIRMED against real hardware (2026-07-07): captured preset 1 ("FILTER
 # BUBBLES") via Backup > Patch by Number, decoded byte-by-byte until "FILTER"
 # fell out at bit 679 of the payload (= byte 97, bit 0 — i.e. presetNameOffset
 # 101 in this file's byte-1-is-mfrId counting: 97 + the 4 bytes of header
 # this scheme counts as payload that a raw-array offset of 97 didn't). Full
-# 20-char field decodes to two fixed-width space-padded lines (11 + 8 chars,
-# matching the Voyager's 2-line LCD) joined by one 0xA0 separator byte — see
-# extract_moog_preset_name()'s comment in synthComms.c for how that's turned
-# back into a single "FILTER BUBBLES" string generically. Only this one
-# preset has been checked; a longer name could reveal the 11/8 split is
-# preset-1-specific rather than a fixed field width, in which case
-# presetNameLen may need to grow.
+# 24-char field decodes to two fixed-width 12-char lines (matching the
+# Voyager's 2-line LCD) with NO dedicated separator byte between them — each
+# line's 12th byte (index 11 and index 23) is really just that line's own
+# 12th character, high bit set. Two more captures are what revealed this
+# shape: preset 2, "Really Heavy" (whose line-1 12th char is a real letter,
+# 'y' 0x79 -> 0xF9, not the 0xA0 space-with-high-bit-set that "FILTER
+# BUBBLES"' line-1 12th char happens to be), and "Velocity"/"Temple Bells"
+# (whose line-2 12th char, 's' 0x73 -> 0xF3, sits at index 23 — past the
+# field's originally-assumed 20-char length, which had been truncating any
+# name whose second line ran past 8 real characters). See
+# extract_moog_name()'s comment in synthComms.c for the full story and how
+# each line is turned back into space-joined text generically.
 presetNameOffset    101
 presetNameBitOffset 0
-presetNameLen       20
+presetNameLen       24
+
+# panelNameOffset/panelNameBitOffset/panelNameLen — the same name field, but
+# in a Panel Dump (mode 0x02) rather than a Single Preset Dump (mode 0x03).
+# One byte earlier than presetNameOffset above — Moog's own doc lists an
+# extra byte in the 0x03 reply's header that 0x02's doesn't have, shifting
+# everything after it by one.
+#
+# CONFIRMED against real hardware (2026-07-07): captured a Panel Dump while
+# "FROM A DISTANCE" was showing on the Voyager's display, decoded byte-by-byte
+# until "FROM A" fell out at byte 100 bit 0 in this file's byte-1-is-mfrId
+# counting — the same fixed-12-char-lines shape as presetNameOffset. A second
+# Panel Dump capture, "Velocity"/"Temple Bells", confirmed the field really
+# is 24 chars long (two 12-char lines), not 20 — see presetNameLen's comment
+# above for how that was found.
+panelNameOffset     100
+panelNameBitOffset  0
+panelNameLen        24
 
 # ── Oscillators page ──────────────────────────────────────────────────────────
 page       oscillators

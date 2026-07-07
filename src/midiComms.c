@@ -445,22 +445,11 @@ static void dispatch_program_change(uint8_t channel, uint8_t program) {
     }
 
     if (gDevice.connected) {
-        synth_request_state_dump(); // refreshes dial positions (Panel Dump/Current Program Dump — no name, see extract_moog_panel_info()'s comment in synthComms.c)
-
-        tPanelConfig * cfg = synth_panel_config();
-
-        if (cfg->moogStyleDump && (cfg->presetNameOffset >= 0)) {
-            // Panel Dump alone can't refresh gDevice.progName — only a Single
-            // Preset Dump carries a name (see extract_moog_preset_name()) —
-            // so also ask for the specific preset MIDI just told us was
-            // recalled. MIDI's Program Change is 0-based; presets are
-            // addressed 1-based everywhere else in this app (Backup > Patch
-            // by Number, presetNameOffset's own dumpOffset numbering), hence
-            // +1. Guarded on presetNameOffset, not just moogStyleDump, so a
-            // Moog-style device with no declared name field (e.g. Minitaur,
-            // untested) doesn't send a request nothing will answer usefully.
-            synth_request_single_preset_dump((uint32_t)program + 1);
-        }
+        // Panel Dump (or Korg's Current Program Dump) alone refreshes both
+        // the dial positions and gDevice.progName — see panelNameOffset in
+        // extract_moog_panel_info() (synthComms.c). No need to also chase a
+        // Single Preset Dump by number.
+        synth_request_state_dump();
     }
 }
 
