@@ -47,6 +47,11 @@ static tPanelDial * gDraggedDial   = NULL;
 static double       gDragPrevX     = 0.0;   // cursor position at previous cursor_pos call — incremental delta
 static double       gDragPrevY     = 0.0;
 static int          gDragSkipCount = 0;     // skip first N cursor_pos events after CURSOR_DISABLED — covers stale events + transition event
+
+// Page tab press state — actions on mouse-up, not mouse-down (standard
+// button behaviour: press-and-drag-off cancels the click). -1 = no tab
+// currently pressed.
+static int32_t      gPressedTab    = -1;
 static double       gDragTypeAccum = 0.0;   // sub-step accumulator for discrete (named) dials
 
 // ── Coordinate helpers ────────────────────────────────────────────────────────
@@ -136,12 +141,22 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
     }
 
     if (!pressed) {
+        // Action a pressed tab only if release lands back on it — matches
+        // standard button behaviour (press-and-drag-off cancels the click).
+        if ((gPressedTab >= 0) && (synth_hit_test_page_tab(coord) == gPressedTab)) {
+            synth_action_page_tab(gPressedTab);
+        }
+        gPressedTab = -1;
+        synth_set_pressed_page_tab(-1);
         return;
     }
+    // Page-tab row is checked before dial hit-testing so a tab press can't
+    // also be misread as a drag start. Just arms gPressedTab here — the
+    // action itself fires on release above, not here on press.
+    gPressedTab = synth_hit_test_page_tab(coord);
 
-    // Page-tab row is checked before dial hit-testing so a tab click can't
-    // also be misread as a drag start.
-    if (synth_handle_page_tab_click(coord)) {
+    if (gPressedTab >= 0) {
+        synth_set_pressed_page_tab(gPressedTab);
         return;
     }
     // Hit-test every section on the current panel page generically —

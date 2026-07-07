@@ -64,6 +64,7 @@ typedef struct {
 static tPageTab     gPageTabs[SYNTH_MAX_PAGE_TABS] = {0};
 static uint32_t     gPageTabCount                  = 0;
 static char         gCurrentPage[PANEL_ID_LEN]     = {0};
+static int32_t      gPressedTabIndex               = -1; // cosmetic only — see synth_set_pressed_page_tab()
 
 const char * synth_current_page(void) {
     return gCurrentPage;
@@ -91,15 +92,27 @@ uint32_t synth_current_page_sections(tPanelSection * outSections[], uint32_t max
     return count;
 }
 
-bool synth_handle_page_tab_click(tCoord coord) {
+int32_t synth_hit_test_page_tab(tCoord coord) {
     for (uint32_t i = 0; i < gPageTabCount; i++) {
         if (within_rectangle(coord, gPageTabs[i].rect)) {
-            synth_set_current_page(gPageTabs[i].page);
-            return true;
+            return (int32_t)i;
         }
     }
 
-    return false;
+    return -1;
+}
+
+void synth_action_page_tab(int32_t index) {
+    if ((index >= 0) && ((uint32_t)index < gPageTabCount)) {
+        synth_set_current_page(gPageTabs[index].page);
+    }
+}
+
+void synth_set_pressed_page_tab(int32_t index) {
+    if (index != gPressedTabIndex) {
+        gPressedTabIndex = index;
+        gReDraw          = true;
+    }
 }
 
 // Rebuilds gPageTabs from the config's distinct page names and renders them
@@ -146,15 +159,20 @@ static double render_page_tabs(tRectangle origin) {
         // (internal_render_text: scaleFactor = rectangle.size.h / ...), so
         // the width measurement has to match that same height or the box
         // ends up too narrow for what actually gets drawn.
-        double     width  = get_text_width(label, tabHeight, eNoCache); // ~8px padding each side
-        tRectangle rect   = {{x, origin.coord.y}, {width, tabHeight}};
-        bool       active = strcmp(gPageTabs[i].page, gCurrentPage) == 0;
+        double     width   = get_text_width(label, tabHeight, eNoCache); // ~8px padding each side
+        tRectangle rect    = {{x, origin.coord.y}, {width, tabHeight}};
+        bool       active  = strcmp(gPageTabs[i].page, gCurrentPage) == 0;
+        bool       pressed = (int32_t)i == gPressedTabIndex;
 
         // RGB_GREY_7, not RGB_BACKGROUND_GREY — the latter is a dark grey in
         // this build, too low-contrast for draw_button's fixed black text.
-        draw_button(mainArea, rect, label, active ? (tRgb)RGB_GREEN_ON : (tRgb)RGB_GREY_7);
-        gPageTabs[i].rect        = rect;
-        x                       += width + tabGap;
+        // Pressed (mouse currently down on this tab) takes priority over
+        // active — it's transient feedback for the click in progress, shown
+        // regardless of which page is actually selected right now.
+        tRgb       colour  = pressed ? (tRgb)RGB_GREY_5 : (active ? (tRgb)RGB_GREEN_ON : (tRgb)RGB_GREY_7);
+        draw_button(mainArea, rect, label, colour);
+        gPageTabs[i].rect = rect;
+        x                += width + tabGap;
     }
 
     return (gPageTabCount > 0) ? (tabHeight + 12.0) : 0.0;

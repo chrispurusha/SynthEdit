@@ -56,10 +56,22 @@ uint32_t synth_current_page_sections(tPanelSection * outSections[], uint32_t max
 const char * synth_current_page(void);
 void synth_set_current_page(const char * page);
 
-// Hit-tests the page-tab row laid out during the last synth_render() call.
-// If a tab was hit, switches the current page and returns true (so the
-// caller can treat the click as consumed rather than also dial-hit-testing).
-bool synth_handle_page_tab_click(tCoord coord);
+// Hit-tests the page-tab row laid out during the last synth_render() call —
+// returns the tab index under coord, or -1 if none. Pure hit-test, no side
+// effect; used on mouse-down (to arm a tab without actioning it yet) and
+// again on mouse-up (to confirm the release landed back on the same tab).
+int32_t synth_hit_test_page_tab(tCoord coord);
+
+// Switches to the page at gPageTabs[index] (see synth_hit_test_page_tab()).
+// Actions the tab — call only on mouse-up, once the release has been
+// confirmed to land back on the tab that was pressed.
+void synth_action_page_tab(int32_t index);
+
+// Purely cosmetic: which tab (if any) render_page_tabs() should draw in its
+// pressed shade. mouseHandle.c is the source of truth for whether a press
+// actually still counts (see gPressedTab there) — this just mirrors that for
+// rendering. -1 = none pressed.
+void synth_set_pressed_page_tab(int32_t index);
 
 #ifdef __cplusplus
 }
