@@ -287,45 +287,64 @@ static uint32_t read_bitpacked_field(const uint8_t * payload, uint32_t payloadLe
 // non-Voyager Moog-style devices, meaning "one line, no forced break") fixes
 // that by forcing a '\n' after every lineWidth characters regardless of
 // content, so synth_render() (synthGraphics.cpp) can show gDevice.progName
-// as separate lines matching the device's own display. Each line is
-// right-trimmed independently before its '\n', and any wholly-blank
-// trailing line (short single-line names like "Really Heavy", whose second
-// line is all padding) is dropped rather than left as a trailing blank row.
+// as separate lines matching the device's own display, and
+// synth_backup_capture_dump() (synthBackup.c) can build a filename by just
+// dropping the '\n' (not substituting a space — see that function's own
+// comment for why).
+//
+// The forced '\n' is inserted on top of the SAME whitespace-collapsing this
+// function already does for every other non-printable byte (runs collapse
+// to one space) — it does NOT additionally strip a real trailing space that
+// happens to land right before it. That distinction matters: a short first
+// line like "TIME FOR" (8 real characters) still has 4 bytes of real 0x20
+// padding out to the 12-char line width, and collapsing that run keeps
+// exactly one of those spaces — so the decoded field is "TIME FOR \nSURFIN'",
+// and dropping just the '\n' for a filename correctly yields "TIME FOR
+// SURFIN'". A full first line like "Floating Mod" (exactly 12 real
+// characters, no padding at all) has no such byte to collapse, so nothing
+// survives before its '\n' and the filename is "Floating ModSteel Guitar"
+// — also correct, because that's genuinely what the raw data contains: real
+// hardware capture (2026-07-07) confirms there is no dedicated separator
+// byte anywhere in the field, in either case. An earlier version of this
+// function unconditionally trimmed each line's trailing whitespace down to
+// nothing before its forced '\n', which was fine for on-screen display
+// (trailing whitespace before a line break is invisible either way) but
+// silently discarded the real space "TIME FOR"'s filename needed.
 static void extract_moog_name(const uint8_t * payload, uint32_t payloadLen, int32_t offset, uint32_t bitOffset, uint32_t len, uint32_t lineWidth) {
     if ((offset < 0) || (len == 0)) {
         return;
     }
-    uint32_t globalBit = (uint32_t)offset * 7 + bitOffset;
-    uint32_t outLen    = 0;
-    uint32_t lineStart = 0;
-    uint32_t lineChars = 0;
-    uint32_t width     = (lineWidth > 0) ? lineWidth : len;
+    uint32_t globalBit    = (uint32_t)offset * 7 + bitOffset;
+    uint32_t outLen       = 0;
+    uint32_t lineChars    = 0;
+    uint32_t width        = (lineWidth > 0) ? lineWidth : len;
+    bool     lastWasSpace = false;
 
     for (uint32_t i = 0; (i < len) && (outLen < sizeof(gDevice.progName) - 1); i++) {
         uint32_t byteOffset = globalBit / 7;
         uint32_t bo         = globalBit % 7;
         uint32_t raw        = read_bitpacked_field(payload, payloadLen, (int32_t)byteOffset, bo, 8);
         uint8_t  ch         = (uint8_t)(raw & 0x7F); // strip the line-boundary marker's high bit — see comment above
+        bool     printable  = (ch >= 0x20) && (ch < 0x7F) && (ch != ' ');
 
-        gDevice.progName[outLen++] = ((ch >= 0x20) && (ch < 0x7F)) ? (char)ch : ' ';
+        if (printable) {
+            gDevice.progName[outLen++] = (char)ch;
+            lastWasSpace               = false;
+        } else if (!lastWasSpace && (outLen > 0)) {
+            gDevice.progName[outLen++] = ' ';
+            lastWasSpace               = true;
+        }
         lineChars++;
-        globalBit                 += 8;
+        globalBit += 8;
 
         if ((lineChars == width) && ((i + 1) < len) && (outLen < sizeof(gDevice.progName) - 1)) {
-            while ((outLen > lineStart) && (gDevice.progName[outLen - 1] == ' ')) {
-                outLen--;
-            }
             gDevice.progName[outLen++] = '\n';
-            lineStart                  = outLen;
+            lastWasSpace               = true;  // a forced break also suppresses a leading collapsed space on the next line
             lineChars                  = 0;
         }
     }
 
-    while ((outLen > lineStart) && (gDevice.progName[outLen - 1] == ' ')) {
-        outLen--;
-    }
-
-    while ((outLen > 0) && (gDevice.progName[outLen - 1] == '\n')) {
+    while ((outLen > 0) && ((gDevice.progName[outLen - 1] == ' ') || (gDevice.progName[outLen - 1] == '\n'))) {
         outLen--;
     }
     gDevice.progName[outLen] = '\0';
