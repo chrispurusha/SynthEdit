@@ -293,6 +293,8 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
         config->presetNameLen = (uint32_t)strtoul(tokens[1], NULL, 0);
     } else if (strcmp(keyword, "nameLineWidth") == 0) {
         config->nameLineWidth = (uint32_t)strtoul(tokens[1], NULL, 0);
+    } else if (strcmp(keyword, "presetBankCount") == 0) {
+        config->presetBankCount = (uint32_t)strtoul(tokens[1], NULL, 0);
     } else if (strcmp(keyword, "scrollDial") == 0) {
         strncpy(config->scrollDialId, tokens[1], sizeof(config->scrollDialId) - 1);
     } else if (strcmp(keyword, "identityQuery") == 0) {
@@ -388,6 +390,7 @@ bool load_panel_config(const char * path, tPanelConfig * config) {
     config->supportsIdentity = true;  // overridden by an explicit "identityQuery no" line
     config->panelNameOffset  = -1;    // overridden by an explicit "panelNameOffset" line
     config->presetNameOffset = -1;    // overridden by an explicit "presetNameOffset" line
+    config->presetBankCount  = 1;     // overridden by an explicit "presetBankCount" line — see its own field comment in panelConfig.h
 
     tPanelSection * currentSection = NULL;
     double          pendingGap     = 0.0;

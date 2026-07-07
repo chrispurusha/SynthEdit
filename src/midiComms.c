@@ -75,7 +75,17 @@ void midi_arm_state_dump_debounce(void) {
 }
 
 // ── SysEx reassembly ──────────────────────────────────────────────────────────
-#define SYSEX_BUF_SIZE    8192
+// 8192 was plenty for a single Panel/Preset Dump (~150 bytes) but not for a
+// Moog-style All Presets Dump (mode 0x01 — see voyager.txt's header comment
+// and synth_request_all_presets_dump() in synthComms.c), all inside one
+// F0...F7 message with no per-preset framing to split it up. CONFIRMED
+// against real hardware (2026-07-07): a captured Bank backup was exactly
+// 18734 bytes — comfortably under this buffer, with headroom to spare for a
+// unit with more presets than a base Voyager's single 128-location bank
+// (see tPanelConfig.presetBankCount's comment in panelConfig.h). A
+// too-small buffer would silently truncate the very backup this exists to
+// support (LOG_ERROR("SysEx buffer overflow...") below).
+#define SYSEX_BUF_SIZE    65536
 static uint8_t          gSysExBuf[SYSEX_BUF_SIZE];
 static uint32_t         gSysExLen               = 0;
 static MIDIEndpointRef  gSysExSrc               = 0;

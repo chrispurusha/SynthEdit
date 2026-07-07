@@ -206,6 +206,20 @@ panelNameLen        24
 # without this.
 nameLineWidth       12
 
+# presetBankCount — how many banks of 128 presets the connected unit has.
+# 1 for a base Voyager (confirmed: this is what the owner's own unit is, and
+# Backup > Bank's mode 0x04 request — see synth_request_all_presets_dump()
+# in synthComms.c — is now CONFIRMED against it, 2026-07-07: an 18734-byte
+# reply, exactly one F0...F7, with preset 1 and preset 3's known real names
+# decoding correctly at byte offsets 100 and 396). The Voyager manual
+# describes memory-expanded units (VX-352 or similar) having more, but this
+# app doesn't yet know how a Bank backup would address a bank other than
+# whichever one the unit's front panel currently has selected, so this is
+# documentation for now rather than something Backup > Bank actually uses to
+# loop over banks. Raise this once that's worked out, for anyone whose
+# Voyager has more than one bank.
+presetBankCount     1
+
 # ── Oscillators page ──────────────────────────────────────────────────────────
 page       oscillators
 section    osc1

@@ -467,6 +467,19 @@ static void handle_moog_single_preset_dump(const uint8_t * data, uint32_t length
     synth_backup_capture_dump(data, length, eBackupExpectPreset); // no-op unless a by-number Backup is pending — see synthBackup.c; after the name decode so a by-number backup's default filename can use it
 }
 
+// Format: F0 <mfrId> <productId> <deviceId> 01 <every preset's data...> F7 —
+// the reply to synth_request_all_presets_dump()'s mode 0x04 request. Backup
+// > Bank is this reply's only consumer, and — same as Backup > Patch by
+// Number above — treats the whole thing as an opaque blob to save as-is
+// rather than decoding it (there's no per-preset dumpOffset table to decode
+// 128 presets' worth of dials into even if it wanted to; gDevice only ever
+// holds ONE preset's worth of dial state at a time). No name decode either:
+// unlike a Single Preset Dump, there's no one name to show — it's the whole
+// bank.
+static void handle_moog_all_presets_dump(const uint8_t * data, uint32_t length) {
+    synth_backup_capture_dump(data, length, eBackupExpectBank);
+}
+
 static void handle_parameter_change(const uint8_t * data, uint32_t length) {
     // Format: F0 <mfrId> 3g 46 41 0mm pp pp vv vv F7
     // group(m), paramLSB, paramMSB, valueLSB, valueMSB start right after the
@@ -586,6 +599,34 @@ void synth_request_single_preset_dump(uint32_t presetNumber) {
     LOG_DEBUG("Sent Single Preset Dump Request for preset %u\n", (unsigned)presetNumber);
 }
 
+void synth_request_all_presets_dump(void) {
+    tPanelConfig * cfg       = synth_panel_config();
+
+    if (!cfg->moogStyleDump) {
+        LOG_ERROR("All Presets Dump Request: not a Moog-style device\n");
+        return;
+    }
+
+    if (cfg->stateRequestSysExLen < 2) {
+        LOG_ERROR("All Presets Dump Request: no stateRequestSysEx declared\n");
+        return;
+    }
+    // Same construction as synth_request_single_preset_dump() above — built
+    // from stateRequestSysEx's header, mode byte swapped to 0x04 — but with
+    // no extra data byte before the trailing F7: unlike mode 0x06 (Single
+    // Preset Dump REQUEST), the header comment's mode table doesn't list one
+    // for 0x04, and there'd be nothing to number anyway (this asks for every
+    // preset in the bank, not one).
+    uint8_t        msg[sizeof(cfg->stateRequestSysEx)];
+    uint32_t       prefixLen = cfg->stateRequestSysExLen - 1; // everything up to (not including) the trailing F7
+
+    memcpy(msg, cfg->stateRequestSysEx, prefixLen);
+    msg[prefixLen - 1] = 0x04; // mode byte: All Presets Dump REQUEST
+    msg[prefixLen]     = MIDI_SYSEX_END;
+    midi_send(msg, prefixLen + 1);
+    LOG_DEBUG("Sent All Presets Dump Request\n");
+}
+
 void synth_navigate_preset(int32_t delta) {
     if (!gDevice.connected) {
         LOG_ERROR("Preset navigation: no device connected\n");
@@ -677,10 +718,11 @@ void synth_handle_message(const uint8_t * data, uint32_t length) {
     if (synth_panel_config()->moogStyleDump) {
         // Entirely separate header shape and dispatch from the Korg-style
         // path below (see is_moog_sysex()/handle_moog_panel_dump()). Modes
-        // 0x02 (Panel Dump) and 0x03 (Single Preset Dump) are the two replies
-        // this app requests (see stateRequestSysEx/"Panel Dump Request" and
-        // synth_request_single_preset_dump() respectively) — anything else is
-        // logged and ignored.
+        // 0x02 (Panel Dump), 0x03 (Single Preset Dump), and 0x01 (All
+        // Presets Dump) are the replies this app requests (see
+        // stateRequestSysEx/"Panel Dump Request", synth_request_single_preset_dump(),
+        // and synth_request_all_presets_dump() respectively) — anything else
+        // is logged and ignored.
         if (!is_moog_sysex(data, length)) {
             LOG_DEBUG("Ignoring non-target SysEx (len=%u)\n", (unsigned)length);
             return;
@@ -691,6 +733,8 @@ void synth_handle_message(const uint8_t * data, uint32_t length) {
             handle_moog_panel_dump(data, length);
         } else if (mode == 0x03) {
             handle_moog_single_preset_dump(data, length);
+        } else if (mode == 0x01) {
+            handle_moog_all_presets_dump(data, length);
         } else {
             LOG_DEBUG("Moog SysEx unhandled mode 0x%02X\n", (unsigned)mode);
         }

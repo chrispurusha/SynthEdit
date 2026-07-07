@@ -68,6 +68,24 @@ void synth_request_state_dump(void);
 // base Voyager with no VX-... memory expansion, per voyager.txt).
 void synth_request_single_preset_dump(uint32_t presetNumber);
 
+// Moog-style devices only: requests every stored preset in one message
+// (mode 0x04, "All Presets Dump REQUEST" — see voyager.txt's header
+// comment), for Backup > Bank. CONFIRMED against real hardware (2026-07-07):
+// a captured reply was a single well-formed 18734-byte message (exactly one
+// F0...F7, header F0 04 01 00 01 exactly as expected), and preset 1 and
+// preset 3's names ("FILTER BUBBLES", "TIME FOR SURFIN'") both decode
+// correctly at byte offsets 100 and 396 respectively within it — the same
+// name-field shape a Panel Dump uses, just repeated once per preset with no
+// framing in between. Per-preset byte stride isn't perfectly uniform
+// though (148 bytes between presets 1 and 3, but presets 2/4/5's data
+// didn't decode as cleanly at the naive halfway/proportional points) —
+// unconfirmed whether that's real per-preset size variation or just this
+// analysis not yet finding the right alignment; either way, not something
+// Backup > Bank needs solved, since it saves the whole reply as one opaque
+// blob rather than splitting it into individual presets. A no-op with a
+// logged error if the connected device isn't Moog-style.
+void synth_request_all_presets_dump(void);
+
 // Prev/Next patch buttons (see synth_hit_test_patch_nav() in
 // synthGraphics.h): sends a Program Change of gDevice.currentProgram+delta
 // (clamped to MIDI's 0-127 range, defaulting the base to 0 if

@@ -239,7 +239,23 @@ typedef struct {
     // wherever there's already whitespace") isn't enough: "Floating Mod" /
     // "Steel Guitar" fills both 12-char lines exactly, with no whitespace at
     // the boundary at all.
-    uint32_t      nameLineWidth;
+    uint32_t nameLineWidth;
+
+    // How many banks of presets the connected unit has — 1 for a base
+    // Voyager, more for one with a memory expansion (VX-352 or similar; per
+    // the Voyager manual, not confirmed against real hardware since nobody
+    // testing this app owns an expanded unit). Documentation only right
+    // now, not wired into anything: Backup > Bank
+    // (synth_request_all_presets_dump() in synthComms.c, mode 0x04) has no
+    // known way to select a non-default bank — the "Voyager System
+    // Exclusive Panel Dump Format" doc this app's Moog SysEx handling is
+    // otherwise built from doesn't cover multi-bank addressing, and mode
+    // 0x04 itself is unconfirmed even for the single-bank case. Once a real
+    // Bank backup file's size/structure can be inspected (see
+    // synth_backup_bank() in synthBackup.h), there may be a DI-no variant, a
+    // bank-select byte, or a second SysEx mode this field ends up feeding —
+    // deliberately not guessed at here.
+    uint32_t      presetBankCount;
     tPanelSection sections[PANEL_MAX_SECTIONS];
     uint32_t      sectionCount;
     tPanelList    lists[PANEL_MAX_LISTS];

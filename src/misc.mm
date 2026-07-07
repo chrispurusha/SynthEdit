@@ -123,6 +123,7 @@ void prompt_choose_layouts_folder(void) {
 - (void)chooseLayoutsFolder:(id)sender;
 - (void)backupCurrentPatch:(id)sender;
 - (void)backupPatchByNumber:(id)sender;
+- (void)backupBank:(id)sender;
 - (BOOL)validateMenuItem:(NSMenuItem *)item;
 @end
 
@@ -155,6 +156,10 @@ void prompt_choose_layouts_folder(void) {
     if (chosen >= 0) {
         synth_backup_patch_by_number((uint32_t)(chosen + 1));
     }
+}
+
+- (void)backupBank:(id)sender {
+    synth_backup_bank();
 }
 
 - (void)chooseLayoutsFolder:(id)sender {
@@ -268,9 +273,8 @@ void setup_main_menu(void) {
     [layoutsMI setSubmenu:layoutsMenu];
     [menuBar insertItem:layoutsMI atIndex:3];
 
-    // Single-patch only for now, no Restore yet — see synthBackup.h. Modeled
-    // on G2-Edit's Backup menu (misc.mm there), scaled down to match what's
-    // actually implemented.
+    // No Restore yet — see synthBackup.h. Modeled on G2-Edit's Backup menu
+    // (misc.mm there), scaled down to match what's actually implemented.
     NSMenuItem * backupMI    = [[NSMenuItem alloc] init];
     NSMenu *     backupMenu  = [[NSMenu alloc] initWithTitle:@"Backup"];
     // Live edit buffer, not a stored preset — see synth_backup_current_patch()
@@ -285,6 +289,15 @@ void setup_main_menu(void) {
                                 keyEquivalent:@""];
     [numberItem setTarget:target];
     [backupMenu addItem:numberItem];
+    // Whatever bank the connected unit's front panel currently has selected
+    // — see synth_backup_bank()'s own comment (synthBackup.h) for why this
+    // can't yet target a specific bank on an expanded (more-than-128-preset)
+    // unit.
+    NSMenuItem * bankItem    = [[NSMenuItem alloc] initWithTitle:@"Bank…"
+                                action:@selector(backupBank:)
+                                keyEquivalent:@""];
+    [bankItem setTarget:target];
+    [backupMenu addItem:bankItem];
     [backupMI setSubmenu:backupMenu];
     [menuBar insertItem:backupMI atIndex:4];
 }

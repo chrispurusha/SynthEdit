@@ -48,6 +48,7 @@ typedef enum {
     eBackupExpectNone = 0,
     eBackupExpectLive,   // live edit buffer — Voyager Panel Dump or Korg Current Program Dump
     eBackupExpectPreset, // a specific stored preset, by number — Voyager Single Preset Dump only
+    eBackupExpectBank,   // every stored preset in one message — Voyager All Presets Dump only
 } tBackupExpect;
 
 // Triggered by the "Backup > Current Patch..." menu action (misc.mm). Arms
@@ -65,14 +66,26 @@ void synth_backup_current_patch(void);
 // it isn't Moog-style (this request has no Korg-style equivalent yet).
 void synth_backup_patch_by_number(uint32_t presetNumber);
 
+// Triggered by the "Backup > Bank..." menu action (misc.mm) — every stored
+// preset in one file (see synth_request_all_presets_dump() in synthComms.c
+// for the request itself, now CONFIRMED against real hardware). Same
+// fire-and-forget shape as the two above; a no-op if no device is connected
+// or it isn't Moog-style. Only covers whatever bank the connected unit's own
+// front panel currently has selected — see the field comment on
+// tPanelConfig.presetBankCount (panelConfig.h) for why a unit with a memory
+// expansion (more than one bank) needs repeating per-bank, and why this app
+// doesn't yet know how to select a non-default bank itself.
+void synth_backup_bank(void);
+
 // Called from synthComms.c's dump handlers (handle_moog_panel_dump(),
-// handle_curr_prog_dump(), handle_moog_single_preset_dump()) with the
-// complete raw SysEx message exactly as received off the wire (including the
-// F0/F7 framing), before any decoding, tagged with which of those three it
-// is. A no-op unless `kind` matches what synth_backup_current_patch()/
-// synth_backup_patch_by_number() is currently waiting for — every other
-// incoming dump (e.g. the one connect_without_identity() already requests at
-// startup) passes through untouched.
+// handle_curr_prog_dump(), handle_moog_single_preset_dump(),
+// handle_moog_all_presets_dump()) with the complete raw SysEx message
+// exactly as received off the wire (including the F0/F7 framing), before
+// any decoding, tagged with which of those four it is. A no-op unless
+// `kind` matches what synth_backup_current_patch()/
+// synth_backup_patch_by_number()/synth_backup_bank() is currently waiting
+// for — every other incoming dump (e.g. the one connect_without_identity()
+// already requests at startup) passes through untouched.
 void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExpect kind);
 
 #ifdef __cplusplus

@@ -75,6 +75,15 @@ void synth_backup_patch_by_number(uint32_t presetNumber) {
     synth_request_single_preset_dump(presetNumber); // logs its own error and leaves gBackupExpect armed-but-unfulfilled if out of range/wrong device
 }
 
+void synth_backup_bank(void) {
+    if (!gDevice.connected) {
+        LOG_ERROR("Backup: no device connected\n");
+        return;
+    }
+    gBackupExpect = eBackupExpectBank;
+    synth_request_all_presets_dump(); // logs its own error and leaves gBackupExpect armed-but-unfulfilled if not Moog-style
+}
+
 // Runs on the main thread once the user has chosen (or cancelled) a save
 // location — see synth_backup_capture_dump() below for where gPendingBackup*
 // gets set just before this dialog is opened.
@@ -122,18 +131,27 @@ void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExp
         // Preset <n>" if it doesn't (or decoded empty). May contain embedded
         // '\n's (nameLineWidth — see the tPanelConfig field comment in
         // panelConfig.h) marking where the source device's own display wraps
-        // to a new line — dropped here, not replaced with a space: the raw
-        // name data has no separator character of its own at that point (see
-        // extract_moog_name()'s comment for how "Floating Mod"/"Steel Guitar"
-        // exposed that there's nothing — not even whitespace — between two
-        // lines that each fill their full width), so a filename built from
-        // it shouldn't invent one either.
+        // to a new line. A filename has no such notion of lines, so each
+        // '\n' becomes exactly one space — UNLESS one's already there (a
+        // short first line like "TIME FOR" already has a real trailing
+        // space from its own padding — see extract_moog_name()'s comment),
+        // in which case the '\n' is just dropped rather than doubling it up
+        // to two. Either way the two lines always end up separated by
+        // exactly one space in the filename, even for a name like "Floating
+        // Mod"/"Steel Guitar" whose raw data has nothing at all between them
+        // (both lines fill their full width) — a filename reads better with
+        // a word break there even though the sysex itself doesn't have one;
+        // the byte-exact raw name is preserved in the saved file regardless.
         if (gDevice.progName[0] != '\0') {
             char   nameForFile[sizeof(gDevice.progName)];
             char * out = nameForFile;
 
             for (const char * p = gDevice.progName; (*p != '\0') && (out < nameForFile + sizeof(nameForFile) - 1); p++) {
-                if (*p != '\n') {
+                if (*p == '\n') {
+                    if ((out == nameForFile) || (*(out - 1) != ' ')) {
+                        *out++ = ' ';
+                    }
+                } else {
                     *out++ = *p;
                 }
             }
@@ -145,6 +163,8 @@ void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExp
             snprintf(defaultName, sizeof(defaultName), "%s Preset %u.syx",
                      (deviceName[0] != '\0') ? deviceName : "patch", (unsigned)gBackupPresetNum);
         }
+    } else if (kind == eBackupExpectBank) {
+        snprintf(defaultName, sizeof(defaultName), "%s Bank.syx", (deviceName[0] != '\0') ? deviceName : "patch");
     } else {
         snprintf(defaultName, sizeof(defaultName), "%s.syx", (deviceName[0] != '\0') ? deviceName : "patch");
     }
