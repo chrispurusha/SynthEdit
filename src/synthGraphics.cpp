@@ -115,6 +115,46 @@ void synth_set_pressed_page_tab(int32_t index) {
     }
 }
 
+// ── Prev/Next patch buttons ──────────────────────────────────────────────────
+// See synth_navigate_preset() (synthComms.h) for what a press actually does.
+// Laid out on the Program name row (synth_render() below) rather than as a
+// separate row, since they act on "whatever's currently loaded" — the same
+// thing that row already shows.
+static tRectangle gPrevPatchRect   = {0};
+static tRectangle gNextPatchRect   = {0};
+static bool       gPatchNavLaidOut = false; // false until synth_render() has placed the two rects at least once
+static int32_t    gPressedPatchNav = -1;    // cosmetic only — see synth_set_pressed_patch_nav()
+
+int32_t synth_hit_test_patch_nav(tCoord coord) {
+    if (!gPatchNavLaidOut) {
+        return -1;
+    }
+
+    if (within_rectangle(coord, gPrevPatchRect)) {
+        return 0;
+    }
+
+    if (within_rectangle(coord, gNextPatchRect)) {
+        return 1;
+    }
+    return -1;
+}
+
+void synth_action_patch_nav(int32_t index) {
+    if (index == 0) {
+        synth_navigate_preset(-1);
+    } else if (index == 1) {
+        synth_navigate_preset(1);
+    }
+}
+
+void synth_set_pressed_patch_nav(int32_t index) {
+    if (index != gPressedPatchNav) {
+        gPressedPatchNav = index;
+        gReDraw          = true;
+    }
+}
+
 // Rebuilds gPageTabs from the config's distinct page names and renders them
 // as a button row at `origin`, returning the height consumed. Defaults
 // gCurrentPage to the first page seen if it isn't set (or no longer exists).
@@ -358,7 +398,28 @@ void synth_render(tRectangle area) {
             line = strtok(NULL, "\n");
             row++;
         }
-        y += 32.0 * (double)reservedRows;
+        // Prev/Next patch buttons — see synth_navigate_preset() (synthComms.h)
+        // for what they send (always something, even before a current
+        // program number is known — see the comment in synth_navigate_preset()
+        // for why guessing beats silently refusing to click). Greyed out
+        // only while there's no device to send to at all. Widths measured
+        // the same way render_page_tabs() sizes its own buttons —
+        // draw_button() doesn't clip text to the rect it's given (see
+        // internal_render_text()), so an under-measured box would bleed.
+        bool           navEnabled   = gDevice.connected;
+        const double   navBtnHeight = 26.0;
+        double         prevWidth    = get_text_width("< Prev", navBtnHeight, eNoCache);
+        double         nextWidth    = get_text_width("Next >", navBtnHeight, eNoCache);
+        tRgb           prevColour   = (gPressedPatchNav == 0) ? (tRgb)RGB_GREY_5 : (navEnabled ? (tRgb)RGB_GREY_7 : (tRgb)RGB_GREY_3);
+        tRgb           nextColour   = (gPressedPatchNav == 1) ? (tRgb)RGB_GREY_5 : (navEnabled ? (tRgb)RGB_GREY_7 : (tRgb)RGB_GREY_3);
+
+        gPrevPatchRect   = {{x + 460.0, y}, {prevWidth, navBtnHeight}};
+        gNextPatchRect   = {{x + 460.0 + prevWidth + 12.0, y}, {nextWidth, navBtnHeight}};
+        draw_button(mainArea, gPrevPatchRect, "< Prev", prevColour);
+        draw_button(mainArea, gNextPatchRect, "Next >", nextColour);
+        gPatchNavLaidOut = true;
+
+        y               += 32.0 * (double)reservedRows;
     }
 
     // ── Info row: every dial in a `hidden` section, anywhere in the config ────

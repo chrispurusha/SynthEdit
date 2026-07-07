@@ -73,6 +73,16 @@ void synth_action_page_tab(int32_t index);
 // rendering. -1 = none pressed.
 void synth_set_pressed_page_tab(int32_t index);
 
+// Prev/Next patch buttons, laid out on the Program name row during the last
+// synth_render() call (see synth_navigate_preset() in synthComms.h for what
+// they actually do and why "current patch" can be unknown). Mirrors the page
+// tab functions above: hit-test returns 0 for Prev, 1 for Next, -1 for
+// neither; action fires the corresponding synth_navigate_preset() call;
+// pressed-state is cosmetic only, same -1-means-none convention.
+int32_t synth_hit_test_patch_nav(tCoord coord);
+void synth_action_patch_nav(int32_t index);
+void synth_set_pressed_patch_nav(int32_t index);
+
 #ifdef __cplusplus
 }
 #endif

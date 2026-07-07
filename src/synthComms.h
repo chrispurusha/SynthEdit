@@ -68,6 +68,20 @@ void synth_request_state_dump(void);
 // base Voyager with no VX-... memory expansion, per voyager.txt).
 void synth_request_single_preset_dump(uint32_t presetNumber);
 
+// Prev/Next patch buttons (see synth_hit_test_patch_nav() in
+// synthGraphics.h): sends a Program Change of gDevice.currentProgram+delta
+// (clamped to MIDI's 0-127 range, defaulting the base to 0 if
+// currentProgram is still unknown rather than refusing to send anything)
+// and optimistically records that as the new currentProgram — there's no
+// reply that confirms the device actually switched, so this can drift from
+// reality if e.g. the target program number doesn't exist on the device.
+// delta is typically +-1; a no-op only if the device isn't connected at
+// all. Requests a fresh state dump right after sending, same as
+// dispatch_program_change() does for a Program Change arriving from
+// elsewhere on the bus (midiComms.c) — refreshes both the dial positions
+// and gDevice.progName from whatever the device now has loaded.
+void synth_navigate_preset(int32_t delta);
+
 // Send a parameter change to the synth
 // group: SYNTH_PARAM_GROUP_*; paramId: 1-based ID from spec; value: raw value
 void synth_send_parameter_change(uint8_t group, uint16_t paramId, uint16_t value);

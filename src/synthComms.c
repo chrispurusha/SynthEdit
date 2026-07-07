@@ -495,6 +495,7 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
 void synth_on_connected(void) {
     LOG_DEBUG("Synth connected (channel byte 0x%02X)\n", SYNTH_SYSEX_CHANNEL_BYTE(gDevice.id));
     memset(gDevice.progName, 0, sizeof(gDevice.progName));
+    gDevice.currentProgram = -1; // unknown until an actual Program Change is seen — see the tSynthDevice field comment in types.h
 
     // Reset every dial, in every section, to its own display-space default
     // (0) — apply_dial_wire_value() already knows how to turn that into the
@@ -510,7 +511,7 @@ void synth_on_connected(void) {
         }
     }
 
-    gReDraw = true;
+    gReDraw                = true;
     synth_request_current_program();
 }
 
@@ -564,6 +565,44 @@ void synth_request_single_preset_dump(uint32_t presetNumber) {
     msg[prefixLen + 1] = MIDI_SYSEX_END;
     midi_send(msg, prefixLen + 2);
     LOG_DEBUG("Sent Single Preset Dump Request for preset %u\n", (unsigned)presetNumber);
+}
+
+void synth_navigate_preset(int32_t delta) {
+    if (!gDevice.connected) {
+        LOG_ERROR("Preset navigation: no device connected\n");
+        return;
+    }
+    // Was previously a no-op ("current program unknown, ignoring") whenever
+    // gDevice.currentProgram hadn't been learned from a real Program Change
+    // yet — safer in theory (no guessed jump on real hardware), but in
+    // practice meant every click silently did nothing at all, with only a
+    // LOG_ERROR (easy to miss — nothing visibly wrong beyond a slightly
+    // darker button) as the only sign why, until the device happened to send
+    // a Program Change of its own. Defaulting to 0 here instead means Prev/
+    // Next always sends something and always follows up with a state dump
+    // (below) — worse only in that the very first press's destination is a
+    // guess rather than a genuine relative step, which resolves itself the
+    // moment it lands (this app's own send updates currentProgram same as a
+    // real reply would).
+    int32_t next = (gDevice.currentProgram < 0) ? 0 : (gDevice.currentProgram + delta);
+
+    if (next < 0) {
+        next = 0;
+    }
+
+    if (next > 127) {
+        next = 127;
+    }
+    midi_send_program_change(gDevice.id, (uint8_t)next);
+    gDevice.currentProgram = next; // optimistic — see the tSynthDevice field comment in types.h
+    LOG_DEBUG("Preset navigation: sent Program Change %d\n", next);
+    // Debounced, not synth_request_state_dump() directly — a rapid burst of
+    // clicks (real hardware capture, 2026-07-07: Program Change 13 then 14
+    // sent less than a MIDI thread tick apart) only ever got ONE Panel Dump
+    // reply back, for whichever program the Voyager had settled on by the
+    // time it got around to answering. See midi_arm_state_dump_debounce()'s
+    // comment (midiComms.h) for the full story.
+    midi_arm_state_dump_debounce();
 }
 
 void synth_send_parameter_change(uint8_t group, uint16_t paramId, uint16_t value) {

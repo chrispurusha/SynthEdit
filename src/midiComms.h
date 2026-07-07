@@ -30,7 +30,20 @@ int start_midi_thread(void);
 int midi_scan_devices(void);
 void midi_send(const uint8_t * data, uint32_t length);
 void midi_send_cc(uint8_t channelIndex, uint8_t cc, uint8_t value);
+void midi_send_program_change(uint8_t channelIndex, uint8_t program);
 void midi_send_identity_request(void);
+
+// Arms (or re-arms, restarting the countdown) a debounced "request a fresh
+// state dump" — fires exactly once, ~SYNTH_STATE_DUMP_DEBOUNCE_TICKS *
+// MIDI_IDLE_TICK_SECONDS after the last call, from the MIDI thread's own
+// idle loop (see midi_thread() in midiComms.c). Callers: dispatch_program_change()
+// (a Bank/Program Change arriving from elsewhere on the bus) and
+// synth_navigate_preset() (synthComms.c, the Prev/Next patch buttons) —
+// both used to call synth_request_state_dump() directly, which real
+// hardware couldn't always keep up with under a rapid burst of changes (see
+// the comment above gStateDumpDebounceTicks' definition for the capture
+// that showed this).
+void midi_arm_state_dump_debounce(void);
 void register_midi_wake_cb(void ( *cb )(void));
 
 #ifdef __cplusplus

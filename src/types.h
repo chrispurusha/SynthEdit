@@ -83,6 +83,18 @@ typedef struct {
     uint16_t member;
     // Program info (decoded from CURR_PROG_DUMP) — see comment above.
     char     progName[SYNTH_PROG_NAME_MAXLEN];
+    // Best-known current Program Change number (0-127, MIDI wire numbering),
+    // or -1 if unknown. There's no reliable way to ask a device "what
+    // program are you on" — a dump reply (Panel Dump, Current Program Dump)
+    // reports the live edit buffer's contents, not which stored slot (if
+    // any) it started from, so this is only ever learned from an actual
+    // Program Change message: one arriving from elsewhere on the bus
+    // (dispatch_program_change() in midiComms.c), or one this app itself
+    // just sent (synth_navigate_preset() in synthComms.c, for the Prev/Next
+    // patch buttons — see synth_hit_test_patch_nav() in synthGraphics.h).
+    // Reset to -1 on every fresh connect (synth_on_connected()): a value
+    // learned from a previous session/device isn't trustworthy for a new one.
+    int32_t currentProgram;
 } tSynthDevice;
 
 #endif // __TYPES_H__

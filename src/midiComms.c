@@ -27,8 +27,8 @@
 #include "midiComms.h"
 
 static void             (*gWakeCb)(void) = NULL;
-static pthread_t        gMidiThread   = 0;
-static pthread_mutex_t  gSendMutex    = PTHREAD_MUTEX_INITIALIZER;
+static pthread_t        gMidiThread             = 0;
+static pthread_mutex_t  gSendMutex              = PTHREAD_MUTEX_INITIALIZER;
 
 // ── Identity reply buffer ─────────────────────────────────────────────────────
 // The CoreMIDI read callback fires on the CoreMIDI thread; the MIDI thread
@@ -45,21 +45,45 @@ static struct {
     uint8_t         memberLSB;   // data[5+mfrIdLen+2]
 }                       gIdReplies[MAX_IDENTITY_REPLIES];
 
-static _Atomic uint32_t gIdReplyCount = 0;
+static _Atomic uint32_t gIdReplyCount           = 0;
 
 // Notification from notify thread; polled by the MIDI thread.
-static _Atomic bool     gRescanNeeded = false;
+static _Atomic bool     gRescanNeeded           = false;
+
+// ── State dump request debounce ─────────────────────────────────────────────
+// A Program Change followed immediately by a state dump request works for a
+// single, isolated patch change (dispatch_program_change() below already did
+// this safely). It falls over under a rapid burst of changes though — real
+// hardware capture (2026-07-07), clicking Prev/Next twice quickly: both
+// Program Change 13 and 14 went out, both "Re-sent device state request"
+// logs fired, but only ONE Panel Dump reply ever came back (for whichever
+// program the Voyager had settled on by the time it got around to answering
+// — apparently it can't/won't queue a second reply while still busy honouring
+// the first request). Debouncing the REQUEST side — not the Program Change
+// sends themselves, which should all still go out immediately and in order,
+// same as any other MIDI controller sending a burst of PCs — fixes this: a
+// burst of navigation clicks (or bank/PC messages arriving from elsewhere on
+// the bus) keeps resetting this counter rather than firing a request per
+// click, so exactly one state dump gets requested, only once, ~250ms after
+// the LAST change in the burst rather than after each individual one.
+#define SYNTH_STATE_DUMP_DEBOUNCE_TICKS    8 // * MIDI_IDLE_TICK_SECONDS below ~= 264ms
+#define MIDI_IDLE_TICK_SECONDS             0.033
+static _Atomic int      gStateDumpDebounceTicks = 0;
+
+void midi_arm_state_dump_debounce(void) {
+    gStateDumpDebounceTicks = SYNTH_STATE_DUMP_DEBOUNCE_TICKS;
+}
 
 // ── SysEx reassembly ──────────────────────────────────────────────────────────
 #define SYSEX_BUF_SIZE    8192
 static uint8_t          gSysExBuf[SYSEX_BUF_SIZE];
-static uint32_t         gSysExLen     = 0;
-static MIDIEndpointRef  gSysExSrc     = 0;
+static uint32_t         gSysExLen               = 0;
+static MIDIEndpointRef  gSysExSrc               = 0;
 
 // ── Non-SysEx message state (running status) ──────────────────────────────────
-static uint8_t          gMsgStatus    = 0;
+static uint8_t          gMsgStatus              = 0;
 static uint8_t          gMsgData[2];
-static uint8_t          gMsgDataLen   = 0;
+static uint8_t          gMsgDataLen             = 0;
 
 // ── Internal send ─────────────────────────────────────────────────────────────
 
@@ -443,13 +467,18 @@ static void dispatch_program_change(uint8_t channel, uint8_t program) {
     if (!synth_panel_config()->supportsIdentity && (gDevice.id != channel)) {
         gDevice.id = channel;
     }
+    gDevice.currentProgram = program; // see the tSynthDevice field comment in types.h — this is the only way it's ever learned
 
     if (gDevice.connected) {
         // Panel Dump (or Korg's Current Program Dump) alone refreshes both
         // the dial positions and gDevice.progName — see panelNameOffset in
         // extract_moog_panel_info() (synthComms.c). No need to also chase a
-        // Single Preset Dump by number.
-        synth_request_state_dump();
+        // Single Preset Dump by number. Debounced, not requested immediately
+        // — see the comment above gStateDumpDebounceTicks: a burst of Bank/
+        // Program Change messages (e.g. a footswitch stepping through
+        // several patches) can otherwise request faster than the device can
+        // reply to.
+        midi_arm_state_dump_debounce();
     }
 }
 
@@ -627,6 +656,15 @@ void midi_send_cc(uint8_t channelIndex, uint8_t cc, uint8_t value) {
     midi_send_to(msg, 3, gMidiDest);
 }
 
+void midi_send_program_change(uint8_t channelIndex, uint8_t program) {
+    uint8_t msg[2] = {
+        (uint8_t)(0xC0 | (channelIndex & 0x0F)),
+        (uint8_t)(program & 0x7F),
+    };
+
+    midi_send_to(msg, 2, gMidiDest);
+}
+
 // ── MIDI poll thread ──────────────────────────────────────────────────────────
 // Owns all scanning and connection logic.  The CoreMIDI callback thread only
 // stores raw data; no state mutations happen there.
@@ -693,7 +731,18 @@ static void * midi_thread(void * arg) {
                 }
             }
         } else {
-            CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.033, false);   // 33 ms idle
+            CFRunLoopRunInMode(kCFRunLoopDefaultMode, MIDI_IDLE_TICK_SECONDS, false);
+
+            // Debounced state dump request — see gStateDumpDebounceTicks'
+            // own comment for why this doesn't just fire immediately from
+            // midi_arm_state_dump_debounce()'s callers.
+            if (gStateDumpDebounceTicks > 0) {
+                gStateDumpDebounceTicks--;
+
+                if (gStateDumpDebounceTicks == 0) {
+                    synth_request_state_dump();
+                }
+            }
         }
     }
     LOG_DEBUG("MIDI thread exiting\n");

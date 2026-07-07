@@ -43,16 +43,20 @@ extern void glfwGetCursorPos(void *, double *, double *);
 // has no knowledge of what any given dial *is* (cutoff, resonance, routing,
 // ...). That all comes from the descriptor parsed out of the layout file
 // (see panelConfig.h/synthComms.c) and is looked up generically by rect.
-static tPanelDial * gDraggedDial   = NULL;
-static double       gDragPrevX     = 0.0;   // cursor position at previous cursor_pos call — incremental delta
-static double       gDragPrevY     = 0.0;
-static int          gDragSkipCount = 0;     // skip first N cursor_pos events after CURSOR_DISABLED — covers stale events + transition event
+static tPanelDial * gDraggedDial     = NULL;
+static double       gDragPrevX       = 0.0; // cursor position at previous cursor_pos call — incremental delta
+static double       gDragPrevY       = 0.0;
+static int          gDragSkipCount   = 0;   // skip first N cursor_pos events after CURSOR_DISABLED — covers stale events + transition event
 
 // Page tab press state — actions on mouse-up, not mouse-down (standard
 // button behaviour: press-and-drag-off cancels the click). -1 = no tab
 // currently pressed.
-static int32_t      gPressedTab    = -1;
-static double       gDragTypeAccum = 0.0;   // sub-step accumulator for discrete (named) dials
+static int32_t      gPressedTab      = -1;
+static double       gDragTypeAccum   = 0.0; // sub-step accumulator for discrete (named) dials
+
+// Same press-on-mouse-up convention as gPressedTab above, for the Prev/Next
+// patch buttons (see synth_hit_test_patch_nav() in synthGraphics.h).
+static int32_t      gPressedPatchNav = -1;
 
 // ── Coordinate helpers ────────────────────────────────────────────────────────
 
@@ -146,17 +150,31 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
         if ((gPressedTab >= 0) && (synth_hit_test_page_tab(coord) == gPressedTab)) {
             synth_action_page_tab(gPressedTab);
         }
-        gPressedTab = -1;
+        gPressedTab      = -1;
         synth_set_pressed_page_tab(-1);
+
+        if ((gPressedPatchNav >= 0) && (synth_hit_test_patch_nav(coord) == gPressedPatchNav)) {
+            synth_action_patch_nav(gPressedPatchNav);
+        }
+        gPressedPatchNav = -1;
+        synth_set_pressed_patch_nav(-1);
         return;
     }
     // Page-tab row is checked before dial hit-testing so a tab press can't
     // also be misread as a drag start. Just arms gPressedTab here — the
     // action itself fires on release above, not here on press.
-    gPressedTab = synth_hit_test_page_tab(coord);
+    gPressedTab      = synth_hit_test_page_tab(coord);
 
     if (gPressedTab >= 0) {
         synth_set_pressed_page_tab(gPressedTab);
+        return;
+    }
+    // Same reasoning as the page-tab row above — checked before dial
+    // hit-testing so a Prev/Next press can't be misread as a drag start.
+    gPressedPatchNav = synth_hit_test_patch_nav(coord);
+
+    if (gPressedPatchNav >= 0) {
+        synth_set_pressed_patch_nav(gPressedPatchNav);
         return;
     }
     // Hit-test every section on the current panel page generically —
