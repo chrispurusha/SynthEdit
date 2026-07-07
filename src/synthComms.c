@@ -261,52 +261,71 @@ static uint32_t read_bitpacked_field(const uint8_t * payload, uint32_t payloadLe
 // bitstream the numeric panel fields use (read_bitpacked_field() above), one
 // after another starting at offset/bitOffset.
 //
-// Reverse-engineered against four real captures (Voyager preset 1, "FILTER
-// BUBBLES"; a Panel Dump, "FROM A DISTANCE"; preset 2, "Really Heavy"; and
-// a Panel Dump, "Velocity"/"Temple Bells"): the raw field is two fixed-width
-// 12-char lines — matching the Voyager's 2-line LCD — with NO dedicated
-// separator byte anywhere in it. Each line's 12th byte (field index 11 and
-// 23) is really just that line's own 12th character, with its high bit set
-// (e.g. 'y' 0x79 -> 0xF9, 's' 0x73 -> 0xF3) — "Really Heavy" and "Temple
-// Bells" are what exposed this: each has a real (non-space) 12th character
-// on one of its lines, which an earlier version of this code/config mistook
-// for a fixed 0xA0 separator marker (silently dropped) or ran past the
-// field's then-assumed 20-char length (silently truncated) respectively.
-// "FILTER BUBBLES" and "FROM A DISTANCE" both worked under the old, wrong
-// model purely by coincidence: neither line runs past 11 real characters, so
-// each line's 12th byte is always plain padding — a space, or (once bit 7 is
-// considered) nothing at index 23 to even reach. Masking off bit 7 before
-// checking printability — rather than treating any high-bit byte as
-// whitespace — decodes all four correctly, and collapsing runs of (masked)
-// whitespace to one space still turns padded lines like "FILTER      " +
-// "BUBBLES     " into "FILTER BUBBLES" generically, for any device whose
-// name field turns out to follow the same padded-lines shape.
-static void extract_moog_name(const uint8_t * payload, uint32_t payloadLen, int32_t offset, uint32_t bitOffset, uint32_t len) {
+// Reverse-engineered against five real captures (Voyager preset 1, "FILTER
+// BUBBLES"; a Panel Dump, "FROM A DISTANCE"; preset 2, "Really Heavy"; a
+// Panel Dump, "Velocity"/"Temple Bells"; and a Panel Dump, "Floating Mod"/
+// "Steel Guitar"): the raw field is two fixed-width 12-char lines — matching
+// the Voyager's 2-line LCD — with NO dedicated separator byte anywhere in
+// it. Each line's 12th byte (field index 11 and 23) is really just that
+// line's own 12th character, with its high bit set (e.g. 'y' 0x79 -> 0xF9,
+// 's' 0x73 -> 0xF3) — "Really Heavy" and "Temple Bells" are what exposed
+// this: each has a real (non-space) 12th character on one of its lines,
+// which an earlier version of this code/config mistook for a fixed 0xA0
+// separator marker (silently dropped) or ran past the field's then-assumed
+// 20-char length (silently truncated) respectively. "FILTER BUBBLES" and
+// "FROM A DISTANCE" both worked under that wrong model purely by
+// coincidence: neither line runs past 11 real characters, so each line's
+// 12th byte is always plain padding. Masking off bit 7 before checking
+// printability — rather than treating any high-bit byte as whitespace —
+// decodes those four correctly.
+//
+// "Floating Mod"/"Steel Guitar" (both lines exactly 12 real characters, no
+// padding on either) exposed a second problem: with no separator byte and
+// no whitespace at the boundary either, there's nothing byte-level to hang a
+// line break on — decoding straight through produces "Floating ModSteel
+// Guitar" on one line. `lineWidth` (from tPanelConfig.nameLineWidth — 0 for
+// non-Voyager Moog-style devices, meaning "one line, no forced break") fixes
+// that by forcing a '\n' after every lineWidth characters regardless of
+// content, so synth_render() (synthGraphics.cpp) can show gDevice.progName
+// as separate lines matching the device's own display. Each line is
+// right-trimmed independently before its '\n', and any wholly-blank
+// trailing line (short single-line names like "Really Heavy", whose second
+// line is all padding) is dropped rather than left as a trailing blank row.
+static void extract_moog_name(const uint8_t * payload, uint32_t payloadLen, int32_t offset, uint32_t bitOffset, uint32_t len, uint32_t lineWidth) {
     if ((offset < 0) || (len == 0)) {
         return;
     }
-    uint32_t globalBit    = (uint32_t)offset * 7 + bitOffset;
-    uint32_t outLen       = 0;
-    bool     lastWasSpace = false;
+    uint32_t globalBit = (uint32_t)offset * 7 + bitOffset;
+    uint32_t outLen    = 0;
+    uint32_t lineStart = 0;
+    uint32_t lineChars = 0;
+    uint32_t width     = (lineWidth > 0) ? lineWidth : len;
 
     for (uint32_t i = 0; (i < len) && (outLen < sizeof(gDevice.progName) - 1); i++) {
         uint32_t byteOffset = globalBit / 7;
         uint32_t bo         = globalBit % 7;
         uint32_t raw        = read_bitpacked_field(payload, payloadLen, (int32_t)byteOffset, bo, 8);
         uint8_t  ch         = (uint8_t)(raw & 0x7F); // strip the line-boundary marker's high bit — see comment above
-        bool     printable  = (ch >= 0x20) && (ch < 0x7F) && (ch != ' ');
 
-        if (printable) {
-            gDevice.progName[outLen++] = (char)ch;
-            lastWasSpace               = false;
-        } else if (!lastWasSpace && (outLen > 0)) {
-            gDevice.progName[outLen++] = ' ';
-            lastWasSpace               = true;
+        gDevice.progName[outLen++] = ((ch >= 0x20) && (ch < 0x7F)) ? (char)ch : ' ';
+        lineChars++;
+        globalBit                 += 8;
+
+        if ((lineChars == width) && ((i + 1) < len) && (outLen < sizeof(gDevice.progName) - 1)) {
+            while ((outLen > lineStart) && (gDevice.progName[outLen - 1] == ' ')) {
+                outLen--;
+            }
+            gDevice.progName[outLen++] = '\n';
+            lineStart                  = outLen;
+            lineChars                  = 0;
         }
-        globalBit += 8;
     }
 
-    while ((outLen > 0) && (gDevice.progName[outLen - 1] == ' ')) {
+    while ((outLen > lineStart) && (gDevice.progName[outLen - 1] == ' ')) {
+        outLen--;
+    }
+
+    while ((outLen > 0) && (gDevice.progName[outLen - 1] == '\n')) {
         outLen--;
     }
     gDevice.progName[outLen] = '\0';
@@ -326,7 +345,7 @@ static void extract_moog_panel_info(const uint8_t * payload, uint32_t payloadLen
     tPanelConfig * cfg     = synth_panel_config();
     uint32_t       updated = 0;
 
-    extract_moog_name(payload, payloadLen, cfg->panelNameOffset, cfg->panelNameBitOffset, cfg->panelNameLen);
+    extract_moog_name(payload, payloadLen, cfg->panelNameOffset, cfg->panelNameBitOffset, cfg->panelNameLen, cfg->nameLineWidth);
 
     for (uint32_t s = 0; s < cfg->sectionCount; s++) {
         tPanelSection * section = &cfg->sections[s];
@@ -425,7 +444,7 @@ static void handle_moog_single_preset_dump(const uint8_t * data, uint32_t length
     uint32_t        payloadLen = length - skip - 1; // exclude trailing F7
     tPanelConfig *  cfg        = synth_panel_config();
 
-    extract_moog_name(payload, payloadLen, cfg->presetNameOffset, cfg->presetNameBitOffset, cfg->presetNameLen);
+    extract_moog_name(payload, payloadLen, cfg->presetNameOffset, cfg->presetNameBitOffset, cfg->presetNameLen, cfg->nameLineWidth);
     synth_backup_capture_dump(data, length, eBackupExpectPreset); // no-op unless a by-number Backup is pending — see synthBackup.c; after the name decode so a by-number backup's default filename can use it
 }
 

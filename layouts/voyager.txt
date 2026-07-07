@@ -194,6 +194,18 @@ panelNameOffset     100
 panelNameBitOffset  0
 panelNameLen        24
 
+# nameLineWidth — forces a line break in gDevice.progName every N characters
+# of the field above, so the app's "Program name" row can show the same two
+# lines the Voyager's own LCD does, rather than running both together.
+# Needed because the raw data has no separator to detect a line break from
+# (see presetNameLen's comment above) — when a name fills both 12-char lines
+# exactly, with no padding to collapse into a space either, decoding runs
+# straight through both. CONFIRMED against real hardware (2026-07-07):
+# captured a Panel Dump showing "Floating Mod" / "Steel Guitar" — both lines
+# exactly 12 characters, decoding to "Floating ModSteel Guitar" on one line
+# without this.
+nameLineWidth       12
+
 # ── Oscillators page ──────────────────────────────────────────────────────────
 page       oscillators
 section    osc1

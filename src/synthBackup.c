@@ -119,9 +119,23 @@ void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExp
     if (kind == eBackupExpectPreset) {
         // extract_moog_name() (synthComms.c) just decoded this, if the
         // device's file declares a presetNameOffset — fall back to "<device>
-        // Preset <n>" if it doesn't (or decoded empty).
+        // Preset <n>" if it doesn't (or decoded empty). May contain embedded
+        // '\n's (nameLineWidth — see the tPanelConfig field comment in
+        // panelConfig.h), one per line of a multi-line device display; a
+        // filename has no such notion of lines, so those become spaces here.
         if (gDevice.progName[0] != '\0') {
-            snprintf(defaultName, sizeof(defaultName), "%s.syx", gDevice.progName);
+            char nameForFile[sizeof(gDevice.progName)];
+
+            strncpy(nameForFile, gDevice.progName, sizeof(nameForFile) - 1);
+            nameForFile[sizeof(nameForFile) - 1] = '\0';
+
+            for (char * p = nameForFile; *p != '\0'; p++) {
+                if (*p == '\n') {
+                    *p = ' ';
+                }
+            }
+
+            snprintf(defaultName, sizeof(defaultName), "%s.syx", nameForFile);
         } else {
             snprintf(defaultName, sizeof(defaultName), "%s Preset %u.syx",
                      (deviceName[0] != '\0') ? deviceName : "patch", (unsigned)gBackupPresetNum);

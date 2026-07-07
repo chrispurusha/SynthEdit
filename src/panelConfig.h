@@ -219,12 +219,27 @@ typedef struct {
     // published spec. Both offsets default to -1 ("no name field declared"),
     // set in load_panel_config(), same convention as each dial's own
     // dumpOffset default.
-    int32_t       panelNameOffset;
-    uint32_t      panelNameBitOffset;
-    uint32_t      panelNameLen;
-    int32_t       presetNameOffset;
-    uint32_t      presetNameBitOffset;
-    uint32_t      presetNameLen;
+    int32_t  panelNameOffset;
+    uint32_t panelNameBitOffset;
+    uint32_t panelNameLen;
+    int32_t  presetNameOffset;
+    uint32_t presetNameBitOffset;
+    uint32_t presetNameLen;
+
+    // How many characters of the name field above make up one line of the
+    // device's own display, if it has a multi-line one (0 = no forced break
+    // — the whole field is one line, the default for every device that
+    // doesn't set this). extract_moog_name() (synthComms.c) inserts a '\n'
+    // in gDevice.progName every nameLineWidth characters so the on-screen
+    // "Program name" row (synth_render() in synthGraphics.cpp) can show the
+    // same line breaks the real hardware does, rather than running both
+    // lines together. Needed because the line boundary itself carries no
+    // reliable marker in the raw data — see presetNameLen's comment in
+    // voyager.txt for why a byte-value-based guess (e.g. "insert a break
+    // wherever there's already whitespace") isn't enough: "Floating Mod" /
+    // "Steel Guitar" fills both 12-char lines exactly, with no whitespace at
+    // the boundary at all.
+    uint32_t      nameLineWidth;
     tPanelSection sections[PANEL_MAX_SECTIONS];
     uint32_t      sectionCount;
     tPanelList    lists[PANEL_MAX_LISTS];

@@ -291,6 +291,8 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
         config->presetNameBitOffset = (uint32_t)strtoul(tokens[1], NULL, 0);
     } else if (strcmp(keyword, "presetNameLen") == 0) {
         config->presetNameLen = (uint32_t)strtoul(tokens[1], NULL, 0);
+    } else if (strcmp(keyword, "nameLineWidth") == 0) {
+        config->nameLineWidth = (uint32_t)strtoul(tokens[1], NULL, 0);
     } else if (strcmp(keyword, "scrollDial") == 0) {
         strncpy(config->scrollDialId, tokens[1], sizeof(config->scrollDialId) - 1);
     } else if (strcmp(keyword, "identityQuery") == 0) {

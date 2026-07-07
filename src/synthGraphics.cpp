@@ -313,8 +313,12 @@ void synth_render(tRectangle area) {
     // synthComms.c), so once connected an empty progName isn't "still
     // loading", it's "this device doesn't report one" — show the device name
     // instead rather than a permanently-wrong loading message.
+    //
+    // gDevice.progName may contain embedded '\n's (nameLineWidth in the
+    // device's .txt — see the tPanelConfig field comment in panelConfig.h),
+    // one per line of the source device's own multi-line display — rendered
+    // here as separate rows rather than run together on one line.
     {
-        tRectangle   r = {{x, y}, {450.0, 26.0}};
         const char * nm;
 
         if (gDevice.progName[0] != '\0') {
@@ -325,8 +329,20 @@ void synth_render(tRectangle area) {
             nm = "(loading\xe2\x80\xa6)";
         }
         set_rgb_colour((tRgb)RGB_WHITE);
-        render_text(mainArea, r, nm);
-        y += 32.0;
+
+        char         nameBuf[SYNTH_PROG_NAME_MAXLEN];
+        strncpy(nameBuf, nm, sizeof(nameBuf) - 1);
+        nameBuf[sizeof(nameBuf) - 1] = '\0';
+
+        char *       line = strtok(nameBuf, "\n");
+
+        while (line != NULL) {
+            tRectangle r = {{x, y}, {450.0, 26.0}};
+
+            render_text(mainArea, r, line);
+            y   += 32.0;
+            line = strtok(NULL, "\n");
+        }
     }
 
     // ── Info row: every dial in a `hidden` section, anywhere in the config ────
