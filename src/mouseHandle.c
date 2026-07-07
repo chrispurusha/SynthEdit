@@ -43,20 +43,31 @@ extern void glfwGetCursorPos(void *, double *, double *);
 // has no knowledge of what any given dial *is* (cutoff, resonance, routing,
 // ...). That all comes from the descriptor parsed out of the layout file
 // (see panelConfig.h/synthComms.c) and is looked up generically by rect.
-static tPanelDial * gDraggedDial     = NULL;
-static double       gDragPrevX       = 0.0; // cursor position at previous cursor_pos call — incremental delta
-static double       gDragPrevY       = 0.0;
-static int          gDragSkipCount   = 0;   // skip first N cursor_pos events after CURSOR_DISABLED — covers stale events + transition event
+static tPanelDial * gDraggedDial       = NULL;
+static double       gDragPrevX         = 0.0; // cursor position at previous cursor_pos call — incremental delta
+static double       gDragPrevY         = 0.0;
+static int          gDragSkipCount     = 0;   // skip first N cursor_pos events after CURSOR_DISABLED — covers stale events + transition event
 
 // Page tab press state — actions on mouse-up, not mouse-down (standard
 // button behaviour: press-and-drag-off cancels the click). -1 = no tab
 // currently pressed.
-static int32_t      gPressedTab      = -1;
-static double       gDragTypeAccum   = 0.0; // sub-step accumulator for discrete (named) dials
+static int32_t      gPressedTab        = -1;
+static double       gDragTypeAccum     = 0.0; // sub-step accumulator for discrete (named) dials
 
 // Same press-on-mouse-up convention as gPressedTab above, for the Prev/Next
 // patch buttons (see synth_hit_test_patch_nav() in synthGraphics.h).
-static int32_t      gPressedPatchNav = -1;
+static int32_t      gPressedPatchNav   = -1;
+
+// A panel_dial_is_binary() dial (rendered as a button, not a knob — either
+// a power button or a plain named one, see synthGraphics.cpp) takes a
+// single click rather than the drag gesture every other dial uses:
+// pressing one arms it here instead of gDraggedDial, and releasing still
+// over the same dial flips it (0<->1 — the only two states a binary dial
+// has), same press-on-mouse-up convention as gPressedTab/gPressedPatchNav
+// above. A dial that looks like a button but only responded to a knob's
+// drag gesture wasn't actually clickable in practice with no synth
+// connected to confirm otherwise.
+static tPanelDial * gPressedToggleDial = NULL;
 
 // ── Coordinate helpers ────────────────────────────────────────────────────────
 
@@ -150,14 +161,23 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
         if ((gPressedTab >= 0) && (synth_hit_test_page_tab(coord) == gPressedTab)) {
             synth_action_page_tab(gPressedTab);
         }
-        gPressedTab      = -1;
+        gPressedTab        = -1;
         synth_set_pressed_page_tab(-1);
 
         if ((gPressedPatchNav >= 0) && (synth_hit_test_patch_nav(coord) == gPressedPatchNav)) {
             synth_action_patch_nav(gPressedPatchNav);
         }
-        gPressedPatchNav = -1;
+        gPressedPatchNav   = -1;
         synth_set_pressed_patch_nav(-1);
+
+        // Same press-and-release-on-the-same-target convention as above —
+        // flips the dial only if the release also lands back on it.
+        if (gPressedToggleDial && within_rectangle(coord, gPressedToggleDial->rect)) {
+            uint32_t current = get_panel_dial_value(gPressedToggleDial);
+
+            synth_set_panel_dial_value(gPressedToggleDial, current ? 0 : 1);
+        }
+        gPressedToggleDial = NULL;
         return;
     }
     // Page-tab row is checked before dial hit-testing so a tab press can't
@@ -193,6 +213,15 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
         if (hitIdx >= 0) {
             hit = &sections[s]->dials[hitIdx];
         }
+    }
+
+    if (hit && panel_dial_is_binary(hit)) {
+        // Button behaviour, not a drag — arms here, flips on release above
+        // if the release is still over it. Deliberately skips gDraggedDial
+        // entirely: no cursor hiding, no rotary/vertical/horizontal drag
+        // maths, none of it applies to a two-state click target.
+        gPressedToggleDial = hit;
+        return;
     }
 
     if (hit) {

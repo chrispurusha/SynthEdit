@@ -500,10 +500,75 @@ void synth_render(tRectangle area) {
             for (uint32_t i = 0; i < section->dialCount; i++) {
                 tPanelDial * dial    = &section->dials[i];
                 uint32_t     dialVal = get_panel_dial_value(dial);
+                // Captured before a binary button below shrinks/recentres
+                // dial->rect itself — the label text further down still
+                // needs to sit relative to where a full-size knob would
+                // have been, not the shrunk button.
+                double       baseY   = dial->rect.coord.y;
 
-                render_dial(mainArea, dial->rect, dialVal, dial->max, 0, dial->colour);
+                // Any 2-position named dial (Off/On, but also Filters' Mode
+                // "Dual LP"/"HP/LP", Osc 3's Freq Range "Lo"/"Hi", ...)
+                // renders as a button showing the current state's name,
+                // rather than a knob — a click still flips it (see
+                // panel_dial_is_binary()'s own comment in panelConfig.h).
+                // Purely a function of the dial's own names=, so any
+                // device's dials get this for free, not just Voyager's —
+                // shared with mouseHandle.c, which needs the identical test
+                // to know these take a single click rather than a drag.
+                // Genuine Off/On dials (panel_dial_is_toggle()) additionally
+                // get a green background when on — matching gTheme.greenOn
+                // used elsewhere — since that IS a meaningful on/off state;
+                // a plain grey background for anything else would wrongly
+                // imply "HP/LP" or "Lo" mode is somehow "off".
+                if (panel_dial_is_binary(dial)) {
+                    const char * name = (dialVal < dial->nameCount) ? dial->names[dialVal] : "?";
 
-                char         valBuf[24];
+                    // draw_button() scales text to fill the WHOLE height of
+                    // the rect it's given (internal_render_text) —
+                    // dial->rect's dialSize-square shape (sized for a round
+                    // knob) scaled text as long as "Dual LP"/"On/Ext" up to
+                    // ~36px tall, wildly overrunning a box that width.
+                    // Shrinking the button's height and widening it to fit
+                    // the WIDEST of its own names (not just whichever's
+                    // showing right now, so it doesn't visibly resize as
+                    // the user clicks it) makes it read as a compact
+                    // rectangular button instead — same idea as
+                    // render_page_tabs()'s own width-from-measured-text
+                    // sizing above. Mutates dial->rect itself, not a
+                    // separate local rect, so the clickable hit area
+                    // (mouseHandle.c) always matches what's actually drawn.
+                    // buttonHeight matches the 12.0 the dial label/value
+                    // text below (further down this loop) renders at, so
+                    // the button's own text reads at the same size as every
+                    // other label on the panel, not an arbitrarily bigger
+                    // one.
+                    const double buttonHeight = 12.0;
+                    const double padding      = 10.0;
+                    double       widest       = 0.0;
+
+                    for (uint32_t n = 0; n < dial->nameCount; n++) {
+                        double w = get_text_width(dial->names[n], buttonHeight, eNoCache);
+
+                        if (w > widest) {
+                            widest = w;
+                        }
+                    }
+
+                    dial->rect.coord.y += (section->dialSize - buttonHeight) / 2.0;
+                    dial->rect.size     = {widest + padding, buttonHeight};
+
+                    // RGB_GREY_7, not RGB_BACKGROUND_GREY — see
+                    // render_page_tabs()'s own identical comment above:
+                    // the latter is a dark grey in this build, too
+                    // low-contrast for draw_button's fixed black text.
+                    tRgb         colour       = panel_dial_is_toggle(dial) && (dialVal != 0)
+                                ? (tRgb)RGB_GREEN_ON
+                                : (tRgb)RGB_GREY_7;
+                    draw_button(mainArea, dial->rect, name, colour);
+                } else {
+                    render_dial(mainArea, dial->rect, dialVal, dial->max, 0, dial->colour);
+                }
+                char valBuf[24];
 
                 if (dial->display == dialDisplayNames) {
                     snprintf(valBuf, sizeof(valBuf), "%s",
@@ -514,13 +579,26 @@ void synth_render(tRectangle area) {
                     snprintf(valBuf, sizeof(valBuf), "%u (%u)", (unsigned)dialVal,
                              (unsigned)get_panel_dial_native_value(dial));
                 }
-                tRectangle   valRect = {{dial->rect.coord.x, dial->rect.coord.y + section->dialSize + 4.0},
-                    {section->spacing,                                           12.0}};
-                set_rgb_colour((tRgb)RGB_GREY_7);
-                render_text(mainArea, valRect, valBuf);
 
-                tRectangle   lblRect = {{dial->rect.coord.x, dial->rect.coord.y + section->dialSize + 18.0},
-                    {section->spacing,                                            12.0}};
+                // Skipped for a binary button — its face already shows
+                // this exact string, so repeating it just below would be a
+                // redundant duplicate, not a genuine second piece of
+                // information the way it is for a knob.
+                if (!panel_dial_is_binary(dial)) {
+                    tRectangle valRect = {{dial->rect.coord.x, baseY + section->dialSize + 4.0},
+                        {section->spacing,                              12.0}};
+                    set_rgb_colour((tRgb)RGB_GREY_7);
+                    render_text(mainArea, valRect, valBuf);
+                }
+                tRectangle lblRect = {{dial->rect.coord.x, baseY + section->dialSize + 18.0},
+                    {section->spacing,                               12.0}};
+
+                // Explicit here, not left over from the valRect render_text
+                // above — that one's skipped for a binary button, which
+                // otherwise left the last colour draw_button() itself set
+                // (black, for the button's own text) in effect for this
+                // label too.
+                set_rgb_colour((tRgb)RGB_GREY_7);
                 render_text(mainArea, lblRect, dial->label);
             }
 

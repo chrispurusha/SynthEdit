@@ -203,6 +203,21 @@ void init_graphics(void) {
 
     snprintf(title, sizeof(title), "%s - Build %s %s", WINDOW_TITLE, __DATE__, __TIME__);
 
+    // Tells SynthLib's utilsGraphics.cpp which colours/metrics this app
+    // uses, without it needing to include this app's defs.h — see
+    // configure_synthlib_theme(). Never called here before now: gTheme
+    // (utilsGraphics.cpp) defaults to all-zero, so draw_power_button()'s
+    // "green when on, grey when off" rendered both states as identical
+    // black — the on/off toggle dials' value was changing correctly, only
+    // the colour never visibly reflected it.
+    configure_synthlib_theme((tSynthLibTheme){
+        .topBarHeight   = TOP_BAR_HEIGHT,
+        .orange1        = (tRgb)RGB_ORANGE_1,
+        .orange2        = (tRgb)RGB_ORANGE_2,
+        .greenOn        = (tRgb)RGB_GREEN_ON,
+        .backgroundGrey = (tRgb)RGB_BACKGROUND_GREY,
+    });
+
     glfwSetErrorCallback(error_callback);
 
     if (!glfwInit()) {

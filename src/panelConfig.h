@@ -308,6 +308,27 @@ bool load_panel_config(const char * path, tPanelConfig * config);
 // existed.
 void layout_panel_section(tPanelSection * section, tRectangle origin, double gridColWidth, double gridRowHeight);
 
+// True for a dial whose names= is exactly {"Off","On"} — a genuine on/off
+// dial, as opposed to any other 2-position selector (Filters' Mode "Dual
+// LP"/"HP/LP", Osc 3's Freq Range "Lo"/"Hi", ...). Shared by
+// synthGraphics.cpp (renders these as a power button, not a knob — see
+// draw_power_button() in SynthLib) and mouseHandle.c (a single click
+// toggles one of these outright, rather than needing the drag gesture
+// every other dial uses) so the two stay in lockstep — a dial that LOOKS
+// like a button should also BEHAVE like one.
+bool panel_dial_is_toggle(const tPanelDial * dial);
+
+// True for ANY 2-position named dial — panel_dial_is_toggle()'s Off/On
+// case included, plus 2-way selectors that aren't semantically on/off
+// (Filters' Mode "Dual LP"/"HP/LP", Osc 3's Freq Range "Lo"/"Hi", Env Gate
+// "Keyb"/"On/Ext"). All of these are still a single click-to-flip button
+// (mouseHandle.c) — only the on/off ones get the green/grey highlight;
+// the rest render as a plain button showing the current state's name (same
+// idea as G2-Edit's keyboard-tracking "KB" button), since colouring, say,
+// Filters' Mode green for "HP/LP" would imply an on/off meaning it doesn't
+// have.
+bool panel_dial_is_binary(const tPanelDial * dial);
+
 tPanelSection * find_panel_section(tPanelConfig * config, const char * page, const char * section);
 tPanelDial * find_panel_dial(tPanelSection * section, const char * id);
 

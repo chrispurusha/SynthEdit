@@ -531,6 +531,18 @@ int32_t hit_test_panel_section(tPanelSection * section, tCoord point) {
     return -1;
 }
 
+bool panel_dial_is_toggle(const tPanelDial * dial) {
+    return dial
+           && (dial->display == dialDisplayNames)
+           && (dial->nameCount == 2)
+           && (strcmp(dial->names[0], "Off") == 0)
+           && (strcmp(dial->names[1], "On") == 0);
+}
+
+bool panel_dial_is_binary(const tPanelDial * dial) {
+    return dial && (dial->display == dialDisplayNames) && (dial->nameCount == 2);
+}
+
 uint32_t get_panel_dial_value(const tPanelDial * dial) {
     if (!dial) {
         return 0;
