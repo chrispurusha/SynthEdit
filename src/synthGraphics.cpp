@@ -407,7 +407,7 @@ void synth_render(tRectangle area) {
         // draw_button() doesn't clip text to the rect it's given (see
         // internal_render_text()), so an under-measured box would bleed.
         bool           navEnabled   = gDevice.connected;
-        const double   navBtnHeight = 26.0;
+        const double   navBtnHeight = 26.0 * (2.0 / 3.0);
         double         prevWidth    = get_text_width("< Prev", navBtnHeight, eNoCache);
         double         nextWidth    = get_text_width("Next >", navBtnHeight, eNoCache);
         tRgb           prevColour   = (gPressedPatchNav == 0) ? (tRgb)RGB_GREY_5 : (navEnabled ? (tRgb)RGB_GREY_7 : (tRgb)RGB_GREY_3);
