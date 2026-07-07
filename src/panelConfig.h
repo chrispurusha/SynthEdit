@@ -33,14 +33,15 @@ extern "C" {
 
 #include "geometry.h"
 
-#define PANEL_ID_LEN            16
-#define PANEL_LABEL_LEN         32
-#define PANEL_MAX_NAMES         20
-#define PANEL_MAX_COLOURS       16
-#define PANEL_MAX_DIALS         32
-#define PANEL_MAX_SECTIONS      32
-#define PANEL_MAX_LIST_ITEMS    32
-#define PANEL_MAX_LISTS         8
+#define PANEL_ID_LEN               16
+#define PANEL_LABEL_LEN            32
+#define PANEL_MAX_NAMES            20
+#define PANEL_MAX_COLOURS          16
+#define PANEL_MAX_DIALS            32
+#define PANEL_MAX_SECTIONS         32
+#define PANEL_MAX_LIST_ITEMS       32
+#define PANEL_MAX_LISTS            8
+#define PANEL_MAX_COLUMN_LABELS    32
 
 typedef enum {
     dialDisplayRaw = 0,
@@ -60,6 +61,21 @@ typedef struct {
     char     items[PANEL_MAX_LIST_ITEMS][PANEL_LABEL_LEN];
     uint32_t itemCount;
 } tPanelList;
+
+// A title printed above one grid column (e.g. "Osc 1", "Mixer") —
+// "columnLabel <col> <text>" in the device's own .txt, one line per
+// labelled column. Page-scoped, not global: col=/row= positions are only
+// unique within a single page (see tPanelDial.gridCol's own comment), so
+// "column 3" on one page and "column 3" on another can have entirely
+// different labels, or only one of them labelled at all. Purely cosmetic —
+// synth_render() (synthGraphics.cpp) reserves a header row above a grid
+// page's dials only if the page has at least one of these; a page with
+// none renders exactly as it did before this existed.
+typedef struct {
+    char    page[PANEL_ID_LEN];
+    int32_t col;
+    char    label[PANEL_LABEL_LEN];
+} tColumnLabel;
 
 typedef struct {
     char         id[PANEL_ID_LEN];                        // e.g. "f1cut" — looked up by find_panel_dial()
@@ -291,6 +307,8 @@ typedef struct {
     uint32_t      sectionCount;
     tPanelList    lists[PANEL_MAX_LISTS];
     uint32_t      listCount;
+    tColumnLabel  columnLabels[PANEL_MAX_COLUMN_LABELS];
+    uint32_t      columnLabelCount;
 } tPanelConfig;
 
 // Parses the file at `path` into `config` (which is zeroed first). Malformed

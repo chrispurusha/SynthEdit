@@ -491,6 +491,91 @@ void synth_render(tRectangle area) {
             }
         }
 
+        // ── Column headers ───────────────────────────────────────────────
+        // Optional per-column title ("columnLabel <col> <text>" in the
+        // device's own .txt — see tColumnLabel in panelConfig.h). Reserves
+        // one header row's worth of height above row 0 only if the current
+        // page declares at least one — a page with none (or a non-grid
+        // page entirely) advances y by nothing extra here, rendering
+        // exactly as before this existed. Rendered as an actual title, not
+        // just another dial label — white and a size up from the 12px
+        // dial-label text (RGB_GREY_7, matching every OTHER piece of text
+        // on the panel would read as just one more label, not a header),
+        // uppercased, with a thin rule underneath to visually cap off the
+        // column the way a table header separates from its rows.
+        if (pageIsGrid && (cfg->gridColWidth > 0.0)) {
+            const double defaultHeaderHeight = 14.0;
+            const double padding             = 8.0; // clearance so one column's text/rule doesn't touch the next
+            double       headerHeight        = defaultHeaderHeight;
+            bool         anyLabel            = false;
+
+            // First pass: render_text() draws unclipped by rectangle width
+            // (see section_required_spacing()'s own comment above), and
+            // unlike a dial's auto-flow spacing, the grid's column pitch
+            // can't be widened per-column to fit an overlong title without
+            // shifting every dial in every later column out of alignment —
+            // so an overlong header can only be fixed by shrinking the
+            // FONT to fit the fixed width instead. Computed once, as the
+            // tightest fit across every labelled column on this page, so
+            // every header reads at the same size rather than each
+            // shrinking independently to whatever bleeds least.
+            for (uint32_t li = 0; li < cfg->columnLabelCount; li++) {
+                tColumnLabel * columnLabel  = &cfg->columnLabels[li];
+
+                if (strcmp(columnLabel->page, gCurrentPage) != 0) {
+                    continue;
+                }
+                anyLabel                 = true;
+
+                char           upper[PANEL_LABEL_LEN];
+                strncpy(upper, columnLabel->label, sizeof(upper) - 1);
+                upper[sizeof(upper) - 1] = '\0';
+
+                for (char * p = upper; *p != '\0'; p++) {
+                    *p = (char)toupper((unsigned char)*p);
+                }
+
+                double         naturalWidth = get_text_width(upper, defaultHeaderHeight, eNoCache);
+                double         available    = cfg->gridColWidth - padding;
+
+                if ((naturalWidth > available) && (naturalWidth > 0.0)) {
+                    double fitHeight = defaultHeaderHeight * (available / naturalWidth);
+
+                    if (fitHeight < headerHeight) {
+                        headerHeight = fitHeight;
+                    }
+                }
+            }
+
+            // Second pass: actually draw, at the size settled on above.
+            for (uint32_t li = 0; li < cfg->columnLabelCount; li++) {
+                tColumnLabel * columnLabel = &cfg->columnLabels[li];
+
+                if (strcmp(columnLabel->page, gCurrentPage) != 0) {
+                    continue;
+                }
+                char           upper[PANEL_LABEL_LEN];
+                strncpy(upper, columnLabel->label, sizeof(upper) - 1);
+                upper[sizeof(upper) - 1] = '\0';
+
+                for (char * p = upper; *p != '\0'; p++) {
+                    *p = (char)toupper((unsigned char)*p);
+                }
+
+                double         colX        = x + ((double)columnLabel->col * cfg->gridColWidth);
+                tRectangle     labelRect   = {{colX, y}, {cfg->gridColWidth, headerHeight}};
+                set_rgb_colour((tRgb)RGB_WHITE);
+                render_text(mainArea, labelRect, upper);
+
+                set_rgb_colour((tRgb)RGB_GREY_5);
+                render_line(mainArea, {colX, y + headerHeight + 2.0}, {colX + cfg->gridColWidth - padding, y + headerHeight + 2.0}, 1.0);
+            }
+
+            if (anyLabel) {
+                y += headerHeight + 8.0;
+            }
+        }
+
         for (uint32_t sIdx = 0; sIdx < sectionCount; sIdx++) {
             tPanelSection * section = sections[sIdx];
 

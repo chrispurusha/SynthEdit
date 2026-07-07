@@ -384,6 +384,30 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
             return;
         }
         parse_dial_line(*currentSection, pendingGap, tokens, tokenCount, lineNo);
+    } else if (strcmp(keyword, "columnLabel") == 0) {
+        if (!*currentSection) {
+            LOG_ERROR("panelConfig line %u: 'columnLabel' with no preceding 'page'\n", lineNo);
+            return;
+        }
+
+        if (tokenCount < 3) {
+            LOG_ERROR("panelConfig line %u: expected 'columnLabel <col> <label>'\n", lineNo);
+            return;
+        }
+
+        if (config->columnLabelCount >= PANEL_MAX_COLUMN_LABELS) {
+            LOG_ERROR("panelConfig line %u: too many columnLabels (max %u)\n", lineNo, (unsigned)PANEL_MAX_COLUMN_LABELS);
+            return;
+        }
+        tColumnLabel * columnLabel = &config->columnLabels[config->columnLabelCount++];
+
+        // Page comes from the section currently open, same as how a dial
+        // line implicitly belongs to whichever page/section is open when
+        // it's parsed — a columnLabel isn't tied to any one section, but
+        // still needs to know which page's columns it's labelling.
+        strncpy(columnLabel->page, (*currentSection)->page, sizeof(columnLabel->page) - 1);
+        columnLabel->col = (int32_t)strtol(tokens[1], NULL, 0);
+        join_tokens(tokens, 2, tokenCount, columnLabel->label, sizeof(columnLabel->label));
     } else {
         LOG_ERROR("panelConfig line %u: unknown directive '%s'\n", lineNo, keyword);
     }

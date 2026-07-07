@@ -279,6 +279,23 @@ gridRowHeight 76
 
 # ── Panel layout (grid columns 0-11) ───────────────────────────────────────────
 page       panel
+
+# Column titles — purely cosmetic (see tColumnLabel's own comment in
+# panelConfig.h), one line per labelled column, matching the photo's own
+# module names.
+columnLabel 0  LFO
+columnLabel 1  Mod Wheel
+columnLabel 2  Pedal
+columnLabel 3  Osc 1
+columnLabel 4  Osc 2
+columnLabel 5  Osc 3
+columnLabel 6  Mixer
+columnLabel 7  On/Off
+columnLabel 8  Filters
+columnLabel 9  Filter Env
+columnLabel 10 Volume Env
+columnLabel 11 Output
+
 section    lfo
 dialSize   36
 spacing    50
