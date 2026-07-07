@@ -438,12 +438,17 @@ bool synth_handle_cc(uint8_t cc, uint8_t value) {
     }
 
     if (dial->ccLsbNumber == 0) {
-        // A live CC message already carries a storage/display-space value
-        // (0-127 for a standard MIDI CC), not a native one — unlike
-        // apply_dial_wire_value() above (used for SysEx-sourced raw values),
-        // so this writes dial->value directly and leaves nativeValue at
-        // whatever the last SysEx-sourced update left it.
-        dial->value = value;
+        // A live CC message carries a raw 0-127 byte. For a plain continuous
+        // dial (nativeMax == 0) that byte already IS the storage/display
+        // value, so write it straight through. But some switches/selectors
+        // are wired as a CC whose hardware only ever sends a handful of
+        // evenly-spaced raw values across that range for their N positions
+        // (nativeMax != 0, display == dialDisplayNames — e.g. Voyager's
+        // Glide switch: CC65, 0-63=Off, 64-127=On) — those need the same
+        // native->display quantization apply_dial_wire_value() already does
+        // for SysEx-sourced raw values, or every position past the first
+        // would render as "?" (index >= nameCount).
+        apply_dial_wire_value(dial, value);
     } else {
         // 14-bit CC pair (MIDI's own coarse/fine convention: controller N is
         // the MSB, N+32 the LSB — see the ccLsbNumber comment in
@@ -547,7 +552,13 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
             midi_send_cc(gDevice.id, (uint8_t)dial->ccNumber, dial->ccMsbLatched);
             midi_send_cc(gDevice.id, (uint8_t)dial->ccLsbNumber, dial->ccLsbLatched);
         } else {
-            midi_send_cc(gDevice.id, (uint8_t)dial->ccNumber, (uint8_t)storageValue);
+            // nativeMax != 0: the hardware expects its own scaled raw byte
+            // for this display position (e.g. Glide's Off/On sends 0/127,
+            // not 0/1) — nativeValue above was just computed for exactly
+            // this. Without nativeMax, storageValue already IS that byte
+            // (plain continuous CC dial).
+            uint8_t wireValue = (dial->nativeMax != 0) ? dial->nativeValue : (uint8_t)storageValue;
+            midi_send_cc(gDevice.id, (uint8_t)dial->ccNumber, wireValue);
         }
     } else {
         synth_send_parameter_change((uint8_t)dial->paramGroup, (uint16_t)dial->paramId, (uint8_t)storageValue);
