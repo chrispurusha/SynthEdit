@@ -342,17 +342,70 @@ static void handle_moog_panel_dump(const uint8_t * data, uint32_t length) {
     extract_moog_panel_info(payload, payloadLen);
 }
 
+// Decodes a Single Preset Dump's name field into gDevice.progName, if the
+// device's file declared one (presetNameOffset >= 0 — see the tPanelConfig
+// field comment in panelConfig.h). Each character is 8 bits read from the
+// same continuous 7-bit-per-byte bitstream the numeric panel fields use
+// (read_bitpacked_field() above), one after another starting at
+// presetNameOffset/presetNameBitOffset.
+//
+// Reverse-engineered against one real capture (Voyager preset 1, "FILTER
+// BUBBLES"): the raw field turned out to be two fixed-width, space-padded
+// lines — matching the Voyager's 2-line LCD — with one non-ASCII byte
+// (0xA0, a space with the high bit set) marking the line break, not a
+// single contiguous name string. Rather than also declaring where that
+// break falls (which would only make this MORE Voyager-specific), every
+// non-printable byte is treated as whitespace and runs of whitespace are
+// collapsed to one space — turning "FILTER     <0xA0>BUBBLES " back into
+// "FILTER BUBBLES" generically, for any device whose name field turns out
+// to follow the same padded-lines shape.
+static void extract_moog_preset_name(const uint8_t * payload, uint32_t payloadLen) {
+    tPanelConfig * cfg          = synth_panel_config();
+
+    if ((cfg->presetNameOffset < 0) || (cfg->presetNameLen == 0)) {
+        return;
+    }
+    uint32_t       globalBit    = (uint32_t)cfg->presetNameOffset * 7 + cfg->presetNameBitOffset;
+    uint32_t       outLen       = 0;
+    bool           lastWasSpace = false;
+
+    for (uint32_t i = 0; (i < cfg->presetNameLen) && (outLen < sizeof(gDevice.progName) - 1); i++) {
+        uint32_t byteOffset = globalBit / 7;
+        uint32_t bitOffset  = globalBit % 7;
+        uint32_t raw        = read_bitpacked_field(payload, payloadLen, (int32_t)byteOffset, bitOffset, 8);
+        bool     printable  = (raw >= 0x20) && (raw < 0x7F);
+
+        if (printable) {
+            gDevice.progName[outLen++] = (char)raw;
+            lastWasSpace               = false;
+        } else if (!lastWasSpace && (outLen > 0)) {
+            gDevice.progName[outLen++] = ' ';
+            lastWasSpace               = true;
+        }
+        globalBit += 8;
+    }
+
+    while ((outLen > 0) && (gDevice.progName[outLen - 1] == ' ')) {
+        outLen--;
+    }
+    gDevice.progName[outLen] = '\0';
+    LOG_DEBUG("Preset name: \"%s\"\n", gDevice.progName);
+}
+
 // Format: F0 <mfrId> <productId> <deviceId> 03 <payload...> F7 — the reply to
-// synth_request_single_preset_dump()'s mode 0x06 request. Unlike
-// handle_moog_panel_dump() above, this doesn't decode the payload into dial
-// values: a stored preset dump's byte layout (does it carry a preset
-// name/number the way Korg's does? same offsets as a Panel Dump, or
-// different?) isn't confirmed anywhere this file's other dumpOffset/
-// dumpBitOffset values came from. Backup-only for now — capture the raw
-// bytes verbatim, same as the Panel Dump path, and leave decoding for later
-// once that byte layout is actually known.
+// synth_request_single_preset_dump()'s mode 0x06 request.
 static void handle_moog_single_preset_dump(const uint8_t * data, uint32_t length) {
-    synth_backup_capture_dump(data, length, eBackupExpectPreset); // no-op unless a by-number Backup is pending — see synthBackup.c
+    const uint32_t  skip       = 1; // F0 only — see handle_moog_panel_dump()'s comment on why
+
+    if (length < skip + 1) {
+        LOG_ERROR("Moog single preset dump too short (%u)\n", (unsigned)length);
+        return;
+    }
+    const uint8_t * payload    = data + skip;
+    uint32_t        payloadLen = length - skip - 1; // exclude trailing F7
+
+    extract_moog_preset_name(payload, payloadLen);
+    synth_backup_capture_dump(data, length, eBackupExpectPreset); // no-op unless a by-number Backup is pending — see synthBackup.c; after the name decode so a by-number backup's default filename can use it
 }
 
 static void handle_parameter_change(const uint8_t * data, uint32_t length) {

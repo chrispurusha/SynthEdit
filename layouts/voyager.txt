@@ -151,6 +151,29 @@ stateRequestSysEx 0xF0 0x04 0x01 0x00 0x05 0xF7
 dumpFormat      moog
 productId       0x01
 
+# presetNameOffset/presetNameBitOffset/presetNameLen — Single Preset Dump's
+# (mode 0x03) name field, in the same dumpOffset/dumpBitOffset terms every
+# numeric field below uses (byte position within payload=data+1, i.e.
+# counting mfrId as byte 1 — see the header comment above). NOT present in a
+# Panel Dump (mode 0x02) — Moog's own doc for that format doesn't mention a
+# name, matching the manual's "Panel Dump isn't tied to a named preset slot".
+#
+# CONFIRMED against real hardware (2026-07-07): captured preset 1 ("FILTER
+# BUBBLES") via Backup > Patch by Number, decoded byte-by-byte until "FILTER"
+# fell out at bit 679 of the payload (= byte 97, bit 0 — i.e. presetNameOffset
+# 101 in this file's byte-1-is-mfrId counting: 97 + the 4 bytes of header
+# this scheme counts as payload that a raw-array offset of 97 didn't). Full
+# 20-char field decodes to two fixed-width space-padded lines (11 + 8 chars,
+# matching the Voyager's 2-line LCD) joined by one 0xA0 separator byte — see
+# extract_moog_preset_name()'s comment in synthComms.c for how that's turned
+# back into a single "FILTER BUBBLES" string generically. Only this one
+# preset has been checked; a longer name could reveal the 11/8 split is
+# preset-1-specific rather than a fixed field width, in which case
+# presetNameLen may need to grow.
+presetNameOffset    101
+presetNameBitOffset 0
+presetNameLen       20
+
 # ── Oscillators page ──────────────────────────────────────────────────────────
 page       oscillators
 section    osc1

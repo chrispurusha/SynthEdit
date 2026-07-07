@@ -425,6 +425,45 @@ static void dispatch_cc(uint8_t channel, uint8_t cc, uint8_t value) {
     }
 }
 
+// ── Program Change dispatch ─────────────────────────────────────────────────
+// Only called from midi_read_cb for messages arriving from the Synth's
+// source. A front-panel (or MIDI-driven) bank/patch change on the device
+// shows up here — a real MIDI monitor capture on a Voyager going from PANEL
+// Preset to Preset 3 was Bank Select MSB=0, Bank Select LSB=0, then Program
+// Change=3, in that order. Bank Select alone (CC0/CC32 — dispatch_cc()
+// above already receives these, there's no separate handling needed) only
+// sets which bank the *next* Program Change pulls from, per general MIDI
+// convention; the patch doesn't actually change until Program Change
+// arrives, so that's the one trigger point for a reload rather than acting
+// on Bank Select too.
+static void dispatch_program_change(uint8_t channel, uint8_t program) {
+    LOG_DEBUG("Program Change ch=%u program=%u — reloading current state\n",
+              (unsigned)(channel + 1), (unsigned)program);
+
+    if (!synth_panel_config()->supportsIdentity && (gDevice.id != channel)) {
+        gDevice.id = channel;
+    }
+
+    if (gDevice.connected) {
+        synth_request_state_dump(); // refreshes dial positions (Panel Dump/Current Program Dump — no name, see extract_moog_panel_info()'s comment in synthComms.c)
+
+        tPanelConfig * cfg = synth_panel_config();
+
+        if (cfg->moogStyleDump && (cfg->presetNameOffset >= 0)) {
+            // Panel Dump alone can't refresh gDevice.progName — only a Single
+            // Preset Dump carries a name (see extract_moog_preset_name()) —
+            // so also ask for the specific preset MIDI just told us was
+            // recalled. MIDI's Program Change is 0-based; presets are
+            // addressed 1-based everywhere else in this app (Backup > Patch
+            // by Number, presetNameOffset's own dumpOffset numbering), hence
+            // +1. Guarded on presetNameOffset, not just moogStyleDump, so a
+            // Moog-style device with no declared name field (e.g. Minitaur,
+            // untested) doesn't send a request nothing will answer usefully.
+            synth_request_single_preset_dump((uint32_t)program + 1);
+        }
+    }
+}
+
 // ── SysEx dispatch ────────────────────────────────────────────────────────────
 
 static void dispatch_sysex(MIDIEndpointRef src, const uint8_t * data, uint32_t length) {
@@ -496,6 +535,19 @@ static void midi_read_cb(const MIDIPacketList * pktList, void * readProcRefCon, 
                             dispatch_cc((uint8_t)(gMsgStatus & 0x0F), gMsgData[0], gMsgData[1]);
                         }
                         gMsgDataLen = 0;    // ready for running status
+                    }
+
+                    // Program Change is a 2-byte message (status + 1 data
+                    // byte) — unlike CC above, only one data byte ever
+                    // arrives, so dispatch as soon as it does rather than
+                    // waiting for gMsgDataLen == 2 (a second byte here would
+                    // already be the next running-status message's first
+                    // data byte, not part of this one).
+                    if (((gMsgStatus & 0xF0) == 0xC0) && (gMsgDataLen == 1)) {
+                        if (gDevice.connected && ((gMidiSource == 0) || (src == gMidiSource))) {
+                            dispatch_program_change((uint8_t)(gMsgStatus & 0x0F), gMsgData[0]);
+                        }
+                        gMsgDataLen = 0;
                     }
                 }
             }

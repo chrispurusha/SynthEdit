@@ -117,8 +117,15 @@ void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExp
     char         defaultName[96];
 
     if (kind == eBackupExpectPreset) {
-        snprintf(defaultName, sizeof(defaultName), "%s Preset %u.syx",
-                 (deviceName[0] != '\0') ? deviceName : "patch", (unsigned)gBackupPresetNum);
+        // extract_moog_preset_name() (synthComms.c) just decoded this, if the
+        // device's file declares a presetNameOffset — fall back to "<device>
+        // Preset <n>" if it doesn't (or decoded empty).
+        if (gDevice.progName[0] != '\0') {
+            snprintf(defaultName, sizeof(defaultName), "%s.syx", gDevice.progName);
+        } else {
+            snprintf(defaultName, sizeof(defaultName), "%s Preset %u.syx",
+                     (deviceName[0] != '\0') ? deviceName : "patch", (unsigned)gBackupPresetNum);
+        }
     } else {
         snprintf(defaultName, sizeof(defaultName), "%s.syx", (deviceName[0] != '\0') ? deviceName : "patch");
     }

@@ -279,6 +279,12 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
         config->memberId = (uint32_t)strtoul(tokens[1], NULL, 0);
     } else if (strcmp(keyword, "progNameLen") == 0) {
         config->progNameLen = (uint32_t)strtoul(tokens[1], NULL, 0);
+    } else if (strcmp(keyword, "presetNameOffset") == 0) {
+        config->presetNameOffset = (int32_t)strtol(tokens[1], NULL, 0);
+    } else if (strcmp(keyword, "presetNameBitOffset") == 0) {
+        config->presetNameBitOffset = (uint32_t)strtoul(tokens[1], NULL, 0);
+    } else if (strcmp(keyword, "presetNameLen") == 0) {
+        config->presetNameLen = (uint32_t)strtoul(tokens[1], NULL, 0);
     } else if (strcmp(keyword, "scrollDial") == 0) {
         strncpy(config->scrollDialId, tokens[1], sizeof(config->scrollDialId) - 1);
     } else if (strcmp(keyword, "identityQuery") == 0) {
@@ -371,7 +377,8 @@ bool load_panel_config(const char * path, tPanelConfig * config) {
         return false;
     }
     memset(config, 0, sizeof(*config));
-    config->supportsIdentity = true; // overridden by an explicit "identityQuery no" line
+    config->supportsIdentity = true;  // overridden by an explicit "identityQuery no" line
+    config->presetNameOffset = -1;    // overridden by an explicit "presetNameOffset" line
 
     tPanelSection * currentSection = NULL;
     double          pendingGap     = 0.0;

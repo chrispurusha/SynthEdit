@@ -200,8 +200,23 @@ typedef struct {
     // 0x08 Minitaur) — distinct from familyId/memberId (the Universal
     // Identity Reply scheme), which is moot anyway for a device with
     // identityQuery no.
-    bool          moogStyleDump;
-    uint8_t       productId;
+    bool    moogStyleDump;
+    uint8_t productId;
+
+    // Where a Single Preset Dump's name field lives (Moog-style devices
+    // only — see extract_moog_preset_name() in synthComms.c). presetNameLen
+    // 8-bit characters, read from the SAME continuous 7-bit-per-byte
+    // bitstream dumpOffset/dumpBitOffset/dumpBitWidth already use for the
+    // numeric panel fields — presetNameOffset/presetNameBitOffset are that
+    // scheme's byte/bit position for the name's first character, not a
+    // separate encoding. Reverse-engineered from one real Voyager Single
+    // Preset Dump capture (preset 1, "FILTER BUBBLES" — see voyager.txt);
+    // not from any published spec. presetNameOffset defaults to -1 ("no name
+    // field declared"), set in load_panel_config(), same convention as each
+    // dial's own dumpOffset default.
+    int32_t       presetNameOffset;
+    uint32_t      presetNameBitOffset;
+    uint32_t      presetNameLen;
     tPanelSection sections[PANEL_MAX_SECTIONS];
     uint32_t      sectionCount;
     tPanelList    lists[PANEL_MAX_LISTS];
