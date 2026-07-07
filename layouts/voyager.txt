@@ -238,16 +238,31 @@ gridRowHeight 76
 # this went from 5 pages to 2 to this) holding all 12 columns: LFO, Mod
 # Wheel, Pedal, Osc 1/2/3, Mixer levels, Mixer On/Off (columns 0-7), then
 # Filters, Filter Envelope, Volume Envelope, Output (columns 8-11). Sections
-# still group dials by CC/colour exactly as before; col=/row= only controls
-# where a dial is drawn, so e.g. Osc 1/2/3's Level and On dials stay declared
-# in their own osc1/osc2/osc3 sections below but are drawn in the Mixer's two
+# still group dials by CC exactly as before — col=/row= only controls where
+# a dial is drawn, so e.g. Osc 1/2/3's Level and On dials stay declared in
+# their own osc1/osc2/osc3 sections below but are drawn in the Mixer's two
 # columns (6/7), matching the photo's Mixer panel rather than the
-# Oscillators panel. A blank cell (no dial claims that col/row) is just left
-# empty — no placeholder needed. "page panel" is repeated before every
-# section, even ones sharing the same page — panelConfig.c's parser only
-# starts a new tPanelSection on a "page" line; "section" alone just renames
-# whichever one's currently open, so skipping the repeat silently merges
-# dials into the previous section instead of giving them their own.
+# Oscillators panel.
+#
+# COLOUR, unlike section, follows the column a dial is actually drawn in,
+# not the section it's declared in (2026-07-07: "columns should mostly be a
+# common colour") — a column should read as one colour, with glide-related
+# dials the one agreed exception (glideRate/glide keep the grey "g" colour
+# in the LFO column rather than matching lfoRate/lfoSync's red "lf"). Where
+# a dial's own section doesn't already have the colour its COLUMN needs
+# (e.g. oscSync is declared in "mixer" but sits in the Osc 1 column), that
+# section just declares an extra same-named/same-RGB "color" line purely so
+# the dial can reference it — colour lookup (find_section_colour() in
+# panelConfig.c) is scoped to a dial's own section, it can't reach into
+# another section's colour table directly, hence the duplication rather
+# than one shared definition.
+#
+# A blank cell (no dial claims that col/row) is just left empty — no
+# placeholder needed. "page panel" is repeated before every section, even
+# ones sharing the same page — panelConfig.c's parser only starts a new
+# tPanelSection on a "page" line; "section" alone just renames whichever
+# one's currently open, so skipping the repeat silently merges dials into
+# the previous section instead of giving them their own.
 #
 # Two open items, both per the owner's own call (2026-07-07):
 #   - Headphone Volume (photo shows a 2nd Output knob) has no CC in this
@@ -285,6 +300,10 @@ dial glideRate     label="Glide Rate"  color=g max=16384 display=raw cc=0x05 ccL
 # CC64, threshold 0-63=Off/64-127=On — confirmed in the manual (p.29): "the
 # Release function can also be activated by sending a MIDI CC message 64
 # (0-63 = OFF, 64-127 = ON)". Previously missing from this file entirely.
+# Coloured to match glide (col=0), not this section's other neighbour in
+# the Mod Wheel column (col=1) it's actually drawn in — the two read as a
+# pair despite sitting in adjacent columns, so an exception to "a column is
+# one colour" like glideRate/glide's own (see the layout note up top).
 dial release       label="Release"     color=g nativeMax=127 max=2 names="Off","On" cc=64 col=1 row=5
 dial glide         label="Glide"       color=g nativeMax=127 max=2 names="Off","On" cc=65 col=0 row=5
 # volume/releaseSwitch are declared further down, in the "output" section —
@@ -320,13 +339,17 @@ dialSize   36
 spacing    50
 
 color o1 0.9 0.4 0.2
+# Matches "m" in the mixer section — Level/On sit visually in the Mixer's
+# two columns (6/7), not this one, so they're coloured to match those
+# columns rather than this section's own o1 orange.
+color m  0.7 0.7 0.7
 
 # row 0 (col 3) deliberately blank — Osc 1 has no Freq dial (it's the master
 # pitch), so its Octave/Wave sit one row lower to line up with Osc 2/3's.
 dial osc1Octave label="Octave" color=o1 nativeMax=127 max=6 names="32'","16'","8'","4'","2'","1'" cc=74 col=3 row=1
 dial osc1Wave   label="Wave"   color=o1 max=16384 display=raw cc=0x09 ccLsb=0x29 dumpOffset=38 dumpBitOffset=4 dumpBitWidth=14 col=3 row=2
-dial osc1Level  label="Level"  color=o1 max=16384 display=raw cc=0x0F ccLsb=0x2F dumpOffset=50 dumpBitOffset=0 dumpBitWidth=14 col=6 row=1
-dial osc1Toggle label="On"     color=o1 nativeMax=127 max=2 names="Off","On" cc=82 col=7 row=1
+dial osc1Level  label="Level"  color=m  max=16384 display=raw cc=0x0F ccLsb=0x2F dumpOffset=50 dumpBitOffset=0 dumpBitWidth=14 col=6 row=1
+dial osc1Toggle label="On"     color=m  nativeMax=127 max=2 names="Off","On" cc=82 col=7 row=1
 
 page       panel
 section    osc2
@@ -334,12 +357,14 @@ dialSize   36
 spacing    50
 
 color o2 0.4 0.8 0.5
+# Matches "m" in the mixer section — see osc1's own comment above for why.
+color m  0.7 0.7 0.7
 
 dial osc2Freq   label="Freq"   color=o2 max=16384 display=raw cc=0x0A ccLsb=0x2A dumpOffset=34 dumpBitOffset=0 dumpBitWidth=14 col=4 row=0
 dial osc2Octave label="Octave" color=o2 nativeMax=127 max=6 names="32'","16'","8'","4'","2'","1'" cc=75 col=4 row=1
 dial osc2Wave   label="Wave"   color=o2 max=16384 display=raw cc=0x0B ccLsb=0x2B dumpOffset=40 dumpBitOffset=6 dumpBitWidth=14 col=4 row=2
-dial osc2Level  label="Level"  color=o2 max=16384 display=raw cc=0x10 ccLsb=0x30 dumpOffset=52 dumpBitOffset=2 dumpBitWidth=14 col=6 row=2
-dial osc2Toggle label="On"     color=o2 nativeMax=127 max=2 names="Off","On" cc=83 col=7 row=2
+dial osc2Level  label="Level"  color=m  max=16384 display=raw cc=0x10 ccLsb=0x30 dumpOffset=52 dumpBitOffset=2 dumpBitWidth=14 col=6 row=2
+dial osc2Toggle label="On"     color=m  nativeMax=127 max=2 names="Off","On" cc=83 col=7 row=2
 
 page       panel
 section    osc3
@@ -347,28 +372,39 @@ dialSize   36
 spacing    50
 
 color o3 0.6 0.5 0.9
+# Matches "m" in the mixer section — see osc1's own comment above for why.
+color m  0.7 0.7 0.7
+# Matches "ox" in the mixer section — see that section's own comment for
+# why KB Track/Freq Range share a colour with 1->2 Sync/FM instead of o3.
+color ox 0.85 0.75 0.15
 
 dial osc3Freq      label="Freq"       color=o3 max=16384 display=raw cc=0x0C ccLsb=0x2C dumpOffset=36 dumpBitOffset=2 dumpBitWidth=14 col=5 row=0
 dial osc3Octave    label="Octave"     color=o3 nativeMax=127 max=6 names="32'","16'","8'","4'","2'","1'" cc=76 col=5 row=1
 dial osc3Wave      label="Wave"       color=o3 max=16384 display=raw cc=0x0D ccLsb=0x2D dumpOffset=43 dumpBitOffset=1 dumpBitWidth=14 col=5 row=2
-dial osc3Level     label="Level"      color=o3 max=16384 display=raw cc=0x11 ccLsb=0x31 dumpOffset=54 dumpBitOffset=4 dumpBitWidth=14 col=6 row=3
-dial osc3Toggle    label="On"         color=o3 nativeMax=127 max=2 names="Off","On" cc=84 col=7 row=3
-dial osc3KB        label="KB Track"   color=o3 nativeMax=127 max=2 names="Off","On" cc=79 col=5 row=3
-dial osc3FreqRange label="Freq Range" color=o3 nativeMax=127 max=2 names="Lo","Hi" cc=80 col=5 row=4
+dial osc3Level     label="Level"      color=m  max=16384 display=raw cc=0x11 ccLsb=0x31 dumpOffset=54 dumpBitOffset=4 dumpBitWidth=14 col=6 row=3
+dial osc3Toggle    label="On"         color=m  nativeMax=127 max=2 names="Off","On" cc=84 col=7 row=3
+dial osc3KB        label="KB Track"   color=ox nativeMax=127 max=2 names="Off","On" cc=79 col=5 row=3
+dial osc3FreqRange label="Freq Range" color=ox nativeMax=127 max=2 names="Lo","Hi" cc=80 col=5 row=4
 
 page       panel
 section    mixer
 dialSize   36
 spacing    50
 
-color m 0.7 0.7 0.7
+color m  0.7 0.7 0.7
+# "ox" (also declared in the osc3 section below) marks the 4-dial
+# oscillator cross-mod/extra-features row (1->2 Sync, FM, KB Track, Freq
+# Range) as its own shared identity, distinct from each one's own column's
+# colour — 2026-07-07: "should all be unique common colour", superseding
+# the brief earlier attempt to match them to their columns instead.
+color ox 0.85 0.75 0.15
 
-dial extLevel    label="External"  color=m max=16384 display=raw cc=0x0E ccLsb=0x2E col=6 row=0
-dial extToggle   label="Ext On"    color=m nativeMax=127 max=2 names="Off","On" cc=81 col=7 row=0
-dial noiseLevel  label="Noise"     color=m max=16384 display=raw cc=0x12 ccLsb=0x32 dumpOffset=56 dumpBitOffset=6 dumpBitWidth=14 col=6 row=4
-dial noiseToggle label="Noise On"  color=m nativeMax=127 max=2 names="Off","On" cc=85 col=7 row=4
-dial oscSync     label="1->2 Sync" color=m nativeMax=127 max=2 names="Off","On" cc=77 col=3 row=3
-dial oscFM       label="FM"        color=m nativeMax=127 max=2 names="Off","On" cc=78 col=4 row=3
+dial extLevel    label="External"  color=m  max=16384 display=raw cc=0x0E ccLsb=0x2E col=6 row=0
+dial extToggle   label="Ext On"    color=m  nativeMax=127 max=2 names="Off","On" cc=81 col=7 row=0
+dial noiseLevel  label="Noise"     color=m  max=16384 display=raw cc=0x12 ccLsb=0x32 dumpOffset=56 dumpBitOffset=6 dumpBitWidth=14 col=6 row=4
+dial noiseToggle label="Noise On"  color=m  nativeMax=127 max=2 names="Off","On" cc=85 col=7 row=4
+dial oscSync     label="1->2 Sync" color=ox nativeMax=127 max=2 names="Off","On" cc=77 col=3 row=3
+dial oscFM       label="FM"        color=ox nativeMax=127 max=2 names="Off","On" cc=78 col=4 row=3
 
 # ── Filters (grid columns 8-11) ────────────────────────────────────────────────
 page       panel
