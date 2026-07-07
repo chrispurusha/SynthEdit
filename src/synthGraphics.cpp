@@ -317,9 +317,14 @@ void synth_render(tRectangle area) {
     // gDevice.progName may contain embedded '\n's (nameLineWidth in the
     // device's .txt — see the tPanelConfig field comment in panelConfig.h),
     // one per line of the source device's own multi-line display — rendered
-    // here as separate rows rather than run together on one line.
+    // here as separate rows rather than run together on one line. The space
+    // reserved below is always the device's worst-case line count (e.g. 2
+    // for the Voyager, whether or not the current name actually uses both),
+    // not however many lines happen to be in nm right now — otherwise every
+    // row beneath this one (dials, Info row, …) would shift up and down as
+    // patches with a one-line vs. two-line name are selected.
     {
-        const char * nm;
+        const char *   nm;
 
         if (gDevice.progName[0] != '\0') {
             nm = gDevice.progName;
@@ -330,19 +335,30 @@ void synth_render(tRectangle area) {
         }
         set_rgb_colour((tRgb)RGB_WHITE);
 
-        char         nameBuf[SYNTH_PROG_NAME_MAXLEN];
+        char           nameBuf[SYNTH_PROG_NAME_MAXLEN];
         strncpy(nameBuf, nm, sizeof(nameBuf) - 1);
         nameBuf[sizeof(nameBuf) - 1] = '\0';
 
-        char *       line = strtok(nameBuf, "\n");
+        tPanelConfig * cfg          = synth_panel_config();
+        uint32_t       maxFieldLen  = (cfg->panelNameLen > cfg->presetNameLen) ? cfg->panelNameLen : cfg->presetNameLen;
+        uint32_t       reservedRows = (cfg->nameLineWidth > 0)
+                                     ? ((maxFieldLen + cfg->nameLineWidth - 1) / cfg->nameLineWidth)
+                                     : 1;
 
-        while (line != NULL) {
-            tRectangle r = {{x, y}, {450.0, 26.0}};
+        if (reservedRows == 0) {
+            reservedRows = 1;
+        }
+        char *         line         = strtok(nameBuf, "\n");
+        uint32_t       row          = 0;
+
+        while ((line != NULL) && (row < reservedRows)) {
+            tRectangle r = {{x, y + (row * 32.0)}, {450.0, 26.0}};
 
             render_text(mainArea, r, line);
-            y   += 32.0;
             line = strtok(NULL, "\n");
+            row++;
         }
+        y += 32.0 * (double)reservedRows;
     }
 
     // ── Info row: every dial in a `hidden` section, anywhere in the config ────

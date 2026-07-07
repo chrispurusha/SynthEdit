@@ -121,19 +121,24 @@ void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExp
         // device's file declares a presetNameOffset — fall back to "<device>
         // Preset <n>" if it doesn't (or decoded empty). May contain embedded
         // '\n's (nameLineWidth — see the tPanelConfig field comment in
-        // panelConfig.h), one per line of a multi-line device display; a
-        // filename has no such notion of lines, so those become spaces here.
+        // panelConfig.h) marking where the source device's own display wraps
+        // to a new line — dropped here, not replaced with a space: the raw
+        // name data has no separator character of its own at that point (see
+        // extract_moog_name()'s comment for how "Floating Mod"/"Steel Guitar"
+        // exposed that there's nothing — not even whitespace — between two
+        // lines that each fill their full width), so a filename built from
+        // it shouldn't invent one either.
         if (gDevice.progName[0] != '\0') {
-            char nameForFile[sizeof(gDevice.progName)];
+            char   nameForFile[sizeof(gDevice.progName)];
+            char * out = nameForFile;
 
-            strncpy(nameForFile, gDevice.progName, sizeof(nameForFile) - 1);
-            nameForFile[sizeof(nameForFile) - 1] = '\0';
-
-            for (char * p = nameForFile; *p != '\0'; p++) {
-                if (*p == '\n') {
-                    *p = ' ';
+            for (const char * p = gDevice.progName; (*p != '\0') && (out < nameForFile + sizeof(nameForFile) - 1); p++) {
+                if (*p != '\n') {
+                    *out++ = *p;
                 }
             }
+
+            *out = '\0';
 
             snprintf(defaultName, sizeof(defaultName), "%s.syx", nameForFile);
         } else {
