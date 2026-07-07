@@ -25,6 +25,7 @@
 #include "midiComms.h"
 #include "synthGraphics.h"
 #include "synthBackup.h"
+#include "fileDialogue.h"
 
 // Kept alive (and security-scope-accessing) for the app's lifetime once a
 // layouts folder has been resolved — either from a saved bookmark at launch,
@@ -121,6 +122,7 @@ void prompt_choose_layouts_folder(void) {
 - (void)setDialModeHorizontal:(id)sender;
 - (void)chooseLayoutsFolder:(id)sender;
 - (void)backupCurrentPatch:(id)sender;
+- (void)backupPatchByNumber:(id)sender;
 - (BOOL)validateMenuItem:(NSMenuItem *)item;
 @end
 
@@ -133,6 +135,26 @@ void prompt_choose_layouts_folder(void) {
 
 - (void)backupCurrentPatch:(id)sender {
     synth_backup_current_patch();
+}
+
+- (void)backupPatchByNumber:(id)sender {
+    // 128 locations — a base Voyager with no VX-... memory expansion (see
+    // synth_request_single_preset_dump()'s own range check in synthComms.c).
+    const uint32_t kPresetCount = 128;
+    char           labelStorage[128][4]; // "1".."128", 3 digits + NUL
+    const char *   labels[128];
+
+    for (uint32_t i = 0; i < kPresetCount; i++) {
+        snprintf(labelStorage[i], sizeof(labelStorage[i]), "%u", (unsigned)(i + 1));
+        labels[i] = labelStorage[i];
+    }
+
+    int32_t        chosen       = show_device_choice_dialogue("Backup Patch",
+                                                              "Choose a preset number to back up:", labels, kPresetCount);
+
+    if (chosen >= 0) {
+        synth_backup_patch_by_number((uint32_t)(chosen + 1));
+    }
 }
 
 - (void)chooseLayoutsFolder:(id)sender {
@@ -251,11 +273,18 @@ void setup_main_menu(void) {
     // actually implemented.
     NSMenuItem * backupMI    = [[NSMenuItem alloc] init];
     NSMenu *     backupMenu  = [[NSMenu alloc] initWithTitle:@"Backup"];
-    NSMenuItem * backupItem  = [[NSMenuItem alloc] initWithTitle:@"Current Patch…"
+    // Live edit buffer, not a stored preset — see synth_backup_current_patch()
+    // vs. synth_backup_patch_by_number() in synthBackup.h.
+    NSMenuItem * liveItem    = [[NSMenuItem alloc] initWithTitle:@"Current Panel (Edit Buffer)…"
                                 action:@selector(backupCurrentPatch:)
                                 keyEquivalent:@""];
-    [backupItem setTarget:target];
-    [backupMenu addItem:backupItem];
+    [liveItem setTarget:target];
+    [backupMenu addItem:liveItem];
+    NSMenuItem * numberItem  = [[NSMenuItem alloc] initWithTitle:@"Patch by Number…"
+                                action:@selector(backupPatchByNumber:)
+                                keyEquivalent:@""];
+    [numberItem setTarget:target];
+    [backupMenu addItem:numberItem];
     [backupMI setSubmenu:backupMenu];
     [menuBar insertItem:backupMI atIndex:4];
 }

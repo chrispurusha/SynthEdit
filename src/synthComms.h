@@ -53,6 +53,21 @@ void synth_request_current_program(void);
 // one.
 void synth_request_state_dump(void);
 
+// Moog-style devices only (cfg->moogStyleDump — see panelConfig.h): requests
+// a specific STORED preset by number, as opposed to synth_request_state_dump()
+// above, which only ever reads the live edit buffer (Voyager's Panel Dump).
+// presetNumber is 1-based, matching the manual's own "locations are numbered
+// 1 to 128" convention; sent on the wire as presetNumber-1 (0-127) — a
+// best-guess at MIDI's usual 0-indexed-on-the-wire/1-indexed-on-the-panel
+// convention, UNCONFIRMED against real hardware (unlike the Panel Dump
+// Request this is built from — see voyager.txt's stateRequestSysEx comment).
+// A no-op with a logged error if the connected device isn't Moog-style, or
+// if presetNumber is out of the current bank's 128-location range (the
+// wire format's single program-number byte can't address more than that
+// without a separate bank-select step this doesn't implement — fine for a
+// base Voyager with no VX-... memory expansion, per voyager.txt).
+void synth_request_single_preset_dump(uint32_t presetNumber);
+
 // Send a parameter change to the synth
 // group: SYNTH_PARAM_GROUP_*; paramId: 1-based ID from spec; value: raw value
 void synth_send_parameter_change(uint8_t group, uint16_t paramId, uint16_t value);

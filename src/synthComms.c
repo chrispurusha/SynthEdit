@@ -290,7 +290,7 @@ static void handle_curr_prog_dump(const uint8_t * data, uint32_t length) {
     // Format: F0 <mfrId> 3g 46 40 01 [7-bit encoded data...] F7
     // Payload starts right after the header (F0+mfrId+chan+fam+func = 4+n
     // bytes) plus the extra "01" sub-byte this dump function has.
-    synth_backup_capture_dump(data, length); // no-op unless a Backup is pending — see synthBackup.c
+    synth_backup_capture_dump(data, length, eBackupExpectLive); // no-op unless a live-panel Backup is pending — see synthBackup.c
     tPanelConfig *  cfg        = synth_panel_config();
     uint32_t        skip       = 5 + cfg->manufacturerIdLen;
 
@@ -329,8 +329,8 @@ static void handle_curr_prog_dump(const uint8_t * data, uint32_t length) {
 // only happened to look right because a neighboring field was also
 // coincidentally near-max at the time.
 static void handle_moog_panel_dump(const uint8_t * data, uint32_t length) {
-    synth_backup_capture_dump(data, length); // no-op unless a Backup is pending — see synthBackup.c
-    const uint32_t  skip       = 1;          // F0 only
+    synth_backup_capture_dump(data, length, eBackupExpectLive); // no-op unless a live-panel Backup is pending — see synthBackup.c
+    const uint32_t  skip       = 1;                             // F0 only
 
     if (length < skip + 1) {
         LOG_ERROR("Moog panel dump too short (%u)\n", (unsigned)length);
@@ -340,6 +340,19 @@ static void handle_moog_panel_dump(const uint8_t * data, uint32_t length) {
     uint32_t        payloadLen = length - skip - 1; // exclude trailing F7
 
     extract_moog_panel_info(payload, payloadLen);
+}
+
+// Format: F0 <mfrId> <productId> <deviceId> 03 <payload...> F7 — the reply to
+// synth_request_single_preset_dump()'s mode 0x06 request. Unlike
+// handle_moog_panel_dump() above, this doesn't decode the payload into dial
+// values: a stored preset dump's byte layout (does it carry a preset
+// name/number the way Korg's does? same offsets as a Panel Dump, or
+// different?) isn't confirmed anywhere this file's other dumpOffset/
+// dumpBitOffset values came from. Backup-only for now — capture the raw
+// bytes verbatim, same as the Panel Dump path, and leave decoding for later
+// once that byte layout is actually known.
+static void handle_moog_single_preset_dump(const uint8_t * data, uint32_t length) {
+    synth_backup_capture_dump(data, length, eBackupExpectPreset); // no-op unless a by-number Backup is pending — see synthBackup.c
 }
 
 static void handle_parameter_change(const uint8_t * data, uint32_t length) {
@@ -430,6 +443,36 @@ void synth_request_state_dump(void) {
     }
 }
 
+void synth_request_single_preset_dump(uint32_t presetNumber) {
+    tPanelConfig * cfg       = synth_panel_config();
+
+    if (!cfg->moogStyleDump) {
+        LOG_ERROR("Single Preset Dump Request: not a Moog-style device\n");
+        return;
+    }
+
+    if ((presetNumber < 1) || (presetNumber > 128) || (cfg->stateRequestSysExLen < 2)) {
+        LOG_ERROR("Single Preset Dump Request: preset %u out of range\n", (unsigned)presetNumber);
+        return;
+    }
+    // Built from stateRequestSysEx (the Panel Dump Request Moog-style header —
+    // F0 <mfrId> <productId> <deviceId> 05 F7) rather than a second fixed
+    // constant in the file: same header prefix, just mode 0x06 (Single Preset
+    // Dump REQUEST) instead of 0x05, with the requested preset number
+    // inserted before the trailing F7 — see "byte4 = <SysExMode>" in
+    // voyager.txt's own header comment for where 0x06 + "program number byte"
+    // comes from.
+    uint8_t        msg[sizeof(cfg->stateRequestSysEx) + 2];
+    uint32_t       prefixLen = cfg->stateRequestSysExLen - 1; // everything up to (not including) the trailing F7
+
+    memcpy(msg, cfg->stateRequestSysEx, prefixLen);
+    msg[prefixLen - 1] = 0x06;                        // mode byte: Single Preset Dump REQUEST
+    msg[prefixLen]     = (uint8_t)(presetNumber - 1); // 0-based on the wire — see the header comment
+    msg[prefixLen + 1] = MIDI_SYSEX_END;
+    midi_send(msg, prefixLen + 2);
+    LOG_DEBUG("Sent Single Preset Dump Request for preset %u\n", (unsigned)presetNumber);
+}
+
 void synth_send_parameter_change(uint8_t group, uint16_t paramId, uint16_t value) {
     // F0 42 3g 46 41 0mm pp pp vv vv F7
     uint8_t  msg[11];
@@ -482,10 +525,11 @@ bool synth_handle_cc(uint8_t cc, uint8_t value) {
 void synth_handle_message(const uint8_t * data, uint32_t length) {
     if (synth_panel_config()->moogStyleDump) {
         // Entirely separate header shape and dispatch from the Korg-style
-        // path below (see is_moog_sysex()/handle_moog_panel_dump()) — mode
-        // 0x02 (Panel Dump) is the only reply this app currently requests
-        // (see stateRequestSysEx/"Panel Dump Request" in voyager.txt), so
-        // that's the only mode handled; anything else is logged and ignored.
+        // path below (see is_moog_sysex()/handle_moog_panel_dump()). Modes
+        // 0x02 (Panel Dump) and 0x03 (Single Preset Dump) are the two replies
+        // this app requests (see stateRequestSysEx/"Panel Dump Request" and
+        // synth_request_single_preset_dump() respectively) — anything else is
+        // logged and ignored.
         if (!is_moog_sysex(data, length)) {
             LOG_DEBUG("Ignoring non-target SysEx (len=%u)\n", (unsigned)length);
             return;
@@ -494,6 +538,8 @@ void synth_handle_message(const uint8_t * data, uint32_t length) {
 
         if (mode == 0x02) {
             handle_moog_panel_dump(data, length);
+        } else if (mode == 0x03) {
+            handle_moog_single_preset_dump(data, length);
         } else {
             LOG_DEBUG("Moog SysEx unhandled mode 0x%02X\n", (unsigned)mode);
         }
