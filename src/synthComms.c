@@ -27,6 +27,7 @@
 #include "midiComms.h"
 #include "synthGraphics.h"
 #include "synthComms.h"
+#include "synthBackup.h"
 
 // ── SysEx header helpers ──────────────────────────────────────────────────────
 // Header shape: F0 <manufacturerId: 1 or 3 bytes> <0x30|channel> <familyId>
@@ -289,6 +290,7 @@ static void handle_curr_prog_dump(const uint8_t * data, uint32_t length) {
     // Format: F0 <mfrId> 3g 46 40 01 [7-bit encoded data...] F7
     // Payload starts right after the header (F0+mfrId+chan+fam+func = 4+n
     // bytes) plus the extra "01" sub-byte this dump function has.
+    synth_backup_capture_dump(data, length); // no-op unless a Backup is pending — see synthBackup.c
     tPanelConfig *  cfg        = synth_panel_config();
     uint32_t        skip       = 5 + cfg->manufacturerIdLen;
 
@@ -327,7 +329,8 @@ static void handle_curr_prog_dump(const uint8_t * data, uint32_t length) {
 // only happened to look right because a neighboring field was also
 // coincidentally near-max at the time.
 static void handle_moog_panel_dump(const uint8_t * data, uint32_t length) {
-    const uint32_t  skip       = 1; // F0 only
+    synth_backup_capture_dump(data, length); // no-op unless a Backup is pending — see synthBackup.c
+    const uint32_t  skip       = 1;          // F0 only
 
     if (length < skip + 1) {
         LOG_ERROR("Moog panel dump too short (%u)\n", (unsigned)length);
@@ -414,6 +417,17 @@ void synth_request_current_program(void) {
     msg[pos++] = MIDI_SYSEX_END;
     midi_send(msg, pos);
     LOG_DEBUG("Sent CURR_PROG_DUMP_REQ\n");
+}
+
+void synth_request_state_dump(void) {
+    tPanelConfig * cfg = synth_panel_config();
+
+    if (cfg->stateRequestSysExLen > 0) {
+        midi_send(cfg->stateRequestSysEx, cfg->stateRequestSysExLen);
+        LOG_DEBUG("Re-sent device state request (%u bytes)\n", (unsigned)cfg->stateRequestSysExLen);
+    } else {
+        synth_request_current_program();
+    }
 }
 
 void synth_send_parameter_change(uint8_t group, uint16_t paramId, uint16_t value) {

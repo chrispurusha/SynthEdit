@@ -44,6 +44,15 @@ bool synth_handle_cc(uint8_t cc, uint8_t value);
 // Request the currently loaded program from the synth
 void synth_request_current_program(void);
 
+// Re-sends whichever "report your current state" request the connected
+// device actually understands — the file-declared stateRequestSysEx if one
+// exists (e.g. Moog's Panel Dump Request), else the generic Korg-style
+// Current Program Dump Request. Same request connect_without_identity()
+// sends once at connect time (midiComms.c), callable again on demand — e.g.
+// so Backup can capture a fresh dump rather than replaying a stale cached
+// one.
+void synth_request_state_dump(void);
+
 // Send a parameter change to the synth
 // group: SYNTH_PARAM_GROUP_*; paramId: 1-based ID from spec; value: raw value
 void synth_send_parameter_change(uint8_t group, uint16_t paramId, uint16_t value);

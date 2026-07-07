@@ -24,6 +24,7 @@
 #include "graphics.h"
 #include "midiComms.h"
 #include "synthGraphics.h"
+#include "synthBackup.h"
 
 // Kept alive (and security-scope-accessing) for the app's lifetime once a
 // layouts folder has been resolved — either from a saved bookmark at launch,
@@ -119,6 +120,7 @@ void prompt_choose_layouts_folder(void) {
 - (void)setDialModeVertical:(id)sender;
 - (void)setDialModeHorizontal:(id)sender;
 - (void)chooseLayoutsFolder:(id)sender;
+- (void)backupCurrentPatch:(id)sender;
 - (BOOL)validateMenuItem:(NSMenuItem *)item;
 @end
 
@@ -127,6 +129,10 @@ void prompt_choose_layouts_folder(void) {
 - (void)scanDevices:(id)sender {
     midi_scan_devices();
     wake_glfw();
+}
+
+- (void)backupCurrentPatch:(id)sender {
+    synth_backup_current_patch();
 }
 
 - (void)chooseLayoutsFolder:(id)sender {
@@ -239,6 +245,19 @@ void setup_main_menu(void) {
     [layoutsMenu addItem:chooseItem];
     [layoutsMI setSubmenu:layoutsMenu];
     [menuBar insertItem:layoutsMI atIndex:3];
+
+    // Single-patch only for now, no Restore yet — see synthBackup.h. Modeled
+    // on G2-Edit's Backup menu (misc.mm there), scaled down to match what's
+    // actually implemented.
+    NSMenuItem * backupMI    = [[NSMenuItem alloc] init];
+    NSMenu *     backupMenu  = [[NSMenu alloc] initWithTitle:@"Backup"];
+    NSMenuItem * backupItem  = [[NSMenuItem alloc] initWithTitle:@"Current Patch…"
+                                action:@selector(backupCurrentPatch:)
+                                keyEquivalent:@""];
+    [backupItem setTarget:target];
+    [backupMenu addItem:backupItem];
+    [backupMI setSubmenu:backupMenu];
+    [menuBar insertItem:backupMI atIndex:4];
 }
 
 void save_window_size(int w) {
