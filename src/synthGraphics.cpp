@@ -289,9 +289,23 @@ void synth_render(tRectangle area) {
     y += render_page_tabs({{x, y}, {0, 0}});
 
     // ── Program name ──────────────────────────────────────────────────────────
+    // "(loading…)" only means anything while we're still waiting on the
+    // device's first dump reply. Some protocols never send a program name at
+    // all (e.g. the Voyager's Panel Dump — see extract_moog_panel_info() in
+    // synthComms.c), so once connected an empty progName isn't "still
+    // loading", it's "this device doesn't report one" — show the device name
+    // instead rather than a permanently-wrong loading message.
     {
-        tRectangle   r  = {{x, y}, {450.0, 26.0}};
-        const char * nm = (gDevice.progName[0] != '\0') ? gDevice.progName : "(loading\xe2\x80\xa6)";
+        tRectangle   r = {{x, y}, {450.0, 26.0}};
+        const char * nm;
+
+        if (gDevice.progName[0] != '\0') {
+            nm = gDevice.progName;
+        } else if (gDevice.connected) {
+            nm = synth_panel_config()->deviceName;
+        } else {
+            nm = "(loading\xe2\x80\xa6)";
+        }
         set_rgb_colour((tRgb)RGB_WHITE);
         render_text(mainArea, r, nm);
         y += 32.0;
