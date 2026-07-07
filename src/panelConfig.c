@@ -167,6 +167,8 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
     *pendingGap      = 0.0;
     dial->dumpOffset = -1;   // not present in a program dump unless "dumpOffset=" says otherwise
     dial->dumpMask   = 0xFF; // whole byte by default
+    dial->gridCol    = -1;   // not grid-positioned unless "col=" says otherwise
+    dial->gridRow    = -1;
 
     for (uint32_t i = 2; i < tokenCount; i++) {
         char key[32];
@@ -220,6 +222,10 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
             dial->dumpBitOffset = (uint32_t)strtoul(val, NULL, 0);
         } else if (strcmp(key, "dumpBitWidth") == 0) {
             dial->dumpBitWidth = (uint32_t)strtoul(val, NULL, 0);
+        } else if (strcmp(key, "col") == 0) {
+            dial->gridCol = (int32_t)strtol(val, NULL, 0);
+        } else if (strcmp(key, "row") == 0) {
+            dial->gridRow = (int32_t)strtol(val, NULL, 0);
         } else {
             LOG_ERROR("panelConfig line %u: unknown dial attribute '%s'\n", lineNo, key);
         }
@@ -295,6 +301,10 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
         config->nameLineWidth = (uint32_t)strtoul(tokens[1], NULL, 0);
     } else if (strcmp(keyword, "presetBankCount") == 0) {
         config->presetBankCount = (uint32_t)strtoul(tokens[1], NULL, 0);
+    } else if (strcmp(keyword, "gridColWidth") == 0) {
+        config->gridColWidth = strtod(tokens[1], NULL);
+    } else if (strcmp(keyword, "gridRowHeight") == 0) {
+        config->gridRowHeight = strtod(tokens[1], NULL);
     } else if (strcmp(keyword, "scrollDial") == 0) {
         strncpy(config->scrollDialId, tokens[1], sizeof(config->scrollDialId) - 1);
     } else if (strcmp(keyword, "identityQuery") == 0) {
@@ -425,12 +435,24 @@ bool load_panel_config(const char * path, tPanelConfig * config) {
     return true;
 }
 
-void layout_panel_section(tPanelSection * section, tRectangle origin) {
+void layout_panel_section(tPanelSection * section, tRectangle origin, double gridColWidth, double gridRowHeight) {
     double x = origin.coord.x;
 
     for (uint32_t i = 0; i < section->dialCount; i++) {
         tPanelDial * dial = &section->dials[i];
 
+        if ((dial->gridCol >= 0) && (gridColWidth > 0.0) && (gridRowHeight > 0.0)) {
+            int32_t row = (dial->gridRow >= 0) ? dial->gridRow : 0;
+
+            dial->rect = (tRectangle){{
+                                          origin.coord.x + ((double)dial->gridCol * gridColWidth),
+                                          origin.coord.y + ((double)row * gridRowHeight)
+                                      }, {
+                                          section->dialSize, section->dialSize
+                                      }
+            };
+            continue; // grid-positioned — doesn't touch the auto-flow x runner below
+        }
         x         += dial->gapBefore;
         dial->rect = (tRectangle){{
                                       x, origin.coord.y

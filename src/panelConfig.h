@@ -119,6 +119,20 @@ typedef struct {
     // no padding except where a genuinely separate field's bits interleave.
     uint32_t dumpBitOffset;
     uint32_t dumpBitWidth;
+
+    // Explicit grid position ("col="/"row=" in the file), for a device whose
+    // real front panel groups controls into fixed columns rather than
+    // flowing left-to-right within a section (see gridColWidth/gridRowHeight
+    // below). 0-based; -1 (the default) means "not grid-positioned" — this
+    // dial keeps going through the ordinary left-to-right auto-flow within
+    // its section, exactly as every dial did before this existed, so a
+    // device file with no col=/row= anywhere (Z1, Novation Supernova 2)
+    // renders identically to before. A section can freely mix grid and
+    // auto-flow dials, though in practice a device either commits one whole
+    // page to the grid or doesn't use it at all. row defaults to 0 if col is
+    // set but row isn't.
+    int32_t gridCol;
+    int32_t gridRow;
 } tPanelDial;
 
 typedef struct {
@@ -255,7 +269,18 @@ typedef struct {
     // synth_backup_bank() in synthBackup.h), there may be a DI-no variant, a
     // bank-select byte, or a second SysEx mode this field ends up feeding —
     // deliberately not guessed at here.
-    uint32_t      presetBankCount;
+    uint32_t presetBankCount;
+
+    // Pitch (in px) between adjacent grid cells for any dial using col=/row=
+    // (see tPanelDial.gridCol above) — "gridColWidth"/"gridRowHeight" in the
+    // file. 0 (the default) means "not configured"; synth_render()
+    // (synthGraphics.cpp) falls a grid dial back to ordinary auto-flow
+    // rather than stacking every grid dial at the same spot if a device
+    // declares col=/row= but forgets to set these. One pitch for the whole
+    // device, not per-page or per-section — every grid-using page is
+    // expected to want the same column/row rhythm.
+    double        gridColWidth;
+    double        gridRowHeight;
     tPanelSection sections[PANEL_MAX_SECTIONS];
     uint32_t      sectionCount;
     tPanelList    lists[PANEL_MAX_LISTS];
@@ -267,9 +292,15 @@ typedef struct {
 // Returns false only if the file couldn't be opened.
 bool load_panel_config(const char * path, tPanelConfig * config);
 
-// Computes each dial's `rect` in `section`, flowing left to right from
-// `origin` using the section's dialSize/spacing and each dial's gapBefore.
-void layout_panel_section(tPanelSection * section, tRectangle origin);
+// Computes each dial's `rect` in `section`. A dial with gridCol >= 0 (and
+// both grid pitches > 0) is placed directly at
+// origin + (gridCol*gridColWidth, gridRow*gridRowHeight) — every grid dial
+// on a page shares the same `origin`, which is what turns per-dial col/row
+// into a single page-wide grid rather than one grid per section. Every
+// other dial flows left to right from `origin` using the section's
+// dialSize/spacing and its own gapBefore, exactly as before col=/row=
+// existed.
+void layout_panel_section(tPanelSection * section, tRectangle origin, double gridColWidth, double gridRowHeight);
 
 tPanelSection * find_panel_section(tPanelConfig * config, const char * page, const char * section);
 tPanelDial * find_panel_dial(tPanelSection * section, const char * id);

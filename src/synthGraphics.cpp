@@ -470,16 +470,32 @@ void synth_render(tRectangle area) {
     // name. A page can hold several sections (e.g. Oscillator's several
     // sections stacked above Filters on the Synthesis page) — each is laid
     // out as its own row, in the file's declaration order, one below the
-    // last.
+    // last — UNLESS the page uses explicit col=/row= grid positioning (see
+    // tPanelDial.gridCol in panelConfig.h), in which case every section on
+    // the page shares one fixed origin instead of stacking, so a dial's own
+    // col/row is all that places it (a column can freely mix dials from
+    // several sections, e.g. the Voyager's leftmost column carrying both
+    // LFO's and Global's dials).
     {
         tPanelSection * sections[PANEL_MAX_SECTIONS];
         uint32_t        sectionCount = synth_current_page_sections(sections, PANEL_MAX_SECTIONS);
+        tPanelConfig *  cfg          = synth_panel_config();
+        bool            pageIsGrid   = false;
+
+        for (uint32_t sIdx = 0; (sIdx < sectionCount) && !pageIsGrid; sIdx++) {
+            for (uint32_t i = 0; i < sections[sIdx]->dialCount; i++) {
+                if (sections[sIdx]->dials[i].gridCol >= 0) {
+                    pageIsGrid = true;
+                    break;
+                }
+            }
+        }
 
         for (uint32_t sIdx = 0; sIdx < sectionCount; sIdx++) {
             tPanelSection * section = sections[sIdx];
 
             section->spacing = section_required_spacing(section);
-            layout_panel_section(section, (tRectangle){{x, y}, {0, 0}});
+            layout_panel_section(section, (tRectangle){{x, y}, {0, 0}}, cfg->gridColWidth, cfg->gridRowHeight);
 
             for (uint32_t i = 0; i < section->dialCount; i++) {
                 tPanelDial * dial    = &section->dials[i];
@@ -508,7 +524,9 @@ void synth_render(tRectangle area) {
                 render_text(mainArea, lblRect, dial->label);
             }
 
-            y += section->dialSize + 46.0; // dial + value/label text + gap before next stacked section
+            if (!pageIsGrid) {
+                y += section->dialSize + 46.0; // dial + value/label text + gap before next stacked section
+            }
         }
     }
 }

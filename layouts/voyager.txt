@@ -220,150 +220,204 @@ nameLineWidth       12
 # Voyager has more than one bank.
 presetBankCount     1
 
-# ── Oscillators page ──────────────────────────────────────────────────────────
-page       oscillators
-section    osc1
-dialSize   40
-spacing    50
+# gridColWidth/gridRowHeight — pitch between grid cells for every dial below
+# that sets col=/row= (see the tPanelDial field comment in panelConfig.h).
+# Chosen to leave clearance under each dialSize-36 knob for its value+label
+# text (matching the old auto-flow layout's own dialSize+46 row height and
+# +4/+18 text offsets — see synth_render() in synthGraphics.cpp), not
+# derived from anything on the real hardware. Tune by eye once this renders.
+gridColWidth  84
+gridRowHeight 76
 
-color o1 0.9 0.4 0.2
+# ── Layout note ────────────────────────────────────────────────────────────
+# Below mirrors the real Voyager panel's own left-to-right module order,
+# confirmed against a reference photo (2026-07-07) and laid out as an
+# explicit 12-column x up to-6-row grid via each dial's col=/row= (0-based;
+# see panelConfig.h) rather than the auto-flow this file used before. ONE
+# page (all previous pages collapsed into it — see project memory for how
+# this went from 5 pages to 2 to this) holding all 12 columns: LFO, Mod
+# Wheel, Pedal, Osc 1/2/3, Mixer levels, Mixer On/Off (columns 0-7), then
+# Filters, Filter Envelope, Volume Envelope, Output (columns 8-11). Sections
+# still group dials by CC/colour exactly as before; col=/row= only controls
+# where a dial is drawn, so e.g. Osc 1/2/3's Level and On dials stay declared
+# in their own osc1/osc2/osc3 sections below but are drawn in the Mixer's two
+# columns (6/7), matching the photo's Mixer panel rather than the
+# Oscillators panel. A blank cell (no dial claims that col/row) is just left
+# empty — no placeholder needed. "page panel" is repeated before every
+# section, even ones sharing the same page — panelConfig.c's parser only
+# starts a new tPanelSection on a "page" line; "section" alone just renames
+# whichever one's currently open, so skipping the repeat silently merges
+# dials into the previous section instead of giving them their own.
+#
+# Two open items, both per the owner's own call (2026-07-07):
+#   - Headphone Volume (photo shows a 2nd Output knob) has no CC in this
+#     file at all — left blank (col11 row1) rather than guessed.
+#   - releaseSwitch (CC88, distinct from the release on/off toggle) wasn't
+#     named in the photo walkthrough — parked at col11 row2 (the same
+#     blank-headphone column) as the least-disruptive spot; move it if it
+#     belongs somewhere else.
+# Also a judgement call, not confirmed against the photo: the 4-dial row
+# under Oscillators (1->2 Sync, 3->1 FM, 3 KB Cont, 3 Freq Lo/Hi) didn't
+# divide evenly over 3 columns, so 1->2 Sync went under Osc 1 (row 3) and
+# the other three (all Oscillator-3-specific) stacked under Osc 3 (rows
+# 3-5) instead of spreading one-per-column.
 
-dial osc1Octave label="Octave" color=o1 nativeMax=127 max=6 names="32'","16'","8'","4'","2'","1'" cc=74
-dial osc1Wave   label="Wave"   color=o1 max=16384 display=raw cc=0x09 ccLsb=0x29 dumpOffset=38 dumpBitOffset=4 dumpBitWidth=14
-dial osc1Level  label="Level"  color=o1 max=16384 display=raw cc=0x0F ccLsb=0x2F dumpOffset=50 dumpBitOffset=0 dumpBitWidth=14
-dial osc1Toggle label="On"     color=o1 nativeMax=127 max=2 names="Off","On" cc=82
-
-page       oscillators
-section    osc2
-dialSize   40
-spacing    50
-
-color o2 0.4 0.8 0.5
-
-dial osc2Octave label="Octave" color=o2 nativeMax=127 max=6 names="32'","16'","8'","4'","2'","1'" cc=75
-dial osc2Wave   label="Wave"   color=o2 max=16384 display=raw cc=0x0B ccLsb=0x2B dumpOffset=40 dumpBitOffset=6 dumpBitWidth=14
-dial osc2Freq   label="Freq"   color=o2 max=16384 display=raw cc=0x0A ccLsb=0x2A dumpOffset=34 dumpBitOffset=0 dumpBitWidth=14
-dial osc2Level  label="Level"  color=o2 max=16384 display=raw cc=0x10 ccLsb=0x30 dumpOffset=52 dumpBitOffset=2 dumpBitWidth=14
-dial osc2Toggle label="On"     color=o2 nativeMax=127 max=2 names="Off","On" cc=83
-
-page       oscillators
-section    osc3
-dialSize   40
-spacing    50
-
-color o3 0.6 0.5 0.9
-
-dial osc3Octave    label="Octave"     color=o3 nativeMax=127 max=6 names="32'","16'","8'","4'","2'","1'" cc=76
-dial osc3Wave      label="Wave"       color=o3 max=16384 display=raw cc=0x0D ccLsb=0x2D dumpOffset=43 dumpBitOffset=1 dumpBitWidth=14
-dial osc3Freq      label="Freq"       color=o3 max=16384 display=raw cc=0x0C ccLsb=0x2C dumpOffset=36 dumpBitOffset=2 dumpBitWidth=14
-dial osc3Level     label="Level"      color=o3 max=16384 display=raw cc=0x11 ccLsb=0x31 dumpOffset=54 dumpBitOffset=4 dumpBitWidth=14
-dial osc3Toggle    label="On"         color=o3 nativeMax=127 max=2 names="Off","On" cc=84
-dial osc3KB        label="KB Track"   color=o3 nativeMax=127 max=2 names="Off","On" cc=79
-dial osc3FreqRange label="Freq Range" color=o3 nativeMax=127 max=2 names="Lo","Hi" cc=80
-
-page       oscillators
-section    mixer
-dialSize   40
-spacing    50
-
-color m 0.7 0.7 0.7
-
-dial noiseLevel  label="Noise"     color=m max=16384 display=raw cc=0x12 ccLsb=0x32 dumpOffset=56 dumpBitOffset=6 dumpBitWidth=14
-dial noiseToggle label="Noise On"  color=m nativeMax=127 max=2 names="Off","On" cc=85
-dial extLevel    label="External"  color=m max=16384 display=raw cc=0x0E ccLsb=0x2E
-dial extToggle   label="Ext On"    color=m nativeMax=127 max=2 names="Off","On" cc=81
-dial oscSync     label="1->2 Sync" color=m nativeMax=127 max=2 names="Off","On" cc=77
-dial oscFM       label="FM"        color=m nativeMax=127 max=2 names="Off","On" cc=78
-
-# ── Filters page ──────────────────────────────────────────────────────────────
-page       filters
-section    filters
-dialSize   40
-spacing    50
-
-color f 0.2 0.6 1.0
-
-dial cutoff      label="Cutoff"     color=f max=16384 display=raw cc=0x13 ccLsb=0x33 dumpOffset=59 dumpBitOffset=1 dumpBitWidth=14
-dial res         label="Resonance"  color=f max=16384 display=raw cc=0x15 ccLsb=0x35 dumpOffset=61 dumpBitOffset=3 dumpBitWidth=14
-dial fltSpacing  label="Spacing"    color=f max=16384 display=raw cc=0x14 ccLsb=0x34 dumpOffset=45 dumpBitOffset=3 dumpBitWidth=14
-dial fltKBAmount label="KB Amount"  color=f max=16384 display=raw cc=0x16 ccLsb=0x36 dumpOffset=66 dumpBitOffset=0 dumpBitWidth=14
-dial fltMode     label="Mode"       color=f nativeMax=127 max=2 names="Dual LP","HP/LP" cc=86
-
-# ── Envelopes page ────────────────────────────────────────────────────────────
-page       envelopes
-section    filterEnv
-dialSize   40
-spacing    50
-
-color fe 0.9 0.6 0.2
-
-dial fltEnvAttack  label="Attack"  color=fe max=16384 display=raw cc=0x17 ccLsb=0x37 dumpOffset=70 dumpBitOffset=4 dumpBitWidth=14
-dial fltEnvDecay   label="Decay"   color=fe max=16384 display=raw cc=0x18 ccLsb=0x38 dumpOffset=72 dumpBitOffset=6 dumpBitWidth=14
-dial fltEnvSustain label="Sustain" color=fe max=16384 display=raw cc=0x19 ccLsb=0x39 dumpOffset=75 dumpBitOffset=1 dumpBitWidth=14
-dial fltEnvRelease label="Release" color=fe max=16384 display=raw cc=0x1A ccLsb=0x3A dumpOffset=77 dumpBitOffset=3 dumpBitWidth=14
-dial fltEnvAmount  label="Amount"  color=fe max=16384 display=raw cc=0x1B ccLsb=0x3B dumpOffset=63 dumpBitOffset=5 dumpBitWidth=14
-
-page       envelopes
-section    volEnv
-dialSize   40
-spacing    50
-
-color ve 0.3 0.7 0.9
-
-dial volEnvAttack  label="Attack"  color=ve max=16384 display=raw cc=0x1C ccLsb=0x3C dumpOffset=79 dumpBitOffset=5 dumpBitWidth=14
-dial volEnvDecay   label="Decay"   color=ve max=16384 display=raw cc=0x1D ccLsb=0x3D dumpOffset=82 dumpBitOffset=0 dumpBitWidth=14
-dial volEnvSustain label="Sustain" color=ve max=16384 display=raw cc=0x1E ccLsb=0x3E dumpOffset=84 dumpBitOffset=2 dumpBitWidth=14
-dial volEnvRelease label="Release" color=ve max=16384 display=raw cc=0x1F ccLsb=0x3F dumpOffset=86 dumpBitOffset=4 dumpBitWidth=14
-dial gateToggle    label="Env Gate" color=ve nativeMax=127 max=2 names="Keyb","On/Ext" cc=87
-
-# ── Modulation page ───────────────────────────────────────────────────────────
-page       modulation
+# ── Panel layout (grid columns 0-11) ───────────────────────────────────────────
+page       panel
 section    lfo
-dialSize   40
+dialSize   36
 spacing    50
 
 color lf 0.8 0.3 0.3
 
-dial lfoRate label="Rate" color=lf max=16384 display=raw cc=0x03 ccLsb=0x23 dumpOffset=24 dumpBitOffset=6 dumpBitWidth=14
-dial lfoSync label="Sync" color=lf nativeMax=127 max=4 names="Off/Sync","MIDI","KB","Env Gate" cc=67
+dial lfoRate   label="Rate"       color=lf max=16384 display=raw cc=0x03 ccLsb=0x23 dumpOffset=24 dumpBitOffset=6 dumpBitWidth=14 col=0 row=0
+dial lfoSync   label="Sync"       color=lf nativeMax=127 max=4 names="Off/Sync","MIDI","KB","Env Gate" cc=67 col=0 row=1
+# row 2 (col 0) deliberately blank — see the layout note above.
 
-page       modulation
-section    modWheel
-dialSize   40
-spacing    50
-
-color mw 0.3 0.6 0.8
-
-dial mwSource      label="Source"      color=mw nativeMax=127 max=5 names="LFO Tri","LFO Squ","Osc 3","S&H","Noise/Pgm" cc=68
-dial mwDestination label="Destination" color=mw nativeMax=127 max=5 names="Pitch","Osc 2","Osc 3","Filter","LFO/Pgm" cc=69
-dial mwShaping     label="Shaping"     color=mw nativeMax=127 max=4 names="Filt Env","Velocity","Pressure","On/Pgm" cc=70
-dial mwAmount      label="Amount"      color=mw max=16384 display=raw cc=0x06 ccLsb=0x26 dumpOffset=29 dumpBitOffset=3 dumpBitWidth=14
-
-page       modulation
-section    pedal
-dialSize   40
-spacing    50
-
-color pd 0.5 0.8 0.4
-
-dial pedalSource      label="Source"      color=pd nativeMax=127 max=5 names="LFO Tri","LFO Squ","Osc 3","S&H","Noise/Pgm" cc=71
-dial pedalDestination label="Destination" color=pd nativeMax=127 max=5 names="Pitch","Osc 2","Osc 3","Filter","LFO/Pgm" cc=72
-dial pedalShaping     label="Shaping"     color=pd nativeMax=127 max=4 names="Filt Env","Velocity","Pressure","On/Pgm" cc=73
-dial pedalAmount      label="Amount"      color=pd max=16384 display=raw cc=0x08 ccLsb=0x28 dumpOffset=31 dumpBitOffset=5 dumpBitWidth=14
-
-# ── Global page ───────────────────────────────────────────────────────────────
-page       global
+page       panel
 section    global
-dialSize   40
+dialSize   36
 spacing    50
 
 color g 0.5 0.5 0.5
 
-dial volume        label="Volume"      color=g max=16384 display=raw cc=0x07 ccLsb=0x27 dumpOffset=88 dumpBitOffset=6 dumpBitWidth=14
-dial glide         label="Glide"       color=g nativeMax=127 max=2 names="Off","On" cc=65
-dial glideRate     label="Glide Rate"  color=g max=16384 display=raw cc=0x05 ccLsb=0x25 dumpOffset=27 dumpBitOffset=1 dumpBitWidth=14
+dial glideRate     label="Glide Rate"  color=g max=16384 display=raw cc=0x05 ccLsb=0x25 dumpOffset=27 dumpBitOffset=1 dumpBitWidth=14 col=0 row=4
 # CC64, threshold 0-63=Off/64-127=On — confirmed in the manual (p.29): "the
 # Release function can also be activated by sending a MIDI CC message 64
 # (0-63 = OFF, 64-127 = ON)". Previously missing from this file entirely.
-dial release       label="Release"     color=g nativeMax=127 max=2 names="Off","On" cc=64
-dial releaseSwitch label="Release Sw" color=g max=128   display=raw cc=88
+dial release       label="Release"     color=g nativeMax=127 max=2 names="Off","On" cc=64 col=1 row=5
+dial glide         label="Glide"       color=g nativeMax=127 max=2 names="Off","On" cc=65 col=0 row=5
+# volume/releaseSwitch are declared further down, in the "output" section —
+# they belong in the Output column (11), not here.
+
+page       panel
+section    modWheel
+dialSize   36
+spacing    50
+
+color mw 0.3 0.6 0.8
+
+dial mwSource      label="Source"      color=mw nativeMax=127 max=5 names="LFO Tri","LFO Squ","Osc 3","S&H","Noise/Pgm" cc=68 col=1 row=0
+dial mwDestination label="Destination" color=mw nativeMax=127 max=5 names="Pitch","Osc 2","Osc 3","Filter","LFO/Pgm" cc=69 col=1 row=1
+dial mwShaping     label="Shaping"     color=mw nativeMax=127 max=4 names="Filt Env","Velocity","Pressure","On/Pgm" cc=70 col=1 row=2
+dial mwAmount      label="Amount"      color=mw max=16384 display=raw cc=0x06 ccLsb=0x26 dumpOffset=29 dumpBitOffset=3 dumpBitWidth=14 col=1 row=3
+
+page       panel
+section    pedal
+dialSize   36
+spacing    50
+
+color pd 0.5 0.8 0.4
+
+dial pedalSource      label="Source"      color=pd nativeMax=127 max=5 names="LFO Tri","LFO Squ","Osc 3","S&H","Noise/Pgm" cc=71 col=2 row=0
+dial pedalDestination label="Destination" color=pd nativeMax=127 max=5 names="Pitch","Osc 2","Osc 3","Filter","LFO/Pgm" cc=72 col=2 row=1
+dial pedalShaping     label="Shaping"     color=pd nativeMax=127 max=4 names="Filt Env","Velocity","Pressure","On/Pgm" cc=73 col=2 row=2
+dial pedalAmount      label="Amount"      color=pd max=16384 display=raw cc=0x08 ccLsb=0x28 dumpOffset=31 dumpBitOffset=5 dumpBitWidth=14 col=2 row=3
+
+page       panel
+section    osc1
+dialSize   36
+spacing    50
+
+color o1 0.9 0.4 0.2
+
+# row 0 (col 3) deliberately blank — Osc 1 has no Freq dial (it's the master
+# pitch), so its Octave/Wave sit one row lower to line up with Osc 2/3's.
+dial osc1Octave label="Octave" color=o1 nativeMax=127 max=6 names="32'","16'","8'","4'","2'","1'" cc=74 col=3 row=1
+dial osc1Wave   label="Wave"   color=o1 max=16384 display=raw cc=0x09 ccLsb=0x29 dumpOffset=38 dumpBitOffset=4 dumpBitWidth=14 col=3 row=2
+dial osc1Level  label="Level"  color=o1 max=16384 display=raw cc=0x0F ccLsb=0x2F dumpOffset=50 dumpBitOffset=0 dumpBitWidth=14 col=6 row=1
+dial osc1Toggle label="On"     color=o1 nativeMax=127 max=2 names="Off","On" cc=82 col=7 row=1
+
+page       panel
+section    osc2
+dialSize   36
+spacing    50
+
+color o2 0.4 0.8 0.5
+
+dial osc2Freq   label="Freq"   color=o2 max=16384 display=raw cc=0x0A ccLsb=0x2A dumpOffset=34 dumpBitOffset=0 dumpBitWidth=14 col=4 row=0
+dial osc2Octave label="Octave" color=o2 nativeMax=127 max=6 names="32'","16'","8'","4'","2'","1'" cc=75 col=4 row=1
+dial osc2Wave   label="Wave"   color=o2 max=16384 display=raw cc=0x0B ccLsb=0x2B dumpOffset=40 dumpBitOffset=6 dumpBitWidth=14 col=4 row=2
+dial osc2Level  label="Level"  color=o2 max=16384 display=raw cc=0x10 ccLsb=0x30 dumpOffset=52 dumpBitOffset=2 dumpBitWidth=14 col=6 row=2
+dial osc2Toggle label="On"     color=o2 nativeMax=127 max=2 names="Off","On" cc=83 col=7 row=2
+
+page       panel
+section    osc3
+dialSize   36
+spacing    50
+
+color o3 0.6 0.5 0.9
+
+dial osc3Freq      label="Freq"       color=o3 max=16384 display=raw cc=0x0C ccLsb=0x2C dumpOffset=36 dumpBitOffset=2 dumpBitWidth=14 col=5 row=0
+dial osc3Octave    label="Octave"     color=o3 nativeMax=127 max=6 names="32'","16'","8'","4'","2'","1'" cc=76 col=5 row=1
+dial osc3Wave      label="Wave"       color=o3 max=16384 display=raw cc=0x0D ccLsb=0x2D dumpOffset=43 dumpBitOffset=1 dumpBitWidth=14 col=5 row=2
+dial osc3Level     label="Level"      color=o3 max=16384 display=raw cc=0x11 ccLsb=0x31 dumpOffset=54 dumpBitOffset=4 dumpBitWidth=14 col=6 row=3
+dial osc3Toggle    label="On"         color=o3 nativeMax=127 max=2 names="Off","On" cc=84 col=7 row=3
+dial osc3KB        label="KB Track"   color=o3 nativeMax=127 max=2 names="Off","On" cc=79 col=5 row=3
+dial osc3FreqRange label="Freq Range" color=o3 nativeMax=127 max=2 names="Lo","Hi" cc=80 col=5 row=4
+
+page       panel
+section    mixer
+dialSize   36
+spacing    50
+
+color m 0.7 0.7 0.7
+
+dial extLevel    label="External"  color=m max=16384 display=raw cc=0x0E ccLsb=0x2E col=6 row=0
+dial extToggle   label="Ext On"    color=m nativeMax=127 max=2 names="Off","On" cc=81 col=7 row=0
+dial noiseLevel  label="Noise"     color=m max=16384 display=raw cc=0x12 ccLsb=0x32 dumpOffset=56 dumpBitOffset=6 dumpBitWidth=14 col=6 row=4
+dial noiseToggle label="Noise On"  color=m nativeMax=127 max=2 names="Off","On" cc=85 col=7 row=4
+dial oscSync     label="1->2 Sync" color=m nativeMax=127 max=2 names="Off","On" cc=77 col=3 row=3
+dial oscFM       label="FM"        color=m nativeMax=127 max=2 names="Off","On" cc=78 col=4 row=3
+
+# ── Filters (grid columns 8-11) ────────────────────────────────────────────────
+page       panel
+section    filters
+dialSize   36
+spacing    50
+
+color f 0.2 0.6 1.0
+
+dial cutoff      label="Cutoff"     color=f max=16384 display=raw cc=0x13 ccLsb=0x33 dumpOffset=59 dumpBitOffset=1 dumpBitWidth=14 col=8 row=0
+dial fltSpacing  label="Spacing"    color=f max=16384 display=raw cc=0x14 ccLsb=0x34 dumpOffset=45 dumpBitOffset=3 dumpBitWidth=14 col=8 row=1
+dial res         label="Resonance"  color=f max=16384 display=raw cc=0x15 ccLsb=0x35 dumpOffset=61 dumpBitOffset=3 dumpBitWidth=14 col=8 row=2
+dial fltKBAmount label="KB Amount"  color=f max=16384 display=raw cc=0x16 ccLsb=0x36 dumpOffset=66 dumpBitOffset=0 dumpBitWidth=14 col=8 row=3
+dial fltMode     label="Mode"       color=f nativeMax=127 max=2 names="Dual LP","HP/LP" cc=86 col=8 row=4
+
+page       panel
+section    filterEnv
+dialSize   36
+spacing    50
+
+color fe 0.9 0.6 0.2
+
+dial fltEnvAttack  label="Attack"  color=fe max=16384 display=raw cc=0x17 ccLsb=0x37 dumpOffset=70 dumpBitOffset=4 dumpBitWidth=14 col=9 row=0
+dial fltEnvDecay   label="Decay"   color=fe max=16384 display=raw cc=0x18 ccLsb=0x38 dumpOffset=72 dumpBitOffset=6 dumpBitWidth=14 col=9 row=1
+dial fltEnvSustain label="Sustain" color=fe max=16384 display=raw cc=0x19 ccLsb=0x39 dumpOffset=75 dumpBitOffset=1 dumpBitWidth=14 col=9 row=2
+dial fltEnvRelease label="Release" color=fe max=16384 display=raw cc=0x1A ccLsb=0x3A dumpOffset=77 dumpBitOffset=3 dumpBitWidth=14 col=9 row=3
+dial fltEnvAmount  label="Amount"  color=fe max=16384 display=raw cc=0x1B ccLsb=0x3B dumpOffset=63 dumpBitOffset=5 dumpBitWidth=14 col=9 row=4
+
+page       panel
+section    volEnv
+dialSize   36
+spacing    50
+
+color ve 0.3 0.7 0.9
+
+dial volEnvAttack  label="Attack"   color=ve max=16384 display=raw cc=0x1C ccLsb=0x3C dumpOffset=79 dumpBitOffset=5 dumpBitWidth=14 col=10 row=0
+dial volEnvDecay   label="Decay"    color=ve max=16384 display=raw cc=0x1D ccLsb=0x3D dumpOffset=82 dumpBitOffset=0 dumpBitWidth=14 col=10 row=1
+dial volEnvSustain label="Sustain"  color=ve max=16384 display=raw cc=0x1E ccLsb=0x3E dumpOffset=84 dumpBitOffset=2 dumpBitWidth=14 col=10 row=2
+dial volEnvRelease label="Release"  color=ve max=16384 display=raw cc=0x1F ccLsb=0x3F dumpOffset=86 dumpBitOffset=4 dumpBitWidth=14 col=10 row=3
+dial gateToggle    label="Env Gate" color=ve nativeMax=127 max=2 names="Keyb","On/Ext" cc=87 col=10 row=4
+
+page       panel
+section    output
+dialSize   36
+spacing    50
+
+color g 0.5 0.5 0.5
+
+dial volume        label="Volume"      color=g max=16384 display=raw cc=0x07 ccLsb=0x27 dumpOffset=88 dumpBitOffset=6 dumpBitWidth=14 col=11 row=0
+# row 1 (col 11) deliberately blank — Headphone Volume, no CC for it in this
+# file yet; see the layout note at the top of the file.
+dial releaseSwitch label="Release Sw" color=g max=128   display=raw cc=88 col=11 row=2
