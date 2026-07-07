@@ -21,18 +21,18 @@
 #define __MENUS_H__
 
 #include "types.h"
+#include "contextMenu.h" // Generic mac-style nested menu mechanism + tMenuItem/tMenuFrame/tContextMenu — see SynthLib
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// tMenuItem and tContextMenu are defined in types.h
-extern tContextMenu gContextMenu;
-
-void open_context_menu(tCoord coord, tMenuItem * items, uint32_t count, uint32_t columns, double cellWidth);
-bool handle_context_menu_click(tCoord coord);
-bool close_context_menu_if_outside(tCoord coord);
-void render_context_menu(void);
+// App-specific menu-building helpers (open_X_context_menu()) belong here once
+// SynthEdit actually raises a context menu — see G2-Edit's menus.c for the
+// pattern: build a static tMenuItem[] table ending in a {NULL, ...} sentinel
+// (SynthLib walks items until it finds label == NULL, there's no count), then
+// call open_context_menu(). Nothing does that yet, so there's nothing to
+// declare here beyond what contextMenu.h already provides.
 
 #ifdef __cplusplus
 }

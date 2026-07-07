@@ -53,25 +53,6 @@ typedef struct {
     tRectangle rect;
 } tButton;
 
-// ── Context menu ──────────────────────────────────────────────────────────────
-
-typedef struct tMenuItem {
-    const char *       label;
-    tRgb               colour;
-    void (*action)(int index);
-    int                index;
-    struct tMenuItem * subItems;
-} tMenuItem;
-
-typedef struct {
-    bool        active;
-    tCoord      coord;
-    tMenuItem * items;
-    uint32_t    count;
-    uint32_t    columns;
-    double      cellWidth;
-} tContextMenu;
-
 // ── Dial mouse mode ───────────────────────────────────────────────────────────
 
 typedef enum {

@@ -17,98 +17,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "defs.h"
-#include "synthlibDefs.h"
-#include "types.h"
-#include "globalVars.h"
-#include "utilsGraphics.h"
-#include "utils.h"
-#include "menus.h"
-
-tContextMenu gContextMenu = {0};
-
-void open_context_menu(tCoord coord, tMenuItem * items, uint32_t count, uint32_t columns, double cellWidth) {
-    gContextMenu.active    = true;
-    gContextMenu.coord     = coord;
-    gContextMenu.items     = items;
-    gContextMenu.count     = count;
-    gContextMenu.columns   = (columns > 0) ? columns : 1;
-    gContextMenu.cellWidth = (cellWidth > 0.0) ? cellWidth : 120.0;
-    gReDraw                = true;
-}
-
-bool close_context_menu_if_outside(tCoord coord) {
-    if (!gContextMenu.active) {
-        return false;
-    }
-    uint32_t   rows     = (gContextMenu.count + gContextMenu.columns - 1) / gContextMenu.columns;
-    double     menuW    = gContextMenu.cellWidth * gContextMenu.columns;
-    double     cellH    = 20.0;
-    double     menuH    = cellH * rows;
-    tRectangle menuRect = {gContextMenu.coord, {menuW, menuH}};
-
-    if (!within_rectangle(coord, menuRect)) {
-        gContextMenu.active = false;
-        gReDraw             = true;
-        return true;
-    }
-    return false;
-}
-
-bool handle_context_menu_click(tCoord coord) {
-    if (!gContextMenu.active) {
-        return false;
-    }
-    double cellH = 20.0;
-
-    for (uint32_t i = 0; i < gContextMenu.count; i++) {
-        uint32_t   col      = i % gContextMenu.columns;
-        uint32_t   row      = i / gContextMenu.columns;
-        tRectangle itemRect = {
-            {
-                gContextMenu.coord.x + col * gContextMenu.cellWidth,
-                gContextMenu.coord.y + row * cellH
-            },
-            {gContextMenu.cellWidth, cellH}
-        };
-
-        if (within_rectangle(coord, itemRect)) {
-            if (gContextMenu.items[i].action != NULL) {
-                gContextMenu.items[i].action(gContextMenu.items[i].index);
-            }
-            gContextMenu.active = false;
-            gReDraw             = true;
-            return true;
-        }
-    }
-
-    return false;
-}
-
-void render_context_menu(void) {
-    if (!gContextMenu.active) {
-        return;
-    }
-    double cellH = 20.0;
-
-    for (uint32_t i = 0; i < gContextMenu.count; i++) {
-        uint32_t   col      = i % gContextMenu.columns;
-        uint32_t   row      = i / gContextMenu.columns;
-        tRectangle itemRect = {
-            {
-                gContextMenu.coord.x + col * gContextMenu.cellWidth,
-                gContextMenu.coord.y + row * cellH
-            },
-            {gContextMenu.cellWidth, cellH}
-        };
-        tRectangle textRect = {
-            {itemRect.coord.x + 4.0, itemRect.coord.y + 5.0},
-            {                   0.0,                    9.0}
-        };
-
-        set_rgb_colour(gContextMenu.items[i].colour);
-        render_rectangle(mainArea, itemRect);
-        set_rgb_colour((tRgb)RGB_WHITE);
-        render_text(mainArea, textRect, (char *)gContextMenu.items[i].label);
-    }
-}
+// The generic nested context menu (open_context_menu(), handle_context_menu_click(),
+// update_context_menu_hover(), render_context_menu(), gContextMenu) now lives
+// in SynthLib (see contextMenu.c/h) — SynthEdit used to carry its own
+// single-level flat-grid duplicate of the same names here, which started
+// colliding with SynthLib's richer nested-flyout types once SynthLib picked
+// up the menu system. This file is the reserved home for SynthEdit-specific
+// menu-building helpers once something actually opens a menu; see menus.h.

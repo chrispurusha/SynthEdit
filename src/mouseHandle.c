@@ -36,6 +36,7 @@
 
 extern void glfwSetInputMode(void *, int, int);
 extern void glfwGetWindowSize(void *, int *, int *);
+extern void glfwGetCursorPos(void *, double *, double *);
 
 // ── Dial drag state ───────────────────────────────────────────────────────────
 // Deliberately just a pointer into whichever tPanelDial was hit — this file
@@ -59,6 +60,15 @@ static tCoord window_to_logical(void * win, double x, double y) {
         .x = (winW > 0) ? (x / winW) * (get_render_width() / gGlobalGuiScale) : x,
         .y = (winH > 0) ? (y / winH) * (get_render_height() / gGlobalGuiScale) : y,
     };
+}
+
+// Supplied for SynthLib's contextMenu.c to link against — see mouseHandle.h.
+void get_global_gui_scaled_mouse_coord(tCoord * coord) {
+    double x = 0.0;
+    double y = 0.0;
+
+    glfwGetCursorPos(gWindow, &x, &y);
+    *coord = window_to_logical(gWindow, x, y);
 }
 
 // Scale a window-space delta to logical-space delta
@@ -120,11 +130,8 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
     }
 
     // Dismiss context menu
-    if (close_context_menu_if_outside(coord)) {
-        return;
-    }
-
-    if (handle_context_menu_click(coord)) {
+    if (gContextMenu.active) {
+        handle_context_menu_click(coord); // closes the menu whether the click landed on an item or outside it
         return;
     }
 

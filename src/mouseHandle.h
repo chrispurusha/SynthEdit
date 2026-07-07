@@ -20,6 +20,8 @@
 #ifndef __MOUSE_HANDLE_H__
 #define __MOUSE_HANDLE_H__
 
+#include "types.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -28,6 +30,11 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
 void handle_cursor_pos(void * win, double x, double y);
 void handle_key(void * win, int key, int scancode, int action, int mods);
 void handle_scroll(void * win, double dx, double dy);
+
+// Supplied for SynthLib's contextMenu.c to link against — current mouse
+// position in the same logical (render-scaled) space menu coords are opened
+// in. See contextMenu.h.
+void get_global_gui_scaled_mouse_coord(tCoord * coord);
 
 #ifdef __cplusplus
 }
