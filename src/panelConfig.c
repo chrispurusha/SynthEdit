@@ -167,8 +167,8 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
     *pendingGap      = 0.0;
     dial->dumpOffset = -1;   // not present in a program dump unless "dumpOffset=" says otherwise
     dial->dumpMask   = 0xFF; // whole byte by default
-    dial->gridCol    = -1;   // not grid-positioned unless "col=" says otherwise
-    dial->gridRow    = -1;
+    dial->gridCol    = -1.0; // not grid-positioned unless "col=" says otherwise
+    dial->gridRow    = -1.0;
 
     for (uint32_t i = 2; i < tokenCount; i++) {
         char key[32];
@@ -223,9 +223,9 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
         } else if (strcmp(key, "dumpBitWidth") == 0) {
             dial->dumpBitWidth = (uint32_t)strtoul(val, NULL, 0);
         } else if (strcmp(key, "col") == 0) {
-            dial->gridCol = (int32_t)strtol(val, NULL, 0);
+            dial->gridCol = strtod(val, NULL);
         } else if (strcmp(key, "row") == 0) {
-            dial->gridRow = (int32_t)strtol(val, NULL, 0);
+            dial->gridRow = strtod(val, NULL);
         } else {
             LOG_ERROR("panelConfig line %u: unknown dial attribute '%s'\n", lineNo, key);
         }
@@ -441,12 +441,12 @@ void layout_panel_section(tPanelSection * section, tRectangle origin, double gri
     for (uint32_t i = 0; i < section->dialCount; i++) {
         tPanelDial * dial = &section->dials[i];
 
-        if ((dial->gridCol >= 0) && (gridColWidth > 0.0) && (gridRowHeight > 0.0)) {
-            int32_t row = (dial->gridRow >= 0) ? dial->gridRow : 0;
+        if ((dial->gridCol >= 0.0) && (gridColWidth > 0.0) && (gridRowHeight > 0.0)) {
+            double row = (dial->gridRow >= 0.0) ? dial->gridRow : 0.0;
 
             dial->rect = (tRectangle){{
-                                          origin.coord.x + ((double)dial->gridCol * gridColWidth),
-                                          origin.coord.y + ((double)row * gridRowHeight)
+                                          origin.coord.x + (dial->gridCol * gridColWidth),
+                                          origin.coord.y + (row * gridRowHeight)
                                       }, {
                                           section->dialSize, section->dialSize
                                       }

@@ -131,8 +131,14 @@ typedef struct {
     // auto-flow dials, though in practice a device either commits one whole
     // page to the grid or doesn't use it at all. row defaults to 0 if col is
     // set but row isn't.
-    int32_t gridCol;
-    int32_t gridRow;
+    //
+    // double, not int — 2026-07-07: aligning a short column's controls to a
+    // taller neighbour (Mod Wheel/Pedal's 4 controls against Mixer's 5-tall
+    // Level/On columns) needs its middle rows evenly spread across a
+    // non-integer gap, not just whole grid steps. "row=2.67" places a dial
+    // two-thirds of the way between grid rows 2 and 3.
+    double gridCol;
+    double gridRow;
 } tPanelDial;
 
 typedef struct {

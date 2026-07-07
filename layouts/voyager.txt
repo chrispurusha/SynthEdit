@@ -286,7 +286,9 @@ spacing    50
 color lf 0.8 0.3 0.3
 
 dial lfoRate   label="Rate"       color=lf max=16384 display=raw cc=0x03 ccLsb=0x23 dumpOffset=24 dumpBitOffset=6 dumpBitWidth=14 col=0 row=0
-dial lfoSync   label="Sync"       color=lf nativeMax=127 max=4 names="Off/Sync","MIDI","KB","Env Gate" cc=67 col=0 row=1
+# row=1.33, not the whole-step 1 — aligned with mwDestination (col=1
+# row=1.33), same reasoning as that dial's own comment.
+dial lfoSync   label="Sync"       color=lf nativeMax=127 max=4 names="Off/Sync","MIDI","KB","Env Gate" cc=67 col=0 row=1.33
 # row 2 (col 0) deliberately blank — see the layout note above.
 
 page       panel
@@ -296,7 +298,12 @@ spacing    50
 
 color g 0.5 0.5 0.5
 
-dial glideRate     label="Glide Rate"  color=g max=16384 display=raw cc=0x05 ccLsb=0x25 dumpOffset=27 dumpBitOffset=1 dumpBitWidth=14 col=0 row=4
+# glideRate/glide/release pushed down one whole row (5/6 instead of 4/5) —
+# 2026-07-07: mwAmount/pedalAmount's move to row=4 (aligning with Noise)
+# put them level with glideRate, which read as though Glide Rate belonged to
+# that same Mixer-aligned row; shifting this trio down by the grid's normal
+# row spacing clears that line entirely.
+dial glideRate     label="Glide Rate"  color=g max=16384 display=raw cc=0x05 ccLsb=0x25 dumpOffset=27 dumpBitOffset=1 dumpBitWidth=14 col=0 row=5
 # CC64, threshold 0-63=Off/64-127=On — confirmed in the manual (p.29): "the
 # Release function can also be activated by sending a MIDI CC message 64
 # (0-63 = OFF, 64-127 = ON)". Previously missing from this file entirely.
@@ -304,8 +311,8 @@ dial glideRate     label="Glide Rate"  color=g max=16384 display=raw cc=0x05 ccL
 # the Mod Wheel column (col=1) it's actually drawn in — the two read as a
 # pair despite sitting in adjacent columns, so an exception to "a column is
 # one colour" like glideRate/glide's own (see the layout note up top).
-dial release       label="Release"     color=g nativeMax=127 max=2 names="Off","On" cc=64 col=1 row=5
-dial glide         label="Glide"       color=g nativeMax=127 max=2 names="Off","On" cc=65 col=0 row=5
+dial release       label="Release"     color=g nativeMax=127 max=2 names="Off","On" cc=64 col=1 row=6
+dial glide         label="Glide"       color=g nativeMax=127 max=2 names="Off","On" cc=65 col=0 row=6
 # volume/releaseSwitch are declared further down, in the "output" section —
 # they belong in the Output column (11), not here.
 
@@ -317,9 +324,14 @@ spacing    50
 color mw 0.3 0.6 0.8
 
 dial mwSource      label="Source"      color=mw nativeMax=127 max=5 names="LFO Tri","LFO Squ","Osc 3","S&H","Noise/Pgm" cc=68 col=1 row=0
-dial mwDestination label="Destination" color=mw nativeMax=127 max=5 names="Pitch","Osc 2","Osc 3","Filter","LFO/Pgm" cc=69 col=1 row=1
-dial mwShaping     label="Shaping"     color=mw nativeMax=127 max=4 names="Filt Env","Velocity","Pressure","On/Pgm" cc=70 col=1 row=2
-dial mwAmount      label="Amount"      color=mw max=16384 display=raw cc=0x06 ccLsb=0x26 dumpOffset=29 dumpBitOffset=3 dumpBitWidth=14 col=1 row=3
+# Destination/Shaping/Amount below use fractional row= — see the tPanelDial
+# field comment in panelConfig.h: this column only has 4 controls but needs
+# to span the same vertical run as the Mixer's 5-tall columns, Amount
+# aligned with Noise (row=4) — so the 2 middle rows are spread evenly across
+# that gap instead of sitting at whole grid steps 1/2/3.
+dial mwDestination label="Destination" color=mw nativeMax=127 max=5 names="Pitch","Osc 2","Osc 3","Filter","LFO/Pgm" cc=69 col=1 row=1.33
+dial mwShaping     label="Shaping"     color=mw nativeMax=127 max=4 names="Filt Env","Velocity","Pressure","On/Pgm" cc=70 col=1 row=2.67
+dial mwAmount      label="Amount"      color=mw max=16384 display=raw cc=0x06 ccLsb=0x26 dumpOffset=29 dumpBitOffset=3 dumpBitWidth=14 col=1 row=4
 
 page       panel
 section    pedal
@@ -329,9 +341,11 @@ spacing    50
 color pd 0.5 0.8 0.4
 
 dial pedalSource      label="Source"      color=pd nativeMax=127 max=5 names="LFO Tri","LFO Squ","Osc 3","S&H","Noise/Pgm" cc=71 col=2 row=0
-dial pedalDestination label="Destination" color=pd nativeMax=127 max=5 names="Pitch","Osc 2","Osc 3","Filter","LFO/Pgm" cc=72 col=2 row=1
-dial pedalShaping     label="Shaping"     color=pd nativeMax=127 max=4 names="Filt Env","Velocity","Pressure","On/Pgm" cc=73 col=2 row=2
-dial pedalAmount      label="Amount"      color=pd max=16384 display=raw cc=0x08 ccLsb=0x28 dumpOffset=31 dumpBitOffset=5 dumpBitWidth=14 col=2 row=3
+# Same fractional-row spread as modWheel's own Destination/Shaping/Amount
+# above — see that section's comment.
+dial pedalDestination label="Destination" color=pd nativeMax=127 max=5 names="Pitch","Osc 2","Osc 3","Filter","LFO/Pgm" cc=72 col=2 row=1.33
+dial pedalShaping     label="Shaping"     color=pd nativeMax=127 max=4 names="Filt Env","Velocity","Pressure","On/Pgm" cc=73 col=2 row=2.67
+dial pedalAmount      label="Amount"      color=pd max=16384 display=raw cc=0x08 ccLsb=0x28 dumpOffset=31 dumpBitOffset=5 dumpBitWidth=14 col=2 row=4
 
 page       panel
 section    osc1
