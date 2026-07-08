@@ -840,18 +840,24 @@ bool synth_handle_cc(uint8_t cc, uint8_t value) {
         } else {
             apply_dial_wire_value(dial, value, dial->nativeMax);
         }
-    } else {
+    } else if (cc == dial->ccNumber) {
         // 14-bit CC pair (MIDI's own coarse/fine convention: controller N is
         // the MSB, N+32 the LSB — see the ccLsbNumber comment in
-        // panelConfig.h). Each half arrives as its own ordinary CC message,
-        // so latch whichever half just came in and recombine against the
-        // other half's last-known value.
-        if (cc == dial->ccNumber) {
-            dial->ccMsbLatched = value;
-        } else {
-            dial->ccLsbLatched = value;
-        }
-        dial->value = ((uint32_t)dial->ccMsbLatched << 7) | dial->ccLsbLatched;
+        // panelConfig.h). Each half arrives as its own separate CC message —
+        // confirmed against real hardware (2026-07-08, timestamped
+        // dispatch_cc() output turning Cutoff): MSB consistently arrives
+        // ~0.5-0.6ms before its matching LSB, every single step. Recombining
+        // dial->value on EVERY message (the previous behaviour) meant the
+        // MSB's arrival paired a brand-new MSB with the OLD LSB for that
+        // ~0.5ms window — a real torn/wrong value, not just a theoretical
+        // risk, briefly shown and redrawn before the LSB corrected it a
+        // moment later. Only latch the MSB here; the LSB branch below is
+        // what actually recomputes dial->value, so a torn combination is
+        // never computed at all, not just never (usually) seen.
+        dial->ccMsbLatched = value;
+    } else {
+        dial->ccLsbLatched = value;
+        dial->value        = ((uint32_t)dial->ccMsbLatched << 7) | dial->ccLsbLatched;
     }
     return true;
 }
