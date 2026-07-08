@@ -476,7 +476,12 @@ color m  0.7 0.7 0.7
 # the brief earlier attempt to match them to their columns instead.
 color ox 0.85 0.75 0.15
 
-dial extLevel    label="External"  color=m  max=16384 display=raw cc=0x0E ccLsb=0x2E col=6 row=0
+# dumpOffset/dumpBitOffset/dumpBitWidth — CONFIRMED against real hardware
+# (2026-07-08): turned the real External level knob, diffed two captures.
+# Sits exactly where the CC-number sequence predicted (0x0E, one below
+# osc1Level's 0x0F) — dumpOffset=48 ends exactly where osc1Level's own
+# dumpOffset=50/dumpBitOffset=0 begins (14 bits earlier).
+dial extLevel    label="External"  color=m  max=16384 display=raw cc=0x0E ccLsb=0x2E dumpOffset=48 dumpBitOffset=0 dumpBitWidth=14 col=6 row=0
 # extToggle/osc1Toggle/osc2Toggle/osc3Toggle/noiseToggle's dumpOffset/
 # dumpBitOffset/dumpNativeMax/dumpInvert — CONFIRMED against real hardware
 # (2026-07-08): physically flipped each switch (a real, deliberate
