@@ -380,7 +380,7 @@ color m  0.7 0.7 0.7
 dial osc1Octave label="Octave" color=o1 nativeMax=127 max=6 names="32'","16'","8'","4'","2'","1'" cc=74 col=3 row=1
 dial osc1Wave   label="Wave"   color=o1 max=16384 display=raw cc=0x09 ccLsb=0x29 dumpOffset=38 dumpBitOffset=4 dumpBitWidth=14 col=3 row=2
 dial osc1Level  label="Level"  color=m  max=16384 display=raw cc=0x0F ccLsb=0x2F dumpOffset=50 dumpBitOffset=0 dumpBitWidth=14 col=6 row=1
-dial osc1Toggle label="On"     color=m  nativeMax=127 max=2 names="Off","On" cc=82 col=7 row=1
+dial osc1Toggle label="On"     color=m  nativeMax=127 max=2 names="Off","On" cc=82 dumpOffset=95 dumpBitOffset=4 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=7 row=1
 
 page       panel
 section    osc2
@@ -395,7 +395,7 @@ dial osc2Freq   label="Freq"   color=o2 max=16384 display=raw cc=0x0A ccLsb=0x2A
 dial osc2Octave label="Octave" color=o2 nativeMax=127 max=6 names="32'","16'","8'","4'","2'","1'" cc=75 col=4 row=1
 dial osc2Wave   label="Wave"   color=o2 max=16384 display=raw cc=0x0B ccLsb=0x2B dumpOffset=40 dumpBitOffset=6 dumpBitWidth=14 col=4 row=2
 dial osc2Level  label="Level"  color=m  max=16384 display=raw cc=0x10 ccLsb=0x30 dumpOffset=52 dumpBitOffset=2 dumpBitWidth=14 col=6 row=2
-dial osc2Toggle label="On"     color=m  nativeMax=127 max=2 names="Off","On" cc=83 col=7 row=2
+dial osc2Toggle label="On"     color=m  nativeMax=127 max=2 names="Off","On" cc=83 dumpOffset=95 dumpBitOffset=5 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=7 row=2
 
 page       panel
 section    osc3
@@ -413,7 +413,7 @@ dial osc3Freq      label="Freq"       color=o3 max=16384 display=raw cc=0x0C ccL
 dial osc3Octave    label="Octave"     color=o3 nativeMax=127 max=6 names="32'","16'","8'","4'","2'","1'" cc=76 col=5 row=1
 dial osc3Wave      label="Wave"       color=o3 max=16384 display=raw cc=0x0D ccLsb=0x2D dumpOffset=43 dumpBitOffset=1 dumpBitWidth=14 col=5 row=2
 dial osc3Level     label="Level"      color=m  max=16384 display=raw cc=0x11 ccLsb=0x31 dumpOffset=54 dumpBitOffset=4 dumpBitWidth=14 col=6 row=3
-dial osc3Toggle    label="On"         color=m  nativeMax=127 max=2 names="Off","On" cc=84 col=7 row=3
+dial osc3Toggle    label="On"         color=m  nativeMax=127 max=2 names="Off","On" cc=84 dumpOffset=95 dumpBitOffset=6 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=7 row=3
 dial osc3KB        label="KB Track"   color=ox nativeMax=127 max=2 names="Off","On" cc=79 col=5 row=3
 dial osc3FreqRange label="Freq Range" color=ox nativeMax=127 max=2 names="Lo","Hi" cc=80 col=5 row=4
 
@@ -431,9 +431,22 @@ color m  0.7 0.7 0.7
 color ox 0.85 0.75 0.15
 
 dial extLevel    label="External"  color=m  max=16384 display=raw cc=0x0E ccLsb=0x2E col=6 row=0
-dial extToggle   label="Ext On"    color=m  nativeMax=127 max=2 names="Off","On" cc=81 col=7 row=0
+# extToggle/osc1Toggle/osc2Toggle/osc3Toggle/noiseToggle's dumpOffset/
+# dumpBitOffset/dumpNativeMax/dumpInvert — CONFIRMED against real hardware
+# (2026-07-08): physically flipped each switch (a real, deliberate
+# transition each time, not just trusting the on-screen display — an early
+# attempt trusting a stale "Off" reading for Osc 1 found no bit change at
+# all, because the real switch was already on) and diffed tools/moog_dump
+# captures via tools/syx_diff.py. All 5 pack into the SAME byte range as
+# Filter B Pole's own bits (byte 95, right after its bit 2) — matching the
+# file's own "smaller fields sharing a byte with unrelated toggles" note
+# further up — one bit each, inverted (dump bit 0 = On, 1 = Off, opposite
+# the CC's own sense), hence dumpInvert=1 + dumpNativeMax=1 (see that
+# field's own comment in panelConfig.h for why nativeMax=127, needed for the
+# CC byte, would otherwise crush a raw dump bit of 0/1 down to 0 regardless).
+dial extToggle   label="Ext On"    color=m  nativeMax=127 max=2 names="Off","On" cc=81 dumpOffset=95 dumpBitOffset=3 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=7 row=0
 dial noiseLevel  label="Noise"     color=m  max=16384 display=raw cc=0x12 ccLsb=0x32 dumpOffset=56 dumpBitOffset=6 dumpBitWidth=14 col=6 row=4
-dial noiseToggle label="Noise On"  color=m  nativeMax=127 max=2 names="Off","On" cc=85 col=7 row=4
+dial noiseToggle label="Noise On"  color=m  nativeMax=127 max=2 names="Off","On" cc=85 dumpOffset=96 dumpBitOffset=0 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=7 row=4
 dial oscSync     label="1->2 Sync" color=ox nativeMax=127 max=2 names="Off","On" cc=77 col=3 row=3
 dial oscFM       label="FM"        color=ox nativeMax=127 max=2 names="Off","On" cc=78 col=4 row=3
 

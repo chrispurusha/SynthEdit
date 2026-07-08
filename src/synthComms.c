@@ -137,17 +137,29 @@ static uint32_t build_header(uint8_t * buf, uint8_t funcId) {
 // by the dial's fields, which is what lets any device's dials (not just the
 // ones a particular <device>.txt happens to declare) go through this
 // unchanged.
-static void apply_dial_wire_value(tPanelDial * dial, uint32_t rawValue) {
+// nativeMax is an explicit parameter, not read from dial->nativeMax directly,
+// because a dial can have TWO independent wire representations needing two
+// different native scales: a CC byte (0-127, needs nativeMax=127 threshold
+// quantization down to `max` positions) and a Moog dump bit-field (already a
+// direct 0..2^dumpBitWidth-1 index, 1:1 with `max` positions for a simple
+// toggle — nativeMax=127 would wrongly crush a raw 0/1 down to display 0
+// every time, discovered 2026-07-08 trying to add dumpOffset to an existing
+// CC-driven toggle). extract_moog_panel_info() below passes dial->
+// dumpNativeMax (falling back to dial->nativeMax when that's 0, e.g.
+// Filter A/B Pole Select's own dump-only dials, which only ever have ONE
+// wire path so nativeMax alone already means the right thing) — every other
+// caller keeps passing dial->nativeMax exactly as before this existed.
+static void apply_dial_wire_value(tPanelDial * dial, uint32_t rawValue, uint32_t nativeMax) {
     if (!dial) {
         return;
     }
 
-    if (dial->nativeMax != 0) {
-        uint32_t native = (rawValue <= dial->nativeMax) ? rawValue : dial->nativeMax;
+    if (nativeMax != 0) {
+        uint32_t native = (rawValue <= nativeMax) ? rawValue : nativeMax;
 
         dial->nativeValue = (uint8_t)native;
         dial->value       = (dial->max > 1)
-                            ? (uint8_t)(((native * (dial->max - 1)) + (dial->nativeMax / 2)) / dial->nativeMax)
+                            ? (uint8_t)(((native * (dial->max - 1)) + (nativeMax / 2)) / nativeMax)
                             : 0;
     } else {
         int32_t lo = dial->storageOffset;
@@ -216,7 +228,7 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
 
             if ((dial->dumpOffset >= 0) && (decodedLen > (uint32_t)dial->dumpOffset)) {
                 uint32_t raw = (decoded[dial->dumpOffset] >> dial->dumpShift) & dial->dumpMask;
-                apply_dial_wire_value(dial, raw);
+                apply_dial_wire_value(dial, raw, dial->nativeMax);
                 updated++;
             }
         }
@@ -407,15 +419,32 @@ static void extract_moog_panel_info(const uint8_t * payload, uint32_t payloadLen
             uint32_t     raw  = read_bitpacked_field(payload, payloadLen, dial->dumpOffset,
                                                      dial->dumpBitOffset, dial->dumpBitWidth);
 
+            uint32_t     totalWidth = dial->dumpBitWidth;
+
             if (dial->dumpBitWidth2 > 0) {
                 // Non-contiguous field (see dumpBitWidth2's comment in
                 // panelConfig.h) — chunk2 contributes the next-significant
                 // bits above chunk1, same shape as a CC MSB/LSB pair.
                 uint32_t chunk2 = read_bitpacked_field(payload, payloadLen, dial->dumpOffset2,
                                                        dial->dumpBitOffset2, dial->dumpBitWidth2);
-                raw |= chunk2 << dial->dumpBitWidth;
+                raw        |= chunk2 << dial->dumpBitWidth;
+                totalWidth += dial->dumpBitWidth2;
             }
-            apply_dial_wire_value(dial, raw);
+
+            if (dial->dumpInvert) {
+                // Some toggles report inverted polarity in the dump vs their
+                // own CC's On/Off sense (e.g. Ext On/Osc On: dump bit 0 means
+                // On) — confirmed against real hardware 2026-07-08, physically
+                // toggling each switch and diffing the dump both ways.
+                raw = (~raw) & ((totalWidth < 32) ? ((1u << totalWidth) - 1) : 0xFFFFFFFFu);
+            }
+            // dumpNativeMax lets a dial with BOTH a CC and a dump bit use a
+            // different native scale for each — see apply_dial_wire_value()'s
+            // own comment for why nativeMax alone (sized for the CC byte)
+            // would wrongly crush a raw dump bit. 0 (unset) falls back to
+            // nativeMax, unchanged for dump-only dials like Filter A/B Pole
+            // Select that only ever have this one wire path.
+            apply_dial_wire_value(dial, raw, (dial->dumpNativeMax != 0) ? dial->dumpNativeMax : dial->nativeMax);
             updated++;
         }
     }
@@ -595,7 +624,7 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
         }
 
         if (dial) {
-            apply_dial_wire_value(dial, value);
+            apply_dial_wire_value(dial, value, dial->nativeMax);
             LOG_DEBUG("Param %u (%s) = %u\n", (unsigned)paramId, dial->label, (unsigned)value);
         }
     }
@@ -618,7 +647,7 @@ void synth_on_connected(void) {
         tPanelSection * section = &cfg->sections[s];
 
         for (uint32_t d = 0; d < section->dialCount; d++) {
-            apply_dial_wire_value(&section->dials[d], 0);
+            apply_dial_wire_value(&section->dials[d], 0, section->dials[d].nativeMax);
         }
     }
 
@@ -776,7 +805,7 @@ bool synth_handle_cc(uint8_t cc, uint8_t value) {
         // native->display quantization apply_dial_wire_value() already does
         // for SysEx-sourced raw values, or every position past the first
         // would render as "?" (index >= nameCount).
-        apply_dial_wire_value(dial, value);
+        apply_dial_wire_value(dial, value, dial->nativeMax);
     } else {
         // 14-bit CC pair (MIDI's own coarse/fine convention: controller N is
         // the MSB, N+32 the LSB — see the ccLsbNumber comment in

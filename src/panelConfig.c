@@ -229,6 +229,10 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
             dial->dumpBitOffset2 = (uint32_t)strtoul(val, NULL, 0);
         } else if (strcmp(key, "dumpBitWidth2") == 0) {
             dial->dumpBitWidth2 = (uint32_t)strtoul(val, NULL, 0);
+        } else if (strcmp(key, "dumpNativeMax") == 0) {
+            dial->dumpNativeMax = (uint32_t)strtoul(val, NULL, 0);
+        } else if (strcmp(key, "dumpInvert") == 0) {
+            dial->dumpInvert = (strtoul(val, NULL, 0) != 0);
         } else if (strcmp(key, "col") == 0) {
             dial->gridCol = strtod(val, NULL);
         } else if (strcmp(key, "row") == 0) {

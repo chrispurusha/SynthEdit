@@ -153,6 +153,26 @@ typedef struct {
     uint32_t dumpBitOffset2;
     uint32_t dumpBitWidth2;
 
+    // dumpNativeMax/dumpInvert — a dump-decoded raw value can need different
+    // handling from the SAME dial's CC-decoded one. Confirmed 2026-07-08
+    // physically toggling Voyager's Ext On/Osc 1-3 On switches and diffing
+    // the dump both ways:
+    //   - The dump bit is INVERTED relative to the CC's own On/Off sense
+    //     (raw dump bit 0 = On, 1 = Off) — dumpInvert=1 flips the raw value
+    //     (across dumpBitWidth+dumpBitWidth2 bits) before native/display
+    //     scaling, in extract_moog_panel_info()/synthComms.c.
+    //   - nativeMax=127 (needed to decode the CC's own 0-63/64-127 threshold)
+    //     would wrongly crush a raw dump bit of 0/1 straight down to display
+    //     0 regardless of which one it was, if reused as-is for the dump
+    //     path. dumpNativeMax=0 (the default) falls back to nativeMax,
+    //     unchanged for a dial with only ONE wire representation (e.g.
+    //     Filter A/B Pole Select, dump-only, where nativeMax alone already
+    //     means the right thing) — set it explicitly (e.g. dumpNativeMax=1
+    //     for a plain toggle bit) only when a dial has both a CC and a dump
+    //     bit needing different scales.
+    uint32_t dumpNativeMax;
+    bool     dumpInvert;
+
     // Explicit grid position ("col="/"row=" in the file), for a device whose
     // real front panel groups controls into fixed columns rather than
     // flowing left-to-right within a section (see gridColWidth/gridRowHeight
