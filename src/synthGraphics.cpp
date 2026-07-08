@@ -625,7 +625,14 @@ void synth_render(tRectangle area) {
                 // used elsewhere — since that IS a meaningful on/off state;
                 // a plain grey background for anything else would wrongly
                 // imply "HP/LP" or "Lo" mode is somehow "off".
-                if (panel_dial_is_binary(dial)) {
+                //
+                // A panel_dial_needs_value_menu() dial (>2 positions, no CC —
+                // e.g. Filter A/B Pole Select) gets the same textual-button
+                // treatment, not a knob — 2026-07-08 user call: a menu-select
+                // control reads as a button you click to open a list, not
+                // something you'd expect to drag, so it shouldn't look like a
+                // knob in the first place.
+                if (panel_dial_is_binary(dial) || panel_dial_needs_value_menu(dial)) {
                     const char * name = (dialVal < dial->nameCount) ? dial->names[dialVal] : "?";
 
                     // draw_button() scales text to fill the WHOLE height of
@@ -685,11 +692,11 @@ void synth_render(tRectangle area) {
                              (unsigned)get_panel_dial_native_value(dial));
                 }
 
-                // Skipped for a binary button — its face already shows
-                // this exact string, so repeating it just below would be a
-                // redundant duplicate, not a genuine second piece of
-                // information the way it is for a knob.
-                if (!panel_dial_is_binary(dial)) {
+                // Skipped for a binary button or a value-menu button — its
+                // face already shows this exact string, so repeating it just
+                // below would be a redundant duplicate, not a genuine second
+                // piece of information the way it is for a knob.
+                if (!panel_dial_is_binary(dial) && !panel_dial_needs_value_menu(dial)) {
                     tRectangle valRect = {{dial->rect.coord.x, baseY + section->dialSize + 4.0},
                         {section->spacing,                              12.0}};
                     set_rgb_colour((tRgb)RGB_GREY_7);
