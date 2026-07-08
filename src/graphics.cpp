@@ -39,6 +39,7 @@ extern "C" {
 #include "mouseHandle.h"
 #include "menus.h"
 #include "midiComms.h"
+#include "synthComms.h"
 #include "misc.h"
 #include "graphics.h"
 
@@ -295,12 +296,20 @@ void do_graphics_loop(void) {
     GLFWwindow * win = (GLFWwindow *)gWindow;
 
     while (!gQuitAll && !glfwWindowShouldClose(win)) {
+        // Commits any quantized switch/selector dial's debounced CC once
+        // it's gone quiet for CC_DEBOUNCE_MS (synthComms.c) — needs a
+        // periodic check even with no real GLFW event, hence
+        // glfwWaitEventsTimeout() below rather than glfwWaitEvents()'s
+        // indefinite block. Cheap: a handful of integer comparisons per
+        // dial, not worth gating behind "is anything actually pending".
+        synth_flush_pending_cc();
+
         bool reDraw = atomic_exchange(&gReDraw, false);
 
         if (reDraw) {
             render_frame(win);
         }
-        glfwWaitEvents();
+        glfwWaitEventsTimeout(0.05);
     }
 }
 

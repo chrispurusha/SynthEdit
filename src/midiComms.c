@@ -430,8 +430,31 @@ static void midi_notify_cb(const MIDINotification * msg, void * refCon) {
 // ── CC dispatch ───────────────────────────────────────────────────────────────
 // Only called from midi_read_cb for messages arriving from the Synth's source.
 
+// Milliseconds since this function's own first call (an arbitrary but stable
+// reference point, not wall-clock time) — added 2026-07-08 purely to measure
+// real inter-message timing between a switch's own mechanical bounce and its
+// settled value, to size a debounce window from actual data instead of a
+// guess. CLOCK_MONOTONIC, not a GLFW time call, since this runs on the MIDI
+// thread, not the render thread.
+static double debug_elapsed_ms(void) {
+    static struct timespec start          = {0};
+    static bool            startCaptured  = false;
+    struct timespec        now;
+
+    clock_gettime(CLOCK_MONOTONIC, &now);
+
+    if (!startCaptured) {
+        start         = now;
+        startCaptured = true;
+    }
+    double seconds = (double)(now.tv_sec - start.tv_sec) + (double)(now.tv_nsec - start.tv_nsec) / 1e9;
+
+    return seconds * 1000.0;
+}
+
 static void dispatch_cc(uint8_t channel, uint8_t cc, uint8_t value) {
-    LOG_DEBUG("CC ch=%u 0x%02X val=%u\n", (unsigned)(channel + 1), (unsigned)cc, (unsigned)value);
+    LOG_DEBUG("[%.1fms] CC ch=%u 0x%02X val=%u\n", debug_elapsed_ms(),
+              (unsigned)(channel + 1), (unsigned)cc, (unsigned)value);
 
     // For a device with no identity reply to read a channel from (see
     // "identityQuery no" in panelConfig.h), midiChannel in the file is only

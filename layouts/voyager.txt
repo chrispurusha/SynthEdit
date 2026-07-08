@@ -308,7 +308,24 @@ color lf 0.8 0.3 0.3
 dial lfoRate   label="Rate"       color=lf max=16384 display=raw cc=0x03 ccLsb=0x23 dumpOffset=24 dumpBitOffset=6 dumpBitWidth=14 col=0 row=0
 # row=1.33, not the whole-step 1 — aligned with mwDestination (col=1
 # row=1.33), same reasoning as that dial's own comment.
-dial lfoSync   label="Sync"       color=lf nativeMax=127 max=4 names="Off/Sync","MIDI","KB","Env Gate" cc=67 col=0 row=1.33
+# dumpOffset/dumpBitOffset/dumpBitWidth/dumpNativeMax/dumpInvert — CONFIRMED
+# against real hardware (2026-07-08): stepped through all 4 positions and
+# read a clean 2-bit field, but in REVERSE order — Off/Sync=3, MIDI=2, KB=1,
+# Env Gate=0. dumpInvert (bitwise NOT across dumpBitWidth) turns out to
+# generalize cleanly to this too, not just a single-bit toggle: inverting a
+# 2-bit field exactly swaps 0<->3 and 1<->2, which is exactly this reversal,
+# so no new mechanism was needed beyond what Ext On etc. already added.
+#
+# nativeMax=96, NOT 127 — CONFIRMED against real hardware (2026-07-08):
+# watched dispatch_cc() while stepping through all 4 positions in order and
+# saw the settled raw CC values land on exact multiples of 32 (0/32/64/96),
+# not spread across the full 0-127 range. nativeMax=127 would misquantize
+# the top position (raw 96) down to "KB" instead of "Env Gate". The switch's
+# own wiper also visibly bounces through 0 (a floating/disconnected contact
+# reading) while clicking between detents — real hardware chatter, not
+# fixable by a nativeMax change; a momentary flash to "Off/Sync" while
+# turning the physical switch is the switch's own behaviour, not a bug here.
+dial lfoSync   label="Sync"       color=lf nativeMax=96 max=4 names="Off/Sync","MIDI","KB","Env Gate" cc=67 dumpOffset=90 dumpBitOffset=6 dumpBitWidth=2 dumpNativeMax=3 dumpInvert=1 col=0 row=1.33
 # row 2 (col 0) deliberately blank — see the layout note above.
 
 page       panel

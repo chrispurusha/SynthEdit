@@ -41,6 +41,11 @@ void synth_handle_message(const uint8_t * data, uint32_t length);
 // redraw), false as a harmless no-op otherwise.
 bool synth_handle_cc(uint8_t cc, uint8_t value);
 
+// Commits any quantized switch/selector dial's debounced CC value once it's
+// been quiet for CC_DEBOUNCE_MS — see hasPendingCc's own comment in
+// panelConfig.h. Call once per frame from the render loop.
+void synth_flush_pending_cc(void);
+
 // Request the currently loaded program from the synth
 void synth_request_current_program(void);
 

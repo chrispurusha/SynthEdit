@@ -112,6 +112,25 @@ typedef struct {
                                 // for a 14-bit CC pair, not just a single byte
     uint8_t  nativeValue;       // live native value, if nativeMax != 0; unused otherwise
 
+    // Debounce for a live CC-driven quantized switch/selector (nativeMax != 0
+    // && display == dialDisplayNames) — a real detented rotary/toggle switch
+    // was confirmed 2026-07-08 (Voyager's LFO Sync, watching timestamped
+    // dispatch_cc() output) to send several transitional raw CC bytes within
+    // 20-60ms of each other as its wiper physically clicks between detents,
+    // before settling — applying each one immediately made the on-screen
+    // value visibly flicker through intermediate/wrong positions on every
+    // switch flip. hasPendingCc/pendingRawValue/pendingSinceMs let
+    // synth_handle_cc() (synthComms.c) hold the latest raw byte without
+    // applying it, resetting the timestamp on every new CC for this dial;
+    // synth_flush_pending_cc() (called once per frame from the render loop)
+    // only commits it once CC_DEBOUNCE_MS have passed with no further
+    // message. A plain continuous dial (nativeMax == 0) is untouched by any
+    // of this — its live CC stream is a genuine real-time sweep, not bounce,
+    // so it still applies immediately.
+    bool     hasPendingCc;
+    uint32_t pendingRawValue;
+    double   pendingSinceMs;
+
     // Where this dial's value lives in a full program-dump byte buffer (a
     // different wire format from individual parameter-change messages, but
     // still just data the file describes). -1 = not present in a dump.

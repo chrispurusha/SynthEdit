@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 
 #include "defs.h"
 #include "synthlibDefs.h"
@@ -641,6 +642,10 @@ void synth_on_connected(void) {
     // (0) — apply_dial_wire_value() already knows how to turn that into the
     // right storage/native representation per dial, so no per-field defaults
     // here; there's nothing device-specific left to reset in gDevice itself.
+    // Guards against stale values bleeding through from a previous device
+    // (switching devices via the startup chooser reuses the same in-memory
+    // dial structs) — real dials on a fresh launch are already zeroed by C's
+    // own static initialization, so this is a no-op there.
     tPanelConfig * cfg = synth_panel_config();
 
     for (uint32_t s = 0; s < cfg->sectionCount; s++) {
@@ -650,8 +655,13 @@ void synth_on_connected(void) {
             apply_dial_wire_value(&section->dials[d], 0, section->dials[d].nativeMax);
         }
     }
-
-    gReDraw                = true;
+    // No gReDraw=true here (2026-07-08 fix) — this reset used to force an
+    // immediate render before the state dump request below even went out,
+    // producing a visible flash to 0 on every connect before the real values
+    // arrived a moment later. The dump reply's own handler already redraws
+    // once real data lands (extract_moog_panel_info()/handle_moog_message()),
+    // so deferring to that is enough — nothing was actually relying on this
+    // reset being visible.
     synth_request_current_program();
 }
 
@@ -787,6 +797,19 @@ void synth_send_parameter_change(uint8_t group, uint16_t paramId, uint16_t value
     midi_send(msg, pos);
 }
 
+// Real detented switch bounce (confirmed 2026-07-08, Voyager's LFO Sync)
+// stays within this window between transitional messages, while a genuinely
+// separate switch flip is always seconds apart — see hasPendingCc's own
+// comment in panelConfig.h.
+#define CC_DEBOUNCE_MS 150.0
+
+static double monotonic_ms(void) {
+    struct timespec now;
+
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    return ((double)now.tv_sec * 1000.0) + ((double)now.tv_nsec / 1e6);
+}
+
 bool synth_handle_cc(uint8_t cc, uint8_t value) {
     tPanelDial * dial = find_panel_dial_by_cc(synth_panel_config(), cc);
 
@@ -797,15 +820,26 @@ bool synth_handle_cc(uint8_t cc, uint8_t value) {
     if (dial->ccLsbNumber == 0) {
         // A live CC message carries a raw 0-127 byte. For a plain continuous
         // dial (nativeMax == 0) that byte already IS the storage/display
-        // value, so write it straight through. But some switches/selectors
-        // are wired as a CC whose hardware only ever sends a handful of
-        // evenly-spaced raw values across that range for their N positions
-        // (nativeMax != 0, display == dialDisplayNames — e.g. Voyager's
-        // Glide switch: CC65, 0-63=Off, 64-127=On) — those need the same
-        // native->display quantization apply_dial_wire_value() already does
-        // for SysEx-sourced raw values, or every position past the first
-        // would render as "?" (index >= nameCount).
-        apply_dial_wire_value(dial, value, dial->nativeMax);
+        // value, so write it straight through — no debounce, this stream is
+        // a genuine real-time sweep, not switch bounce. But some switches/
+        // selectors are wired as a CC whose hardware only ever sends a
+        // handful of evenly-spaced raw values across that range for their N
+        // positions (nativeMax != 0, display == dialDisplayNames — e.g.
+        // Voyager's Glide switch: CC65, 0-63=Off, 64-127=On) — those need
+        // the same native->display quantization apply_dial_wire_value()
+        // already does for SysEx-sourced raw values, or every position past
+        // the first would render as "?" (index >= nameCount). They ALSO get
+        // debounced (hold the raw byte, defer applying it — see
+        // synth_flush_pending_cc() below) since a real detented switch's own
+        // mechanical bounce sends several transitional bytes within tens of
+        // milliseconds before settling.
+        if ((dial->nativeMax != 0) && (dial->display == dialDisplayNames)) {
+            dial->hasPendingCc   = true;
+            dial->pendingRawValue = value;
+            dial->pendingSinceMs = monotonic_ms();
+        } else {
+            apply_dial_wire_value(dial, value, dial->nativeMax);
+        }
     } else {
         // 14-bit CC pair (MIDI's own coarse/fine convention: controller N is
         // the MSB, N+32 the LSB — see the ccLsbNumber comment in
@@ -820,6 +854,30 @@ bool synth_handle_cc(uint8_t cc, uint8_t value) {
         dial->value = ((uint32_t)dial->ccMsbLatched << 7) | dial->ccLsbLatched;
     }
     return true;
+}
+
+// Commits any dial's debounced CC (see hasPendingCc's own comment in
+// panelConfig.h) once CC_DEBOUNCE_MS have passed since the last raw byte
+// arrived for it. Called once per frame from the render loop
+// (do_graphics_loop()/graphics.cpp) — cheap enough (every dial in every
+// section, a handful of integer comparisons each) to not need its own timer.
+void synth_flush_pending_cc(void) {
+    tPanelConfig * cfg = synth_panel_config();
+    double         now = monotonic_ms();
+
+    for (uint32_t s = 0; s < cfg->sectionCount; s++) {
+        tPanelSection * section = &cfg->sections[s];
+
+        for (uint32_t d = 0; d < section->dialCount; d++) {
+            tPanelDial * dial = &section->dials[d];
+
+            if (dial->hasPendingCc && ((now - dial->pendingSinceMs) >= CC_DEBOUNCE_MS)) {
+                dial->hasPendingCc = false;
+                apply_dial_wire_value(dial, dial->pendingRawValue, dial->nativeMax);
+                gReDraw = true;
+            }
+        }
+    }
 }
 
 void synth_handle_message(const uint8_t * data, uint32_t length) {
