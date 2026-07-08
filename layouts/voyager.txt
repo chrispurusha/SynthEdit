@@ -264,13 +264,16 @@ gridRowHeight 76
 # one's currently open, so skipping the repeat silently merges dials into
 # the previous section instead of giving them their own.
 #
-# Two open items, both per the owner's own call (2026-07-07):
+# One open item remains, per the owner's own call (2026-07-07):
 #   - Headphone Volume (photo shows a 2nd Output knob) has no CC in this
 #     file at all — left blank (col11 row1) rather than guessed.
-#   - releaseSwitch (CC88, distinct from the release on/off toggle) wasn't
-#     named in the photo walkthrough — parked at col11 row2 (the same
-#     blank-headphone column) as the least-disruptive spot; move it if it
-#     belongs somewhere else.
+# releaseSwitch (col11 row2, CC88, "distinct from the release on/off
+# toggle") was removed entirely 2026-07-08 — CONFIRMED erroneous against
+# real hardware: sending it a value didn't touch anything release-related at
+# all, it silently pushed BOTH Filter A and B to 4-pole (dumpOffset=95 bit 2
+# / dumpOffset=99 bits 3-5) instead. Whatever CC88 really is on a Voyager (if
+# anything), it isn't a release control — the ACTUAL release on/off switch
+# is `release` above (CC64, confirmed both via the manual and real hardware).
 # Also a judgement call, not confirmed against the photo: the 4-dial row
 # under Oscillators (1->2 Sync, 3->1 FM, 3 KB Cont, 3 Freq Lo/Hi) didn't
 # divide evenly over 3 columns, so 1->2 Sync went under Osc 1 (row 3) and
@@ -321,17 +324,35 @@ color g 0.5 0.5 0.5
 # that same Mixer-aligned row; shifting this trio down by the grid's normal
 # row spacing clears that line entirely.
 dial glideRate     label="Glide Rate"  color=g max=16384 display=raw cc=0x05 ccLsb=0x25 dumpOffset=27 dumpBitOffset=1 dumpBitWidth=14 col=0 row=5
-# CC64, threshold 0-63=Off/64-127=On — confirmed in the manual (p.29): "the
-# Release function can also be activated by sending a MIDI CC message 64
-# (0-63 = OFF, 64-127 = ON)". Previously missing from this file entirely.
+# cc=66 (0x42) — CONFIRMED against real hardware (2026-07-08): watched the
+# app's own dispatch_cc() debug log while physically flipping the real
+# Release switch — "CC ch=8 0x42 val=0"/"val=127", i.e. CC66, threshold
+# 0-63=Off/64-127=On. NOT CC64 as previously documented here from the manual
+# (p.29: "the Release function can also be activated by sending a MIDI CC
+# message 64") — CC64 is the universal MIDI Sustain Pedal CC, and sending it
+# via tools/moog_cc DID move the exact same dump bit, which is what made the
+# manual's CC64 claim look confirmed at first. Direct hardware evidence (the
+# switch's own live output) overrides the manual here: CC64 most likely just
+# also happens to reach the same underlying release-hold state as a generic
+# sustain-style input, it isn't what this specific switch itself sends.
 # Coloured to match glide (col=0), not this section's other neighbour in
 # the Mod Wheel column (col=1) it's actually drawn in — the two read as a
 # pair despite sitting in adjacent columns, so an exception to "a column is
 # one colour" like glideRate/glide's own (see the layout note up top).
-dial release       label="Release"     color=g nativeMax=127 max=2 names="Off","On" cc=64 col=1 row=6
+#
+# dumpOffset/dumpBitOffset/dumpNativeMax/dumpInvert — CONFIRMED against real
+# hardware (2026-07-08), same method as the mixer toggles above: physically
+# flipped the real switch and diffed (the first attempt at this, sending
+# CC64=127 with no prior physical baseline, showed no dump change at all —
+# turned out Release was already on, the same stale-assumption trap Osc 1
+# hit earlier — this is what led to testing CC64 further and finding it was
+# the wrong CC number, not just a stale-state coincidence). Same byte-95/96
+# toggle cluster, same inverted-polarity shape (dump bit 0 = On, 1 = Off) as
+# extToggle/osc1-3Toggle/noiseToggle.
+dial release       label="Release"     color=g nativeMax=127 max=2 names="Off","On" cc=66 dumpOffset=96 dumpBitOffset=4 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=1 row=6
 dial glide         label="Glide"       color=g nativeMax=127 max=2 names="Off","On" cc=65 col=0 row=6
-# volume/releaseSwitch are declared further down, in the "output" section —
-# they belong in the Output column (11), not here.
+# volume is declared further down, in the "output" section — it belongs in
+# the Output column (11), not here.
 
 page       panel
 section    modWheel
@@ -541,4 +562,7 @@ color g 0.5 0.5 0.5
 dial volume        label="Volume"      color=g max=16384 display=raw cc=0x07 ccLsb=0x27 dumpOffset=88 dumpBitOffset=6 dumpBitWidth=14 col=11 row=0
 # row 1 (col 11) deliberately blank — Headphone Volume, no CC for it in this
 # file yet; see the layout note at the top of the file.
-dial releaseSwitch label="Release Sw" color=g max=128   display=raw cc=88 col=11 row=2
+# row 2 (col 11) also deliberately blank — used to hold releaseSwitch/CC88,
+# removed 2026-07-08 as confirmed erroneous (see the layout note up top);
+# left blank rather than filled with something else, matching Headphone
+# Volume's own "no placeholder needed" convention above.
