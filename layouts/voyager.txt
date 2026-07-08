@@ -350,7 +350,10 @@ dial glideRate     label="Glide Rate"  color=g max=16384 display=raw cc=0x05 ccL
 # toggle cluster, same inverted-polarity shape (dump bit 0 = On, 1 = Off) as
 # extToggle/osc1-3Toggle/noiseToggle.
 dial release       label="Release"     color=g nativeMax=127 max=2 names="Off","On" cc=66 dumpOffset=96 dumpBitOffset=4 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=1 row=6
-dial glide         label="Glide"       color=g nativeMax=127 max=2 names="Off","On" cc=65 col=0 row=6
+# dumpOffset/dumpBitOffset/dumpNativeMax/dumpInvert — CONFIRMED against real
+# hardware (2026-07-08), same physical-toggle-and-diff method as the rest of
+# this file's toggles.
+dial glide         label="Glide"       color=g nativeMax=127 max=2 names="Off","On" cc=65 dumpOffset=96 dumpBitOffset=5 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=0 row=6
 # volume is declared further down, in the "output" section — it belongs in
 # the Output column (11), not here.
 
@@ -435,8 +438,13 @@ dial osc3Octave    label="Octave"     color=o3 nativeMax=127 max=6 names="32'","
 dial osc3Wave      label="Wave"       color=o3 max=16384 display=raw cc=0x0D ccLsb=0x2D dumpOffset=43 dumpBitOffset=1 dumpBitWidth=14 col=5 row=2
 dial osc3Level     label="Level"      color=m  max=16384 display=raw cc=0x11 ccLsb=0x31 dumpOffset=54 dumpBitOffset=4 dumpBitWidth=14 col=6 row=3
 dial osc3Toggle    label="On"         color=m  nativeMax=127 max=2 names="Off","On" cc=84 dumpOffset=95 dumpBitOffset=6 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=7 row=3
-dial osc3KB        label="KB Track"   color=ox nativeMax=127 max=2 names="Off","On" cc=79 col=5 row=3
-dial osc3FreqRange label="Freq Range" color=ox nativeMax=127 max=2 names="Lo","Hi" cc=80 col=5 row=4
+# osc3KB/osc3FreqRange — CONFIRMED against real hardware (2026-07-08). Both
+# NOT inverted (dumpInvert unset) — unlike every other toggle in this file,
+# their dump bit runs the SAME direction as the CC/display sense (0=Off/Lo,
+# 1=On/Hi). Found by testing each individually rather than assuming the
+# majority polarity held everywhere.
+dial osc3KB        label="KB Track"   color=ox nativeMax=127 max=2 names="Off","On" cc=79 dumpOffset=95 dumpBitOffset=0 dumpBitWidth=1 dumpNativeMax=1 col=5 row=3
+dial osc3FreqRange label="Freq Range" color=ox nativeMax=127 max=2 names="Lo","Hi" cc=80 dumpOffset=95 dumpBitOffset=1 dumpBitWidth=1 dumpNativeMax=1 col=5 row=4
 
 page       panel
 section    mixer
@@ -468,8 +476,10 @@ dial extLevel    label="External"  color=m  max=16384 display=raw cc=0x0E ccLsb=
 dial extToggle   label="Ext On"    color=m  nativeMax=127 max=2 names="Off","On" cc=81 dumpOffset=95 dumpBitOffset=3 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=7 row=0
 dial noiseLevel  label="Noise"     color=m  max=16384 display=raw cc=0x12 ccLsb=0x32 dumpOffset=56 dumpBitOffset=6 dumpBitWidth=14 col=6 row=4
 dial noiseToggle label="Noise On"  color=m  nativeMax=127 max=2 names="Off","On" cc=85 dumpOffset=96 dumpBitOffset=0 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=7 row=4
-dial oscSync     label="1->2 Sync" color=ox nativeMax=127 max=2 names="Off","On" cc=77 col=3 row=3
-dial oscFM       label="FM"        color=ox nativeMax=127 max=2 names="Off","On" cc=78 col=4 row=3
+# oscSync/oscFM — CONFIRMED against real hardware (2026-07-08), same
+# inverted-polarity shape as most of this file's other toggles.
+dial oscSync     label="1->2 Sync" color=ox nativeMax=127 max=2 names="Off","On" cc=77 dumpOffset=94 dumpBitOffset=5 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=3 row=3
+dial oscFM       label="FM"        color=ox nativeMax=127 max=2 names="Off","On" cc=78 dumpOffset=94 dumpBitOffset=6 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=4 row=3
 
 # ── Filters (grid columns 8-11) ────────────────────────────────────────────────
 page       panel
@@ -488,7 +498,11 @@ dial cutoff      label="Cutoff"     color=f max=16384 display=raw cc=0x13 ccLsb=
 dial fltSpacing  label="Spacing"    color=f max=16384 display=raw cc=0x14 ccLsb=0x34 dumpOffset=45 dumpBitOffset=3 dumpBitWidth=14 col=8 row=1
 dial res         label="Resonance"  color=f max=16384 display=raw cc=0x15 ccLsb=0x35 dumpOffset=61 dumpBitOffset=3 dumpBitWidth=14 col=8 row=2
 dial fltKBAmount label="KB Amount"  color=f max=16384 display=raw cc=0x16 ccLsb=0x36 dumpOffset=66 dumpBitOffset=0 dumpBitWidth=14 col=8 row=3
-dial fltMode     label="Mode"       color=f nativeMax=127 max=2 names="Dual LP","HP/LP" cc=86 col=8 row=4
+# dumpOffset/dumpBitOffset/dumpNativeMax/dumpInvert — CONFIRMED against real
+# hardware (2026-07-08). Its CC (86)/names ("Dual LP"/"HP/LP") remain
+# unconfirmed guesses from the Ctrlr panel, same caveat as before — only the
+# dump-decode side was verified this session.
+dial fltMode     label="Mode"       color=f nativeMax=127 max=2 names="Dual LP","HP/LP" cc=86 dumpOffset=96 dumpBitOffset=1 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=8 row=4
 
 # Filter A/B Pole Select (1/2/3/4-pole) — CONFIRMED against real hardware
 # (2026-07-08) via tools/moog_dump (standalone CoreMIDI request/capture) and
@@ -550,7 +564,10 @@ dial volEnvAttack  label="Attack"   color=ve max=16384 display=raw cc=0x1C ccLsb
 dial volEnvDecay   label="Decay"    color=ve max=16384 display=raw cc=0x1D ccLsb=0x3D dumpOffset=82 dumpBitOffset=0 dumpBitWidth=14 col=10 row=1
 dial volEnvSustain label="Sustain"  color=ve max=16384 display=raw cc=0x1E ccLsb=0x3E dumpOffset=84 dumpBitOffset=2 dumpBitWidth=14 col=10 row=2
 dial volEnvRelease label="Release"  color=ve max=16384 display=raw cc=0x1F ccLsb=0x3F dumpOffset=86 dumpBitOffset=4 dumpBitWidth=14 col=10 row=3
-dial gateToggle    label="Env Gate" color=ve nativeMax=127 max=2 names="Keyb","On/Ext" cc=87 col=10 row=4
+# dumpOffset/dumpBitOffset/dumpNativeMax/dumpInvert — CONFIRMED against real
+# hardware (2026-07-08), same inverted-polarity shape as most of this file's
+# other toggles.
+dial gateToggle    label="Env Gate" color=ve nativeMax=127 max=2 names="Keyb","On/Ext" cc=87 dumpOffset=96 dumpBitOffset=2 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=10 row=4
 
 page       panel
 section    output
