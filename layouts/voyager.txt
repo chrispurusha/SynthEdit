@@ -381,7 +381,23 @@ spacing    50
 
 color mw 0.3 0.6 0.8
 
-dial mwSource      label="Source"      color=mw nativeMax=127 max=5 names="LFO Tri","LFO Squ","Osc 3","S&H","Noise/Pgm" cc=68 col=1 row=0
+# names= corrected 2026-07-08 — this is a 6-position switch, not 5 as
+# previously listed (missing "On / Mod 2" between S+H and Noise/Pgm). That
+# missing name is exactly what earlier looked like a mysterious "skipped"
+# raw value 3 while testing only the previously-known 5 positions: real
+# hardware confirms Triangle/Square/Osc3/S+H at raw 7/6/5/4, and Noise/Pgm at
+# raw 2 — a full linear 7-down-to-2 sequence once "On / Mod 2" (predicted at
+# raw 3, matching the gap exactly) is accounted for, same shape as the
+# Octave dials. dumpNativeMax=5 (not 4 — an intermediate, now-superseded fix
+# that worked around the apparent skip via clip-to-max before the real cause
+# was known).
+#
+# nativeMax=80, NOT 127 (same class of bug as lfoSync's own fix) — CONFIRMED
+# against real hardware (2026-07-08): watched dispatch_cc() stepping through
+# positions and saw settled raw CC values land on exact multiples of 16
+# (16/32/48/64/80), not spread across 0-127. This is the CC-path scale only;
+# unrelated to dumpNativeMax=5 above, which is the separate dump-side scale.
+dial mwSource      label="Source"      color=mw nativeMax=80 max=6 names="Triangle","Square","Osc 3","S+H","On / Mod 2","Noise / Pgm" cc=68 dumpOffset=91 dumpBitOffset=1 dumpBitWidth=3 dumpNativeMax=5 dumpInvert=1 col=1 row=0
 # Destination/Shaping/Amount below use fractional row= — see the tPanelDial
 # field comment in panelConfig.h: this column only has 4 controls but needs
 # to span the same vertical run as the Mixer's 5-tall columns, Amount
@@ -418,7 +434,12 @@ color m  0.7 0.7 0.7
 
 # row 0 (col 3) deliberately blank — Osc 1 has no Freq dial (it's the master
 # pitch), so its Octave/Wave sit one row lower to line up with Osc 2/3's.
-dial osc1Octave label="Octave" color=o1 nativeMax=127 max=6 names="32'","16'","8'","4'","2'","1'" cc=74 col=3 row=1
+# dumpOffset/dumpBitOffset/dumpBitWidth/dumpNativeMax/dumpInvert — CONFIRMED
+# against real hardware (2026-07-08): stepped through all 6 positions and
+# read a clean 3-bit field, raw 7/6/5/4/3/2 for 32'/16'/8'/4'/2'/1' — inverting
+# it (dumpInvert) maps to a direct 0-5 index (dumpNativeMax=5), same idea as
+# lfoSync's own reversal.
+dial osc1Octave label="Octave" color=o1 nativeMax=127 max=6 names="32'","16'","8'","4'","2'","1'" cc=74 dumpOffset=93 dumpBitOffset=3 dumpBitWidth=3 dumpNativeMax=5 dumpInvert=1 col=3 row=1
 dial osc1Wave   label="Wave"   color=o1 max=16384 display=raw cc=0x09 ccLsb=0x29 dumpOffset=38 dumpBitOffset=4 dumpBitWidth=14 col=3 row=2
 dial osc1Level  label="Level"  color=m  max=16384 display=raw cc=0x0F ccLsb=0x2F dumpOffset=50 dumpBitOffset=0 dumpBitWidth=14 col=6 row=1
 dial osc1Toggle label="On"     color=m  nativeMax=127 max=2 names="Off","On" cc=82 dumpOffset=95 dumpBitOffset=4 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=7 row=1
@@ -433,7 +454,14 @@ color o2 0.4 0.8 0.5
 color m  0.7 0.7 0.7
 
 dial osc2Freq   label="Freq"   color=o2 max=16384 display=raw cc=0x0A ccLsb=0x2A dumpOffset=34 dumpBitOffset=0 dumpBitWidth=14 col=4 row=0
-dial osc2Octave label="Octave" color=o2 nativeMax=127 max=6 names="32'","16'","8'","4'","2'","1'" cc=75 col=4 row=1
+# dumpOffset/dumpBitOffset/dumpBitWidth/dumpNativeMax/dumpInvert — CONFIRMED
+# against real hardware (2026-07-08) at both endpoints (32'=7, 1'=2, same
+# reversal as osc1Octave); intermediate positions assumed identical in shape
+# rather than individually re-swept. Crosses from byte 93's last bit into
+# byte 94's first bit — a valid contiguous field, shifted exactly 3 bits
+# from osc1Octave's own (bits 3-5 of the same byte), a clean back-to-back
+# pack.
+dial osc2Octave label="Octave" color=o2 nativeMax=127 max=6 names="32'","16'","8'","4'","2'","1'" cc=75 dumpOffset=93 dumpBitOffset=6 dumpBitWidth=3 dumpNativeMax=5 dumpInvert=1 col=4 row=1
 dial osc2Wave   label="Wave"   color=o2 max=16384 display=raw cc=0x0B ccLsb=0x2B dumpOffset=40 dumpBitOffset=6 dumpBitWidth=14 col=4 row=2
 dial osc2Level  label="Level"  color=m  max=16384 display=raw cc=0x10 ccLsb=0x30 dumpOffset=52 dumpBitOffset=2 dumpBitWidth=14 col=6 row=2
 dial osc2Toggle label="On"     color=m  nativeMax=127 max=2 names="Off","On" cc=83 dumpOffset=95 dumpBitOffset=5 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=7 row=2
@@ -451,7 +479,12 @@ color m  0.7 0.7 0.7
 color ox 0.85 0.75 0.15
 
 dial osc3Freq      label="Freq"       color=o3 max=16384 display=raw cc=0x0C ccLsb=0x2C dumpOffset=36 dumpBitOffset=2 dumpBitWidth=14 col=5 row=0
-dial osc3Octave    label="Octave"     color=o3 nativeMax=127 max=6 names="32'","16'","8'","4'","2'","1'" cc=76 col=5 row=1
+# dumpOffset/dumpBitOffset/dumpBitWidth/dumpNativeMax/dumpInvert — CONFIRMED
+# against real hardware (2026-07-08) at both endpoints (32'=7, 1'=2), exactly
+# matching the predicted continuation of osc1Octave/osc2Octave's own
+# back-to-back 3-bit packing (bits 3-5, then 6-8, then 9-11 in one
+# continuous run starting at dumpOffset=93 dumpBitOffset=3).
+dial osc3Octave    label="Octave"     color=o3 nativeMax=127 max=6 names="32'","16'","8'","4'","2'","1'" cc=76 dumpOffset=94 dumpBitOffset=2 dumpBitWidth=3 dumpNativeMax=5 dumpInvert=1 col=5 row=1
 dial osc3Wave      label="Wave"       color=o3 max=16384 display=raw cc=0x0D ccLsb=0x2D dumpOffset=43 dumpBitOffset=1 dumpBitWidth=14 col=5 row=2
 dial osc3Level     label="Level"      color=m  max=16384 display=raw cc=0x11 ccLsb=0x31 dumpOffset=54 dumpBitOffset=4 dumpBitWidth=14 col=6 row=3
 dial osc3Toggle    label="On"         color=m  nativeMax=127 max=2 names="Off","On" cc=84 dumpOffset=95 dumpBitOffset=6 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=7 row=3
