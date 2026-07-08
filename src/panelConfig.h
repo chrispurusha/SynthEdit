@@ -136,6 +136,23 @@ typedef struct {
     uint32_t dumpBitOffset;
     uint32_t dumpBitWidth;
 
+    // Second bit location for a value whose bits are NOT contiguous in the
+    // dump — e.g. Voyager's Filter A/B "Pole Select" (1/2/4-pole) each pack
+    // their 2-bit value across two unrelated bytes, confirmed 2026-07-08 via
+    // before/after hardware captures (tools/moog_dump + tools/syx_diff.py):
+    // Filter A's two bits happen to be adjacent (ordinary dumpBitWidth=2
+    // suffices), but Filter B's live in two bytes nowhere near each other.
+    // dumpBitWidth2=0 (the default) means "no second chunk" — every dial
+    // behaves exactly as before this existed. When set, the dial's full raw
+    // value is chunk1 (dumpOffset/dumpBitOffset/dumpBitWidth, the LOW bits)
+    // with chunk2 (dumpOffset2/dumpBitOffset2/dumpBitWidth2) contributing the
+    // next-significant bits above it — same "two locations combine into one
+    // value" shape ccLsbNumber above already uses for a CC pair, just for
+    // dump bits instead.
+    int32_t  dumpOffset2;
+    uint32_t dumpBitOffset2;
+    uint32_t dumpBitWidth2;
+
     // Explicit grid position ("col="/"row=" in the file), for a device whose
     // real front panel groups controls into fixed columns rather than
     // flowing left-to-right within a section (see gridColWidth/gridRowHeight
@@ -346,6 +363,16 @@ bool panel_dial_is_toggle(const tPanelDial * dial);
 // Filters' Mode green for "HP/LP" would imply an on/off meaning it doesn't
 // have.
 bool panel_dial_is_binary(const tPanelDial * dial);
+
+// A discrete selector (>2 positions) with no CC at all — the only way to set
+// it is patching its bits into the last-received Moog dump and resending the
+// whole thing (synth_patch_and_resend_moog_dump() in synthComms.c), which
+// should happen exactly once with the FINAL chosen value, not once per
+// intermediate step a drag gesture would pass through. mouseHandle.c uses
+// this to open a value-picker menu (menus.c) instead of starting a drag —
+// added 2026-07-08 for Voyager's Filter A/B Pole Select, the first dials of
+// this kind (see fltAPole/fltBPole's own comment in voyager.txt).
+bool panel_dial_needs_value_menu(const tPanelDial * dial);
 
 tPanelSection * find_panel_section(tPanelConfig * config, const char * page, const char * section);
 tPanelDial * find_panel_dial(tPanelSection * section, const char * id);

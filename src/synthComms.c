@@ -254,6 +254,35 @@ static uint32_t read_bitpacked_field(const uint8_t * payload, uint32_t payloadLe
     return value;
 }
 
+// Inverse of read_bitpacked_field() above — same continuous 7-bit-per-byte
+// bitstream addressing, writing bits into an existing captured dump instead
+// of reading them out. Used to patch a single dial's value into a cached
+// live dump before resending the whole thing (see gLastMoogDump / synth_
+// patch_and_resend_moog_dump() below) — the Voyager has no per-parameter
+// "set this one value" SysEx, only a whole-dump load, confirmed 2026-07-08
+// by capturing, patching just Filter A's 2 bits, sending it back, and
+// re-requesting a dump: the patched value round-tripped exactly.
+static void write_bitpacked_field(uint8_t * payload, uint32_t payloadLen,
+                                  int32_t byteOffset, uint32_t bitOffset, uint32_t bitWidth, uint32_t value) {
+    uint32_t globalStart = (uint32_t)byteOffset * 7 + bitOffset;
+
+    for (uint32_t k = 0; k < bitWidth; k++) {
+        uint32_t globalBit = globalStart + k;
+        uint32_t byteIdx   = globalBit / 7;
+        uint32_t column    = globalBit % 7;
+
+        if (byteIdx >= payloadLen) {
+            break; // matches read_bitpacked_field()'s own truncation behaviour
+        }
+
+        if ((value >> k) & 1) {
+            payload[byteIdx] |= (uint8_t)(1 << column);
+        } else {
+            payload[byteIdx] &= (uint8_t)~(1 << column);
+        }
+    }
+}
+
 // Decodes a name field into gDevice.progName, if `offset` >= 0 (the
 // tPanelConfig field comment explains why Panel Dump and Single Preset Dump
 // each need their own offset/bitOffset/len rather than sharing one). Each
@@ -377,6 +406,15 @@ static void extract_moog_panel_info(const uint8_t * payload, uint32_t payloadLen
             }
             uint32_t     raw  = read_bitpacked_field(payload, payloadLen, dial->dumpOffset,
                                                      dial->dumpBitOffset, dial->dumpBitWidth);
+
+            if (dial->dumpBitWidth2 > 0) {
+                // Non-contiguous field (see dumpBitWidth2's comment in
+                // panelConfig.h) — chunk2 contributes the next-significant
+                // bits above chunk1, same shape as a CC MSB/LSB pair.
+                uint32_t chunk2 = read_bitpacked_field(payload, payloadLen, dial->dumpOffset2,
+                                                       dial->dumpBitOffset2, dial->dumpBitWidth2);
+                raw |= chunk2 << dial->dumpBitWidth;
+            }
             apply_dial_wire_value(dial, raw);
             updated++;
         }
@@ -430,6 +468,15 @@ static void handle_curr_prog_dump(const uint8_t * data, uint32_t length) {
 // values (reading into a neighboring field's bytes) while the other two
 // only happened to look right because a neighboring field was also
 // coincidentally near-max at the time.
+// Raw bytes of the most recently received Panel Dump (full message, F0..F7
+// inclusive) — kept purely so a single dial change can patch its own bits in
+// and resend the whole thing (synth_patch_and_resend_moog_dump() below).
+// There's no per-parameter "set this one value" SysEx for a Moog-style
+// device, only a whole-dump load — confirmed against real Voyager hardware
+// (2026-07-08, see tools/moog_send.swift's own use in that investigation).
+static uint8_t  gLastMoogDump[256];
+static uint32_t gLastMoogDumpLen = 0;
+
 static void handle_moog_panel_dump(const uint8_t * data, uint32_t length) {
     synth_backup_capture_dump(data, length, eBackupExpectLive); // no-op unless a live-panel Backup is pending — see synthBackup.c
     const uint32_t  skip       = 1;                             // F0 only
@@ -441,7 +488,39 @@ static void handle_moog_panel_dump(const uint8_t * data, uint32_t length) {
     const uint8_t * payload    = data + skip;
     uint32_t        payloadLen = length - skip - 1; // exclude trailing F7
 
+    if (length <= sizeof(gLastMoogDump)) {
+        memcpy(gLastMoogDump, data, length);
+        gLastMoogDumpLen = length;
+    } else {
+        LOG_ERROR("Moog panel dump (%u bytes) too big to cache for resend (max %u)\n",
+                  (unsigned)length, (unsigned)sizeof(gLastMoogDump));
+    }
+
     extract_moog_panel_info(payload, payloadLen);
+}
+
+// Patches dial's current value into the cached Panel Dump (gLastMoogDump)
+// and sends the whole thing back — the only way to set a Moog-style dial
+// that has no CC (see panel_dial_needs_value_menu()/panelConfig.h). No-ops
+// (returns false) if no dump has been received yet to patch.
+static bool synth_patch_and_resend_moog_dump(tPanelDial * dial, uint32_t rawValue) {
+    if ((gLastMoogDumpLen == 0) || (dial->dumpBitWidth == 0)) {
+        return false;
+    }
+    uint8_t * payload    = gLastMoogDump + 1;               // skip F0 — see handle_moog_panel_dump()'s own comment on why
+    uint32_t  payloadLen = gLastMoogDumpLen - 1 - 1;        // exclude leading skip + trailing F7
+
+    write_bitpacked_field(payload, payloadLen, dial->dumpOffset, dial->dumpBitOffset,
+                          dial->dumpBitWidth, rawValue);
+
+    if (dial->dumpBitWidth2 > 0) {
+        write_bitpacked_field(payload, payloadLen, dial->dumpOffset2, dial->dumpBitOffset2,
+                              dial->dumpBitWidth2, rawValue >> dial->dumpBitWidth);
+    }
+    midi_send(gLastMoogDump, gLastMoogDumpLen);
+    LOG_DEBUG("Patched %s=%u into cached Panel Dump and resent (%u bytes)\n",
+              dial->id, (unsigned)rawValue, (unsigned)gLastMoogDumpLen);
+    return true;
 }
 
 // Format: F0 <mfrId> <productId> <deviceId> 03 <payload...> F7 — the reply to
@@ -793,11 +872,18 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
     }
     dial->value = storageValue;
 
-    if (dial->ccNumber != 0) {
-        if ((dial->nativeMax != 0) && (dial->max > 1)) {
-            dial->nativeValue = (uint8_t)(displayValue * dial->nativeMax / (dial->max - 1));
-        }
+    // Computed regardless of ccNumber now — a dump-only dial (no CC at all,
+    // e.g. Voyager's Filter A/B Pole Select) still needs its nativeValue to
+    // patch into a resent dump below, not just a CC-bound one. Previously
+    // this only ran inside the ccNumber!=0 branch, which was fine when every
+    // ccNumber==0 dial was Z1's own paramGroup/paramId path (no native
+    // scaling concept there) — no longer true once a Moog dump-only selector
+    // exists.
+    if ((dial->nativeMax != 0) && (dial->max > 1)) {
+        dial->nativeValue = (uint8_t)(displayValue * dial->nativeMax / (dial->max - 1));
+    }
 
+    if (dial->ccNumber != 0) {
         if (dial->ccLsbNumber != 0) {
             // 14-bit CC pair — see the ccLsbNumber comment in panelConfig.h.
             // Keep the latches in sync so a later single-half incoming update
@@ -815,6 +901,14 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
             uint8_t wireValue = (dial->nativeMax != 0) ? dial->nativeValue : (uint8_t)storageValue;
             midi_send_cc(gDevice.id, (uint8_t)dial->ccNumber, wireValue);
         }
+    } else if (synth_panel_config()->moogStyleDump && (dial->dumpBitWidth > 0)) {
+        // No CC exists for this dial (e.g. Voyager's Filter A/B Pole Select)
+        // — patch-and-resend the cached dump instead of falling through to
+        // Z1's Korg-style parameter-change SysEx below, which would send a
+        // meaningless message shaped for an entirely different protocol.
+        uint32_t rawValue = (dial->nativeMax != 0) ? dial->nativeValue : storageValue;
+
+        synth_patch_and_resend_moog_dump(dial, rawValue);
     } else {
         synth_send_parameter_change((uint8_t)dial->paramGroup, (uint16_t)dial->paramId, (uint8_t)storageValue);
     }

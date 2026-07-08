@@ -444,12 +444,53 @@ dialSize   36
 spacing    50
 
 color f 0.2 0.6 1.0
+# Duplicate of filterEnv's own "fe" (see that section's colour, further
+# down) — purely so fltBPole below can reference it despite being declared
+# in this section; see the layout note up top for why colour lookup can't
+# reach into another section's table directly.
+color fe 0.9 0.6 0.2
 
 dial cutoff      label="Cutoff"     color=f max=16384 display=raw cc=0x13 ccLsb=0x33 dumpOffset=59 dumpBitOffset=1 dumpBitWidth=14 col=8 row=0
 dial fltSpacing  label="Spacing"    color=f max=16384 display=raw cc=0x14 ccLsb=0x34 dumpOffset=45 dumpBitOffset=3 dumpBitWidth=14 col=8 row=1
 dial res         label="Resonance"  color=f max=16384 display=raw cc=0x15 ccLsb=0x35 dumpOffset=61 dumpBitOffset=3 dumpBitWidth=14 col=8 row=2
 dial fltKBAmount label="KB Amount"  color=f max=16384 display=raw cc=0x16 ccLsb=0x36 dumpOffset=66 dumpBitOffset=0 dumpBitWidth=14 col=8 row=3
 dial fltMode     label="Mode"       color=f nativeMax=127 max=2 names="Dual LP","HP/LP" cc=86 col=8 row=4
+
+# Filter A/B Pole Select (1/2/3/4-pole) — CONFIRMED against real hardware
+# (2026-07-08) via tools/moog_dump (standalone CoreMIDI request/capture) and
+# tools/syx_diff.py (bit-level before/after diff): stepped each filter
+# through 4->2->1 pole in isolation and located exactly which bits moved,
+# then found the missing 3-pole position (initially assumed raw value 1 was
+# simply unused — it isn't) by setting both filters to 3-pole and diffing
+# against the earlier 1-pole/2-pole capture.
+# No CC anywhere sends this (unlike fltMode above, which IS CC-controlled,
+# just unconfirmed) — this is dump-only, read-only in this app: it updates
+# correctly from an incoming Panel/Preset Dump, but turning the dial on
+# screen has no way to push a change back out to the hardware (ccNumber=0 —
+# see synth_set_panel_dial_value()'s own cc-gated send in synthComms.c).
+#
+# Raw dump value is 0=1 Pole, 1=3 Pole, 2=2 Pole, 3=4 Pole for BOTH filters —
+# NOT the monotonic pole-count order the "1/2/4-pole" framing above implies;
+# genuinely 1/3/2/4 by raw value. Same "two flag bits" shape on both filters
+# (confirmed identical on A and B) — just not simply "LSB/MSB = pole count
+# in binary": bit4 (Filter A)/byte95-bit2 (Filter B) looks like "engage the
+# 2-pole stage", bit3 (Filter A)/byte99-bit5 (Filter B) looks like "engage an
+# extra half-pole tap" — 00=1, 01=3, 10=2, 11=4 — rather than a clean
+# ascending count. names= below is ordered by RAW VALUE (0,1,2,3), not by
+# pole count, to match.
+#
+# Filter A's two bits are adjacent (dumpBitWidth=2 alone is enough). Filter
+# B's are NOT — bit0 is byte 99 bit 5, bit1 is byte 95 bit 2, nowhere near
+# each other in the payload — hence dumpOffset2/dumpBitOffset2/dumpBitWidth2
+# (see that field's own comment in panelConfig.h), added specifically to
+# express this.
+#
+# Placement: col=8 row=5 was the only free cell left in the Filters column
+# itself; Filter B had to borrow col=9 row=5 (Filter Env's column, hence the
+# duplicated "fe" colour above) since Filters' own column was already full.
+# Not confirmed against the reference photo — move if a better spot exists.
+dial fltAPole label="Filter A Poles" color=f  nativeMax=3 max=4 names="1 Pole","3 Pole","2 Pole","4 Pole" dumpOffset=99 dumpBitOffset=3 dumpBitWidth=2 col=8 row=5
+dial fltBPole label="Filter B Poles" color=fe nativeMax=3 max=4 names="1 Pole","3 Pole","2 Pole","4 Pole" dumpOffset=99 dumpBitOffset=5 dumpBitWidth=1 dumpOffset2=95 dumpBitOffset2=2 dumpBitWidth2=1 col=9 row=5
 
 page       panel
 section    filterEnv

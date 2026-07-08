@@ -21,18 +21,20 @@
 #define __MENUS_H__
 
 #include "types.h"
+#include "panelConfig.h" // tPanelDial
 #include "contextMenu.h" // Generic mac-style nested menu mechanism + tMenuItem/tMenuFrame/tContextMenu — see SynthLib
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// App-specific menu-building helpers (open_X_context_menu()) belong here once
-// SynthEdit actually raises a context menu — see G2-Edit's menus.c for the
-// pattern: build a static tMenuItem[] table ending in a {NULL, ...} sentinel
-// (SynthLib walks items until it finds label == NULL, there's no count), then
-// call open_context_menu(). Nothing does that yet, so there's nothing to
-// declare here beyond what contextMenu.h already provides.
+// Opens a value-picker menu listing dial's own names[], for a discrete
+// selector with no CC at all (panel_dial_needs_value_menu() in
+// panelConfig.h) — picking an item calls synth_set_panel_dial_value() with
+// that item's display index, same as any other dial change, so it patches
+// the cached dump and resends exactly once with the final value rather than
+// once per intermediate step a drag gesture would otherwise pass through.
+void open_dial_value_menu(tCoord coord, tPanelDial * dial);
 
 #ifdef __cplusplus
 }

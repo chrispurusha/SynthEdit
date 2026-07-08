@@ -115,14 +115,24 @@ void synth_set_pressed_page_tab(int32_t index) {
     }
 }
 
-// ── Prev/Next patch buttons ──────────────────────────────────────────────────
-// See synth_navigate_preset() (synthComms.h) for what a press actually does.
-// Laid out on the Program name row (synth_render() below) rather than as a
-// separate row, since they act on "whatever's currently loaded" — the same
-// thing that row already shows.
+// ── Prev/Next/Sync patch buttons ─────────────────────────────────────────────
+// See synth_navigate_preset() (synthComms.h) for what a Prev/Next press
+// actually does. Laid out on the Program name row (synth_render() below)
+// rather than as a separate row, since they act on "whatever's currently
+// loaded" — the same thing that row already shows.
+//
+// Sync (index 2) isn't preset navigation — it re-requests the current state
+// dump (synth_request_state_dump(), synthComms.c) so the app's dial values
+// can be checked/refreshed against the real hardware's current front-panel
+// settings on demand, rather than only ever updating on connect or a preset
+// change. Added 2026-07-08 for exactly this kind of manual verification.
+// Shares the same generic press-on-mouse-up index scheme as Prev/Next purely
+// because it needed nothing more — mouseHandle.c dispatches by index alone
+// and doesn't care how many buttons are in this row.
 static tRectangle gPrevPatchRect   = {0};
 static tRectangle gNextPatchRect   = {0};
-static bool       gPatchNavLaidOut = false; // false until synth_render() has placed the two rects at least once
+static tRectangle gSyncPatchRect   = {0};
+static bool       gPatchNavLaidOut = false; // false until synth_render() has placed the rects at least once
 static int32_t    gPressedPatchNav = -1;    // cosmetic only — see synth_set_pressed_patch_nav()
 
 int32_t synth_hit_test_patch_nav(tCoord coord) {
@@ -137,6 +147,10 @@ int32_t synth_hit_test_patch_nav(tCoord coord) {
     if (within_rectangle(coord, gNextPatchRect)) {
         return 1;
     }
+
+    if (within_rectangle(coord, gSyncPatchRect)) {
+        return 2;
+    }
     return -1;
 }
 
@@ -145,6 +159,8 @@ void synth_action_patch_nav(int32_t index) {
         synth_navigate_preset(-1);
     } else if (index == 1) {
         synth_navigate_preset(1);
+    } else if (index == 2) {
+        synth_request_state_dump();
     }
 }
 
@@ -410,13 +426,17 @@ void synth_render(tRectangle area) {
         const double   navBtnHeight = 26.0 * (2.0 / 3.0);
         double         prevWidth    = get_text_width("< Prev", navBtnHeight, eNoCache);
         double         nextWidth    = get_text_width("Next >", navBtnHeight, eNoCache);
+        double         syncWidth    = get_text_width("Sync", navBtnHeight, eNoCache);
         tRgb           prevColour   = (gPressedPatchNav == 0) ? (tRgb)RGB_GREY_5 : (navEnabled ? (tRgb)RGB_GREY_7 : (tRgb)RGB_GREY_3);
         tRgb           nextColour   = (gPressedPatchNav == 1) ? (tRgb)RGB_GREY_5 : (navEnabled ? (tRgb)RGB_GREY_7 : (tRgb)RGB_GREY_3);
+        tRgb           syncColour   = (gPressedPatchNav == 2) ? (tRgb)RGB_GREY_5 : (navEnabled ? (tRgb)RGB_GREY_7 : (tRgb)RGB_GREY_3);
 
         gPrevPatchRect   = {{x + 460.0, y}, {prevWidth, navBtnHeight}};
         gNextPatchRect   = {{x + 460.0 + prevWidth + 12.0, y}, {nextWidth, navBtnHeight}};
+        gSyncPatchRect   = {{x + 460.0 + prevWidth + 12.0 + nextWidth + 24.0, y}, {syncWidth, navBtnHeight}};
         draw_button(mainArea, gPrevPatchRect, "< Prev", prevColour);
         draw_button(mainArea, gNextPatchRect, "Next >", nextColour);
+        draw_button(mainArea, gSyncPatchRect, "Sync", syncColour);
         gPatchNavLaidOut = true;
 
         y               += 32.0 * (double)reservedRows;

@@ -69,6 +69,15 @@ static int32_t      gPressedPatchNav   = -1;
 // connected to confirm otherwise.
 static tPanelDial * gPressedToggleDial = NULL;
 
+// Same press-arms/release-fires shape as gPressedToggleDial above, for a
+// panel_dial_needs_value_menu() dial — a discrete selector with no CC at
+// all. Must open the menu on RELEASE, not press: opening it on press means
+// the very same click's own release immediately dismisses it again (the
+// "Dismiss context menu" check at the top of the release path closes
+// whatever's active on ANY release) before a second click could ever reach
+// it. Real bug hit and fixed 2026-07-08 building this.
+static tPanelDial * gPressedValueMenuDial = NULL;
+
 // ── Coordinate helpers ────────────────────────────────────────────────────────
 
 static tCoord window_to_logical(void * win, double x, double y) {
@@ -178,6 +187,18 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
             synth_set_panel_dial_value(gPressedToggleDial, current ? 0 : 1);
         }
         gPressedToggleDial = NULL;
+
+        // Opening the menu here, on release, is required, not just
+        // convention-matching — the very next line of this same function
+        // (the "Dismiss context menu" check above) unconditionally closes
+        // whatever menu is gContextMenu.active on ANY release. Opening it
+        // during press instead meant the release ending that same click
+        // immediately dismissed the menu before it was ever visible to a
+        // second click. Real bug hit and fixed 2026-07-08 building this.
+        if (gPressedValueMenuDial && within_rectangle(coord, gPressedValueMenuDial->rect)) {
+            open_dial_value_menu(coord, gPressedValueMenuDial);
+        }
+        gPressedValueMenuDial = NULL;
         return;
     }
     // Page-tab row is checked before dial hit-testing so a tab press can't
@@ -213,6 +234,19 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
         if (hitIdx >= 0) {
             hit = &sections[s]->dials[hitIdx];
         }
+    }
+
+    if (hit && panel_dial_needs_value_menu(hit)) {
+        // No CC exists for this dial (Voyager's Filter A/B Pole Select, so
+        // far) — a drag gesture would patch-and-resend the whole cached dump
+        // once per intermediate step it passes through on the way to the
+        // value the user actually wants. A menu picks exactly one value and
+        // sends exactly once. See panel_dial_needs_value_menu()'s own
+        // comment in panelConfig.h. Arms here; the menu itself opens on
+        // release above — see that block's own comment for why it can't
+        // open here on press.
+        gPressedValueMenuDial = hit;
+        return;
     }
 
     if (hit && panel_dial_is_binary(hit)) {

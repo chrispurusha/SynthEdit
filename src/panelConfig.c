@@ -165,8 +165,9 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
     strncpy(dial->id, tokens[1], sizeof(dial->id) - 1);
     dial->gapBefore  = *pendingGap;
     *pendingGap      = 0.0;
-    dial->dumpOffset = -1;   // not present in a program dump unless "dumpOffset=" says otherwise
-    dial->dumpMask   = 0xFF; // whole byte by default
+    dial->dumpOffset  = -1;  // not present in a program dump unless "dumpOffset=" says otherwise
+    dial->dumpMask    = 0xFF; // whole byte by default
+    dial->dumpOffset2 = -1;  // no second bit-location chunk unless "dumpOffset2=" says otherwise
     dial->gridCol    = -1.0; // not grid-positioned unless "col=" says otherwise
     dial->gridRow    = -1.0;
 
@@ -222,6 +223,12 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
             dial->dumpBitOffset = (uint32_t)strtoul(val, NULL, 0);
         } else if (strcmp(key, "dumpBitWidth") == 0) {
             dial->dumpBitWidth = (uint32_t)strtoul(val, NULL, 0);
+        } else if (strcmp(key, "dumpOffset2") == 0) {
+            dial->dumpOffset2 = (int32_t)strtol(val, NULL, 0);
+        } else if (strcmp(key, "dumpBitOffset2") == 0) {
+            dial->dumpBitOffset2 = (uint32_t)strtoul(val, NULL, 0);
+        } else if (strcmp(key, "dumpBitWidth2") == 0) {
+            dial->dumpBitWidth2 = (uint32_t)strtoul(val, NULL, 0);
         } else if (strcmp(key, "col") == 0) {
             dial->gridCol = strtod(val, NULL);
         } else if (strcmp(key, "row") == 0) {
@@ -565,6 +572,14 @@ bool panel_dial_is_toggle(const tPanelDial * dial) {
 
 bool panel_dial_is_binary(const tPanelDial * dial) {
     return dial && (dial->display == dialDisplayNames) && (dial->nameCount == 2);
+}
+
+bool panel_dial_needs_value_menu(const tPanelDial * dial) {
+    return dial
+           && (dial->display == dialDisplayNames)
+           && (dial->nameCount > 2)
+           && (dial->ccNumber == 0)
+           && (dial->dumpBitWidth > 0);
 }
 
 uint32_t get_panel_dial_value(const tPanelDial * dial) {
