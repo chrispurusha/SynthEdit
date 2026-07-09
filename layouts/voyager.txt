@@ -407,27 +407,61 @@ dial mwSource      label="Source"      color=mw nativeMax=80 max=6 names="Triang
 # aligned with Noise (row=4) — so the 2 middle rows are spread evenly across
 # that gap instead of sitting at whole grid steps 1/2/3.
 #
-# dumpOffset/dumpBitOffset/dumpBitWidth/dumpNativeMax below (2026-07-09) —
-# NOT individually hardware-swept the way mwSource/osc1Octave were. Derived
-# by arithmetic: mwSource's own confirmed dumpOffset=91 dumpBitOffset=1
-# dumpBitWidth=3 ends exactly 13 packed bits before osc1Octave's confirmed
-# dumpOffset=93 dumpBitOffset=3 — and 13 is exactly
-# mwDestination(3)+mwShaping(2)+pedalSource(3)+pedalDestination(3)+
-# pedalShaping(2) bits, matching each field's own names= count
-# (ceil(log2(5))=3, ceil(log2(4))=2) with zero bits to spare on either end.
-# That confirms the TOTAL span and each field's WIDTH; the ORDER of these 5
-# fields within that span (assumed wheel dest, wheel shaping, pedal source,
-# pedal dest, pedal shaping, per the spec PDF's own row order) and whether
-# any of them need dumpInvert (mwSource's own dump bits run in reverse
-# order — plausible these do too) are NOT confirmed. Low risk either way:
-# all 5 already have working CC control, so a wrong guess here only mis-
-# displays the dial right after a Panel Dump refresh — it can't send a bad
-# value, since the CC path (ccNumber != 0) is checked first and is entirely
-# independent of dumpOffset. Sweep with tools/moog_dump + tools/syx_diff.py
-# (step each switch through its positions, diff dumps) before trusting the
-# on-screen value or adding dumpInvert.
-dial mwDestination label="Destination" color=mw nativeMax=127 max=5 names="Pitch","Osc 2","Osc 3","Filter","LFO/Pgm" cc=69 dumpOffset=91 dumpBitOffset=4 dumpBitWidth=3 dumpNativeMax=4 col=1 row=1.33
-dial mwShaping     label="Shaping"     color=mw nativeMax=127 max=4 names="Filt Env","Velocity","Pressure","On/Pgm" cc=70 dumpOffset=92 dumpBitOffset=0 dumpBitWidth=2 dumpNativeMax=3 col=1 row=2.67
+# dumpOffset/dumpBitOffset/dumpBitWidth/dumpNativeMax below were originally
+# (2026-07-09) derived by arithmetic alone, not hardware-swept: mwSource's
+# own confirmed dumpOffset=91 dumpBitOffset=1 dumpBitWidth=3 ends exactly 13
+# packed bits before osc1Octave's confirmed dumpOffset=93 dumpBitOffset=3 —
+# and 13 is exactly mwDestination(3)+mwShaping(2)+pedalSource(3)+
+# pedalDestination(3)+pedalShaping(2) bits, matching each field's own names=
+# count (ceil(log2(5))=3, ceil(log2(4))=2) with zero bits to spare on either
+# end — confirming the TOTAL span and each field's WIDTH, but not the ORDER
+# of the 5 fields within that span or whether any needed dumpInvert.
+#
+# Both the order guess (wheel dest, wheel shaping, pedal source, pedal dest,
+# pedal shaping, per the spec PDF's own row order) AND every dumpOffset/
+# dumpBitOffset placement below are now CONFIRMED CORRECT — swept 2026-07-09
+# with tools/moog_dump + tools/syx_diff.py (each switch to its first and
+# last position, diffed): every diff showed changed bits landing exactly on
+# the field already assigned to that dial, nothing bleeding into a neighbour.
+# The one thing the arithmetic derivation couldn't have caught — dumpInvert —
+# WAS wrong on all 5: each one reads a raw value that DECREASES as the
+# display position goes first→last (e.g. mwDestination: raw 7 at "Pitch",
+# raw 2 at "LFO / PGM"), same shape as mwSource's own confirmed dumpInvert=1.
+# This is what caused the "opposite direction, pegged at max" symptom the
+# owner reported — without inversion a low real position decoded toward the
+# top of the display range. dumpInvert=1 added to all 5 below fixes it.
+#
+# CC-side nativeMax=127 was ALSO confirmed wrong (2026-07-09, watched
+# dispatch_cc() stepping through positions, same method as mwSource's own
+# fix): mwDestination/pedalSource/pedalDestination settled on 0/16/32/48/
+# 64/80 — SIX positions, exact same shape as mwSource's own missing-name
+# bug (nativeMax=80, step 16). names= fixed too — real 6-label list read
+# directly off the hardware panel: mwDestination/pedalDestination were
+# missing "Wave" (inserted between Filt. and LFO/PGM; Filter renamed to its
+# actual panel abbreviation "Filt." at the same time), pedalSource was
+# missing "On / Mod 2" (same label as mwSource's own, inserted between S&H
+# and Noise/Pgm). dumpNativeMax bumped 4→5 to match (max-1, same convention
+# as mwSource) — dumpBitWidth=3 itself didn't need to change (ceil(log2(6))
+# is still 3, same as ceil(log2(5)) was, so the arithmetic derivation above
+# still holds). mwShaping/pedalShaping, by contrast, really are 4 positions
+# (0/32/64/96) — nativeMax fixed to 96 below, no name list change needed.
+# dumpInvert=1 CONFIRMED 2026-07-09 via tools/moog_dump + tools/syx_diff.py:
+# captured byte 92 (dumpOffset=91) at "Pitch" (0x76, bits 4-6 = 7) and at
+# "LFO / PGM" (0x26, bits 4-6 = 2) — raw 7→2 as display goes first→last,
+# same inverted shape as mwSource's own confirmed dumpInvert=1. The
+# dumpOffset/dumpBitOffset/dumpBitWidth arithmetic derivation above was
+# actually correct (this diff shows ONLY these 3 bits moved, nothing bled
+# into a neighboring field) — dumpInvert was the one missing piece.
+dial mwDestination label="Destination" color=mw nativeMax=80 max=6 names="Pitch","Osc 2","Osc 3","Filt.","Wave","LFO / PGM" cc=69 dumpOffset=91 dumpBitOffset=4 dumpBitWidth=3 dumpNativeMax=5 dumpInvert=1 col=1 row=1.33
+# dumpInvert=1 CONFIRMED 2026-07-09, same tools/moog_dump+syx_diff.py method:
+# byte 93 (dumpOffset=92) reads raw 3 at "Filt Env" (first), raw 0 at
+# "On/Pgm" (last) — same inverted shape as the Destination/Source dials
+# above (dumpNativeMax=3 already matched max-1, so this was the one missing
+# piece). Also surfaced an unrelated, expected bit of drift at dumpOffset=21
+# ("prog. cursor") between the two captures — front-panel LCD cursor state,
+# not a sound parameter, ignore it (see the top-of-file discussion of
+# prog cursor/cursor global for why).
+dial mwShaping     label="Shaping"     color=mw nativeMax=96 max=4 names="Filt Env","Velocity","Pressure","On/Pgm" cc=70 dumpOffset=92 dumpBitOffset=0 dumpBitWidth=2 dumpNativeMax=3 dumpInvert=1 col=1 row=2.67
 dial mwAmount      label="Amount"      color=mw max=16384 display=raw cc=0x06 ccLsb=0x26 dumpOffset=29 dumpBitOffset=3 dumpBitWidth=14 col=1 row=4
 
 page       panel
@@ -437,13 +471,29 @@ spacing    50
 
 color pd 0.5 0.8 0.4
 
-dial pedalSource      label="Source"      color=pd nativeMax=127 max=5 names="LFO Tri","LFO Squ","Osc 3","S&H","Noise/Pgm" cc=71 dumpOffset=92 dumpBitOffset=2 dumpBitWidth=3 dumpNativeMax=4 col=2 row=0
+# nativeMax=80/max=6/names= CONFIRMED 2026-07-09, same method and same
+# missing-position shape as mwSource/mwDestination/pedalDestination above:
+# real 6-label list read off the panel, "On / Mod 2" (same label as
+# mwSource's own) was the missing one, inserted between S&H and Noise/Pgm.
+# dumpNativeMax bumped 4→5 to match (dumpBitWidth=3 unchanged — see
+# mwDestination's own comment on why 6 vs 5 positions doesn't change it).
+# dumpInvert=1 CONFIRMED 2026-07-09, same tools/moog_dump+syx_diff.py method:
+# byte 93 (dumpOffset=92) reads raw 7 at "LFO Tri", raw 2 at "Noise/Pgm" —
+# same inverted shape as mwDestination/pedalDestination, placement unaffected.
+dial pedalSource      label="Source"      color=pd nativeMax=80 max=6 names="LFO Tri","LFO Squ","Osc 3","S&H","On / Mod 2","Noise/Pgm" cc=71 dumpOffset=92 dumpBitOffset=2 dumpBitWidth=3 dumpNativeMax=5 dumpInvert=1 col=2 row=0
 # Same fractional-row spread as modWheel's own Destination/Shaping/Amount
 # above — see that section's comment. dumpOffset/dumpBitOffset/dumpBitWidth/
 # dumpNativeMax on this trio derived the same way and carry the same
 # caveats — see mwDestination's own comment.
-dial pedalDestination label="Destination" color=pd nativeMax=127 max=5 names="Pitch","Osc 2","Osc 3","Filter","LFO/Pgm" cc=72 dumpOffset=92 dumpBitOffset=5 dumpBitWidth=3 dumpNativeMax=4 col=2 row=1.33
-dial pedalShaping     label="Shaping"     color=pd nativeMax=127 max=4 names="Filt Env","Velocity","Pressure","On/Pgm" cc=73 dumpOffset=93 dumpBitOffset=1 dumpBitWidth=2 dumpNativeMax=3 col=2 row=2.67
+# dumpInvert=1 CONFIRMED 2026-07-09, same tools/moog_dump+syx_diff.py method
+# and same result as mwDestination's own comment: byte 93 (dumpOffset=92,
+# wrapping into byte 94 bit 0) reads raw 7 at "Pitch", raw 2 at "LFO / PGM" —
+# same inverted shape, placement itself unaffected (only these 3 bits moved).
+dial pedalDestination label="Destination" color=pd nativeMax=80 max=6 names="Pitch","Osc 2","Osc 3","Filt.","Wave","LFO / PGM" cc=72 dumpOffset=92 dumpBitOffset=5 dumpBitWidth=3 dumpNativeMax=5 dumpInvert=1 col=2 row=1.33
+# dumpInvert=1 CONFIRMED 2026-07-09, same tools/moog_dump+syx_diff.py method:
+# byte 94 (dumpOffset=93) reads raw 3 at "Filt Env", raw 0 at "On/Pgm" —
+# same inverted shape as every other dial in this wheel/pedal batch.
+dial pedalShaping     label="Shaping"     color=pd nativeMax=96 max=4 names="Filt Env","Velocity","Pressure","On/Pgm" cc=73 dumpOffset=93 dumpBitOffset=1 dumpBitWidth=2 dumpNativeMax=3 dumpInvert=1 col=2 row=2.67
 dial pedalAmount      label="Amount"      color=pd max=16384 display=raw cc=0x08 ccLsb=0x28 dumpOffset=31 dumpBitOffset=5 dumpBitWidth=14 col=2 row=4
 
 page       panel
