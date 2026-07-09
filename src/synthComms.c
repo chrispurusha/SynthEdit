@@ -296,6 +296,36 @@ static void write_bitpacked_field(uint8_t * payload, uint32_t payloadLen,
     }
 }
 
+// Inverse of extract_moog_panel_info()'s own decode (raw -> [dumpInvert] ->
+// apply_dial_wire_value's native/display scaling) — turns a dial's current
+// display value back into the RAW bits its dump field expects. Needed by
+// both synth_patch_and_resend_moog_dump() (a dump-only dial) and
+// synth_patch_moog_dump_cache()'s CC-side use below (added 2026-07-09,
+// keeping the cached dump in sync with CC changes too) — a dial can have a
+// DIFFERENT native scale on its dump side (dumpNativeMax) than its CC side
+// (nativeMax), same reasoning as apply_dial_wire_value()'s own
+// dumpNativeMax comment, and dumpInvert (bitwise NOT across the field's full
+// width) is its own inverse, so re-applying it here undoes the same flip
+// the decode applied. Checked 2026-07-09 against mwDestination's own
+// hardware-confirmed raw values: display 0 ("Pitch") -> raw 7, display 5
+// ("LFO / PGM") -> raw 2, both round-trip exactly through this formula.
+static uint32_t synth_encode_dump_raw_value(tPanelDial * dial, uint32_t displayValue) {
+    uint32_t totalWidth = dial->dumpBitWidth + dial->dumpBitWidth2;
+    uint32_t dumpMax    = (dial->dumpNativeMax != 0) ? dial->dumpNativeMax : dial->nativeMax;
+    uint32_t native;
+
+    if ((dumpMax != 0) && (dial->max > 1)) {
+        native = ((displayValue * dumpMax) + ((dial->max - 1) / 2)) / (dial->max - 1);
+    } else {
+        native = displayValue; // plain continuous dial — dump value IS the display value
+    }
+
+    if (dial->dumpInvert) {
+        native = (~native) & ((totalWidth < 32) ? ((1u << totalWidth) - 1) : 0xFFFFFFFFu);
+    }
+    return native;
+}
+
 // Decodes a name field into gDevice.progName, if `offset` >= 0 (the
 // tPanelConfig field comment explains why Panel Dump and Single Preset Dump
 // each need their own offset/bitOffset/len rather than sharing one). Each
@@ -529,11 +559,16 @@ static void handle_moog_panel_dump(const uint8_t * data, uint32_t length) {
     extract_moog_panel_info(payload, payloadLen);
 }
 
-// Patches dial's current value into the cached Panel Dump (gLastMoogDump)
-// and sends the whole thing back — the only way to set a Moog-style dial
-// that has no CC (see panel_dial_needs_value_menu()/panelConfig.h). No-ops
+// Patches dial's RAW dump value into the cached Panel Dump (gLastMoogDump)
+// WITHOUT sending anything — the shared step behind both
+// synth_patch_and_resend_moog_dump() (a dump-only dial, patches + sends) and
+// its own CC-side use in synth_set_panel_dial_value() (added 2026-07-09,
+// keeps this cache in sync with CC-driven changes too — see that function's
+// own comment for why: without this, a CC change was invisible to gLastMoog
+// Dump, so a LATER dump-only-dial edit would patch-and-resend a stale
+// snapshot and silently revert the CC change on the hardware). No-ops
 // (returns false) if no dump has been received yet to patch.
-static bool synth_patch_and_resend_moog_dump(tPanelDial * dial, uint32_t rawValue) {
+static bool synth_patch_moog_dump_cache(tPanelDial * dial, uint32_t rawValue) {
     if ((gLastMoogDumpLen == 0) || (dial->dumpBitWidth == 0)) {
         return false;
     }
@@ -546,6 +581,16 @@ static bool synth_patch_and_resend_moog_dump(tPanelDial * dial, uint32_t rawValu
     if (dial->dumpBitWidth2 > 0) {
         write_bitpacked_field(payload, payloadLen, dial->dumpOffset2, dial->dumpBitOffset2,
                               dial->dumpBitWidth2, rawValue >> dial->dumpBitWidth);
+    }
+    return true;
+}
+
+// Patches dial's current value into the cached Panel Dump (gLastMoogDump)
+// and sends the whole thing back — the only way to set a Moog-style dial
+// that has no CC (see panel_dial_needs_value_menu()/panelConfig.h).
+static bool synth_patch_and_resend_moog_dump(tPanelDial * dial, uint32_t rawValue) {
+    if (!synth_patch_moog_dump_cache(dial, rawValue)) {
+        return false;
     }
     midi_send(gLastMoogDump, gLastMoogDumpLen);
     LOG_DEBUG("Patched %s=%u into cached Panel Dump and resent (%u bytes)\n",
@@ -1018,6 +1063,18 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
             uint8_t wireValue = (dial->nativeMax != 0) ? dial->nativeValue : (uint8_t)storageValue;
             midi_send_cc(gDevice.id, (uint8_t)dial->ccNumber, wireValue);
         }
+        // Mirror this change into the cached Panel Dump too (added
+        // 2026-07-09) — a dial can have BOTH a CC and a dump field (most of
+        // this file's dials do), and without this the cache only reflected
+        // whatever the LAST full Panel Dump said, going stale the moment a
+        // CC-driven dial changed. A later dump-only-dial edit (e.g.
+        // Headphone Volume) patches-and-resends that cache — if it were
+        // stale, the resend would silently revert this CC change back to
+        // its old value on the hardware. Cache-only, no MIDI send here —
+        // the CC message above already told the hardware.
+        if (synth_panel_config()->moogStyleDump && (dial->dumpBitWidth > 0)) {
+            synth_patch_moog_dump_cache(dial, synth_encode_dump_raw_value(dial, displayValue));
+        }
     } else if (synth_panel_config()->moogStyleDump && (dial->dumpBitWidth > 0)) {
         // No CC exists for this dial (e.g. Voyager's Filter A/B Pole Select)
         // — patch-and-resend the cached dump instead of falling through to
@@ -1027,7 +1084,14 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
         // rather than sent immediately — a dragged continuous dial (e.g.
         // Headphone Volume) can call this many times a second, and unlike a
         // 3-byte CC each send here resends the whole cached dump.
-        uint32_t rawValue = (dial->nativeMax != 0) ? dial->nativeValue : storageValue;
+        //
+        // synth_encode_dump_raw_value() (not the old nativeValue-or-
+        // storageValue computation) as of 2026-07-09 — the old computation
+        // never applied dumpInvert on the way out, silently wrong for any
+        // dump-only dial with dumpInvert=1 (none existed yet when it was
+        // written, but the CC-side cache-sync above now shares this same
+        // path for dials that DO use it, e.g. mwDestination).
+        uint32_t rawValue = synth_encode_dump_raw_value(dial, displayValue);
 
         dial->hasPendingDumpSend   = true;
         dial->pendingDumpRawValue = rawValue;
