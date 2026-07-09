@@ -264,9 +264,12 @@ gridRowHeight 76
 # one's currently open, so skipping the repeat silently merges dials into
 # the previous section instead of giving them their own.
 #
-# One open item remains, per the owner's own call (2026-07-07):
-#   - Headphone Volume (photo shows a 2nd Output knob) has no CC in this
-#     file at all — left blank (col11 row1) rather than guessed.
+# Headphone Volume (photo shows a 2nd Output knob, col11 row1) — 2026-07-09:
+# still no CC found, but the spec PDF's dump format does carry it, so it's
+# now wired dump-only (decode from a Panel Dump, patch-and-resend on screen
+# turns) rather than left blank — see hPhoneVolume's own comment for the
+# derivation and its NOT-hardware-swept caveat.
+#
 # releaseSwitch (col11 row2, CC88, "distinct from the release on/off
 # toggle") was removed entirely 2026-07-08 — CONFIRMED erroneous against
 # real hardware: sending it a value didn't touch anything release-related at
@@ -403,8 +406,28 @@ dial mwSource      label="Source"      color=mw nativeMax=80 max=6 names="Triang
 # to span the same vertical run as the Mixer's 5-tall columns, Amount
 # aligned with Noise (row=4) — so the 2 middle rows are spread evenly across
 # that gap instead of sitting at whole grid steps 1/2/3.
-dial mwDestination label="Destination" color=mw nativeMax=127 max=5 names="Pitch","Osc 2","Osc 3","Filter","LFO/Pgm" cc=69 col=1 row=1.33
-dial mwShaping     label="Shaping"     color=mw nativeMax=127 max=4 names="Filt Env","Velocity","Pressure","On/Pgm" cc=70 col=1 row=2.67
+#
+# dumpOffset/dumpBitOffset/dumpBitWidth/dumpNativeMax below (2026-07-09) —
+# NOT individually hardware-swept the way mwSource/osc1Octave were. Derived
+# by arithmetic: mwSource's own confirmed dumpOffset=91 dumpBitOffset=1
+# dumpBitWidth=3 ends exactly 13 packed bits before osc1Octave's confirmed
+# dumpOffset=93 dumpBitOffset=3 — and 13 is exactly
+# mwDestination(3)+mwShaping(2)+pedalSource(3)+pedalDestination(3)+
+# pedalShaping(2) bits, matching each field's own names= count
+# (ceil(log2(5))=3, ceil(log2(4))=2) with zero bits to spare on either end.
+# That confirms the TOTAL span and each field's WIDTH; the ORDER of these 5
+# fields within that span (assumed wheel dest, wheel shaping, pedal source,
+# pedal dest, pedal shaping, per the spec PDF's own row order) and whether
+# any of them need dumpInvert (mwSource's own dump bits run in reverse
+# order — plausible these do too) are NOT confirmed. Low risk either way:
+# all 5 already have working CC control, so a wrong guess here only mis-
+# displays the dial right after a Panel Dump refresh — it can't send a bad
+# value, since the CC path (ccNumber != 0) is checked first and is entirely
+# independent of dumpOffset. Sweep with tools/moog_dump + tools/syx_diff.py
+# (step each switch through its positions, diff dumps) before trusting the
+# on-screen value or adding dumpInvert.
+dial mwDestination label="Destination" color=mw nativeMax=127 max=5 names="Pitch","Osc 2","Osc 3","Filter","LFO/Pgm" cc=69 dumpOffset=91 dumpBitOffset=4 dumpBitWidth=3 dumpNativeMax=4 col=1 row=1.33
+dial mwShaping     label="Shaping"     color=mw nativeMax=127 max=4 names="Filt Env","Velocity","Pressure","On/Pgm" cc=70 dumpOffset=92 dumpBitOffset=0 dumpBitWidth=2 dumpNativeMax=3 col=1 row=2.67
 dial mwAmount      label="Amount"      color=mw max=16384 display=raw cc=0x06 ccLsb=0x26 dumpOffset=29 dumpBitOffset=3 dumpBitWidth=14 col=1 row=4
 
 page       panel
@@ -414,11 +437,13 @@ spacing    50
 
 color pd 0.5 0.8 0.4
 
-dial pedalSource      label="Source"      color=pd nativeMax=127 max=5 names="LFO Tri","LFO Squ","Osc 3","S&H","Noise/Pgm" cc=71 col=2 row=0
+dial pedalSource      label="Source"      color=pd nativeMax=127 max=5 names="LFO Tri","LFO Squ","Osc 3","S&H","Noise/Pgm" cc=71 dumpOffset=92 dumpBitOffset=2 dumpBitWidth=3 dumpNativeMax=4 col=2 row=0
 # Same fractional-row spread as modWheel's own Destination/Shaping/Amount
-# above — see that section's comment.
-dial pedalDestination label="Destination" color=pd nativeMax=127 max=5 names="Pitch","Osc 2","Osc 3","Filter","LFO/Pgm" cc=72 col=2 row=1.33
-dial pedalShaping     label="Shaping"     color=pd nativeMax=127 max=4 names="Filt Env","Velocity","Pressure","On/Pgm" cc=73 col=2 row=2.67
+# above — see that section's comment. dumpOffset/dumpBitOffset/dumpBitWidth/
+# dumpNativeMax on this trio derived the same way and carry the same
+# caveats — see mwDestination's own comment.
+dial pedalDestination label="Destination" color=pd nativeMax=127 max=5 names="Pitch","Osc 2","Osc 3","Filter","LFO/Pgm" cc=72 dumpOffset=92 dumpBitOffset=5 dumpBitWidth=3 dumpNativeMax=4 col=2 row=1.33
+dial pedalShaping     label="Shaping"     color=pd nativeMax=127 max=4 names="Filt Env","Velocity","Pressure","On/Pgm" cc=73 dumpOffset=93 dumpBitOffset=1 dumpBitWidth=2 dumpNativeMax=3 col=2 row=2.67
 dial pedalAmount      label="Amount"      color=pd max=16384 display=raw cc=0x08 ccLsb=0x28 dumpOffset=31 dumpBitOffset=5 dumpBitWidth=14 col=2 row=4
 
 page       panel
@@ -632,9 +657,32 @@ spacing    50
 color g 0.5 0.5 0.5
 
 dial volume        label="Volume"      color=g max=16384 display=raw cc=0x07 ccLsb=0x27 dumpOffset=88 dumpBitOffset=6 dumpBitWidth=14 col=11 row=0
-# row 1 (col 11) deliberately blank — Headphone Volume, no CC for it in this
-# file yet; see the layout note at the top of the file.
-# row 2 (col 11) also deliberately blank — used to hold releaseSwitch/CC88,
+# hPhoneVolume — closes the "no CC for it in this file" gap noted below:
+# the spec PDF's dump format does carry a Headphone Volume field ("h-phone
+# amt", 16 raw bits, same shape as every other level dial), just no CC —
+# same "dump-only" situation as Filter A/B Pole Select, so wired the same
+# way (no cc=, decode-only until/unless a CC ever turns up).
+#
+# dumpOffset/dumpBitOffset (2026-07-09) — NOT hardware-swept, derived by
+# arithmetic: the gap between fltKBAmount's confirmed dumpOffset=66
+# dumpBitOffset=0 and fltEnvAttack's confirmed dumpOffset=70 dumpBitOffset=4
+# is exactly 32 packed bits — twice the standard 16-bit raw field width
+# every other level/amount dial in this file uses, i.e. exactly room for
+# one field in between. The spec PDF lists exactly one named field there
+# ("h-phone amt"), between "filter kb amt" and "filter attack" in the byte
+# map. Placing it as a 16-bit field starting immediately after fltKBAmount
+# lands EXACTLY on fltEnvAttack's own confirmed offset with zero slack —
+# strong (self-checking) but still not a real hardware sweep. dumpBitWidth=14
+# assumes the same "top 2 bits always 0" shape confirmed for cutoff/res
+# (unconfirmed for this specific field — could legitimately be a full
+# 16-bit value if Headphone Volume was never routed through the same 14-bit
+# CC-pair convention as everything else). Unlike the wheel/pedal fields
+# above, this ONE has real write-back risk: no cc= means turning this dial
+# on screen patches-and-resends the cached dump (see
+# synth_patch_and_resend_moog_dump() in synthComms.c) using this offset —
+# sweep with tools/moog_dump + tools/syx_diff.py (turn the real knob, diff
+# two dumps) before trusting a value typed in here to round-trip cleanly.
+dial hPhoneVolume label="Headphone" color=g max=16384 display=raw dumpOffset=68 dumpBitOffset=2 dumpBitWidth=14 col=11 row=1
+# row 2 (col 11) deliberately blank — used to hold releaseSwitch/CC88,
 # removed 2026-07-08 as confirmed erroneous (see the layout note up top);
-# left blank rather than filled with something else, matching Headphone
-# Volume's own "no placeholder needed" convention above.
+# left blank rather than filled with something else.
