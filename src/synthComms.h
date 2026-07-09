@@ -46,6 +46,11 @@ bool synth_handle_cc(uint8_t cc, uint8_t value);
 // panelConfig.h. Call once per frame from the render loop.
 void synth_flush_pending_cc(void);
 
+// Sends any dump-only dial's debounced patch-and-resend once it's been quiet
+// for CC_DEBOUNCE_MS — see hasPendingDumpSend's own comment in panelConfig.h.
+// Call once per frame from the render loop, alongside synth_flush_pending_cc().
+void synth_flush_pending_dump_sends(void);
+
 // Request the currently loaded program from the synth
 void synth_request_current_program(void);
 

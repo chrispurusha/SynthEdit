@@ -131,6 +131,24 @@ typedef struct {
     uint32_t pendingRawValue;
     double   pendingSinceMs;
 
+    // Debounce for the OUTGOING side of a dump-only dial (no CC at all,
+    // dumpBitWidth > 0 — e.g. Voyager's Headphone Volume/Filter Pole Select).
+    // synth_set_panel_dial_value() (synthComms.c) used to call
+    // synth_patch_and_resend_moog_dump() immediately on every value change —
+    // fine for a click-through selector, but a mouse-dragged continuous dial
+    // (see mouseHandle.c) can call that many times a second while dragging,
+    // each one resending the ENTIRE ~147-byte cached dump (unlike a plain CC
+    // send, 3 bytes). hasPendingDumpSend/pendingDumpRawValue/
+    // pendingDumpSinceMs hold the latest value without sending, resetting
+    // the timestamp on every further change; synth_flush_pending_dump_sends()
+    // (called once per frame, same as synth_flush_pending_cc()) only sends
+    // once DUMP_SEND_DEBOUNCE_MS have passed with no further change — same
+    // trailing-edge idiom as hasPendingCc above, just for the opposite
+    // direction and a different (heavier) wire cost.
+    bool     hasPendingDumpSend;
+    uint32_t pendingDumpRawValue;
+    double   pendingDumpSinceMs;
+
     // Where this dial's value lives in a full program-dump byte buffer (a
     // different wire format from individual parameter-change messages, but
     // still just data the file describes). -1 = not present in a dump.

@@ -657,11 +657,14 @@ spacing    50
 color g 0.5 0.5 0.5
 
 dial volume        label="Volume"      color=g max=16384 display=raw cc=0x07 ccLsb=0x27 dumpOffset=88 dumpBitOffset=6 dumpBitWidth=14 col=11 row=0
-# hPhoneVolume — closes the "no CC for it in this file" gap noted below:
-# the spec PDF's dump format does carry a Headphone Volume field ("h-phone
-# amt", 16 raw bits, same shape as every other level dial), just no CC —
-# same "dump-only" situation as Filter A/B Pole Select, so wired the same
-# way (no cc=, decode-only until/unless a CC ever turns up).
+# row 1 (col 11) deliberately blank — no CC/dump field claims it.
+#
+# hPhoneVolume (row=2, moved 2026-07-09 to vertically align with volEnv's
+# Sustain, one column over) — closes the "no CC for it in this file" gap
+# noted below: the spec PDF's dump format does carry a Headphone Volume
+# field ("h-phone amt", 16 raw bits, same shape as every other level dial),
+# just no CC — same "dump-only" situation as Filter A/B Pole Select, so
+# wired the same way (no cc=, decode-only until/unless a CC ever turns up).
 #
 # dumpOffset/dumpBitOffset (2026-07-09) — NOT hardware-swept, derived by
 # arithmetic: the gap between fltKBAmount's confirmed dumpOffset=66
@@ -680,9 +683,11 @@ dial volume        label="Volume"      color=g max=16384 display=raw cc=0x07 ccL
 # above, this ONE has real write-back risk: no cc= means turning this dial
 # on screen patches-and-resends the cached dump (see
 # synth_patch_and_resend_moog_dump() in synthComms.c) using this offset —
-# sweep with tools/moog_dump + tools/syx_diff.py (turn the real knob, diff
-# two dumps) before trusting a value typed in here to round-trip cleanly.
-dial hPhoneVolume label="Headphone" color=g max=16384 display=raw dumpOffset=68 dumpBitOffset=2 dumpBitWidth=14 col=11 row=1
-# row 2 (col 11) deliberately blank — used to hold releaseSwitch/CC88,
-# removed 2026-07-08 as confirmed erroneous (see the layout note up top);
-# left blank rather than filled with something else.
+# now debounced (dumpDebounceMs, see panelConfig.h) rather than resent on
+# every drag tick — sweep with tools/moog_dump + tools/syx_diff.py (turn the
+# real knob, diff two dumps) before trusting a value typed in here to
+# round-trip cleanly.
+dial hPhoneVolume label="Headphone" color=g max=16384 display=raw dumpOffset=68 dumpBitOffset=2 dumpBitWidth=14 col=11 row=2
+# releaseSwitch used to sit at col=11 row=2 (CC88) — removed 2026-07-08 as
+# confirmed erroneous (see the layout note up top); that cell now holds
+# hPhoneVolume instead.

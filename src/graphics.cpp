@@ -303,6 +303,10 @@ void do_graphics_loop(void) {
         // indefinite block. Cheap: a handful of integer comparisons per
         // dial, not worth gating behind "is anything actually pending".
         synth_flush_pending_cc();
+        // Same per-frame check, for a dump-only dial's debounced outgoing
+        // patch-and-resend (e.g. Voyager's Headphone Volume) — see
+        // hasPendingDumpSend's own comment in panelConfig.h.
+        synth_flush_pending_dump_sends();
 
         bool reDraw = atomic_exchange(&gReDraw, false);
 

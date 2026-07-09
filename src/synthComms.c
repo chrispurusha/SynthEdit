@@ -886,6 +886,30 @@ void synth_flush_pending_cc(void) {
     }
 }
 
+// Same trailing-edge debounce as synth_flush_pending_cc() above, but for the
+// OUTGOING patch-and-resend of a dump-only dial (see hasPendingDumpSend's own
+// comment in panelConfig.h) — reuses CC_DEBOUNCE_MS's window (no reason for a
+// different settle time) but is a separate flag/timestamp since it debounces
+// a send, not an apply, and fires at most once per settled value rather than
+// once per drag tick.
+void synth_flush_pending_dump_sends(void) {
+    tPanelConfig * cfg = synth_panel_config();
+    double         now = monotonic_ms();
+
+    for (uint32_t s = 0; s < cfg->sectionCount; s++) {
+        tPanelSection * section = &cfg->sections[s];
+
+        for (uint32_t d = 0; d < section->dialCount; d++) {
+            tPanelDial * dial = &section->dials[d];
+
+            if (dial->hasPendingDumpSend && ((now - dial->pendingDumpSinceMs) >= CC_DEBOUNCE_MS)) {
+                dial->hasPendingDumpSend = false;
+                synth_patch_and_resend_moog_dump(dial, dial->pendingDumpRawValue);
+            }
+        }
+    }
+}
+
 void synth_handle_message(const uint8_t * data, uint32_t length) {
     if (synth_panel_config()->moogStyleDump) {
         // Entirely separate header shape and dispatch from the Korg-style
@@ -999,9 +1023,15 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
         // — patch-and-resend the cached dump instead of falling through to
         // Z1's Korg-style parameter-change SysEx below, which would send a
         // meaningless message shaped for an entirely different protocol.
+        // Debounced (see hasPendingDumpSend's own comment in panelConfig.h)
+        // rather than sent immediately — a dragged continuous dial (e.g.
+        // Headphone Volume) can call this many times a second, and unlike a
+        // 3-byte CC each send here resends the whole cached dump.
         uint32_t rawValue = (dial->nativeMax != 0) ? dial->nativeValue : storageValue;
 
-        synth_patch_and_resend_moog_dump(dial, rawValue);
+        dial->hasPendingDumpSend   = true;
+        dial->pendingDumpRawValue = rawValue;
+        dial->pendingDumpSinceMs  = monotonic_ms();
     } else {
         synth_send_parameter_change((uint8_t)dial->paramGroup, (uint16_t)dial->paramId, (uint8_t)storageValue);
     }
