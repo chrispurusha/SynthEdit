@@ -624,12 +624,26 @@ color m  0.7 0.7 0.7
 # the brief earlier attempt to match them to their columns instead.
 color ox 0.85 0.75 0.15
 
-# dumpOffset/dumpBitOffset/dumpBitWidth — CONFIRMED against real hardware
-# (2026-07-08): turned the real External level knob, diffed two captures.
-# Sits exactly where the CC-number sequence predicted (0x0E, one below
-# osc1Level's 0x0F) — dumpOffset=48 ends exactly where osc1Level's own
-# dumpOffset=50/dumpBitOffset=0 begins (14 bits earlier).
-dial extLevel    label="External"  color=m  max=16384 display=raw cc=0x0E ccLsb=0x2E dumpOffset=48 dumpBitOffset=0 dumpBitWidth=14 col=6 row=0
+# dumpOffset/dumpBitOffset CORRECTED 2026-07-09 — the original 2026-07-08
+# placement (dumpOffset=48 dumpBitOffset=0) was wrong despite having been
+# "confirmed by diffing": that diff only checked THAT some bit moved when
+# the knob turned, not that the decoded VALUE was actually right. Caught by
+# the owner noticing Sync pulled a different value than live CC tracking
+# showed. Re-verified precisely (2026-07-09): set External to a known 14-bit
+# CC value (12000, same test value cutoff/res's own confirmation used) via
+# tools/moog_cc, captured a dump, and decoded — the old position gave 3000
+# (wrong), dumpOffset=47 dumpBitOffset=5 gives exactly 12000. Also resolves
+# an arithmetic anomaly flagged earlier the same session and never chased
+# down: every OTHER pair of confirmed 16-bit fields in this file sits
+# exactly 16 packed bits apart, but fltSpacing→extLevel measured 18 at the
+# old position — with this fix it's a clean 16 both to fltSpacing before and
+# osc1Level after. NOT a fluke — reopens the question of whether any of the
+# other 25 dials sharing this same "16-bit-contiguous, assumed not
+# individually confirmed" pattern (see the top-of-file note) have the same
+# kind of error; worth sweeping the same way (known CC value in, decode,
+# compare) rather than trusting the arithmetic-gap check alone, since THIS
+# dial passed that same check originally and was still wrong.
+dial extLevel    label="External"  color=m  max=16384 display=raw cc=0x0E ccLsb=0x2E dumpOffset=47 dumpBitOffset=5 dumpBitWidth=14 col=6 row=0
 # extToggle/osc1Toggle/osc2Toggle/osc3Toggle/noiseToggle's dumpOffset/
 # dumpBitOffset/dumpNativeMax/dumpInvert — CONFIRMED against real hardware
 # (2026-07-08): physically flipped each switch (a real, deliberate
