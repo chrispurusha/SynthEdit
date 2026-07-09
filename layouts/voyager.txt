@@ -302,6 +302,36 @@ columnLabel 9  Filter Env
 columnLabel 10 Volume Env
 columnLabel 11 Output
 
+# soundCategory — shown in the Info row under the patch name (grey, smaller
+# text — see synth_render()'s "Info row" block in synthGraphics.cpp, the
+# same generic mechanism z1.txt's own Category/Voice/Unison dials already
+# use), not a rendered dial. Read-only for now (no cc=, and this section
+# never gets rendered as a clickable control at all since it's hidden — see
+# synth_current_page_sections() (synthGraphics.cpp), which filters out
+# `hidden` sections and is what both mouse hit-testing (mouseHandle.c) and
+# the normal dial-grid render walk use — editing is a follow-up once a full
+# name list exists (owner, 2026-07-09).
+#
+# dumpOffset/dumpBitOffset/dumpBitWidth CONFIRMED 2026-07-09 via
+# tools/moog_dump + tools/syx_diff.py, comparing three own patches of known
+# different category ("Percussion", "Synth", "Motion" — read directly off
+# the hardware's own display): byte 16 bits 4-6 + byte 17 bit 0 (a normal
+# contiguous 4-bit run, same "last bit of one byte into bit 0 of the next"
+# shape as osc2Octave) are the only bits that differ between all three,
+# decoding to Percussion=10, Synth=8, Motion=7. No names= yet — deliberately
+# shown as a plain raw number (max=16, i.e. this field's own confirmed
+# range) per the owner's own call, until every category 0-15 has been read
+# off the hardware and matched to a raw value. If a raw value >15 ever shows
+# up that doesn't correspond to a real category, this field is narrower than
+# the real one (only 3 of up to 16 possible values were actually tested) and
+# needs widening — re-sweep with a 4th, more separated category.
+page       panel
+section    categoryInfo
+hidden
+
+dial soundCategory label="Category" max=16 dumpOffset=15 dumpBitOffset=4 dumpBitWidth=4
+
+page       panel
 section    lfo
 dialSize   36
 spacing    50
