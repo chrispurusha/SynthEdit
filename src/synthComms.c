@@ -475,8 +475,23 @@ static void extract_moog_panel_info(const uint8_t * payload, uint32_t payloadLen
             // would wrongly crush a raw dump bit. 0 (unset) falls back to
             // nativeMax, unchanged for dump-only dials like Filter A/B Pole
             // Select that only ever have this one wire path.
+            //
+            // oldValue/oldRaw captured before the decode below overwrites
+            // them — added 2026-07-09 to make it visible when a dial's
+            // last-known CC-tracked value doesn't match what a fresh Panel
+            // Dump says (owner noticed a small drift after turning a
+            // physical knob directly, not present when the GUI itself sends
+            // the CC — logged only when they actually differ, so a normal
+            // Sync with nothing changed stays quiet).
+            uint32_t     oldValue = dial->value;
+
             apply_dial_wire_value(dial, raw, (dial->dumpNativeMax != 0) ? dial->dumpNativeMax : dial->nativeMax);
             updated++;
+
+            if (dial->value != oldValue) {
+                LOG_DEBUG("  %-16s CC-tracked=%u -> dump-decoded=%u (raw=%u)\n",
+                          dial->id, (unsigned)oldValue, (unsigned)dial->value, (unsigned)raw);
+            }
         }
     }
 
@@ -904,6 +919,23 @@ bool synth_handle_cc(uint8_t cc, uint8_t value) {
         dial->ccLsbLatched = value;
         dial->value        = ((uint32_t)dial->ccMsbLatched << 7) | dial->ccLsbLatched;
     }
+    // Re-arms the existing state-dump-request debounce (midiComms.c, already
+    // used for Program Change/preset navigation) on every genuinely
+    // hardware-originated CC — added 2026-07-09, owner's own idea: a
+    // physical knob's true position can differ slightly from what its CC
+    // message conveys (e.g. Cutoff measured 12928 via CC vs 12936 via a
+    // Panel Dump for the same real turn — two independent quantizations of
+    // one continuous pot, not a decode bug), so requesting a fresh Panel
+    // Dump ~264ms after the LAST CC in a turn
+    // (SYNTH_STATE_DUMP_DEBOUNCE_TICKS, coalesces a whole turn into one
+    // request the same way it already coalesces a burst of Program Changes)
+    // lets the display settle on the dump's own more-precise reading shortly
+    // after the user's hand leaves the knob, without spamming a request per
+    // CC byte while actively turning. Only reachable here for INCOMING CC
+    // (this function is dispatch_cc()'s own handler) — a GUI-driven change
+    // goes out via midi_send_cc() on a separate path that never calls this,
+    // so turning an on-screen dial doesn't also trigger a redundant refresh.
+    midi_arm_state_dump_debounce();
     return true;
 }
 
