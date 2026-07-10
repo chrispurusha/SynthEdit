@@ -299,7 +299,7 @@ static void write_bitpacked_field(uint8_t * payload, uint32_t payloadLen,
 // Inverse of extract_moog_panel_info()'s own decode (raw -> [dumpInvert] ->
 // apply_dial_wire_value's native/display scaling) — turns a dial's current
 // display value back into the RAW bits its dump field expects. Needed by
-// both synth_patch_and_resend_moog_dump() (a dump-only dial) and
+// both synth_apply_pending_dump_patches() (a dump-only dial) and
 // synth_patch_moog_dump_cache()'s CC-side use below (added 2026-07-09,
 // keeping the cached dump in sync with CC changes too) — a dial can have a
 // DIFFERENT native scale on its dump side (dumpNativeMax) than its CC side
@@ -447,6 +447,17 @@ static void extract_moog_panel_info(const uint8_t * payload, uint32_t payloadLen
             if (dial->dumpBitWidth == 0) {
                 continue;
             }
+            if (dial->dumpSendAwaitingFreshData) {
+                // A user-set value for this dial is queued to be merged into
+                // THIS very dump and sent back (see dumpSendAwaitingFreshData's
+                // own comment, panelConfig.h) — don't let the decode below
+                // stomp it with the old, pre-change value this fresh reply
+                // still carries for this one field. synth_apply_pending_dump_
+                // patches() (called right after this function returns) is
+                // what actually applies the pending value, once for every
+                // dial in this state.
+                continue;
+            }
             uint32_t     raw  = read_bitpacked_field(payload, payloadLen, dial->dumpOffset,
                                                      dial->dumpBitOffset, dial->dumpBitWidth);
 
@@ -523,7 +534,6 @@ static void handle_curr_prog_dump(const uint8_t * data, uint32_t length) {
               (unsigned)payloadLen, (unsigned)decodedLen);
 
     extract_prog_info(decoded, decodedLen);
-    midi_note_state_dump_received(); // see its own comment (midiComms.h) — resets the periodic poll timer, doesn't arm a new request
 }
 
 // Format: F0 <mfrId(1)> <productId> <deviceId> <mode> <payload...> F7 — see
@@ -546,12 +556,91 @@ static void handle_curr_prog_dump(const uint8_t * data, uint32_t length) {
 // coincidentally near-max at the time.
 // Raw bytes of the most recently received Panel Dump (full message, F0..F7
 // inclusive) — kept purely so a single dial change can patch its own bits in
-// and resend the whole thing (synth_patch_and_resend_moog_dump() below).
+// and resend the whole thing (synth_apply_pending_dump_patches() below).
 // There's no per-parameter "set this one value" SysEx for a Moog-style
 // device, only a whole-dump load — confirmed against real Voyager hardware
 // (2026-07-08, see tools/moog_send.swift's own use in that investigation).
 static uint8_t  gLastMoogDump[256];
 static uint32_t gLastMoogDumpLen = 0;
+
+// True while a fresh Panel Dump has been requested specifically to merge in
+// one or more dials' pending dump-only changes (see
+// dumpSendAwaitingFreshData's own comment, panelConfig.h) — set by
+// synth_flush_pending_dump_sends() below, cleared by
+// synth_apply_pending_dump_patches() once that reply arrives and is
+// processed. Guards against requesting a second overlapping fetch if
+// another dial's own debounce settles while the first fetch is still in
+// flight — every pending dial just gets folded into whichever fetch is
+// already outstanding.
+static bool     gAwaitingFreshDumpForPatch = false;
+
+// Patches dial's RAW dump value into the cached Panel Dump (gLastMoogDump)
+// WITHOUT sending anything — used both by synth_apply_pending_dump_patches()
+// below (a dump-only dial, once fresh data has arrived) and by its own
+// CC-side use in synth_set_panel_dial_value() (added 2026-07-09, keeps this
+// cache in sync with CC-driven changes too — see that function's own
+// comment for why: without this, a CC change was invisible to gLastMoogDump,
+// so a later dump-only-dial edit would patch-and-resend a stale snapshot and
+// silently revert the CC change on the hardware). No-ops (returns false) if
+// no dump has been received yet to patch.
+static bool synth_patch_moog_dump_cache(tPanelDial * dial, uint32_t rawValue) {
+    if ((gLastMoogDumpLen == 0) || (dial->dumpBitWidth == 0)) {
+        return false;
+    }
+    uint8_t * payload    = gLastMoogDump + 1;               // skip F0 — see handle_moog_panel_dump()'s own comment on why
+    uint32_t  payloadLen = gLastMoogDumpLen - 1 - 1;        // exclude leading skip + trailing F7
+
+    write_bitpacked_field(payload, payloadLen, dial->dumpOffset, dial->dumpBitOffset,
+                          dial->dumpBitWidth, rawValue);
+
+    if (dial->dumpBitWidth2 > 0) {
+        write_bitpacked_field(payload, payloadLen, dial->dumpOffset2, dial->dumpBitOffset2,
+                              dial->dumpBitWidth2, rawValue >> dial->dumpBitWidth);
+    }
+    return true;
+}
+
+// Applies every dial currently awaiting fresh data (dumpSendAwaitingFreshData
+// — set by synth_flush_pending_dump_sends() once a dump-only dial's value
+// has settled) into the dump that JUST arrived, then sends once for the
+// whole batch — added 2026-07-10, owner's own idea: patching directly into
+// whatever gLastMoogDump happened to hold (possibly stale — only as fresh as
+// the last connect/Sync) risked silently reverting every OTHER field in that
+// cached dump back to old values when a dump-only dial got edited. Fetching
+// fresh data first and merging into THAT means only the field(s) the user
+// actually changed differ from the hardware's own current truth. Called from
+// handle_moog_panel_dump() right after extract_moog_panel_info() — which
+// itself skips re-decoding any dial in this state, so the user's own chosen
+// display value is never overwritten by the fresh (pre-change) reply.
+static void synth_apply_pending_dump_patches(void) {
+    tPanelConfig * cfg        = synth_panel_config();
+    bool           anyPatched = false;
+
+    for (uint32_t s = 0; s < cfg->sectionCount; s++) {
+        tPanelSection * section = &cfg->sections[s];
+
+        for (uint32_t d = 0; d < section->dialCount; d++) {
+            tPanelDial * dial = &section->dials[d];
+
+            if (!dial->dumpSendAwaitingFreshData) {
+                continue;
+            }
+            dial->dumpSendAwaitingFreshData = false;
+
+            if (synth_patch_moog_dump_cache(dial, dial->pendingDumpRawValue)) {
+                anyPatched = true;
+                LOG_DEBUG("Patched %s=%u into freshly-fetched Panel Dump\n",
+                          dial->id, (unsigned)dial->pendingDumpRawValue);
+            }
+        }
+    }
+
+    if (anyPatched) {
+        midi_send(gLastMoogDump, gLastMoogDumpLen);
+        LOG_DEBUG("Resent freshly-patched Panel Dump (%u bytes)\n", (unsigned)gLastMoogDumpLen);
+    }
+    gAwaitingFreshDumpForPatch = false;
+}
 
 static void handle_moog_panel_dump(const uint8_t * data, uint32_t length) {
     synth_backup_capture_dump(data, length, eBackupExpectLive); // no-op unless a live-panel Backup is pending — see synthBackup.c
@@ -573,46 +662,7 @@ static void handle_moog_panel_dump(const uint8_t * data, uint32_t length) {
     }
 
     extract_moog_panel_info(payload, payloadLen);
-    midi_note_state_dump_received(); // see its own comment (midiComms.h) — resets the periodic poll timer, doesn't arm a new request
-}
-
-// Patches dial's RAW dump value into the cached Panel Dump (gLastMoogDump)
-// WITHOUT sending anything — the shared step behind both
-// synth_patch_and_resend_moog_dump() (a dump-only dial, patches + sends) and
-// its own CC-side use in synth_set_panel_dial_value() (added 2026-07-09,
-// keeps this cache in sync with CC-driven changes too — see that function's
-// own comment for why: without this, a CC change was invisible to gLastMoog
-// Dump, so a LATER dump-only-dial edit would patch-and-resend a stale
-// snapshot and silently revert the CC change on the hardware). No-ops
-// (returns false) if no dump has been received yet to patch.
-static bool synth_patch_moog_dump_cache(tPanelDial * dial, uint32_t rawValue) {
-    if ((gLastMoogDumpLen == 0) || (dial->dumpBitWidth == 0)) {
-        return false;
-    }
-    uint8_t * payload    = gLastMoogDump + 1;               // skip F0 — see handle_moog_panel_dump()'s own comment on why
-    uint32_t  payloadLen = gLastMoogDumpLen - 1 - 1;        // exclude leading skip + trailing F7
-
-    write_bitpacked_field(payload, payloadLen, dial->dumpOffset, dial->dumpBitOffset,
-                          dial->dumpBitWidth, rawValue);
-
-    if (dial->dumpBitWidth2 > 0) {
-        write_bitpacked_field(payload, payloadLen, dial->dumpOffset2, dial->dumpBitOffset2,
-                              dial->dumpBitWidth2, rawValue >> dial->dumpBitWidth);
-    }
-    return true;
-}
-
-// Patches dial's current value into the cached Panel Dump (gLastMoogDump)
-// and sends the whole thing back — the only way to set a Moog-style dial
-// that has no CC (see panel_dial_needs_value_menu()/panelConfig.h).
-static bool synth_patch_and_resend_moog_dump(tPanelDial * dial, uint32_t rawValue) {
-    if (!synth_patch_moog_dump_cache(dial, rawValue)) {
-        return false;
-    }
-    midi_send(gLastMoogDump, gLastMoogDumpLen);
-    LOG_DEBUG("Patched %s=%u into cached Panel Dump and resent (%u bytes)\n",
-              dial->id, (unsigned)rawValue, (unsigned)gLastMoogDumpLen);
-    return true;
+    synth_apply_pending_dump_patches();
 }
 
 // Format: F0 <mfrId> <productId> <deviceId> 03 <payload...> F7 — the reply to
@@ -966,11 +1016,15 @@ void synth_flush_pending_cc(void) {
 }
 
 // Same trailing-edge debounce as synth_flush_pending_cc() above, but for the
-// OUTGOING patch-and-resend of a dump-only dial (see hasPendingDumpSend's own
-// comment in panelConfig.h) — reuses CC_DEBOUNCE_MS's window (no reason for a
-// different settle time) but is a separate flag/timestamp since it debounces
-// a send, not an apply, and fires at most once per settled value rather than
-// once per drag tick.
+// OUTGOING side of a dump-only dial (see hasPendingDumpSend's own comment in
+// panelConfig.h) — reuses CC_DEBOUNCE_MS's window (no reason for a different
+// settle time) but is a separate flag/timestamp since it debounces a send,
+// not an apply, and fires at most once per settled value rather than once
+// per drag tick. Once settled, this does NOT patch-and-send directly (see
+// dumpSendAwaitingFreshData's own comment) — it requests a fresh Panel Dump
+// first (unless one's already in flight for this same reason) and hands off
+// to synth_apply_pending_dump_patches(), which does the actual patch+send
+// once that reply arrives.
 void synth_flush_pending_dump_sends(void) {
     tPanelConfig * cfg = synth_panel_config();
     double         now = monotonic_ms();
@@ -982,8 +1036,13 @@ void synth_flush_pending_dump_sends(void) {
             tPanelDial * dial = &section->dials[d];
 
             if (dial->hasPendingDumpSend && ((now - dial->pendingDumpSinceMs) >= CC_DEBOUNCE_MS)) {
-                dial->hasPendingDumpSend = false;
-                synth_patch_and_resend_moog_dump(dial, dial->pendingDumpRawValue);
+                dial->hasPendingDumpSend        = false;
+                dial->dumpSendAwaitingFreshData = true;
+
+                if (!gAwaitingFreshDumpForPatch) {
+                    gAwaitingFreshDumpForPatch = true;
+                    synth_request_state_dump();
+                }
             }
         }
     }

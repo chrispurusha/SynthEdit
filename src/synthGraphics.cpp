@@ -129,6 +129,18 @@ void synth_set_pressed_page_tab(int32_t index) {
 // Shares the same generic press-on-mouse-up index scheme as Prev/Next purely
 // because it needed nothing more — mouseHandle.c dispatches by index alone
 // and doesn't care how many buttons are in this row.
+//
+// Labelled "Sync from synth", not just "Sync" — renamed 2026-07-10 after a
+// real hardware finding: ANY state dump request (this button, the CC-quiet
+// auto-refresh, or an abandoned periodic-poll experiment the same day — see
+// midi_arm_state_dump_debounce()'s own comment in midiComms.c) kicks the
+// Voyager's own front-panel display OUT of whatever menu it's showing (e.g.
+// browsing Sound Category) back to normal. A periodic background poll doing
+// that as a surprise was unacceptable and got removed; this button doing it
+// is fine BECAUSE it's the owner's own deliberate, explicit request — the
+// more specific label is so it's obvious in the UI that pressing it talks
+// to the hardware and can interrupt whatever it's showing, not just a
+// harmless in-app refresh.
 static tRectangle gPrevPatchRect   = {0};
 static tRectangle gNextPatchRect   = {0};
 static tRectangle gSyncPatchRect   = {0};
@@ -426,7 +438,7 @@ void synth_render(tRectangle area) {
         const double   navBtnHeight = 26.0 * (2.0 / 3.0);
         double         prevWidth    = get_text_width("< Prev", navBtnHeight, eNoCache);
         double         nextWidth    = get_text_width("Next >", navBtnHeight, eNoCache);
-        double         syncWidth    = get_text_width("Sync", navBtnHeight, eNoCache);
+        double         syncWidth    = get_text_width("Sync from synth", navBtnHeight, eNoCache);
         tRgb           prevColour   = (gPressedPatchNav == 0) ? (tRgb)RGB_GREY_5 : (navEnabled ? (tRgb)RGB_GREY_7 : (tRgb)RGB_GREY_3);
         tRgb           nextColour   = (gPressedPatchNav == 1) ? (tRgb)RGB_GREY_5 : (navEnabled ? (tRgb)RGB_GREY_7 : (tRgb)RGB_GREY_3);
         tRgb           syncColour   = (gPressedPatchNav == 2) ? (tRgb)RGB_GREY_5 : (navEnabled ? (tRgb)RGB_GREY_7 : (tRgb)RGB_GREY_3);
@@ -436,7 +448,7 @@ void synth_render(tRectangle area) {
         gSyncPatchRect   = {{x + 460.0 + prevWidth + 12.0 + nextWidth + 24.0, y}, {syncWidth, navBtnHeight}};
         draw_button(mainArea, gPrevPatchRect, "< Prev", prevColour);
         draw_button(mainArea, gNextPatchRect, "Next >", nextColour);
-        draw_button(mainArea, gSyncPatchRect, "Sync", syncColour);
+        draw_button(mainArea, gSyncPatchRect, "Sync from synth", syncColour);
         gPatchNavLaidOut = true;
 
         y               += 32.0 * (double)reservedRows;

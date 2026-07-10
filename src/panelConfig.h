@@ -141,13 +141,32 @@ typedef struct {
     // send, 3 bytes). hasPendingDumpSend/pendingDumpRawValue/
     // pendingDumpSinceMs hold the latest value without sending, resetting
     // the timestamp on every further change; synth_flush_pending_dump_sends()
-    // (called once per frame, same as synth_flush_pending_cc()) only sends
-    // once DUMP_SEND_DEBOUNCE_MS have passed with no further change — same
-    // trailing-edge idiom as hasPendingCc above, just for the opposite
-    // direction and a different (heavier) wire cost.
+    // (called once per frame, same as synth_flush_pending_cc()) waits until
+    // CC_DEBOUNCE_MS have passed with no further change, THEN moves on to
+    // the second phase below (dumpSendAwaitingFreshData) rather than sending
+    // directly — same trailing-edge idiom as hasPendingCc above for settling
+    // the value, just followed by an extra fetch-fresh-data step before the
+    // actual send.
     bool     hasPendingDumpSend;
     uint32_t pendingDumpRawValue;
     double   pendingDumpSinceMs;
+
+    // Second phase after the debounce above settles — added 2026-07-10,
+    // owner's own idea: patching straight into gLastMoogDump (synthComms.c)
+    // and resending risked carrying stale data for every OTHER field in that
+    // cached dump, not just the one the user meant to change (gLastMoogDump
+    // is only as fresh as the last Panel Dump reply, which could be from
+    // connect time or the last Sync). synth_flush_pending_dump_sends() sets
+    // dumpSendAwaitingFreshData=true instead of sending immediately once the
+    // debounce above elapses, and requests a fresh Panel Dump
+    // (synth_request_state_dump()) if one isn't already in flight for this
+    // reason (see gAwaitingFreshDumpForPatch, synthComms.c). When that fresh
+    // reply arrives, extract_moog_panel_info() skips overwriting this dial's
+    // own display value (it would otherwise stomp the user's pending choice
+    // with the OLD, pre-change hardware value), and
+    // synth_apply_pending_dump_patches() patches pendingDumpRawValue into
+    // the now-fresh gLastMoogDump and sends once, clearing this flag.
+    bool     dumpSendAwaitingFreshData;
 
     // Where this dial's value lives in a full program-dump byte buffer (a
     // different wire format from individual parameter-change messages, but
@@ -422,8 +441,8 @@ bool panel_dial_is_toggle(const tPanelDial * dial);
 bool panel_dial_is_binary(const tPanelDial * dial);
 
 // A discrete selector (>2 positions) with no CC at all — the only way to set
-// it is patching its bits into the last-received Moog dump and resending the
-// whole thing (synth_patch_and_resend_moog_dump() in synthComms.c), which
+// it is patching its bits into a freshly-fetched Moog dump and resending the
+// whole thing (synth_apply_pending_dump_patches() in synthComms.c), which
 // should happen exactly once with the FINAL chosen value, not once per
 // intermediate step a drag gesture would pass through. mouseHandle.c uses
 // this to open a value-picker menu (menus.c) instead of starting a drag —
