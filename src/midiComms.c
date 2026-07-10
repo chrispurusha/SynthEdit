@@ -75,9 +75,9 @@ static _Atomic int      gStateDumpDebounceTicks = 0;
 // debounce off of — dispatch_cc() never sees a message for it, so nothing
 // ever re-arms the debounce above if that's the only control touched. Idle-
 // tick fallback (owner's own idea, 2026-07-10): once STATE_POLL_IDLE_TICKS
-// (~15s, owner's own call) have passed with no OTHER reason to think our
+// (~5s, owner's own call) have passed with no OTHER reason to think our
 // data is fresh, arm a request. gTicksSinceLastArm resets on TWO kinds of
-// event, both meaning "don't bother polling again for another 15s":
+// event, both meaning "don't bother polling again for another 5s":
 //   - midi_arm_state_dump_debounce() itself (CC activity, Program Change,
 //     Prev/Next, or this timer's own re-arm) — a request is about to go out
 //     imminently (~264ms), so a periodic check landing during that window
@@ -89,11 +89,14 @@ static _Atomic int      gStateDumpDebounceTicks = 0;
 //     this half, clicking Sync wouldn't stop the poll from firing again
 //     shortly after, since arming and receiving are different events.
 // Owner's own framing (2026-07-10): "if something — anything — happens
-// where we trigger or receive a dump, the 15 seconds is reset." Also
+// where we trigger or receive a dump, the [interval] is reset" — originally
+// 15s, dropped to 5s the same day since that "wouldn't hurt" (owner's own
+// call — plenty of headroom below SYNTH_STATE_DUMP_DEBOUNCE_TICKS's own
+// ~264ms debounce window, so still nowhere near spamming the device). Also
 // self-healing: if a request's reply never arrives (dropped, or the device
 // too busy to answer — see gStateDumpDebounceTicks' own comment above for a
 // real capture of that happening), only the ARM side reset it, so the poll
-// tries again in ~15s rather than staying silent forever.
+// tries again in ~5s rather than staying silent forever.
 //
 //   ARM side (a request is imminent)          RECEIVE side (data is fresh)
 //   ────────────────────────────────          ───────────────────────────
@@ -120,11 +123,11 @@ static _Atomic int      gStateDumpDebounceTicks = 0;
 //
 //   Every idle tick (~33ms), independent of the above:
 //     gTicksSinceLastArm++
-//     if gTicksSinceLastArm >= STATE_POLL_IDLE_TICKS (~15s of NEITHER an
+//     if gTicksSinceLastArm >= STATE_POLL_IDLE_TICKS (~5s of NEITHER an
 //     arm NOR a receive): midi_arm_state_dump_debounce() — feeds back into
 //     the ARM side above, so the poll is just one more caller of the same
 //     shared funnel everything else already uses.
-#define STATE_POLL_IDLE_TICKS 455 // * MIDI_IDLE_TICK_SECONDS ~= 15s
+#define STATE_POLL_IDLE_TICKS 152 // * MIDI_IDLE_TICK_SECONDS ~= 5s
 static _Atomic int      gTicksSinceLastArm = 0;
 
 void midi_arm_state_dump_debounce(void) {
