@@ -44,6 +44,17 @@ void midi_send_identity_request(void);
 // the comment above gStateDumpDebounceTicks' definition for the capture
 // that showed this).
 void midi_arm_state_dump_debounce(void);
+
+// Resets the periodic low-frequency state-poll timer (gTicksSinceLastArm,
+// midiComms.c) WITHOUT arming a new debounced request — call this whenever a
+// fresh state dump reply actually arrives, from ANY source (Sync button,
+// Backup, a CC-triggered or periodic-triggered request, anything), so the
+// poll doesn't fire again for another ~15s when we already just got current
+// data. Deliberately separate from midi_arm_state_dump_debounce() above:
+// that one both resets the poll timer AND schedules an outgoing request;
+// this one only means "our data is fresh now," it must NOT also queue a
+// request 264ms from now.
+void midi_note_state_dump_received(void);
 void register_midi_wake_cb(void ( *cb )(void));
 
 #ifdef __cplusplus

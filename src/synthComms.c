@@ -523,6 +523,7 @@ static void handle_curr_prog_dump(const uint8_t * data, uint32_t length) {
               (unsigned)payloadLen, (unsigned)decodedLen);
 
     extract_prog_info(decoded, decodedLen);
+    midi_note_state_dump_received(); // see its own comment (midiComms.h) — resets the periodic poll timer, doesn't arm a new request
 }
 
 // Format: F0 <mfrId(1)> <productId> <deviceId> <mode> <payload...> F7 — see
@@ -572,6 +573,7 @@ static void handle_moog_panel_dump(const uint8_t * data, uint32_t length) {
     }
 
     extract_moog_panel_info(payload, payloadLen);
+    midi_note_state_dump_received(); // see its own comment (midiComms.h) — resets the periodic poll timer, doesn't arm a new request
 }
 
 // Patches dial's RAW dump value into the cached Panel Dump (gLastMoogDump)
