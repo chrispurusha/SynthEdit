@@ -70,8 +70,25 @@ static _Atomic bool     gRescanNeeded           = false;
 #define MIDI_IDLE_TICK_SECONDS             0.033
 static _Atomic int      gStateDumpDebounceTicks = 0;
 
+// ── Periodic low-frequency state poll ───────────────────────────────────────
+// A dial with no CC at all (e.g. Voyager's Headphone Volume) has nothing to
+// debounce off of — dispatch_cc() never sees a message for it, so nothing
+// ever re-arms the debounce above if that's the only control touched. Idle-
+// tick fallback (owner's own idea, 2026-07-10): once STATE_POLL_IDLE_TICKS
+// (~15s, owner's own call) have passed with no OTHER reason to have armed
+// the debounce, arm it anyway. gTicksSinceLastArm is reset inside
+// midi_arm_state_dump_debounce() itself below — the single existing funnel
+// every trigger (CC activity, Program Change, Prev/Next) already goes
+// through — so this never fires while a debounce from some other cause is
+// already pending/mid-countdown: whatever most recently armed it (this
+// timer or anything else) simply restarts the same 15s wait, never queues a
+// second, overlapping request.
+#define STATE_POLL_IDLE_TICKS 455 // * MIDI_IDLE_TICK_SECONDS ~= 15s
+static _Atomic int      gTicksSinceLastArm = 0;
+
 void midi_arm_state_dump_debounce(void) {
     gStateDumpDebounceTicks = SYNTH_STATE_DUMP_DEBOUNCE_TICKS;
+    gTicksSinceLastArm      = 0;
 }
 
 // ── SysEx reassembly ──────────────────────────────────────────────────────────
@@ -775,6 +792,15 @@ static void * midi_thread(void * arg) {
                 if (gStateDumpDebounceTicks == 0) {
                     synth_request_state_dump();
                 }
+            }
+
+            // Periodic low-frequency poll — see gTicksSinceLastArm's own
+            // comment above. Re-arming here resets gTicksSinceLastArm back
+            // to 0 as a side effect (same function everything else uses),
+            // so this naturally waits another full 15s before checking
+            // again rather than firing every tick once past the threshold.
+            if (++gTicksSinceLastArm >= STATE_POLL_IDLE_TICKS) {
+                midi_arm_state_dump_debounce();
             }
         }
     }
