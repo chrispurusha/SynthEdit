@@ -27,7 +27,17 @@
 
 #define PANEL_LINE_LEN      512
 #define PANEL_MAX_TOKENS    16
-#define PANEL_TOKEN_LEN     64
+// Raised from 64 to 512 (2026-07-10) — a single token can be as long as a
+// whole `names=` list (e.g. Voyager's soundCategory, 32 quoted names, ~290
+// bytes of actual content after quote-stripping). tokenize() below silently
+// drops anything past PANEL_TOKEN_LEN-1 with no error at all — that's what
+// let this go unnoticed: no parse error, just names beyond a certain point
+// permanently reading "?" in the UI. Matches PANEL_LINE_LEN since no single
+// token can ever exceed the length of the line it came from anyway. This is
+// a per-line stack buffer during parsing only (PANEL_MAX_TOKENS entries,
+// not stored in the persisted config), so the memory cost of raising it is
+// negligible and one-time per parsed line, not per dial.
+#define PANEL_TOKEN_LEN     512
 
 // ── Line tokenizer ────────────────────────────────────────────────────────────
 // Splits on whitespace, except inside "..." (which may itself contain spaces,
