@@ -31,6 +31,7 @@
 #include "synthComms.h"
 #include "synthGraphics.h"
 #include "fileDialogue.h"
+#include "midiComms.h"
 #include "synthBackup.h"
 
 // gBackupExpect is written from the main thread (synth_backup_current_patch()/
@@ -256,6 +257,7 @@ static void backup_batch_folder_chosen(const char * path) {
     }
     strncpy(gBackupBatchFolder, path, sizeof(gBackupBatchFolder) - 1);
     gBackupBatchFolder[sizeof(gBackupBatchFolder) - 1] = '\0';
+    set_last_backup_folder(gBackupBatchFolder); // so a later single-file Backup save defaults here too — see its own comment (fileDialogue.h)
 
     // Fresh index file each run — truncates any previous one from an
     // earlier export into the same folder rather than appending onto
@@ -309,7 +311,7 @@ void synth_backup_bank_to_folder(void) {
         LOG_ERROR("Backup: another backup operation is already in progress\n");
         return;
     }
-    open_folder_choose_dialogue_async(backup_batch_folder_chosen, "Choose Backup Folder");
+    open_folder_choose_dialogue_async(backup_batch_folder_chosen, "Choose Backup Folder", get_last_backup_folder());
 }
 
 void synth_backup_flush_bank_to_folder(void) {
@@ -358,6 +360,25 @@ static void backup_save_callback(const char * path) {
             fwrite(gPendingBackupData, 1, gPendingBackupLen, f);
             fclose(f);
             LOG_DEBUG("Backup: wrote %u bytes to %s\n", (unsigned)gPendingBackupLen, path);
+
+            // Remember the containing folder so the NEXT Backup save (of
+            // any kind — this one, Bank, or the Bank-to-Folder picker)
+            // defaults here too, instead of each one starting from an
+            // unrelated system default — see get_last_backup_folder()'s
+            // own comment (fileDialogue.h).
+            const char * lastSlash = strrchr(path, '/');
+
+            if (lastSlash != NULL) {
+                char   folder[1024];
+                size_t len = (size_t)(lastSlash - path);
+
+                if (len >= sizeof(folder)) {
+                    len = sizeof(folder) - 1;
+                }
+                memcpy(folder, path, len);
+                folder[len] = '\0';
+                set_last_backup_folder(folder);
+            }
         } else {
             LOG_ERROR("Backup: couldn't open %s for writing\n", path);
         }
@@ -407,25 +428,323 @@ void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExp
     const char * deviceName = synth_panel_config()->deviceName;
     char         defaultName[96];
 
-    if (kind == eBackupExpectPreset) {
-        // extract_moog_name() (synthComms.c) just decoded this, if the
-        // device's file declares a presetNameOffset — fall back to "<device>
-        // Preset <n>" if it doesn't (or decoded empty).
+    // Bank has no single current-patch name to reflect (it's 128 of them at
+    // once) — handled on its own, before touching gDevice.progName at all.
+    // Preset and Live ("Save Panel to File…", added 2026-07-11 at the
+    // owner's request — "should default to a name reflecting the patch
+    // name") both just want gDevice.progName if extract_moog_name()
+    // (synthComms.c) managed to decode one, falling back to a kind-specific
+    // default name when it didn't. Live needed handle_moog_panel_dump()
+    // (synthComms.c) reordered to decode the name BEFORE calling this
+    // function — it used to call this first, so gDevice.progName was still
+    // whatever the PREVIOUS dump had left it as, not this one's.
+    if (kind == eBackupExpectBank) {
+        snprintf(defaultName, sizeof(defaultName), "%s Bank.syx", (deviceName[0] != '\0') ? deviceName : "patch");
+    } else {
         char nameForFile[sizeof(gDevice.progName)];
 
         backup_sanitize_name_for_file(nameForFile, sizeof(nameForFile));
 
         if (nameForFile[0] != '\0') {
             snprintf(defaultName, sizeof(defaultName), "%s.syx", nameForFile);
-        } else {
+        } else if (kind == eBackupExpectPreset) {
             snprintf(defaultName, sizeof(defaultName), "%s Preset %u.syx",
                      (deviceName[0] != '\0') ? deviceName : "patch", (unsigned)gBackupPresetNum);
+        } else {
+            snprintf(defaultName, sizeof(defaultName), "%s.syx", (deviceName[0] != '\0') ? deviceName : "patch");
         }
-    } else if (kind == eBackupExpectBank) {
-        snprintf(defaultName, sizeof(defaultName), "%s Bank.syx", (deviceName[0] != '\0') ? deviceName : "patch");
-    } else {
-        snprintf(defaultName, sizeof(defaultName), "%s.syx", (deviceName[0] != '\0') ? deviceName : "patch");
     }
     LOG_DEBUG("Backup: captured %u byte dump, opening save dialog\n", (unsigned)length);
-    open_file_write_dialogue_async(backup_save_callback, defaultName);
+    open_file_write_dialogue_async(backup_save_callback, defaultName, get_last_backup_folder());
+}
+
+// ── Restore ───────────────────────────────────────────────────────────────────
+// See synthBackup.h's own comment on this whole section for the mechanism
+// and its 2026-07-11 hardware confirmation.
+
+// Reads an entire file into a malloc'd buffer. Returns NULL (and logs) on
+// any failure; caller owns the returned buffer. *outLen receives its size.
+static uint8_t * restore_read_file(const char * path, uint32_t * outLen) {
+    FILE *    f       = fopen(path, "rb");
+
+    if (f == NULL) {
+        LOG_ERROR("Restore: couldn't open %s\n", path);
+        return NULL;
+    }
+    fseek(f, 0, SEEK_END);
+    long      size    = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    if (size <= 0) {
+        LOG_ERROR("Restore: %s is empty or unreadable\n", path);
+        fclose(f);
+        return NULL;
+    }
+    uint8_t * data    = (uint8_t *)malloc((size_t)size);
+
+    if (data == NULL) {
+        LOG_ERROR("Restore: out of memory reading %s (%ld bytes)\n", path, size);
+        fclose(f);
+        return NULL;
+    }
+    size_t    readLen = fread(data, 1, (size_t)size, f);
+
+    fclose(f);
+
+    if (readLen != (size_t)size) {
+        LOG_ERROR("Restore: short read on %s\n", path);
+        free(data);
+        return NULL;
+    }
+    *outLen = (uint32_t)size;
+    return data;
+}
+
+// Validates data is a raw F0...F7 SysEx matching the connected device's own
+// mfrId/productId (same check is_moog_sysex() does in synthComms.c, re-done
+// here independently rather than exposing that static function — Restore
+// is the only place outside synthComms.c that needs to validate a dump's
+// header before trusting it) and carries the given mode byte. Returns
+// false (and logs why) otherwise, so callers can bail out before sending
+// anything to the device.
+// reason/reasonSize receive a user-facing explanation on failure — shown
+// via show_info_dialogue() by each caller below, since LOG_ERROR alone
+// (stderr) is invisible to anyone not watching a console, which made an
+// earlier version of this validation fail completely silently from the
+// user's point of view (a wrong file picked just did nothing, with no way
+// to tell why — reported 2026-07-11, fixed by adding this).
+static bool restore_validate_moog_dump(const uint8_t * data, uint32_t length, uint8_t expectedMode, const char * what,
+                                       char * reason, size_t reasonSize) {
+    tPanelConfig * cfg = synth_panel_config();
+
+    if (!cfg->moogStyleDump) {
+        snprintf(reason, reasonSize, "The connected device isn't Moog-style — this Restore action doesn't support it yet.");
+        LOG_ERROR("Restore: connected device isn't Moog-style\n");
+        return false;
+    }
+
+    if ((length < 6) || (data[0] != MIDI_SYSEX_START) || (data[length - 1] != MIDI_SYSEX_END)) {
+        snprintf(reason, reasonSize, "This file doesn't look like a raw SysEx capture (%u bytes) — was it saved by this app's own Backup, unmodified?", (unsigned)length);
+        LOG_ERROR("Restore: %s doesn't look like a raw SysEx capture (%u bytes)\n", what, (unsigned)length);
+        return false;
+    }
+
+    if ((data[1] != cfg->manufacturerId[0]) || (data[2] != cfg->productId)) {
+        snprintf(reason, reasonSize, "This file isn't a dump for the connected device (manufacturer/product ID mismatch).");
+        LOG_ERROR("Restore: %s isn't a dump for the connected device (mfrId/productId mismatch)\n", what);
+        return false;
+    }
+
+    if (data[4] != expectedMode) {
+        snprintf(reason, reasonSize,
+                 "This file is a %s, not a %s — pick a file saved with the matching Backup action.",
+                 (data[4] == 0x01) ? "whole Bank dump" : (data[4] == 0x02) ? "Panel (Edit Buffer) dump" : (data[4] == 0x03) ? "Patch by Number dump" : "dump of an unrecognized type",
+                 what);
+        LOG_ERROR("Restore: %s is mode 0x%02X, expected 0x%02X\n", what, (unsigned)data[4], (unsigned)expectedMode);
+        return false;
+    }
+    return true;
+}
+
+// Converts a captured Single Preset Dump (mode 0x03 — "Patch by Number" or
+// a Bank (Individual Files) export) into an equivalent Panel Dump (mode
+// 0x02), so any backed-up patch can be loaded into the live edit buffer
+// via "Open Panel File…" too, not just restored-by-overwrite via
+// "Restore > Patch by Number…" — added 2026-07-11, owner's own request
+// ("we should be able to use backup patches to load to panel").
+//
+// The two formats are otherwise byte-for-byte identical: voyager.txt's own
+// presetNameOffset (101) vs. panelNameOffset (100) — derived independently
+// on real hardware, see each field's own comment there — differ by exactly
+// one byte, and the header comment on presetNameOffset already documents
+// why: "Moog's own doc lists an extra byte in the 0x03 reply's header that
+// 0x02's doesn't have" — the preset number, at index 5 (F0/mfrId/
+// productId/deviceId/mode/THEN this), shifting everything after it by one.
+// Stripping that byte and changing the mode byte back to 0x02 reconstructs
+// a valid Panel Dump. Structurally sound from that derivation; NOT yet
+// independently round-tripped against real hardware the way the Restore
+// mechanism itself was (see [[project_voyager_restore_mechanism]] in the
+// assistant's own memory notes) — worth a real test before fully trusting
+// it. Returns a newly malloc'd buffer (caller frees) and writes its length
+// to *outLen, or NULL if srcLength is too short to contain the byte being
+// removed.
+static uint8_t * convert_preset_dump_to_panel_dump(const uint8_t * src, uint32_t srcLength, uint32_t * outLen) {
+    if (srcLength < 7) { // F0 mfrId productId deviceId mode presetNum ...data... F7, minimum shape
+        return NULL;
+    }
+    uint32_t  dstLength = srcLength - 1;
+    uint8_t * dst       = (uint8_t *)malloc(dstLength);
+
+    if (dst == NULL) {
+        return NULL;
+    }
+    memcpy(dst, src, 4);                          // F0 mfrId productId deviceId
+    dst[4]  = 0x02;                               // mode: Panel Dump (was 0x03, Single Preset Dump)
+    memcpy(&dst[5], &src[6], srcLength - 6);      // everything after the removed preset-number byte, including the trailing F7
+    *outLen = dstLength;
+    return dst;
+}
+
+// Runs on the main thread once the user has chosen (or cancelled) a file to
+// load into the live edit buffer — see synth_backup_restore_panel() below.
+// Accepts EITHER a genuine Panel Dump (mode 0x02, "Backup > Current Panel"
+// / "Save Panel to File…") or a Single Preset Dump (mode 0x03, "Backup >
+// Patch by Number" or a Bank (Individual Files) export) — the latter is
+// converted via convert_preset_dump_to_panel_dump() above before sending.
+static void restore_panel_file_chosen(const char * path) {
+    if (path == NULL) {
+        LOG_DEBUG("Restore: panel restore cancelled\n");
+        return;
+    }
+    uint32_t  length = 0;
+    uint8_t * data   = restore_read_file(path, &length);
+
+    if (data == NULL) {
+        return;
+    }
+    char      reason[192];
+
+    // A raw Single Preset Dump (mode 0x03) is converted to a Panel Dump
+    // (mode 0x02) shape BEFORE the mode-0x02 validation below, so both file
+    // kinds end up validated (and sent) the exact same way — the mfrId/
+    // productId check still guards against a file from the wrong device
+    // either way.
+    if ((length >= 5) && (data[0] == MIDI_SYSEX_START) && (data[4] == 0x03)) {
+        uint32_t  convertedLen = 0;
+        uint8_t * converted    = convert_preset_dump_to_panel_dump(data, length, &convertedLen);
+
+        if (converted != NULL) {
+            free(data);
+            data   = converted;
+            length = convertedLen;
+            LOG_DEBUG("Restore: converted a Single Preset Dump (%s) to a Panel Dump for loading\n", path);
+        }
+    }
+
+    if (!restore_validate_moog_dump(data, length, 0x02, "Panel Dump", reason, sizeof(reason))) {
+        show_info_dialogue("Restore Panel Failed", reason);
+        free(data);
+        return;
+    }
+
+    if (midi_send(data, length)) {
+        LOG_DEBUG("Restore: sent %u byte Panel Dump from %s (loads live edit buffer only)\n", (unsigned)length, path);
+        show_info_dialogue("Restore Panel", "Sent — the connected device's live edit buffer should now match this file.");
+    } else {
+        LOG_ERROR("Restore: failed to send %u byte Panel Dump from %s\n", (unsigned)length, path);
+        show_info_dialogue("Restore Panel Failed", "The message couldn't be sent — see the debug log for the exact MIDI error.");
+    }
+    free(data);
+}
+
+void synth_backup_restore_panel(void) {
+    if (!gDevice.connected) {
+        LOG_ERROR("Restore: no device connected\n");
+        return;
+    }
+    open_file_read_dialogue_async(restore_panel_file_chosen);
+}
+
+// Runs on the main thread once the user has chosen (or cancelled) a Single
+// Preset Dump file to restore — see synth_backup_restore_patch() below.
+static void restore_patch_file_chosen(const char * path) {
+    if (path == NULL) {
+        LOG_DEBUG("Restore: patch restore cancelled\n");
+        return;
+    }
+    uint32_t  length = 0;
+    uint8_t * data   = restore_read_file(path, &length);
+
+    if (data == NULL) {
+        return;
+    }
+    char      reason[192];
+
+    if (!restore_validate_moog_dump(data, length, 0x03, "Patch by Number dump", reason, sizeof(reason))) {
+        show_info_dialogue("Restore Patch Failed", reason);
+        free(data);
+        return;
+    }
+    // The preset number is the one extra byte a Single Preset Dump's own
+    // header has that a Panel Dump's doesn't (see presetNameOffset's own
+    // comment in voyager.txt for that byte-count difference) — byte index
+    // 5 (F0, mfrId, productId, deviceId, mode, THEN this), 0-based on the
+    // wire same as the request side (synth_request_single_preset_dump(),
+    // synthComms.c). CONFIRMED against real hardware 2026-07-11 (see
+    // [[project_voyager_restore_mechanism]] in the assistant's own memory
+    // notes): captured preset 128, decoded this byte as 127, matched
+    // exactly.
+    uint32_t  presetNumber = (uint32_t)data[5] + 1;
+    char      message[160];
+
+    snprintf(message, sizeof(message),
+             "This will overwrite Preset %u on the connected device with the contents of this file. This cannot be undone.",
+             (unsigned)presetNumber);
+
+    if (show_confirm_dialogue("Restore Patch", message)) {
+        if (midi_send(data, length)) {
+            LOG_DEBUG("Restore: sent %u byte Single Preset Dump from %s (overwrote preset %u)\n",
+                      (unsigned)length, path, (unsigned)presetNumber);
+            snprintf(message, sizeof(message), "Sent — Preset %u should now match this file.", (unsigned)presetNumber);
+            show_info_dialogue("Restore Patch", message);
+        } else {
+            LOG_ERROR("Restore: failed to send %u byte Single Preset Dump from %s\n", (unsigned)length, path);
+            show_info_dialogue("Restore Patch Failed", "The message couldn't be sent — see the debug log for the exact MIDI error.");
+        }
+    } else {
+        LOG_DEBUG("Restore: patch restore cancelled at confirmation\n");
+    }
+    free(data);
+}
+
+void synth_backup_restore_patch(void) {
+    if (!gDevice.connected) {
+        LOG_ERROR("Restore: no device connected\n");
+        return;
+    }
+    open_file_read_dialogue_async(restore_patch_file_chosen);
+}
+
+// Runs on the main thread once the user has chosen (or cancelled) a whole-
+// bank dump file to restore — see synth_backup_restore_bank() below.
+static void restore_bank_file_chosen(const char * path) {
+    if (path == NULL) {
+        LOG_DEBUG("Restore: bank restore cancelled\n");
+        return;
+    }
+    uint32_t  length = 0;
+    uint8_t * data   = restore_read_file(path, &length);
+
+    if (data == NULL) {
+        return;
+    }
+    char      reason[192];
+
+    if (!restore_validate_moog_dump(data, length, 0x01, "Bank dump", reason, sizeof(reason))) {
+        show_info_dialogue("Restore Bank Failed", reason);
+        free(data);
+        return;
+    }
+
+    if (show_confirm_dialogue("Restore Bank",
+                              "This will overwrite ALL 128 presets in the current bank on the connected device with the contents of this file. This cannot be undone.")) {
+        if (midi_send(data, length)) {
+            LOG_DEBUG("Restore: sent %u byte Bank dump from %s (overwrote entire current bank)\n", (unsigned)length, path);
+            show_info_dialogue("Restore Bank", "Sent — the current bank should now match this file.");
+        } else {
+            LOG_ERROR("Restore: failed to send %u byte Bank dump from %s\n", (unsigned)length, path);
+            show_info_dialogue("Restore Bank Failed", "The message couldn't be sent — see the debug log for the exact MIDI error.");
+        }
+    } else {
+        LOG_DEBUG("Restore: bank restore cancelled at confirmation\n");
+    }
+    free(data);
+}
+
+void synth_backup_restore_bank(void) {
+    if (!gDevice.connected) {
+        LOG_ERROR("Restore: no device connected\n");
+        return;
+    }
+    open_file_read_dialogue_async(restore_bank_file_chosen);
 }

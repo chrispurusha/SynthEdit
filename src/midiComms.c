@@ -113,19 +113,36 @@ static uint8_t         gMsgDataLen = 0;
 
 // ── Internal send ─────────────────────────────────────────────────────────────
 
-static void midi_send_to(const uint8_t * data, uint32_t length, MIDIEndpointRef dest) {
+// Returns false (and logs why) if the message couldn't be built or sent —
+// callers that need to know whether it actually went out (Restore,
+// synthBackup.c) check this rather than assuming success; every other
+// existing caller just discards it unchanged from before this had a return
+// value at all.
+static bool midi_send_to(const uint8_t * data, uint32_t length, MIDIEndpointRef dest) {
     if ((gMidiOutPort == 0) || (dest == 0) || (data == NULL) || (length == 0)) {
-        return;
+        return false;
     }
-    uint8_t          buf[512 + sizeof(MIDIPacketList)];
+    // SYSEX_BUF_SIZE (above), not a small fixed size — this used to be a
+    // 512-byte stack buffer, plenty for every message this app sends
+    // EXCEPT a whole-bank restore (synth_backup_restore_bank(), up to
+    // 18734+ bytes, confirmed real capture size — see gSysExBuf's own
+    // comment above for why headroom beyond that matters too). That
+    // 512-byte limit silently failed MIDIPacketListAdd for anything larger
+    // — silently to the CALLER, not fully silently: it did LOG_ERROR, but
+    // midi_send()/midi_send_to() had no return value for anything to check
+    // that against, so Restore Bank logged (and told the user) "sent"
+    // regardless of whether it actually was. Found 2026-07-11 via the
+    // owner's own MIDI Monitor capture showing nothing arrived despite the
+    // app's log claiming success.
+    uint8_t          buf[SYSEX_BUF_SIZE + sizeof(MIDIPacketList)];
     MIDIPacketList * pktList = (MIDIPacketList *)buf;
     MIDIPacket *     pkt     = MIDIPacketListInit(pktList);
 
     pkt = MIDIPacketListAdd(pktList, sizeof(buf), pkt, 0, length, data);
 
     if (pkt == NULL) {
-        LOG_ERROR("MIDIPacketListAdd failed (message too long?)\n");
-        return;
+        LOG_ERROR("MIDIPacketListAdd failed (message too long? %u bytes)\n", (unsigned)length);
+        return false;
     }
     pthread_mutex_lock(&gSendMutex);
     OSStatus         err     = MIDISend(gMidiOutPort, dest, pktList);
@@ -133,7 +150,9 @@ static void midi_send_to(const uint8_t * data, uint32_t length, MIDIEndpointRef 
 
     if (err != noErr) {
         LOG_ERROR("MIDISend error %d\n", (int)err);
+        return false;
     }
+    return true;
 }
 
 // ── Destination lookup ────────────────────────────────────────────────────────
@@ -691,8 +710,8 @@ void midi_send_identity_request(void) {
     midi_send_to(idReq, sizeof(idReq), gMidiDest);
 }
 
-void midi_send(const uint8_t * data, uint32_t length) {
-    midi_send_to(data, length, gMidiDest);
+bool midi_send(const uint8_t * data, uint32_t length) {
+    return midi_send_to(data, length, gMidiDest);
 }
 
 void midi_send_cc(uint8_t channelIndex, uint8_t cc, uint8_t value) {

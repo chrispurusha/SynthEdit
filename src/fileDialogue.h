@@ -20,6 +20,7 @@
 #ifndef FILE_DIALOG_H
 #define FILE_DIALOG_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -29,17 +30,35 @@ extern "C" {
 typedef void (*tFileDialogueCallback)(const char * path);
 
 void open_file_read_dialogue_async(tFileDialogueCallback callback);
-void open_file_write_dialogue_async(tFileDialogueCallback callback, const char * defaultName);
+
+// startingDir points the panel at that folder if non-NULL and it still
+// exists; NULL falls back to whatever the system/sandbox considers the
+// default (previously the only option — every Backup save used to open
+// wherever macOS felt like, with no memory of the last location, which is
+// exactly what synthBackup.c's own get_last_backup_folder()/
+// set_last_backup_folder() (below) now fix for that specific caller).
+void open_file_write_dialogue_async(tFileDialogueCallback callback, const char * defaultName, const char * startingDir);
 
 // Folder variant of the two above — NSOpenPanel configured to choose (or
 // create) a directory rather than a file. Used by Backup > Bank (Individual
 // Files)… (synthBackup.c) to pick where the per-preset .syx files + index
-// land. Deliberately separate from misc.mm's own layouts-folder chooser,
-// which persists its choice as a security-scoped bookmark for reuse across
-// launches — a backup destination is a one-off, nothing to remember.
-// callback receives NULL if the panel was cancelled, same convention as the
-// two above.
-void open_folder_choose_dialogue_async(tFileDialogueCallback callback, const char * title);
+// land. callback receives NULL if the panel was cancelled, same convention
+// as the two above. startingDir, same meaning as open_file_write_dialogue_async's
+// own parameter above.
+void open_folder_choose_dialogue_async(tFileDialogueCallback callback, const char * title, const char * startingDir);
+
+// Small persisted-string helper (NSUserDefaults-backed) so multiple backup
+// actions (Current Panel/Patch by Number/Bank/Bank-to-Folder, all in
+// synthBackup.c) can share ONE "last folder used for a backup" default
+// instead of each starting from an unrelated system default — added after
+// real confusion: a Bank (Individual Files) export picks its own folder
+// explicitly, but a single-file Backup save (Current Panel/Patch by
+// Number/Bank) previously had no memory of it at all, so the two scattered
+// across different locations with no obvious connection between them.
+// get_last_backup_folder() returns NULL if none has been set yet (first
+// run, or the saved path no longer exists).
+const char * get_last_backup_folder(void);
+void set_last_backup_folder(const char * path);
 
 // Synchronous (unlike the two above) — blocks until the user responds, using
 // [NSAlert runModal] directly rather than the async dispatch pattern the
@@ -49,6 +68,23 @@ void open_folder_choose_dialogue_async(tFileDialogueCallback callback, const cha
 // by then, which is all a modal alert needs. Presents `labels[0..count-1]`
 // in a dropdown; returns the chosen index, or -1 if cancelled.
 int32_t show_device_choice_dialogue(const char * title, const char * message, const char *const * labels, uint32_t count);
+
+// Synchronous Yes/No confirmation (same [NSAlert runModal] shape as
+// show_device_choice_dialogue() above, no accessory view) — for a
+// destructive action (Restore Patch/Bank, synthBackup.c) that needs an
+// explicit "are you sure" before sending, since there's no undo once the
+// device has overwritten a stored slot. Returns true only if the user
+// picked the affirmative button.
+bool show_confirm_dialogue(const char * title, const char * message);
+
+// Synchronous single-button ("OK") informational alert — for Restore
+// (synthBackup.c) to surface a validation failure or a success confirmation
+// that would otherwise only ever reach LOG_ERROR/LOG_DEBUG's stderr/stdout,
+// invisible to anyone not watching a console. Added after a real report of
+// Restore "not seeming to work" that was very likely exactly this: a
+// silent validation failure (wrong file type/device chosen) with no way
+// for the user to tell what happened.
+void show_info_dialogue(const char * title, const char * message);
 
 #ifdef __cplusplus
 }

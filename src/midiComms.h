@@ -20,6 +20,7 @@
 #ifndef __MIDI_COMMS_H__
 #define __MIDI_COMMS_H__
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -28,7 +29,17 @@ extern "C" {
 
 int start_midi_thread(void);
 int midi_scan_devices(void);
-void midi_send(const uint8_t * data, uint32_t length);
+
+// Returns false (and logs why) if the message couldn't be sent — e.g. too
+// large for the internal packet-list buffer (SYSEX_BUF_SIZE, midiComms.c —
+// a whole-bank restore is the one message in this app big enough to hit
+// that) or CoreMIDI itself rejected it. Every other existing caller (CC/
+// parameter-change sends, dial patch-and-resend, etc.) predates this
+// return value and still compiles fine ignoring it; Restore (synthBackup.c)
+// is what actually checks it, added 2026-07-11 after a bank restore logged
+// "sent" despite MIDIPacketListAdd having silently failed on the old
+// 512-byte buffer.
+bool midi_send(const uint8_t * data, uint32_t length);
 void midi_send_cc(uint8_t channelIndex, uint8_t cc, uint8_t value);
 void midi_send_program_change(uint8_t channelIndex, uint8_t program);
 void midi_send_identity_request(void);

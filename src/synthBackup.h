@@ -115,6 +115,52 @@ void synth_backup_flush_bank_to_folder(void);
 // already requests at startup) passes through untouched.
 void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExpect kind);
 
+// ── Restore ───────────────────────────────────────────────────────────────────
+// CONFIRMED against real hardware 2026-07-11: sending a captured dump back
+// to the device is the whole mechanism — no separate "store" SysEx exists.
+// A Panel Dump only ever loads the live edit buffer (no overwrite risk,
+// proven earlier — see [[project_voyager_dial_menu_send]] in the
+// assistant's own memory notes). A Single Preset Dump OVERWRITES the exact
+// stored slot its own embedded preset-number byte names — verified via a
+// safe modify-then-restore round trip on a real Voyager (see
+// [[project_voyager_restore_mechanism]]). All three functions below open a
+// file picker, validate the file actually is the expected dump type/device
+// before doing anything with it, and — for the two that overwrite stored
+// memory — show an explicit confirmation naming exactly what will be
+// overwritten before sending. Each is a no-op (logs and returns) if no
+// device is connected or it isn't Moog-style — none of this has a
+// Korg-style equivalent yet.
+
+// Triggered by "File > Open Panel File…" — loads a previously-saved dump
+// into the live edit buffer, same as physically turning every knob to
+// match. Accepts EITHER a genuine Panel Dump (mode 0x02 — "Save Panel to
+// File…"/"Backup > Current Panel") or a Single Preset Dump (mode 0x03 —
+// "Backup > Patch by Number" or a Bank (Individual Files) export),
+// converting the latter to the former first (synthBackup.c) — added
+// 2026-07-11 so any backed-up patch can be auditioned this way, not just
+// ones saved specifically as a Panel Dump. Does NOT touch any stored
+// preset either way. No confirmation prompt (nothing to lose — the live
+// buffer is exactly what Sync/preset navigation already overwrite freely).
+void synth_backup_restore_panel(void);
+
+// Triggered by "Backup > Restore > Patch by Number…" — loads a previously-
+// saved Single Preset Dump and sends it back verbatim, OVERWRITING the
+// exact preset slot number embedded in the file itself (not something the
+// user picks — see this file's own comment on how that's decoded). Shows a
+// confirmation naming that slot number before sending; a no-op if the
+// chosen file doesn't decode as a valid Single Preset Dump for the
+// connected device.
+void synth_backup_restore_patch(void);
+
+// Triggered by "Backup > Restore > Bank…" — loads a previously-saved whole-
+// bank dump (synth_backup_bank()'s own output) and sends it back verbatim,
+// OVERWRITING ALL 128 presets in the current bank at once. Shows a loud
+// confirmation before sending (this is the single most destructive action
+// in the whole app — not individually hardware-tested yet, only inferred
+// from the same "SEND PRESET(S)" mechanism the single-preset case proved,
+// per the owner's manual describing both under one mechanism).
+void synth_backup_restore_bank(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -710,8 +710,7 @@ static void synth_apply_pending_dump_patches(void) {
 }
 
 static void handle_moog_panel_dump(const uint8_t * data, uint32_t length) {
-    synth_backup_capture_dump(data, length, eBackupExpectLive); // no-op unless a live-panel Backup is pending — see synthBackup.c
-    const uint32_t  skip       = 1;                             // F0 only
+    const uint32_t  skip       = 1; // F0 only
 
     if (length < skip + 1) {
         LOG_ERROR("Moog panel dump too short (%u)\n", (unsigned)length);
@@ -728,6 +727,12 @@ static void handle_moog_panel_dump(const uint8_t * data, uint32_t length) {
                   (unsigned)length, (unsigned)sizeof(gLastMoogDump));
     }
     extract_moog_panel_info(payload, payloadLen);
+    // AFTER extract_moog_panel_info(), not before (as this used to be) — so
+    // gDevice.progName is already decoded by the time synth_backup_capture_dump()
+    // builds a default filename from it, same "decode the name first" order
+    // handle_moog_single_preset_dump() below already uses for the same
+    // reason. No-op unless a live-panel Backup is pending — see synthBackup.c.
+    synth_backup_capture_dump(data, length, eBackupExpectLive);
     synth_apply_pending_dump_patches();
 }
 

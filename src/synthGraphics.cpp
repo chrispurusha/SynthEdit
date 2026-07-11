@@ -547,10 +547,25 @@ void synth_render(tRectangle area) {
     // grid dial's own click does (open_dial_value_menu(), menus.c), with no
     // device-specific code: a numeric-only hidden dial just gets a rect
     // nothing ever hit-tests true for a value-menu on, so it stays inert.
+    //
+    // Wraps onto additional lines once a segment (plus its leading " | "
+    // separator) would run past the content area's right edge — added
+    // 2026-07-11 once the Voyager's EDIT-menu sweep grew this row to 8
+    // entries and the last one or two started rendering off the right edge
+    // of the window entirely (invisible AND unclickable, since a rect
+    // outside the visible framebuffer is outside the cursor's reachable
+    // coordinate space too). A single segment wider than the whole content
+    // area on its own still bleeds past the edge even after wrapping —
+    // same "render_text() draws unclipped by rectangle width" limitation
+    // section_required_spacing()'s own comment above already documents for
+    // grid dials; not worth a truncation scheme for a case this unlikely.
     {
-        const double rowHeight = 13.0;
-        double       ix        = x;
-        bool         first     = true;
+        const double rowHeight   = 13.0;
+        const double lineAdvance = 18.0;                              // vertical gap between wrapped Info Row lines
+        const double rightEdge   = area.coord.x + area.size.w - 20.0; // small right margin
+        double       ix          = x;
+        double       rowY        = y;
+        bool         first       = true;
 
         set_rgb_colour((tRgb)RGB_GREY_7);
 
@@ -562,18 +577,8 @@ void synth_render(tRectangle area) {
             }
 
             for (uint32_t d = 0; d < section->dialCount; d++) {
-                tPanelDial * dial    = &section->dials[d];
-
-                if (!first) {
-                    const char * sep     = "  |  ";
-                    tRectangle   sepRect = {{ix, y}, {0.0, rowHeight}};
-
-                    render_text(mainArea, sepRect, sep);
-                    ix += get_text_width(sep, rowHeight, eNoCache);
-                }
-                first      = false;
-
-                uint32_t     dialVal = get_panel_dial_value(dial);
+                tPanelDial * dial     = &section->dials[d];
+                uint32_t     dialVal  = get_panel_dial_value(dial);
                 char         valStr[32];
 
                 if (dial->display == dialDisplayNames) {
@@ -584,15 +589,32 @@ void synth_render(tRectangle area) {
                 char         pair[64];
                 snprintf(pair, sizeof(pair), "%s: %s", dial->label, valStr);
 
-                double       width   = get_text_width(pair, rowHeight, eNoCache);
-                dial->rect = {{ix, y}, {width, rowHeight}};
+                double       width    = get_text_width(pair, rowHeight, eNoCache);
+                const char * sep      = "  |  ";
+                double       sepWidth = get_text_width(sep, rowHeight, eNoCache);
+                double       needed   = first ? width : (sepWidth + width);
 
+                if (!first && ((ix + needed) > rightEdge)) {
+                    ix    = x;
+                    rowY += lineAdvance;
+                    first = true; // no leading separator right after a wrap
+                }
+
+                if (!first) {
+                    tRectangle sepRect = {{ix, rowY}, {0.0, rowHeight}};
+
+                    render_text(mainArea, sepRect, sep);
+                    ix += sepWidth;
+                }
+                first      = false;
+
+                dial->rect = {{ix, rowY}, {width, rowHeight}};
                 render_text(mainArea, dial->rect, pair);
                 ix        += width;
             }
         }
 
-        y += 25.0;
+        y = rowY + 25.0;
     }
 
     // ── Active page's dials ─────────────────────────────────────────────────────

@@ -88,6 +88,44 @@ static tPanelDial * gPressedToggleDial    = NULL;
 // it. Real bug hit and fixed 2026-07-08 building this.
 static tPanelDial * gPressedValueMenuDial = NULL;
 
+// Given a dial that was just hit on press — by EITHER hit-test source, the
+// generic per-page grid loop or synth_hit_test_info_row() (both in
+// handle_mouse_button() below) — arms whichever interaction it needs: a
+// value-menu dropdown (3+ named positions, no CC), a click-to-toggle (2
+// named positions, e.g. On/Off or, as of 2026-07-11, any 2-way enum like
+// triggerMode's Single/Multi Trigger — panel_dial_is_binary() doesn't
+// require the names to literally be "Off"/"On"), or a plain drag (anything
+// else, e.g. a raw-numeric Info Row dial like midiClkDivider). Which
+// hit-test found the dial doesn't change which of these three it needs —
+// that's entirely the dial's own descriptor — so both call sites share
+// this instead of each re-implementing the same 3-way branch. Previously
+// only the per-page grid path had all three; the Info Row path only had
+// the value-menu case, silently leaving a 2-option Info Row dial (like
+// triggerMode) or a raw-numeric one (like midiClkDivider) with no click
+// behaviour at all.
+static void arm_dial_press(void * win, tPanelDial * dial, double x, double y) {
+    if (panel_dial_needs_value_menu(dial)) {
+        // Opens on RELEASE, not here — see gPressedValueMenuDial's own
+        // comment above for why.
+        gPressedValueMenuDial = dial;
+        return;
+    }
+
+    if (panel_dial_is_binary(dial)) {
+        gPressedToggleDial = dial;
+        return;
+    }
+    gDraggedDial   = dial;
+    gDragPrevX     = x;
+    gDragPrevY     = y;
+    gDragTypeAccum = 0.0;
+
+    if (gDialMode != eDialModeRotary) {
+        gDragSkipCount = 3;
+        glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    }
+}
+
 // ── Program name edit (gProgNameEdit, globalVars.h) ──────────────────────────
 // Shared by the Enter-key commit path (handle_key() below) and the
 // click-outside-the-field commit path (handle_mouse_button() below) — see
@@ -281,14 +319,16 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
     // Info Row dials (e.g. Voyager's soundCategory) — a hidden-section dial
     // is deliberately excluded from synth_current_page_sections() (see that
     // function's own comment), so it never reaches the generic per-page
-    // loop below and needs its own hit-test instead. Same press-arms/
-    // release-fires value-menu convention as a normal grid dial — shares
-    // gPressedValueMenuDial itself, so the release-time open_dial_value_menu()
-    // call above needs no changes to also handle this case.
+    // loop below and needs its own hit-test instead. arm_dial_press() above
+    // gives it the same 3-way value-menu/toggle/drag treatment a normal
+    // grid dial gets — release-time handling (toggle flip, menu open) is
+    // already generic over gPressedToggleDial/gPressedValueMenuDial/
+    // gDraggedDial regardless of which hit-test armed them, so nothing
+    // else needs to change to support this.
     tPanelDial *    infoRowHit   = synth_hit_test_info_row(coord);
 
-    if (infoRowHit && panel_dial_needs_value_menu(infoRowHit)) {
-        gPressedValueMenuDial = infoRowHit;
+    if (infoRowHit) {
+        arm_dial_press(win, infoRowHit, x, y);
         return;
     }
     // Hit-test every section on the current panel page generically —
@@ -309,38 +349,8 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
         }
     }
 
-    if (hit && panel_dial_needs_value_menu(hit)) {
-        // No CC exists for this dial (Voyager's Filter A/B Pole Select, so
-        // far) — a drag gesture would patch-and-resend the whole cached dump
-        // once per intermediate step it passes through on the way to the
-        // value the user actually wants. A menu picks exactly one value and
-        // sends exactly once. See panel_dial_needs_value_menu()'s own
-        // comment in panelConfig.h. Arms here; the menu itself opens on
-        // release above — see that block's own comment for why it can't
-        // open here on press.
-        gPressedValueMenuDial = hit;
-        return;
-    }
-
-    if (hit && panel_dial_is_binary(hit)) {
-        // Button behaviour, not a drag — arms here, flips on release above
-        // if the release is still over it. Deliberately skips gDraggedDial
-        // entirely: no cursor hiding, no rotary/vertical/horizontal drag
-        // maths, none of it applies to a two-state click target.
-        gPressedToggleDial = hit;
-        return;
-    }
-
     if (hit) {
-        gDraggedDial   = hit;
-        gDragPrevX     = x;
-        gDragPrevY     = y;
-        gDragTypeAccum = 0.0;
-
-        if (gDialMode != eDialModeRotary) {
-            gDragSkipCount = 3;
-            glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-        }
+        arm_dial_press(win, hit, x, y);
     }
 }
 

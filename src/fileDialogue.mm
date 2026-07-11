@@ -45,11 +45,15 @@ void open_file_read_dialogue_async(tFileDialogueCallback callback) {
     });
 }
 
-void open_file_write_dialogue_async(tFileDialogueCallback callback, const char * defaultName) {
-    // Capture defaultName before dispatching — it may be stack-allocated
+void open_file_write_dialogue_async(tFileDialogueCallback callback, const char * defaultName, const char * startingDir) {
+    // Capture defaultName/startingDir before dispatching — either may be
+    // stack-allocated
     NSString * nameString = (defaultName && defaultName[0] != '\0')
                           ? [NSString stringWithUTF8String:defaultName]
                           : @"patch.pch2";
+    NSURL *    dirURL     = (startingDir && startingDir[0] != '\0')
+                          ? [NSURL fileURLWithPath:[NSString stringWithUTF8String:startingDir] isDirectory:YES]
+                          : nil;
 
     dispatch_async(dispatch_get_main_queue(), ^{
         NSSavePanel * panel = [NSSavePanel savePanel];
@@ -61,6 +65,9 @@ void open_file_write_dialogue_async(tFileDialogueCallback callback, const char *
         [panel setShowsTagField:NO];
         [panel setExtensionHidden:NO];
 
+        if (dirURL) {
+            [panel setDirectoryURL:dirURL];
+        }
         [panel beginWithCompletionHandler:^(NSModalResponse result) {
              if (result == NSModalResponseOK) {
                  NSString * path = panel.URL.path;
@@ -77,8 +84,11 @@ void open_file_write_dialogue_async(tFileDialogueCallback callback, const char *
     });
 }
 
-void open_folder_choose_dialogue_async(tFileDialogueCallback callback, const char * title) {
+void open_folder_choose_dialogue_async(tFileDialogueCallback callback, const char * title, const char * startingDir) {
     NSString * titleString = [NSString stringWithUTF8String:(title && title[0] != '\0') ? title : "Choose a Folder"];
+    NSURL *    dirURL      = (startingDir && startingDir[0] != '\0')
+                          ? [NSURL fileURLWithPath:[NSString stringWithUTF8String:startingDir] isDirectory:YES]
+                          : nil;
 
     dispatch_async(dispatch_get_main_queue(), ^{
         NSOpenPanel * panel = [NSOpenPanel openPanel];
@@ -88,6 +98,9 @@ void open_folder_choose_dialogue_async(tFileDialogueCallback callback, const cha
         [panel setAllowsMultipleSelection:NO];
         [panel setTitle:titleString];
 
+        if (dirURL) {
+            [panel setDirectoryURL:dirURL];
+        }
         [panel beginWithCompletionHandler:^(NSModalResponse result) {
              if (result == NSModalResponseOK) {
                  NSString * path = [panel.URL path];
@@ -102,6 +115,39 @@ void open_folder_choose_dialogue_async(tFileDialogueCallback callback, const cha
              }
          }];
     });
+}
+
+// NSUserDefaults key for get_last_backup_folder()/set_last_backup_folder()
+// (fileDialogue.h) — plain string, not a security-scoped bookmark like
+// misc.mm's layouts-folder chooser: a backup destination doesn't need
+// access rights restored across launches the way a folder this app reads
+// FROM every startup does — [NSSavePanel setDirectoryURL:] works fine with
+// just a path even after a relaunch (it's the user picking where to write
+// next, not this app reopening something on its own).
+static NSString *const kLastBackupFolderKey = @"lastBackupFolder";
+
+const char * get_last_backup_folder(void) {
+    static char buf[1024];
+    NSString *  saved = [[NSUserDefaults standardUserDefaults] stringForKey:kLastBackupFolderKey];
+
+    if (!saved) {
+        return NULL;
+    }
+    BOOL        isDir = NO;
+
+    if (![[NSFileManager defaultManager] fileExistsAtPath:saved isDirectory:&isDir] || !isDir) {
+        return NULL; // moved/deleted since last use — fall back to the system default rather than pointing at nothing
+    }
+    strncpy(buf, [saved UTF8String], sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+    return buf;
+}
+
+void set_last_backup_folder(const char * path) {
+    if (!path || (path[0] == '\0')) {
+        return;
+    }
+    [[NSUserDefaults standardUserDefaults] setObject:[NSString stringWithUTF8String:path] forKey:kLastBackupFolderKey];
 }
 
 int32_t show_device_choice_dialogue(const char * title, const char * message, const char *const * labels, uint32_t count) {
@@ -139,4 +185,41 @@ int32_t show_device_choice_dialogue(const char * title, const char * message, co
         return -1;
     }
     return (int32_t)[popup indexOfSelectedItem];
+}
+
+bool show_confirm_dialogue(const char * title, const char * message) {
+    NSString *      titleString   = [NSString stringWithUTF8String:(title ? title : "")];
+    NSString *      messageString = [NSString stringWithUTF8String:(message ? message : "")];
+
+    NSAlert *       alert         = [[NSAlert alloc] init];
+
+    [alert setAlertStyle:NSAlertStyleWarning];
+    [alert setMessageText:titleString];
+    [alert setInformativeText:messageString];
+    [alert addButtonWithTitle:@"Continue"];
+    [alert addButtonWithTitle:@"Cancel"];
+
+    // Synchronous, same reasoning as show_device_choice_dialogue() above —
+    // every caller of this (Restore Patch/Bank, synthBackup.c) is already
+    // running inside a menu action or a file-open dialog's own completion
+    // handler, both on the main thread, so a blocking runModal here is
+    // safe and simpler than threading a callback through one more layer.
+    NSModalResponse response      = [alert runModal];
+
+    return response == NSAlertFirstButtonReturn;
+}
+
+void show_info_dialogue(const char * title, const char * message) {
+    NSString * titleString   = [NSString stringWithUTF8String:(title ? title : "")];
+    NSString * messageString = [NSString stringWithUTF8String:(message ? message : "")];
+
+    NSAlert *  alert         = [[NSAlert alloc] init];
+
+    [alert setAlertStyle:NSAlertStyleInformational];
+    [alert setMessageText:titleString];
+    [alert setInformativeText:messageString];
+    [alert addButtonWithTitle:@"OK"];
+
+    // Synchronous, same reasoning as show_confirm_dialogue() above.
+    [alert runModal];
 }
