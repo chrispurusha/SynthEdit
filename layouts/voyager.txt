@@ -416,6 +416,21 @@ dial filEnvGateSrc label="F.Env Gate" max=7 dumpOffset=138 dumpBitOffset=6 dumpB
 # Gate is OFF=6 (baseline Envelope Gate Input=0).
 dial volEnvGateSrc label="V.Env Gate" max=7 dumpOffset=139 dumpBitOffset=2 dumpBitWidth=3 names="Envelope Gate Input","Touch Gate","S&H Gate","MIDI Clock","Keyboard Gate","Gate is ON","Gate is OFF"
 
+# MIDI Clock Divider — EDIT mode menu 6.1 (owner's manual): creates a new
+# clock signal from incoming MIDI clock, 48 divisions/beat, used to
+# retrigger the LFO (when LFO SYNC=MIDI) or trigger envelopes (Gate
+# Src=MIDI Clock above). Plain numeric, not an enum — raw value = the
+# displayed divider number directly, no scaling (unlike glideRate/etc's
+# CC-pair dials, this one has no CC at all, so display=raw + dump-only,
+# same shape as hPhoneVolume). CONFIRMED against real hardware 2026-07-11,
+# live-diff at 3 points: 96(baseline)->96, 2(hardware's actual minimum —
+# NOT 1 or 0, despite max=97 allowing the display to reach as low as 0)->2,
+# 48->48, all exact. dumpOffset=137 dumpBitOffset=5 dumpBitWidth=7 (7 bits
+# comfortably covers 0-96; an 8th bit read as 0 in every capture so far but
+# was never confirmed to actually belong to this field — see the
+# arithmetic derivation this session, [[project_voyager_edit_menu_sweep]]).
+dial midiClkDivider label="Clock Div" max=97 display=raw dumpOffset=137 dumpBitOffset=5 dumpBitWidth=7
+
 page       panel
 section    lfo
 dialSize   36
