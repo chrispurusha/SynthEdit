@@ -318,6 +318,10 @@ void do_graphics_loop(void) {
         // (next preset request, or a per-preset timeout) — see
         // synth_backup_flush_bank_to_folder()'s own comment (synthBackup.h).
         synth_backup_flush_bank_to_folder();
+        // Advances an in-progress Restore > Bank (Individual Files)… sweep
+        // (paced sends, no reply to wait for) — see
+        // synth_backup_flush_restore_folder()'s own comment (synthBackup.h).
+        synth_backup_flush_restore_folder();
 
         bool reDraw = atomic_exchange(&gReDraw, false);
 

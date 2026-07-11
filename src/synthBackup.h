@@ -34,6 +34,7 @@
 #ifndef __SYNTH_BACKUP_H__
 #define __SYNTH_BACKUP_H__
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -160,6 +161,46 @@ void synth_backup_restore_patch(void);
 // from the same "SEND PRESET(S)" mechanism the single-preset case proved,
 // per the owner's manual describing both under one mechanism).
 void synth_backup_restore_bank(void);
+
+// Triggered by "Restore > Bank (Individual Files)…" — restores an entire
+// Backup > Bank (Individual Files) export back to the connected device,
+// one preset at a time (Single Preset Dump can only address one preset per
+// send — same constraint as the export itself, see
+// synth_backup_bank_to_folder()'s own comment above). Driven by the
+// chosen folder's own Patches.txt index (which preset numbers it lists, in
+// order) rather than just scanning for numbered files — a listed number
+// with no matching file in the folder is skipped and counted as missing.
+// Shows a confirmation naming how many presets will be overwritten before
+// sending anything, then a summary once finished. A no-op if no device is
+// connected, it isn't Moog-style, or another backup/restore operation is
+// already in progress.
+void synth_backup_restore_folder(void);
+
+// Per-frame poll for an in-progress synth_backup_restore_folder() sweep —
+// paces sends (RESTORE_FOLDER_SEND_PACING_MS apart, synthBackup.c) rather
+// than firing them all at once, giving the device time to actually write
+// each preset before the next arrives. Unlike synth_backup_flush_bank_to_folder()
+// above, this never touches the CoreMIDI thread — a restore send has no
+// reply to wait for, so the whole sweep lives on the main/render thread
+// this is called from. A no-op if no sweep is in progress. Call once per
+// frame from the render loop, alongside synth_backup_flush_bank_to_folder().
+void synth_backup_flush_restore_folder(void);
+
+// ── Progress reporting for the two bulk sweeps above ─────────────────────────
+// Read by synth_render() (synthGraphics.cpp) each frame to draw a progress
+// overlay — same idea as G2-Edit's own render_bank_backup_progress()/
+// render_bank_restore_progress() (graphics.cpp there), collapsed into ONE
+// overlay in SynthEdit's own render code since only one of these sweeps can
+// ever be active at a time (synth_backup_bank_to_folder()/
+// synth_backup_restore_folder() both guard against starting while the
+// other is already running). Each returns false (leaves the out params
+// untouched) if that particular sweep isn't currently active.
+// outCurrent/outTotal: 1-based "current of total" progress. outActionCount:
+// how many have actually succeeded so far (written for export, sent for
+// restore) — can lag behind outCurrent, since a missing/failed entry still
+// advances outCurrent without incrementing this.
+bool synth_backup_get_export_progress(uint32_t * outCurrent, uint32_t * outTotal, uint32_t * outActionCount);
+bool synth_backup_get_restore_progress(uint32_t * outCurrent, uint32_t * outTotal, uint32_t * outActionCount);
 
 #ifdef __cplusplus
 }

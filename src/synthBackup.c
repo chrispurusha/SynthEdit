@@ -17,6 +17,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <ctype.h>
+#include <dirent.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -116,8 +118,23 @@ static uint32_t     gBackupBatchMissingCount   = 0;
 // Mod"/"Steel Guitar" whose raw data has nothing at all between them (both
 // lines fill their full width) — a filename reads better with a word break
 // there even though the sysex itself doesn't have one; the byte-exact raw
-// name is preserved in the saved file regardless. out must be at least
-// sizeof(gDevice.progName) bytes; writes "" if gDevice.progName is empty.
+// name is preserved in the saved file regardless.
+//
+// '/' becomes '-' — REAL bug found+fixed 2026-07-11: a patch literally
+// named "Tiny w/o Mod" made backup_batch_write_capture()'s own fopen() call
+// silently fail (macOS treats '/' as a path separator, so the constructed
+// path implied a subdirectory that doesn't exist), leaving preset 23's
+// slot with no exported file at all and just a "(write failed)" line in
+// Patches.txt — invisible until a later Restore > Bank (Individual Files)
+// tried to restore that folder and correctly skipped the missing file,
+// which is what actually surfaced the gap. No other character a decoded
+// name can contain is unsafe at the POSIX/fopen() level (extract_moog_name()
+// already collapses anything below 0x20 to a space during decode, so only
+// printable ASCII 0x20-0x7E ever reaches here — '/' is the one member of
+// that range the filesystem itself rejects).
+//
+// out must be at least sizeof(gDevice.progName) bytes; writes "" if
+// gDevice.progName is empty.
 static void backup_sanitize_name_for_file(char * out, size_t outSize) {
     out[0] = '\0';
 
@@ -131,6 +148,8 @@ static void backup_sanitize_name_for_file(char * out, size_t outSize) {
             if ((o == out) || (*(o - 1) != ' ')) {
                 *o++ = ' ';
             }
+        } else if (*p == '/') {
+            *o++ = '-';
         } else {
             *o++ = *p;
         }
@@ -198,6 +217,14 @@ static void backup_batch_append_index_line(uint32_t presetNumber, const char * n
 // thread (synth_backup_flush_bank_to_folder() below and its own helpers) —
 // see the batch state block's own comment above for why.
 static void backup_batch_advance(void) {
+    // Without this, the progress overlay (synth_render_backup_progress(),
+    // synthGraphics.cpp) would only repaint whenever something UNRELATED
+    // happened to set gReDraw (a mouse move, etc.) — do_graphics_loop()
+    // only calls render_frame() at all when gReDraw is true, so a sweep
+    // this function drives entirely on its own otherwise looks frozen on
+    // screen even while genuinely progressing. Found 2026-07-11 while
+    // adding the overlay itself, not from a bug report.
+    gReDraw                    = true;
     gBackupBatchCurrentPreset++;
 
     if (gBackupBatchCurrentPreset > BACKUP_BATCH_PRESET_COUNT) {
@@ -747,4 +774,252 @@ void synth_backup_restore_bank(void) {
         return;
     }
     open_file_read_dialogue_async(restore_bank_file_chosen);
+}
+
+// ── Restore from folder (Bank Individual Files, in reverse) ─────────────────
+// Sequentially reads back a Backup > Bank (Individual Files) export and
+// sends each file it finds, restoring every matching stored slot on the
+// connected device — added 2026-07-11, owner's own request ("we should be
+// able to restore... the individual files based on the .txt file list").
+//
+// Threading: unlike gBackupBatch* above, this never touches the CoreMIDI
+// thread at all — a restore SEND has no reply to wait for (see
+// synth_backup_restore_patch()'s own comment on the Single Preset Dump
+// mechanism), so the whole sweep lives entirely on the main/render thread:
+// synth_backup_flush_restore_folder(), called once per frame from
+// do_graphics_loop() same as synth_backup_flush_bank_to_folder(), reads the
+// next file off disk and sends it directly, no gBackupBatchReplyReady-style
+// cross-thread handoff needed.
+static bool     gRestoreFolderActive       = false;
+static char     gRestoreFolderFolder[1024] = {0};
+static uint32_t gRestoreFolderEntries[BACKUP_BATCH_PRESET_COUNT]; // preset numbers, in Patches.txt order, filtered to ones a matching file was actually found for
+static uint32_t gRestoreFolderCount        = 0;                   // how many entries above are valid
+static uint32_t gRestoreFolderIndex        = 0;                   // which entry synth_backup_flush_restore_folder() sends next
+static double   gRestoreFolderNextSendMs   = 0.0;
+static uint32_t gRestoreFolderSentCount    = 0;
+static uint32_t gRestoreFolderMissingCount = 0;
+
+// Paced, not fired all at once — the device needs real time to actually
+// write each preset to its own storage before the next one arrives (same
+// "won't queue a second reply/request while still busy" real-hardware
+// finding that drives BACKUP_BATCH_TIMEOUT_MS above, applied here to the
+// SEND side instead of the request side). No hardware-measured minimum
+// yet; generous relative to what a single small SysEx send itself takes.
+#define RESTORE_FOLDER_SEND_PACING_MS    150.0
+
+// Parses <folder>/Patches.txt for the ordered list of preset numbers it
+// records (backup_batch_append_index_line() above writes each data line as
+// "%03u  %s\n" — exactly 3 digits then TWO spaces) — ignores the recorded
+// name text, just the leading number. The two-space check is what
+// distinguishes a real entry from the header's own "128 presets requested
+// from device" line, which also starts with digits but has only one space
+// after them. Returns how many were found (capped at maxCount).
+static uint32_t restore_folder_parse_index(const char * folder, uint32_t * outNumbers, uint32_t maxCount) {
+    char     indexPath[1280];
+
+    snprintf(indexPath, sizeof(indexPath), "%s/Patches.txt", folder);
+    FILE *   f     = fopen(indexPath, "r");
+
+    if (f == NULL) {
+        return 0;
+    }
+    uint32_t count = 0;
+    char     line[512];
+
+    while ((count < maxCount) && (fgets(line, sizeof(line), f) != NULL)) {
+        if (  (strlen(line) >= 5) && isdigit((unsigned char)line[0]) && isdigit((unsigned char)line[1])
+           && isdigit((unsigned char)line[2]) && (line[3] == ' ') && (line[4] == ' ')) {
+            uint32_t num = (uint32_t)((line[0] - '0') * 100 + (line[1] - '0') * 10 + (line[2] - '0'));
+
+            if ((num >= 1) && (num <= BACKUP_BATCH_PRESET_COUNT)) {
+                outNumbers[count++] = num;
+            }
+        }
+    }
+    fclose(f);
+    return count;
+}
+
+// Finds the file in `folder` whose name starts with the exact zero-padded
+// 3-digit preset number (matching backup_batch_write_capture()'s own
+// "%03u %s.syx"/"%03u.syx" naming) — deliberately NOT reconstructed from
+// Patches.txt's own recorded name text, so a file renamed (or one whose
+// name has drifted from what the index remembers) since the export still
+// gets found correctly; only the leading number has to match. Writes the
+// full path into outPath (sized to match this file's other path buffers).
+// Returns false if no matching file was found.
+static bool restore_folder_find_file(const char * folder, uint32_t presetNumber, char * outPath, size_t outPathSize) {
+    DIR *           dp    = opendir(folder);
+
+    if (dp == NULL) {
+        return false;
+    }
+    char            prefix[4];
+
+    snprintf(prefix, sizeof(prefix), "%03u", presetNumber);
+    bool            found = false;
+    struct dirent * entry;
+
+    while ((entry = readdir(dp)) != NULL) {
+        if (  (strlen(entry->d_name) >= 4) && (strncmp(entry->d_name, prefix, 3) == 0)
+           && ((entry->d_name[3] == ' ') || (entry->d_name[3] == '.'))) {
+            snprintf(outPath, outPathSize, "%s/%s", folder, entry->d_name);
+            found = true;
+            break;
+        }
+    }
+    closedir(dp);
+    return found;
+}
+
+// Runs on the main thread once the user has chosen (or cancelled) a folder
+// to restore from — see synth_backup_restore_folder() below.
+static void restore_folder_chosen(const char * path) {
+    if (path == NULL) {
+        LOG_DEBUG("Restore: folder restore cancelled\n");
+        return;
+    }
+    uint32_t numbers[BACKUP_BATCH_PRESET_COUNT];
+    uint32_t indexCount = restore_folder_parse_index(path, numbers, BACKUP_BATCH_PRESET_COUNT);
+
+    if (indexCount == 0) {
+        show_info_dialogue("Restore Folder Failed",
+                           "No Patches.txt index found in this folder (or it has no entries) — pick a folder created by Backup > Bank (Individual Files).");
+        return;
+    }
+    // Resolve each listed preset number to an actual file in the folder —
+    // one whose file has since been deleted/moved/renamed-past-recognition
+    // is just skipped (counted as missing below), not treated as a hard
+    // failure for the whole operation.
+    gRestoreFolderCount                                    = 0;
+
+    for (uint32_t i = 0; i < indexCount; i++) {
+        char filePath[1280];
+
+        if (restore_folder_find_file(path, numbers[i], filePath, sizeof(filePath))) {
+            gRestoreFolderEntries[gRestoreFolderCount++] = numbers[i];
+        }
+    }
+
+    if (gRestoreFolderCount == 0) {
+        show_info_dialogue("Restore Folder Failed", "Patches.txt lists presets, but none of their files could be found in this folder.");
+        return;
+    }
+    strncpy(gRestoreFolderFolder, path, sizeof(gRestoreFolderFolder) - 1);
+    gRestoreFolderFolder[sizeof(gRestoreFolderFolder) - 1] = '\0';
+
+    char message[256];
+
+    snprintf(message, sizeof(message),
+             "This will restore %u preset(s) found in this folder, overwriting their exact matching slots on the connected device. This cannot be undone.",
+             (unsigned)gRestoreFolderCount);
+
+    if (!show_confirm_dialogue("Restore Folder", message)) {
+        LOG_DEBUG("Restore: folder restore cancelled at confirmation\n");
+        return;
+    }
+    gRestoreFolderIndex                                    = 0;
+    gRestoreFolderSentCount                                = 0;
+    gRestoreFolderMissingCount                             = indexCount - gRestoreFolderCount; // entries listed but never found on disk
+    gRestoreFolderActive                                   = true;
+    gRestoreFolderNextSendMs                               = backup_monotonic_ms();            // send the first one on the very next flush tick
+    LOG_DEBUG("Restore: starting folder restore of %u preset(s) from %s\n", (unsigned)gRestoreFolderCount, path);
+}
+
+void synth_backup_restore_folder(void) {
+    if (!gDevice.connected) {
+        LOG_ERROR("Restore: no device connected\n");
+        return;
+    }
+
+    if (!synth_panel_config()->moogStyleDump) {
+        LOG_ERROR("Restore: folder restore only supports Moog-style devices so far\n");
+        return;
+    }
+
+    if (gRestoreFolderActive || gBackupBatchActive || (gBackupExpect != eBackupExpectNone)) {
+        LOG_ERROR("Restore: another backup/restore operation is already in progress\n");
+        return;
+    }
+    open_folder_choose_dialogue_async(restore_folder_chosen, "Choose Folder to Restore From", get_last_backup_folder());
+}
+
+void synth_backup_flush_restore_folder(void) {
+    if (!gRestoreFolderActive) {
+        return;
+    }
+
+    if (backup_monotonic_ms() < gRestoreFolderNextSendMs) {
+        return; // still pacing since the last send
+    }
+    // Without this, the progress overlay (synth_render_backup_progress(),
+    // synthGraphics.cpp) would only repaint whenever something UNRELATED
+    // happened to set gReDraw — see backup_batch_advance()'s own identical
+    // comment above for the full reasoning; same fix, same day, same cause.
+    gReDraw = true;
+    uint32_t presetNumber = gRestoreFolderEntries[gRestoreFolderIndex];
+    char     filePath[1280];
+
+    if (restore_folder_find_file(gRestoreFolderFolder, presetNumber, filePath, sizeof(filePath))) {
+        uint32_t  length = 0;
+        uint8_t * data   = restore_read_file(filePath, &length);
+
+        if (data != NULL) {
+            char reason[192];
+
+            if (restore_validate_moog_dump(data, length, 0x03, "Single Preset Dump", reason, sizeof(reason)) && midi_send(data, length)) {
+                gRestoreFolderSentCount++;
+                LOG_DEBUG("Restore: sent preset %u from %s (%u/%u)\n", (unsigned)presetNumber, filePath,
+                          (unsigned)(gRestoreFolderIndex + 1), (unsigned)gRestoreFolderCount);
+            } else {
+                gRestoreFolderMissingCount++;
+                LOG_ERROR("Restore: failed to send preset %u from %s (%s)\n", (unsigned)presetNumber, filePath, reason);
+            }
+            free(data);
+        } else {
+            gRestoreFolderMissingCount++;
+        }
+    } else {
+        gRestoreFolderMissingCount++; // file listed a moment ago at restore_folder_chosen() time but gone now — race with something else touching the folder mid-sweep
+    }
+    gRestoreFolderIndex++;
+
+    if (gRestoreFolderIndex >= gRestoreFolderCount) {
+        gRestoreFolderActive = false;
+        // Refresh gDevice.progName/every dial from the live edit buffer
+        // once the sweep's done — same reasoning as
+        // backup_batch_advance()'s own end-of-sweep synth_request_state_dump()
+        // call, applied here since sending 100+ presets doesn't itself
+        // change what's showing, but it's easy to forget the display is
+        // now stale after a sweep this size.
+        synth_request_state_dump();
+        char summary[192];
+        snprintf(summary, sizeof(summary), "Restored %u preset(s), %u missing/failed.",
+                 (unsigned)gRestoreFolderSentCount, (unsigned)gRestoreFolderMissingCount);
+        show_info_dialogue("Restore Folder", summary);
+        LOG_DEBUG("Restore: folder restore finished — %u sent, %u missing/failed\n",
+                  (unsigned)gRestoreFolderSentCount, (unsigned)gRestoreFolderMissingCount);
+        return;
+    }
+    gRestoreFolderNextSendMs = backup_monotonic_ms() + RESTORE_FOLDER_SEND_PACING_MS;
+}
+
+bool synth_backup_get_export_progress(uint32_t * outCurrent, uint32_t * outTotal, uint32_t * outActionCount) {
+    if (!gBackupBatchActive) {
+        return false;
+    }
+    *outCurrent     = gBackupBatchCurrentPreset;
+    *outTotal       = BACKUP_BATCH_PRESET_COUNT;
+    *outActionCount = gBackupBatchRepliedCount;
+    return true;
+}
+
+bool synth_backup_get_restore_progress(uint32_t * outCurrent, uint32_t * outTotal, uint32_t * outActionCount) {
+    if (!gRestoreFolderActive) {
+        return false;
+    }
+    *outCurrent     = gRestoreFolderIndex + 1; // 0-based index -> 1-based "Nth of M"
+    *outTotal       = gRestoreFolderCount;
+    *outActionCount = gRestoreFolderSentCount;
+    return true;
 }

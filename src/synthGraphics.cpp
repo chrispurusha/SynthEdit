@@ -37,6 +37,7 @@ extern "C" {
 #include "utilsGraphics.h"
 #include "panelConfig.h"
 #include "synthComms.h"
+#include "synthBackup.h"
 #include "misc.h"
 #include "fileDialogue.h"
 #include "synthGraphics.h"
@@ -416,6 +417,81 @@ void synth_init_graphics(void) {
     }
     synth_choose_config_file();
     synth_reload_panel_config();
+}
+
+// ── Bulk operation progress overlay ─────────────────────────────────────────
+// Shown while a Backup > Bank (Individual Files) export or Restore > Bank
+// (Individual Files) sweep is running — same idea as G2-Edit's own
+// render_bank_backup_progress()/render_bank_restore_progress() (graphics.cpp
+// there), collapsed into ONE overlay here since SynthEdit only ever has one
+// such sweep active at a time (both directions guard against overlapping —
+// see synth_backup_bank_to_folder()/synth_backup_restore_folder()'s own
+// comments, synthBackup.h) rather than G2's own backup/restore-can-run-
+// independently shape. Purely visual — doesn't block mouse input to
+// whatever's underneath, same as G2-Edit's own version; the bulk sweeps
+// themselves already refuse to start a second overlapping one, so there's
+// nothing unsafe about a stray click elsewhere while this is showing.
+static void synth_render_backup_progress(void) {
+    uint32_t     current     = 0;
+    uint32_t     total       = 0;
+    uint32_t     actionCount = 0;
+    const char * title;
+    const char * verb;
+
+    if (synth_backup_get_export_progress(&current, &total, &actionCount)) {
+        title = "Backing Up Bank";
+        verb  = "written";
+    } else if (synth_backup_get_restore_progress(&current, &total, &actionCount)) {
+        title = "Restoring Bank";
+        verb  = "sent";
+    } else {
+        return;
+    }
+    double       renderW     = get_render_width() / gGlobalGuiScale;
+    double       renderH     = get_render_height() / gGlobalGuiScale;
+    double       boxW        = 360.0;
+    double       boxH        = 90.0;
+    double       boxX        = (renderW - boxW) / 2.0;
+    double       boxY        = (renderH - boxH) / 2.0;
+    double       margin      = 10.0;
+    double       titleH      = 24.0;
+
+    // Background overlay to de-emphasise content beneath the dialog
+    set_rgb_colour((tRgb)RGB_GREY_2);
+    render_rectangle(mainArea, {{0.0, 0.0}, {renderW, renderH}});
+
+    // Dialog box
+    set_rgb_colour((tRgb)RGB_GREY_5);
+    render_rectangle_with_border(mainArea, {{boxX, boxY}, {boxW, boxH}});
+
+    // Title bar
+    set_rgb_colour((tRgb)RGB_GREY_3);
+    render_rectangle(mainArea, {{boxX, boxY}, {boxW, titleH}});
+    set_rgb_colour((tRgb)RGB_BLACK);
+    render_text(mainArea, {{boxX + margin, boxY + 6.0}, {BLANK_SIZE, STANDARD_TEXT_HEIGHT}}, title);
+
+    char         lineBuf[128];
+
+    snprintf(lineBuf, sizeof(lineBuf), "Preset %u of %u", (unsigned)current, (unsigned)total);
+    set_rgb_colour((tRgb)RGB_WHITE);
+    render_text(mainArea, {{boxX + margin, boxY + titleH + margin}, {BLANK_SIZE, STANDARD_TEXT_HEIGHT}}, lineBuf);
+
+    snprintf(lineBuf, sizeof(lineBuf), "%u %s so far", (unsigned)actionCount, verb);
+    render_text(mainArea, {{boxX + margin, boxY + titleH + margin + STANDARD_TEXT_HEIGHT + 6.0}, {BLANK_SIZE, STANDARD_TEXT_HEIGHT}}, lineBuf);
+
+    // Progress bar
+    double       barY = boxY + boxH - margin - 8.0;
+    double       barW = boxW - margin * 2.0;
+    double       frac = (total > 0) ? ((double)current / (double)total) : 0.0;
+
+    // RGB_GREY_9 (G2-Edit's own track colour) doesn't exist in SynthEdit's
+    // own synthlibDefs.h palette variant (see the #ifdef G2_EDIT split
+    // there) — RGB_GREY_2 used instead, darker so it reads clearly against
+    // both the box's own RGB_GREY_5 and the green fill.
+    set_rgb_colour((tRgb)RGB_GREY_2);
+    render_rectangle(mainArea, {{boxX + margin, barY}, {barW, 8.0}});
+    set_rgb_colour((tRgb)RGB_GREEN_ON);
+    render_rectangle(mainArea, {{boxX + margin, barY}, {barW * frac, 8.0}});
 }
 
 void synth_render(tRectangle area) {
@@ -853,6 +929,9 @@ void synth_render(tRectangle area) {
             }
         }
     }
+    // Drawn last so it paints over everything else this function just laid
+    // out — a no-op unless a bulk Backup/Restore sweep is actually running.
+    synth_render_backup_progress();
 }
 
 #ifdef __cplusplus
