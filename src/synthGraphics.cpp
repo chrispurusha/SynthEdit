@@ -603,7 +603,12 @@ void synth_render(tRectangle area) {
         // draw_button() doesn't clip text to the rect it's given (see
         // internal_render_text()), so an under-measured box would bleed.
         bool           navEnabled   = gDevice.connected;
-        const double   navBtnHeight = 26.0 * (2.0 / 3.0);
+        // 12.0, not the old 26.0 * (2.0 / 3.0) (~17px) — matches
+        // buttonHeight, the size every dial's own value-menu/toggle button
+        // face and label text renders at elsewhere in this file (2026-07-11
+        // user request: these three should read at the same size as the
+        // panel's own dial labels, not a bespoke larger one).
+        const double   navBtnHeight = 12.0;
         double         prevWidth    = get_text_width("< Prev", navBtnHeight, eNoCache);
         double         nextWidth    = get_text_width("Next >", navBtnHeight, eNoCache);
         double         syncWidth    = get_text_width("Sync from synth", navBtnHeight, eNoCache);

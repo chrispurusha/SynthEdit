@@ -43,12 +43,12 @@
 // where that thread comes from. _Atomic for that reason, matching gReDraw's
 // own treatment elsewhere in this codebase. Stored as plain int, not
 // tBackupExpect, since not every compiler accepts an enum as an atomic type.
-static _Atomic int gBackupExpect      = eBackupExpectNone;
+static _Atomic int  gBackupExpect           = eBackupExpectNone;
 
 // Valid only while gBackupExpect == eBackupExpectPreset — which preset number
 // (1-based) the pending request was for, purely so the save dialog can
 // suggest a filename that says so.
-static uint32_t    gBackupPresetNum   = 0;
+static uint32_t     gBackupPresetNum        = 0;
 
 // Set on the CoreMIDI thread just before opening the save dialog, read once
 // on the main thread inside the dialog's completion callback. No lock needed
@@ -56,8 +56,35 @@ static uint32_t    gBackupPresetNum   = 0;
 // onto the main queue, and GCD guarantees everything written on the enqueuing
 // thread before a dispatch_async is visible to the block it runs — so these
 // only need to be set before that call, not atomic themselves.
-static uint8_t *   gPendingBackupData = NULL;
-static uint32_t    gPendingBackupLen  = 0;
+static uint8_t *    gPendingBackupData      = NULL;
+static uint32_t     gPendingBackupLen       = 0;
+
+// ── Store Patch to Bank ──────────────────────────────────────────────────────
+// synth_store_patch_to_bank() (main thread) arms this with the CONFIRMED
+// destination preset number (1-based; 0 = no Store pending) before requesting
+// a fresh live dump under the SAME gBackupExpect==eBackupExpectLive banner
+// synth_backup_current_patch() uses — synth_backup_capture_dump() checks
+// this first (see its own body) so a fresh reply gets routed to the Store
+// path instead of opening a save-file dialog. Plain uint32_t, not atomic:
+// only ever written by the main thread (armed here, cleared by
+// synth_backup_capture_dump() on the CoreMIDI thread the moment it consumes
+// it) — same "single owner at a time, flag consumed atomically via the
+// *Ready bool below" discipline as gBackupBatchReplyReady's own handoff.
+static uint32_t     gStoreArmedPresetNumber = 0;
+
+// CoreMIDI-thread -> main-thread handoff for the fetched bytes, once the arm
+// above is satisfied — synth_backup_capture_dump() (CoreMIDI thread) copies
+// the bytes and publishes gStoreReplyReady=true LAST, after the plain writes
+// above it; synth_backup_flush_store() (main/render thread, called once per
+// frame) consumes and clears it before doing the actual convert+send, which
+// needs the main thread (show_confirm_dialogue()/show_info_dialogue() both
+// assume that — see their own comments, fileDialogue.mm). Same shape as
+// gBackupBatchReplyReady/Data/Len below, just for a single fetch rather than
+// a 128-preset sweep.
+static _Atomic bool gStoreReplyReady        = false;
+static uint8_t *    gStoreReplyData         = NULL;
+static uint32_t     gStoreReplyLen          = 0;
+static uint32_t     gStoreReplyPresetNumber = 0;
 
 // ── Bank-to-folder batch export ──────────────────────────────────────────────
 // Sequentially requests every preset (1..kBackupBatchPresetCount) and saves
@@ -167,6 +194,37 @@ void synth_backup_current_patch(void) {
     synth_request_state_dump();
     LOG_DEBUG("Backup: requested a fresh state dump to capture\n");
 }
+
+void synth_store_patch_to_bank(uint32_t presetNumber) {
+    if (!gDevice.connected) {
+        LOG_ERROR("Store: no device connected\n");
+        return;
+    }
+
+    if ((presetNumber < 1) || (presetNumber > 128)) {
+        LOG_ERROR("Store: preset number %u out of range (1-128)\n", (unsigned)presetNumber);
+        return;
+    }
+    char message[160];
+
+    snprintf(message, sizeof(message),
+             "This will overwrite Preset %u on the connected device with the CURRENT panel. This cannot be undone.",
+             (unsigned)presetNumber);
+
+    if (!show_confirm_dialogue("Store Patch to Bank", message)) {
+        LOG_DEBUG("Store: cancelled at confirmation\n");
+        return;
+    }
+    gStoreArmedPresetNumber = presetNumber;
+    gBackupExpect           = eBackupExpectLive;
+    synth_request_state_dump();
+    LOG_DEBUG("Store: requested a fresh state dump to store as preset %u\n", (unsigned)presetNumber);
+}
+// synth_backup_flush_store() is defined further down, right after
+// convert_panel_dump_to_preset_dump() (which it calls) — this file's
+// existing convention is helpers-before-use with no forward declarations,
+// not scattered function order, so it lives next to that helper rather than
+// up here with the other single-shot Backup/Store triggers.
 
 void synth_backup_patch_by_number(uint32_t presetNumber) {
     if (!gDevice.connected) {
@@ -423,6 +481,30 @@ void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExp
     }
     gBackupExpect = eBackupExpectNone;
 
+    if ((kind == eBackupExpectLive) && (gStoreArmedPresetNumber != 0)) {
+        // A "Store Patch to Bank…" fetch, not a "Save Panel to File…" one —
+        // see gStoreArmedPresetNumber's own comment above for why this check
+        // comes before anything file-related. Same CoreMIDI-thread-copies/
+        // main-thread-processes handoff as the bank-to-folder batch export
+        // just below, for the same reason (this runs on the CoreMIDI thread,
+        // and the eventual convert+send+result-dialog work needs the main
+        // thread — see synth_backup_flush_store()).
+        uint8_t * storeCopy = (uint8_t *)malloc(length);
+
+        if (storeCopy == NULL) {
+            LOG_ERROR("Store: out of memory copying %u byte dump\n", (unsigned)length);
+            gStoreArmedPresetNumber = 0;
+            return;
+        }
+        memcpy(storeCopy, data, length);
+        gStoreReplyData         = storeCopy;
+        gStoreReplyLen          = length;
+        gStoreReplyPresetNumber = gStoreArmedPresetNumber;
+        gStoreArmedPresetNumber = 0;
+        gStoreReplyReady        = true;
+        return;
+    }
+
     if ((kind == eBackupExpectPreset) && gBackupBatchActive) {
         // Bank-to-folder sweep in progress — hand the bytes off to the
         // main/render thread rather than doing any file I/O or sequencing
@@ -610,6 +692,81 @@ static uint8_t * convert_preset_dump_to_panel_dump(const uint8_t * src, uint32_t
     memcpy(&dst[5], &src[6], srcLength - 6);      // everything after the removed preset-number byte, including the trailing F7
     *outLen = dstLength;
     return dst;
+}
+
+// Inverse of convert_preset_dump_to_panel_dump() above — inserts a
+// preset-number byte and flips the mode byte the other way, turning a Panel
+// Dump into a Single Preset Dump addressed to a chosen destination. Used by
+// synth_store_patch_to_bank() below ("Store Patch to Bank…", G2-Edit
+// naming): the ONLY way to write the current live panel to a specific
+// stored location is the same "SEND PRESET(S)" mechanism Restore > Patch by
+// Number already proved works (see [[project_voyager_restore_mechanism]] in
+// the assistant's own memory notes) — there's no separate "commit edit
+// buffer to slot N" SysEx command in the manual, just "send a Single Preset
+// Dump addressed to N and the device stores it there". presetNumber0based
+// is 0-127 (caller subtracts 1 from the 1-based UI number, same convention
+// synth_request_single_preset_dump() uses on the request side). Returns a
+// newly malloc'd buffer (caller frees) and writes its length to *outLen, or
+// NULL if srcLength is too short to be a genuine Panel Dump.
+static uint8_t * convert_panel_dump_to_preset_dump(const uint8_t * src, uint32_t srcLength, uint8_t presetNumber0based, uint32_t * outLen) {
+    if (srcLength < 6) { // F0 mfrId productId deviceId mode ...data... F7, minimum shape
+        return NULL;
+    }
+    uint32_t  dstLength = srcLength + 1;
+    uint8_t * dst       = (uint8_t *)malloc(dstLength);
+
+    if (dst == NULL) {
+        return NULL;
+    }
+    memcpy(dst, src, 4);                          // F0 mfrId productId deviceId
+    dst[4]  = 0x03;                               // mode: Single Preset Dump (was 0x02, Panel Dump)
+    dst[5]  = presetNumber0based;                 // inserted preset-number byte
+    memcpy(&dst[6], &src[5], srcLength - 5);      // everything after the mode byte, including the trailing F7
+    *outLen = dstLength;
+    return dst;
+}
+
+// Per-frame poll for synth_store_patch_to_bank()'s own pending fetch — see
+// gStoreReplyReady's own comment above for why this work (convert+send+
+// result dialog) happens here on the main/render thread rather than inside
+// synth_backup_capture_dump() (CoreMIDI thread) where the reply itself
+// lands.
+void synth_backup_flush_store(void) {
+    if (!gStoreReplyReady) {
+        return;
+    }
+    gStoreReplyReady = false;
+
+    uint8_t * data         = gStoreReplyData;
+    uint32_t  length       = gStoreReplyLen;
+    uint32_t  presetNumber = gStoreReplyPresetNumber;
+
+    gStoreReplyData  = NULL;
+    gStoreReplyLen   = 0;
+
+    uint32_t  convertedLen = 0;
+    uint8_t * converted    = convert_panel_dump_to_preset_dump(data, length, (uint8_t)(presetNumber - 1), &convertedLen);
+
+    free(data);
+
+    if (converted == NULL) {
+        LOG_ERROR("Store: failed to convert %u byte Panel Dump for preset %u\n", (unsigned)length, (unsigned)presetNumber);
+        show_info_dialogue("Store Patch Failed", "Couldn't prepare the current panel for sending — see the debug log.");
+        return;
+    }
+    char      message[160];
+
+    if (midi_send(converted, convertedLen)) {
+        LOG_DEBUG("Store: sent %u byte Single Preset Dump (stored to preset %u)\n",
+                  (unsigned)convertedLen, (unsigned)presetNumber);
+        snprintf(message, sizeof(message), "Sent — Preset %u should now match the current panel.", (unsigned)presetNumber);
+        show_info_dialogue("Store Patch to Bank", message);
+    } else {
+        LOG_ERROR("Store: failed to send %u byte Single Preset Dump for preset %u\n",
+                  (unsigned)convertedLen, (unsigned)presetNumber);
+        show_info_dialogue("Store Patch Failed", "The message couldn't be sent — see the debug log for the exact MIDI error.");
+    }
+    free(converted);
 }
 
 // Runs on the main thread once the user has chosen (or cancelled) a file to

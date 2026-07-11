@@ -933,6 +933,26 @@ void synth_request_all_presets_dump(void) {
     LOG_DEBUG("Sent All Presets Dump Request\n");
 }
 
+// Shared tail for both synth_navigate_preset() and
+// synth_load_patch_from_bank() below — the actual "make this program the
+// live one" mechanism (send Program Change, optimistically record it,
+// debounce a state-dump refresh) is identical either way; only how the
+// destination program number is computed differs (relative delta vs. an
+// absolute 1-based preset number). program is 0-based (0-127), matching
+// midi_send_program_change()'s own wire convention.
+static void synth_change_program(uint8_t program) {
+    midi_send_program_change(gDevice.id, program);
+    gDevice.currentProgram = program; // optimistic — see the tSynthDevice field comment in types.h
+    LOG_DEBUG("Preset navigation: sent Program Change %d\n", (int)program);
+    // Debounced, not synth_request_state_dump() directly — a rapid burst of
+    // clicks (real hardware capture, 2026-07-07: Program Change 13 then 14
+    // sent less than a MIDI thread tick apart) only ever got ONE Panel Dump
+    // reply back, for whichever program the Voyager had settled on by the
+    // time it got around to answering. See midi_arm_state_dump_debounce()'s
+    // comment (midiComms.h) for the full story.
+    midi_arm_state_dump_debounce();
+}
+
 void synth_navigate_preset(int32_t delta) {
     if (!gDevice.connected) {
         LOG_ERROR("Preset navigation: no device connected\n");
@@ -959,16 +979,20 @@ void synth_navigate_preset(int32_t delta) {
     if (next > 127) {
         next = 127;
     }
-    midi_send_program_change(gDevice.id, (uint8_t)next);
-    gDevice.currentProgram = next; // optimistic — see the tSynthDevice field comment in types.h
-    LOG_DEBUG("Preset navigation: sent Program Change %d\n", next);
-    // Debounced, not synth_request_state_dump() directly — a rapid burst of
-    // clicks (real hardware capture, 2026-07-07: Program Change 13 then 14
-    // sent less than a MIDI thread tick apart) only ever got ONE Panel Dump
-    // reply back, for whichever program the Voyager had settled on by the
-    // time it got around to answering. See midi_arm_state_dump_debounce()'s
-    // comment (midiComms.h) for the full story.
-    midi_arm_state_dump_debounce();
+    synth_change_program((uint8_t)next);
+}
+
+void synth_load_patch_from_bank(uint32_t presetNumber) {
+    if (!gDevice.connected) {
+        LOG_ERROR("Load Patch: no device connected\n");
+        return;
+    }
+
+    if ((presetNumber < 1) || (presetNumber > 128)) {
+        LOG_ERROR("Load Patch: preset number %u out of range (1-128)\n", (unsigned)presetNumber);
+        return;
+    }
+    synth_change_program((uint8_t)(presetNumber - 1));
 }
 
 void synth_send_parameter_change(uint8_t group, uint16_t paramId, uint16_t value) {

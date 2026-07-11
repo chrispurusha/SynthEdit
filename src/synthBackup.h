@@ -186,6 +186,47 @@ void synth_backup_restore_folder(void);
 // frame from the render loop, alongside synth_backup_flush_bank_to_folder().
 void synth_backup_flush_restore_folder(void);
 
+// ── Load/Store (explicit bank-location transfer, G2-Edit naming) ────────────
+// G2-Edit's File menu has "Load Patch from Bank…" (device → edit buffer, by
+// number) and "Store Patch to Bank…" (edit buffer → device, by number) —
+// added here 2026-07-11 at the owner's explicit request to follow that same
+// naming/placement convention, distinct from both Open/Save (disk files) and
+// Restore/Backup by Number (which round-trip through an actual .syx file on
+// disk rather than acting directly against a chosen device location).
+
+// Triggered by "File > Load Patch from Bank…" — loads a specific STORED
+// preset directly into the live edit buffer, the same effect as physically
+// selecting that preset number on the front panel. Just a Program Change
+// (synthComms.c) — the Voyager's OWN mechanism for "make preset N the
+// current one" — followed by the same debounced state-dump refresh Prev/Next
+// preset navigation already uses (synth_navigate_preset()). No confirmation
+// prompt, matching Prev/Next's own existing behaviour on this exact same
+// underlying action (nothing overwritten, only the live/unsaved edit buffer
+// replaced — same as Sync). presetNumber is 1-based (1-128).
+void synth_load_patch_from_bank(uint32_t presetNumber);
+
+// Triggered by "File > Store Patch to Bank…" — commits the CURRENT live
+// panel to a chosen stored preset location, OVERWRITING whatever is there.
+// Shows a confirmation before doing anything. Mechanism: request a FRESH
+// Panel Dump (not a possibly-stale cache) so the exact current edit-buffer
+// state is what gets stored, convert it to Single Preset Dump shape
+// addressed to presetNumber (the inverse of Restore's own preset-dump ->
+// panel-dump conversion, synthBackup.c), and send — the same
+// "SEND PRESET(S)" mechanism Restore > Patch by Number already proved works
+// on real hardware, just sourced from a live fetch instead of a file.
+// presetNumber is 1-based (1-128). A no-op if no device is connected, the
+// number is out of range, or the user cancels the confirmation.
+void synth_store_patch_to_bank(uint32_t presetNumber);
+
+// Per-frame poll for an in-progress synth_store_patch_to_bank() fetch — the
+// fresh Panel Dump reply lands on the CoreMIDI thread
+// (synth_backup_capture_dump()), which only copies the bytes and publishes
+// them; the actual convert+send+result-dialog work happens here instead,
+// once per frame from the render loop, because show_confirm_dialogue()/
+// show_info_dialogue() (fileDialogue.mm) both require the main thread. A
+// no-op unless a Store fetch's reply has actually arrived.
+void synth_backup_flush_store(void);
+
 // ── Progress reporting for the two bulk sweeps above ─────────────────────────
 // Read by synth_render() (synthGraphics.cpp) each frame to draw a progress
 // overlay — same idea as G2-Edit's own render_bank_backup_progress()/

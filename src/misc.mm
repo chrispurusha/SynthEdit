@@ -23,6 +23,7 @@
 #include "globalVars.h"
 #include "graphics.h"
 #include "midiComms.h"
+#include "synthComms.h"
 #include "synthGraphics.h"
 #include "synthBackup.h"
 #include "fileDialogue.h"
@@ -115,6 +116,25 @@ void prompt_choose_layouts_folder(void) {
     do_choose_layouts_folder();
 }
 
+// Shared by Backup Patch by Number / Load Patch from Bank / Store Patch to
+// Bank — all three just need "pick one of 1-128" (a base Voyager with no
+// VX-… memory expansion, same range synth_request_single_preset_dump()
+// itself checks, synthComms.c). Was inlined 3x before Load/Store existed;
+// factored out here rather than growing that duplication a third time.
+// Returns the chosen 0-based index, or -1 if cancelled.
+static int32_t choose_preset_number(const char * title, const char * message) {
+    const uint32_t kPresetCount = 128;
+    char           labelStorage[128][4]; // "1".."128", 3 digits + NUL
+    const char *   labels[128];
+
+    for (uint32_t i = 0; i < kPresetCount; i++) {
+        snprintf(labelStorage[i], sizeof(labelStorage[i]), "%u", (unsigned)(i + 1));
+        labels[i] = labelStorage[i];
+    }
+
+    return show_device_choice_dialogue(title, message, labels, kPresetCount);
+}
+
 @interface SynthMenuTarget : NSObject
 - (void)scanDevices:(id)sender;
 - (void)setDialModeRotary:(id)sender;
@@ -123,6 +143,8 @@ void prompt_choose_layouts_folder(void) {
 - (void)chooseLayoutsFolder:(id)sender;
 - (void)backupCurrentPatch:(id)sender;
 - (void)backupPatchByNumber:(id)sender;
+- (void)loadPatchFromBank:(id)sender;
+- (void)storePatchToBank:(id)sender;
 - (void)backupBank:(id)sender;
 - (void)backupBankToFolder:(id)sender;
 - (void)restorePanel:(id)sender;
@@ -144,22 +166,26 @@ void prompt_choose_layouts_folder(void) {
 }
 
 - (void)backupPatchByNumber:(id)sender {
-    // 128 locations — a base Voyager with no VX-... memory expansion (see
-    // synth_request_single_preset_dump()'s own range check in synthComms.c).
-    const uint32_t kPresetCount = 128;
-    char           labelStorage[128][4]; // "1".."128", 3 digits + NUL
-    const char *   labels[128];
-
-    for (uint32_t i = 0; i < kPresetCount; i++) {
-        snprintf(labelStorage[i], sizeof(labelStorage[i]), "%u", (unsigned)(i + 1));
-        labels[i] = labelStorage[i];
-    }
-
-    int32_t        chosen       = show_device_choice_dialogue("Backup Patch",
-                                                              "Choose a preset number to back up:", labels, kPresetCount);
+    int32_t chosen = choose_preset_number("Backup Patch", "Choose a preset number to back up:");
 
     if (chosen >= 0) {
         synth_backup_patch_by_number((uint32_t)(chosen + 1));
+    }
+}
+
+- (void)loadPatchFromBank:(id)sender {
+    int32_t chosen = choose_preset_number("Load Patch from Bank", "Choose a preset number to load into the live panel:");
+
+    if (chosen >= 0) {
+        synth_load_patch_from_bank((uint32_t)(chosen + 1));
+    }
+}
+
+- (void)storePatchToBank:(id)sender {
+    int32_t chosen = choose_preset_number("Store Patch to Bank", "Choose a preset number to store the current panel to:");
+
+    if (chosen >= 0) {
+        synth_store_patch_to_bank((uint32_t)(chosen + 1));
     }
 }
 
@@ -270,11 +296,33 @@ void setup_main_menu(void) {
                                       keyEquivalent:@"o"];
     [openPanelItem setTarget:target];
     [fileMenu addItem:openPanelItem];
+    // "Load Patch from Bank…" — G2-Edit naming/placement (misc.mm there:
+    // right after "Open Patch/Perf File…", since both bring content INTO
+    // the edit buffer) — added 2026-07-11 at the owner's explicit request
+    // to follow that same convention. Distinct from Open (a disk file) and
+    // Restore > Patch by Number (also a disk file, and overwrites a STORED
+    // slot rather than loading into the live buffer) — this one talks
+    // directly to the connected device by preset number, no file involved.
+    NSMenuItem * loadPatchItem     = [[NSMenuItem alloc] initWithTitle:@"Load Patch from Bank…"
+                                      action:@selector(loadPatchFromBank:)
+                                      keyEquivalent:@""];
+    [loadPatchItem setTarget:target];
+    [fileMenu addItem:loadPatchItem];
     NSMenuItem * savePanelItem     = [[NSMenuItem alloc] initWithTitle:@"Save Panel to File…"
                                       action:@selector(backupCurrentPatch:)
                                       keyEquivalent:@"s"];
     [savePanelItem setTarget:target];
     [fileMenu addItem:savePanelItem];
+    // "Store Patch to Bank…" — G2-Edit naming/placement (misc.mm there:
+    // right after "Save Patch to File…", since both push content OUT of the
+    // edit buffer), same owner request as Load above. Distinct from Save (a
+    // disk file) — this commits the current live panel directly to a
+    // chosen stored location on the connected device.
+    NSMenuItem * storePatchItem    = [[NSMenuItem alloc] initWithTitle:@"Store Patch to Bank…"
+                                      action:@selector(storePatchToBank:)
+                                      keyEquivalent:@""];
+    [storePatchItem setTarget:target];
+    [fileMenu addItem:storePatchItem];
     [fileMI setSubmenu:fileMenu];
     [menuBar insertItem:fileMI atIndex:1];
 

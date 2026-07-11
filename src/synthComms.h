@@ -128,6 +128,19 @@ void synth_request_all_presets_dump(void);
 // and gDevice.progName from whatever the device now has loaded.
 void synth_navigate_preset(int32_t delta);
 
+// Triggered by "File > Load Patch from Bank…" (G2-Edit naming/placement
+// convention, added 2026-07-11 at the owner's request) — loads a SPECIFIC
+// stored preset by number directly into the live edit buffer, the same
+// effect as physically selecting that preset on the front panel. Same
+// underlying mechanism as synth_navigate_preset() above (Program Change +
+// debounced state-dump refresh) but an ABSOLUTE 1-based preset number
+// (1-128) rather than a relative delta — no confirmation prompt, matching
+// Prev/Next's own existing behaviour on this exact same action (nothing
+// stored is overwritten, only the live/unsaved edit buffer replaced, same
+// as Sync). A no-op if no device is connected or presetNumber is out of
+// range.
+void synth_load_patch_from_bank(uint32_t presetNumber);
+
 // Send a parameter change to the synth
 // group: SYNTH_PARAM_GROUP_*; paramId: 1-based ID from spec; value: raw value
 void synth_send_parameter_change(uint8_t group, uint16_t paramId, uint16_t value);
