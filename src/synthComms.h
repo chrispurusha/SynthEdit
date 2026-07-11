@@ -63,6 +63,24 @@ void synth_request_current_program(void);
 // one.
 void synth_request_state_dump(void);
 
+// True while a Panel Dump Request is outstanding SPECIFICALLY to merge in a
+// pending dump-only dial change or program-name edit (gAwaitingFreshDumpForPatch,
+// synthComms.c) — a caller wanting "get me a fresh dump" for its own separate
+// reason (e.g. the manual Sync button) should check this first and skip
+// firing its own request when true, rather than sending a redundant second
+// one: the outstanding request's reply will deliver fresh data to every
+// consumer once it lands (extract_moog_panel_info() decodes into the shared
+// dial/gDevice state regardless of who asked), so a second simultaneous
+// request buys nothing and risks racing the first reply's own
+// synth_apply_pending_dump_patches() — a second, later reply can land AFTER
+// that call has already cleared the dial's dumpSendAwaitingFreshData flag,
+// get decoded normally, and silently overwrite the just-applied value back
+// to its pre-change state on screen (found 2026-07-11: dragging Headphone
+// Volume then immediately pressing "Sync from synth" reverted the display,
+// because the Sync button's own synth_request_state_dump() call had no such
+// guard).
+bool synth_dump_patch_in_flight(void);
+
 // Moog-style devices only (cfg->moogStyleDump — see panelConfig.h): requests
 // a specific STORED preset by number, as opposed to synth_request_state_dump()
 // above, which only ever reads the live edit buffer (Voyager's Panel Dump).

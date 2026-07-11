@@ -356,10 +356,21 @@ dial soundCategory label="Category" max=32 dumpOffset=15 dumpBitOffset=3 dumpBit
 # unchanged in its comment there — nothing about the FIELDS themselves
 # changed, only where they're drawn.
 
-page       menuSettings
+page       Menu Settings
 section    menuSettings
 dialSize   36
 spacing    50
+
+# Colours are declared PER SECTION (find_section_colour() in panelConfig.c),
+# not globally — "color g ..." on the main "panel" page's "global" section
+# is invisible from here. midiClkDivider (the one non-button dial on this
+# page, a plain numeric knob) needs its own colour declared in THIS section
+# or it renders unset/black — this bit us once already (2026-07-11: Clock
+# Div rendered as a black circle on the dark background right after moving
+# it here, exactly because of this). Every other dial on this page is a
+# button (binary/value-menu), which doesn't read dial->colour at all, so
+# only this one declaration is actually needed.
+color menu 0.5 0.5 0.5
 
 # This page has no physical panel photo to match (unlike "panel"'s 12-column
 # grid, laid out to mirror the real Voyager's front panel), so column
@@ -415,7 +426,7 @@ dial pitchBendUp   label="PB Up"   max=11 dumpOffset=16 dumpBitOffset=4 dumpBitW
 # grid dial on the main "panel" page (col=2 row=6); moved here 2026-07-11
 # alongside the rest of the EDIT-menu settings, same owner request that
 # created this whole page.
-dial midiClkDivider label="Clock Div" color=g max=97 display=raw dumpOffset=137 dumpBitOffset=5 dumpBitWidth=7 col=6 row=1
+dial midiClkDivider label="Clock Div" color=menu max=97 display=raw dumpOffset=137 dumpBitOffset=5 dumpBitWidth=7 col=6 row=1
 
 # PGM M-Whl Source — EDIT mode menu 2.1 (owner's manual): selects an
 # alternate modulation source that is routed to the Mod Wheel bus destination
@@ -587,26 +598,9 @@ dial glide         label="Glide"       color=g nativeMax=127 max=2 names="Off","
 # already makes for the same reason (see its own comment above).
 dial glideMode     label="Glide Mode" color=g max=8 dumpOffset=16 dumpBitOffset=1 dumpBitWidth=3 names="Normal Glide","Legato Glide","Legato Glide to Second Only","Legato Glide back to First Only","Legato First Note","Mode 4+5 Combined","Legato back to 1st = Glide Off","Legato Glide Toggling" col=1 row=5
 
-# MIDI Clock Divider — EDIT mode menu 6.1 (owner's manual): creates a new
-# clock signal from incoming MIDI clock, 48 divisions/beat, used to
-# retrigger the LFO (when LFO SYNC=MIDI) or trigger envelopes (Filter/Volume
-# Envelope Gate Src=MIDI Clock, see the categoryInfo section above). Plain
-# numeric, not an enum — raw value = the displayed divider number directly,
-# no scaling (unlike glideRate/etc's CC-pair dials, this one has no CC at
-# all, so display=raw + dump-only, same shape as hPhoneVolume). CONFIRMED
-# against real hardware 2026-07-11, live-diff at 3 points: 96(baseline)->96,
-# 2(hardware's actual minimum — NOT 1 or 0, despite max=97 allowing the
-# display to reach as low as 0)->2, 48->48, all exact. dumpOffset=137
-# dumpBitOffset=5 dumpBitWidth=7 (7 bits comfortably covers 0-96; an 8th bit
-# read as 0 in every capture so far but was never confirmed to actually
-# belong to this field). Originally placed on the hidden Info Row like the
-# rest of the EDIT-menu sweep; moved to an actual grid dial 2026-07-11 (owner's
-# request — a real dial reads as more obviously interactive than a row of
-# plain text) at col=2 row=6, the first open cell in row 6 (col=0/1 are
-# glide/release above) — coloured "g" to match its row-6 neighbours despite
-# not being part of this section's own glide/LFO subject matter, same
-# exception release/glideMode already established for this row/section.
-dial midiClkDivider label="Clock Div" color=g max=97 display=raw dumpOffset=137 dumpBitOffset=5 dumpBitWidth=7 col=2 row=6
+# midiClkDivider ("Clock Div") used to be a grid dial here (col=2 row=6) —
+# moved to the "Menu Settings" page 2026-07-11 alongside the rest of the
+# EDIT-menu settings (see that page's own dial and its comment).
 
 # volume is declared further down, in the "output" section — it belongs in
 # the Output column (11), not here.
@@ -818,7 +812,7 @@ dial osc3KB        label="KB Track"   color=ox nativeMax=127 max=2 names="Off","
 # prefix (see synthGraphics.cpp's own comment on this), so bare "Lo"/"Hi"
 # would have been ambiguous on its own; the context is baked directly into
 # the names here instead, same as any other device's layout would do it.
-dial osc3FreqRange label="Freq Range" color=ox nativeMax=127 max=2 names="Freq Lo","Freq Hi" cc=80 dumpOffset=95 dumpBitOffset=1 dumpBitWidth=1 dumpNativeMax=1 col=5 row=4
+dial osc3FreqRange label="Freq Range" color=ox nativeMax=127 max=2 names="Freq Lo","Freq Hi" cc=80 dumpOffset=95 dumpBitOffset=1 dumpBitWidth=1 dumpNativeMax=1 noLabel=1 col=5 row=4
 
 page       panel
 section    mixer
@@ -895,7 +889,7 @@ dial fltKBAmount label="KB Amount"  color=f max=16384 display=raw cc=0x16 ccLsb=
 # hardware (2026-07-08). Its CC (86)/names ("Dual LP"/"HP/LP") remain
 # unconfirmed guesses from the Ctrlr panel, same caveat as before — only the
 # dump-decode side was verified this session.
-dial fltMode     label="Mode"       color=f nativeMax=127 max=2 names="Dual LP","HP/LP" cc=86 dumpOffset=96 dumpBitOffset=1 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=8 row=4
+dial fltMode     label="Mode"       color=f nativeMax=127 max=2 names="Dual LP","HP/LP" cc=86 dumpOffset=96 dumpBitOffset=1 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 noLabel=1 col=8 row=4
 
 # Filter A/B Pole Select (1/2/3/4-pole) — CONFIRMED against real hardware
 # (2026-07-08) via tools/moog_dump (standalone CoreMIDI request/capture) and
@@ -930,8 +924,8 @@ dial fltMode     label="Mode"       color=f nativeMax=127 max=2 names="Dual LP",
 # itself; Filter B had to borrow col=9 row=5 (Filter Env's column, hence the
 # duplicated "fe" colour above) since Filters' own column was already full.
 # Not confirmed against the reference photo — move if a better spot exists.
-dial fltAPole label="Filter A Poles" color=f  nativeMax=3 max=4 names="1 Pole","3 Pole","2 Pole","4 Pole" dumpOffset=99 dumpBitOffset=3 dumpBitWidth=2 col=8 row=5
-dial fltBPole label="Filter B Poles" color=fe nativeMax=3 max=4 names="1 Pole","3 Pole","2 Pole","4 Pole" dumpOffset=99 dumpBitOffset=5 dumpBitWidth=1 dumpOffset2=95 dumpBitOffset2=2 dumpBitWidth2=1 col=9 row=5
+dial fltAPole label="Filter A Poles" color=f  nativeMax=3 max=4 names="1 Pole","3 Pole","2 Pole","4 Pole" dumpOffset=99 dumpBitOffset=3 dumpBitWidth=2 noLabel=1 col=8 row=5
+dial fltBPole label="Filter B Poles" color=fe nativeMax=3 max=4 names="1 Pole","3 Pole","2 Pole","4 Pole" dumpOffset=99 dumpBitOffset=5 dumpBitWidth=1 dumpOffset2=95 dumpBitOffset2=2 dumpBitWidth2=1 noLabel=1 col=9 row=5
 
 page       panel
 section    filterEnv
@@ -992,15 +986,28 @@ dial volume        label="Volume"      color=g max=16384 display=raw cc=0x07 ccL
 # assumes the same "top 2 bits always 0" shape confirmed for cutoff/res
 # (unconfirmed for this specific field — could legitimately be a full
 # 16-bit value if Headphone Volume was never routed through the same 14-bit
-# CC-pair convention as everything else). Unlike the wheel/pedal fields
-# above, this ONE has real write-back risk: no cc= means turning this dial
-# on screen patches-and-resends the cached dump (see
-# synth_patch_and_resend_moog_dump() in synthComms.c) using this offset —
-# now debounced (dumpDebounceMs, see panelConfig.h) rather than resent on
-# every drag tick — sweep with tools/moog_dump + tools/syx_diff.py (turn the
-# real knob, diff two dumps) before trusting a value typed in here to
-# round-trip cleanly.
-dial hPhoneVolume label="Headphone" color=g max=16384 display=raw dumpOffset=68 dumpBitOffset=2 dumpBitWidth=14 col=11 row=2
+# CC-pair convention as everything else).
+#
+# readOnly=1 (2026-07-11) — CORRECTS an earlier "confirmed both read and
+# write" claim for this dial (2026-07-11, same day, earlier session): that
+# test dragged to max and read back 16380 (near-max), which looked like
+# confirmation, but turned out to be a false positive — the REAL physical
+# Headphone Volume knob on the hardware happened to already be sitting at
+# max at the time. Real bug report same day: sent a mid-range value (5395)
+# via patch-and-resend (no send errors, debug log showed a clean
+# patch+resend), then Synced — hardware reported back raw=16380 regardless,
+# and the physical knob was confirmed still sitting at max. This dump field
+# just mirrors the real analog pot's live position (read via an ADC for the
+# dump/display, same as any hybrid synth's hardware-governed volume knob) —
+# there is no way to "write" a knob's physical rotation via SysEx, so
+# patch-and-resend for this one field does nothing useful even though it
+# executes without error. readOnly=1 (panelConfig.h/mouseHandle.c) disables
+# drag/click for just this dial — it still DECODES and displays the live
+# knob position on every fresh dump, same as before, just can't be changed
+# from the app. Every other dump-only dial in this file (Filter A/B Pole
+# Select, the PGM wheel/pedal/shaping menus) is a genuine stored firmware
+# setting, not a live analog readout — this is the one exception so far.
+dial hPhoneVolume label="Headphone" color=g max=16384 display=raw dumpOffset=68 dumpBitOffset=2 dumpBitWidth=14 readOnly=1 col=11 row=2
 # releaseSwitch used to sit at col=11 row=2 (CC88) — removed 2026-07-08 as
 # confirmed erroneous (see the layout note up top); that cell now holds
 # hPhoneVolume instead.

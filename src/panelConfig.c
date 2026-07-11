@@ -250,6 +250,10 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
             dial->gridCol = strtod(val, NULL);
         } else if (strcmp(key, "row") == 0) {
             dial->gridRow = strtod(val, NULL);
+        } else if (strcmp(key, "noLabel") == 0) {
+            dial->noLabel = (strtoul(val, NULL, 0) != 0);
+        } else if (strcmp(key, "readOnly") == 0) {
+            dial->readOnly = (strtoul(val, NULL, 0) != 0);
         } else {
             LOG_ERROR("panelConfig line %u: unknown dial attribute '%s'\n", lineNo, key);
         }

@@ -616,6 +616,10 @@ static uint32_t gLastMoogDumpLen           = 0;
 // already outstanding.
 static bool     gAwaitingFreshDumpForPatch = false;
 
+bool synth_dump_patch_in_flight(void) {
+    return gAwaitingFreshDumpForPatch;
+}
+
 // Patches dial's RAW dump value into the cached Panel Dump (gLastMoogDump)
 // WITHOUT sending anything — used both by synth_apply_pending_dump_patches()
 // below (a dump-only dial, once fresh data has arrived) and by its own

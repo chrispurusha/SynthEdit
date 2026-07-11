@@ -322,6 +322,18 @@ void do_graphics_loop(void) {
         // (paced sends, no reply to wait for) — see
         // synth_backup_flush_restore_folder()'s own comment (synthBackup.h).
         synth_backup_flush_restore_folder();
+        // Tracks which context-menu item the mouse is currently over and
+        // requests a redraw when it changes — contextMenu.h's own comment
+        // (SynthLib) explicitly documents this as required "once per frame
+        // from the main render loop"; SynthEdit never actually called it
+        // anywhere until now (2026-07-11 user report: the hover highlight on
+        // a value-menu dropdown didn't track the mouse the way it does on
+        // G2-Edit). A no-op cheap early-return when no menu is open
+        // (gContextMenu.active check lives inside the function itself), so
+        // unconditional every frame is fine — also needed for the
+        // hover-dwell submenu-opening timer to elapse even while the mouse
+        // sits still over a flyout parent, per that same header comment.
+        update_context_menu_hover();
 
         bool reDraw = atomic_exchange(&gReDraw, false);
 

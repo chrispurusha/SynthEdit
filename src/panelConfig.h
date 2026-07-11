@@ -248,6 +248,44 @@ typedef struct {
     // two-thirds of the way between grid rows 2 and 3.
     double gridCol;
     double gridRow;
+
+    // "noLabel" in the file — for a binary/value-menu button (see
+    // panel_dial_is_binary()/panel_dial_needs_value_menu()) whose own
+    // current-value text is ALREADY self-explanatory without its dial's
+    // label underneath (e.g. Filter A/B Pole Select showing "2 Pole",
+    // Filter Mode showing "Dual LP"/"HP/LP") — suppresses the separate
+    // label line synth_render() would otherwise draw beneath the button,
+    // saving vertical space with no loss of clarity. Default false (show
+    // the label) because most value-menu buttons are NOT self-explanatory
+    // on their own — e.g. Voyager's "Menu Settings" page dials show things
+    // like "Lower Key"/"Single Trigger" with no photo-realistic panel
+    // position to supply context the way the main panel page's Filters
+    // column does for Pole Select, so those need the label kept. A genuine
+    // Off/On toggle (panel_dial_is_toggle()) is unaffected either way — it
+    // always shows just its own label on the button face (colour conveys
+    // on/off), a separate, older mechanism this doesn't change.
+    bool noLabel;
+
+    // "readOnly" in the file — for a dial whose dump/CC field genuinely
+    // cannot be changed by this app, so mouse interaction (drag, click,
+    // dropdown) should do nothing at all rather than optimistically update
+    // the display and attempt a write that will never actually take effect.
+    // Added 2026-07-11 for Voyager's hPhoneVolume: its dump field turned out
+    // to just mirror the REAL physical Headphone Volume pot's live position
+    // (a real hardware finding, not a placement bug — confirmed by writing
+    // an arbitrary value, then re-requesting a fresh dump: it read back
+    // whatever the physical knob was ACTUALLY sitting at, 16380/near-max,
+    // regardless of what had just been sent). An earlier "confirmed both
+    // read and write" claim for this same dial (see
+    // [[project_voyager_sysex_pdf_gap_audit]] in the assistant's own memory
+    // notes) turned out to be a false positive — that test happened to drag
+    // to max while the real knob ALSO happened to already be at/near max,
+    // so the read-back looked like confirmation of a write that never
+    // actually did anything. Default false (interactive) — every other
+    // dump-only dial in this app (Filter A/B Pole Select, the PGM
+    // wheel/pedal/shaping menus, etc.) genuinely IS a stored firmware
+    // setting, not a live analog readout, so this should stay rare.
+    bool readOnly;
 } tPanelDial;
 
 typedef struct {

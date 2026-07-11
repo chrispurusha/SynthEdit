@@ -104,6 +104,15 @@ static tPanelDial * gPressedValueMenuDial = NULL;
 // triggerMode) or a raw-numeric one (like midiClkDivider) with no click
 // behaviour at all.
 static void arm_dial_press(void * win, tPanelDial * dial, double x, double y) {
+    // A readOnly dial (panelConfig.h — e.g. Voyager's hPhoneVolume, which
+    // just mirrors a real analog pot's live position) takes no interaction
+    // at all: no drag, no toggle, no dropdown. Checked first, before any of
+    // the three interactive branches below, so it's a true no-op rather
+    // than accidentally falling into one of them.
+    if (dial->readOnly) {
+        return;
+    }
+
     if (panel_dial_needs_value_menu(dial)) {
         // Opens on RELEASE, not here — see gPressedValueMenuDial's own
         // comment above for why.

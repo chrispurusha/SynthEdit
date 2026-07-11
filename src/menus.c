@@ -69,5 +69,27 @@ void open_dial_value_menu(tCoord coord, tPanelDial * dial) {
     };
 
     gMenuDial         = dial;
-    open_context_menu(coord, gDialMenuItems, 0, 0.0);
+
+    // A single-column menu (columns=0, the old fixed value here) grows one
+    // row per item with no limit — fine for a handful of positions, but
+    // Voyager's pgmShaping1Src/2Src (43 names each) or soundCategory (32)
+    // render a menu roughly 1000px/750px tall, well past any reasonable
+    // window height. open_context_menu()'s own clamp_menu_to_screen() only
+    // REPOSITIONS a menu frame, it can't shrink one that's simply too tall
+    // to fit — items past the window edge stay off-screen and unreachable
+    // (2026-07-11 user report: couldn't see all of pgmShaping1Src's list,
+    // and saw a stray-looking hover highlight near the cutoff, most likely
+    // a symptom of hit-testing rows that were rendered off the visible
+    // window rather than a real highlight bug). Capping rows per column and
+    // wrapping into more columns once a list is longer than that keeps every
+    // menu within a sane height regardless of item count — 12 rows per
+    // column (a plain constant here, not tied to actual window height,
+    // since menus.c has no reason to reach into window-size APIs for this)
+    // comfortably fits any real window, and 1 column for anything at or
+    // under that (every OTHER dial's list in this file) renders identically
+    // to before this existed.
+    const uint32_t maxRowsPerColumn = 12;
+    uint32_t       columns          = (n + maxRowsPerColumn - 1) / maxRowsPerColumn;
+
+    open_context_menu(coord, gDialMenuItems, columns, 0.0);
 }

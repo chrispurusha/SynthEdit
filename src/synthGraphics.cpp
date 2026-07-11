@@ -173,7 +173,21 @@ void synth_action_patch_nav(int32_t index) {
     } else if (index == 1) {
         synth_navigate_preset(1);
     } else if (index == 2) {
-        synth_request_state_dump();
+        // Skipped while a dump-only dial change or program-name edit is
+        // already mid fetch-then-patch (synth_dump_patch_in_flight(),
+        // synthComms.c) — firing a SECOND request here raced the first
+        // one's reply, found 2026-07-11 by dragging Headphone Volume then
+        // immediately pressing this button: the second reply landed after
+        // the first had already applied+sent the new value, got decoded
+        // normally (nothing left to skip it), and overwrote the display
+        // back to the pre-drag value even though the actual write had gone
+        // out correctly. The in-flight request's own reply already refreshes
+        // everything this button wants, so there's nothing to gain by
+        // sending a duplicate — and real hardware next to no cost either way,
+        // since the outstanding request is seconds away at most.
+        if (!synth_dump_patch_in_flight()) {
+            synth_request_state_dump();
+        }
     }
 }
 
@@ -940,17 +954,34 @@ void synth_render(tRectangle area) {
                     set_rgb_colour((tRgb)RGB_GREY_7);
                     render_text(mainArea, valRect, valBuf);
                 }
+                // Skipped for a genuine Off/On toggle unconditionally — its
+                // button face already shows dial->label, colour conveys the
+                // state, so this would just repeat the exact same text. For
+                // any OTHER button-style dial (binary or value-menu), only
+                // skipped when the file explicitly marks it noLabel=1 (its
+                // own current-value text is already self-explanatory on its
+                // own, e.g. Filter A/B Pole Select's "2 Pole") — the DEFAULT
+                // is to still show the label, since most value-menu buttons
+                // are NOT self-explanatory without it (e.g. "Lower Key" on
+                // Voyager's Menu Settings page means nothing without
+                // knowing it's Keyboard Mode).
+                bool   isSelfExplanatoryButton = (panel_dial_is_binary(dial) || panel_dial_needs_value_menu(dial))
+                                                 && dial->noLabel;
+                // A button-style dial never gets the valRect line above (its
+                // face already shows the value) — its own label, when shown
+                // at all, moves up into that now-empty +4.0 slot instead of
+                // sitting at the lower +18.0 one a knob's label uses (a knob
+                // needs +18.0 precisely BECAUSE +4.0 is already taken by its
+                // value line). 2026-07-11 user request: don't leave a blank
+                // gap above the label just because there's nothing else to
+                // put there.
+                bool   isButtonDial            = panel_dial_is_binary(dial) || panel_dial_needs_value_menu(dial)
+                                                 || panel_dial_is_toggle(dial);
+                double lblY                    = baseY + section->dialSize + (isButtonDial ? 4.0 : 18.0);
 
-                // Skipped for any button-style dial (toggle, binary, or
-                // value-menu) — its button face already shows either
-                // dial->label (a toggle) or its own current-value name (any
-                // other button), so a separate label line underneath would
-                // just be unwanted duplication (e.g. "Filter A Poles" below
-                // a button already showing "2 Pole"), not a genuine second
-                // piece of information the way it is for a knob.
-                if (!panel_dial_is_binary(dial) && !panel_dial_needs_value_menu(dial)) {
-                    tRectangle lblRect = {{dial->rect.coord.x, baseY + section->dialSize + 18.0},
-                        {section->spacing,                               12.0}};
+                if (!panel_dial_is_toggle(dial) && !isSelfExplanatoryButton) {
+                    tRectangle lblRect = {{dial->rect.coord.x, lblY},
+                        {section->spacing,   12.0}};
 
                     // Explicit here, not left over from the valRect render_text
                     // above — that one's skipped for a binary button, which
