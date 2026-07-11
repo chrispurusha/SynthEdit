@@ -342,6 +342,33 @@ hidden
 
 dial soundCategory label="Category" max=32 dumpOffset=15 dumpBitOffset=3 dumpBitWidth=5 names="Not Assigned","Piano","Organs","Strings","Clav","Pads","Soft Lead","Bright Lead","Res Lead","Sync","Brass","Horn","Instruments","Evolution","Motion","Interval","Synth","Vox","Bells","Sequence","Percussion","Model D","Classic","Generic","Harmonics","Ring","Noise","Soft Bass","Bright Bass","Res Bass","Sub Bass","Sound FX"
 
+# Pitch Bend Up/Down pre-amp range — front-panel display-menu settings for
+# how far incoming Pitch Bend swings the pitch, separate from the physical
+# Pitch Bend wheel itself (which has no CC/dump wiring found at all so far —
+# not the same control). No dedicated panel-photo column exists for these
+# (menu-only settings, same as Category/Glide Mode), and the grid only has
+# rows 0-6 of vertical room (row=7 rendered off the bottom of the window —
+# see glideMode's own placement history above) with no free pair of cells
+# left, so these live in the Info Row like Category rather than the grid.
+#
+# CONFIRMED against real hardware 2026-07-11, live-diff method (owner
+# narrated each menu position, tools/moog_dump+syx_diff.py captured/diffed
+# against a clean both-off baseline): both are 11-position sequential-index
+# fields (raw value = index into names=, NOT the semitone count itself —
+# "not logical stepping", owner's own words, is why this needed the full
+# enumeration rather than a formula). Down: dumpOffset=17 dumpBitOffset=1
+# dumpBitWidth=4 (byte 18, bits 1-4). Up: dumpOffset=16 dumpBitOffset=4
+# dumpBitWidth=4 (byte 17's bits 4-6 + byte 18's bit 0 — spans the byte
+# boundary, same continuous-bitstream addressing every other multi-bit
+# field in this file uses). Both confirmed at three points each (Off=0,
+# "2 Semitones"=1, "1 Octave"=6, Max="Pre-Val:..."=10) — clean, no gaps.
+# The last position's label differs between the two (Down: "Pre-Val: 0",
+# Up: "Pre-Val: 254") — sounds like a raw-editable/calibration slot rather
+# than a real bend-range value; kept verbatim as the owner read it off the
+# display rather than guessed at what it means.
+dial pitchBendDown label="PB Down" max=11 dumpOffset=17 dumpBitOffset=1 dumpBitWidth=4 names="OFF!","2 Semitones","Minor Third","Major Third","Fourth","Fifth","1 Octave","1 Oct. & 5th","2 Octaves","2 Oct. & 5th","Pre-Val: 0"
+dial pitchBendUp   label="PB Up"   max=11 dumpOffset=16 dumpBitOffset=4 dumpBitWidth=4 names="OFF!","2 Semitones","Minor Third","Major Third","Fourth","Fifth","1 Octave","1 Oct. & 5th","2 Octaves","2 Oct. & 5th","Pre-Val: 254"
+
 page       panel
 section    lfo
 dialSize   36
@@ -415,6 +442,32 @@ dial release       label="Release"     color=g nativeMax=127 max=2 names="Off","
 # hardware (2026-07-08), same physical-toggle-and-diff method as the rest of
 # this file's toggles.
 dial glide         label="Glide"       color=g nativeMax=127 max=2 names="Off","On" cc=65 dumpOffset=96 dumpBitOffset=5 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=0 row=6
+# Glide Mode — the front panel's own display-menu setting for HOW glide
+# behaves (separate from the Glide on/off switch above), 8 positions.
+# dumpOffset/dumpBitOffset/dumpBitWidth CONFIRMED against real hardware
+# 2026-07-11 via tools/moog_dump+syx_diff.py: stepped through all 8 menu
+# positions in order (owner narrated each one live), diffing each capture
+# against a clean Normal-Glide baseline (same patch, "Dramatic Entrance",
+# throughout — an earlier attempt accidentally changed patches mid-sweep,
+# which surfaced as a huge unrelated diff across ~120 of 147 bytes and was
+# caught/redone rather than misread as this field). Bits 1-3 of byte 16
+# (dumpBitOffset=1, dumpBitWidth=3) landed on a clean sequential 0-7 across
+# all 8 positions — position N-1 (0-indexed) always read exactly N-1, e.g.
+# the 8th/last position read 7 (0x1E = bits 1-3 all set) — bit 4 of that
+# same byte stayed constant throughout (belongs to a different, not-yet-
+# investigated field, not this one). No CC found — dump-only, like
+# soundCategory above, so it gets the same generic click-to-open dropdown
+# (panel_dial_needs_value_menu(), mouseHandle.c) with no code changes.
+# Names are the owner's own live narration of the hardware's display text,
+# not from the manual (Voyager's manual doesn't enumerate these 8 by name).
+#
+# col=1 row=5, not col=0 — row 7 doesn't exist in this grid (nothing else
+# uses it, and it rendered off the bottom of the window). col=1 row=5 sits
+# directly right of Glide Rate (col=0 row=5) and was genuinely empty (between
+# mwAmount's row=4 and release's row=6) — coloured "g" to match glide despite
+# being drawn in the Mod Wheel column, same exception release (col=1 row=6)
+# already makes for the same reason (see its own comment above).
+dial glideMode     label="Glide Mode" color=g max=8 dumpOffset=16 dumpBitOffset=1 dumpBitWidth=3 names="Normal Glide","Legato Glide","Legato Glide to Second Only","Legato Glide back to First Only","Legato First Note","Mode 4+5 Combined","Legato back to 1st = Glide Off","Legato Glide Toggling" col=1 row=5
 # volume is declared further down, in the "output" section — it belongs in
 # the Output column (11), not here.
 
