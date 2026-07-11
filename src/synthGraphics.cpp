@@ -843,7 +843,29 @@ void synth_render(tRectangle area) {
                 // something you'd expect to drag, so it shouldn't look like a
                 // knob in the first place.
                 if (panel_dial_is_binary(dial) || panel_dial_needs_value_menu(dial)) {
-                    const char * name = (dialVal < dial->nameCount) ? dial->names[dialVal] : "?";
+                    // Genuine Off/On toggles show their own LABEL on the
+                    // button face ("Glide", not "Off"/"On") instead of the
+                    // current state's name — the button's colour (green vs
+                    // grey, below) already carries the on/off state, so
+                    // repeating it as text would be redundant. Everything
+                    // else through this branch (a value-menu button, or a
+                    // binary-but-not-Off/On pair like Filter Mode's Dual
+                    // LP/HP-LP) just shows its own current-value name alone
+                    // — 2026-07-11 user call: names are expected to be
+                    // self-explanatory on their own (bake any needed context
+                    // straight into names=, e.g. Freq Range uses "Freq
+                    // Lo"/"Freq Hi" as its actual names rather than the code
+                    // prefixing a separate label on), so a code-level label
+                    // prefix ("Mode Dual LP", "Filter A Poles 2 Pole") is
+                    // unwanted duplication, not a genuine aid. The separate
+                    // label line beneath the button is still skipped for
+                    // ALL of these (toggle, binary, or value-menu — further
+                    // down this loop), since the button's own face already
+                    // says enough on its own.
+                    bool         isToggle = panel_dial_is_toggle(dial);
+                    const char * name     = isToggle ? dial->label
+                                : (dialVal < dial->nameCount) ? dial->names[dialVal]
+                                                                                     : "?";
 
                     // draw_button() scales text to fill the WHOLE height of
                     // the rect it's given (internal_render_text) —
@@ -856,26 +878,32 @@ void synth_render(tRectangle area) {
                     // the user clicks it) makes it read as a compact
                     // rectangular button instead — same idea as
                     // render_page_tabs()'s own width-from-measured-text
-                    // sizing above. Mutates dial->rect itself, not a
-                    // separate local rect, so the clickable hit area
-                    // (mouseHandle.c) always matches what's actually drawn.
-                    // buttonHeight matches the 12.0 the dial label/value
-                    // text below (further down this loop) renders at, so
-                    // the button's own text reads at the same size as every
-                    // other label on the panel, not an arbitrarily bigger
-                    // one.
+                    // sizing above. A toggle's own label is a single fixed
+                    // string (not one of several names it might cycle
+                    // through), so its own width is simply measured
+                    // directly rather than scanning dial->names. Mutates
+                    // dial->rect itself, not a separate local rect, so the
+                    // clickable hit area (mouseHandle.c) always matches what's
+                    // actually drawn. buttonHeight matches the 12.0 the dial
+                    // label/value text below (further down this loop)
+                    // renders at, so the button's own text reads at the same
+                    // size as every other label on the panel, not an
+                    // arbitrarily bigger one.
                     const double buttonHeight = 12.0;
                     const double padding      = 10.0;
                     double       widest       = 0.0;
 
-                    for (uint32_t n = 0; n < dial->nameCount; n++) {
-                        double w = get_text_width(dial->names[n], buttonHeight, eNoCache);
+                    if (isToggle) {
+                        widest = get_text_width(dial->label, buttonHeight, eNoCache);
+                    } else {
+                        for (uint32_t n = 0; n < dial->nameCount; n++) {
+                            double w = get_text_width(dial->names[n], buttonHeight, eNoCache);
 
-                        if (w > widest) {
-                            widest = w;
+                            if (w > widest) {
+                                widest = w;
+                            }
                         }
                     }
-
                     dial->rect.coord.y += (section->dialSize - buttonHeight) / 2.0;
                     dial->rect.size     = {widest + padding, buttonHeight};
 
@@ -883,7 +911,7 @@ void synth_render(tRectangle area) {
                     // render_page_tabs()'s own identical comment above:
                     // the latter is a dark grey in this build, too
                     // low-contrast for draw_button's fixed black text.
-                    tRgb         colour       = panel_dial_is_toggle(dial) && (dialVal != 0)
+                    tRgb         colour       = isToggle && (dialVal != 0)
                                 ? (tRgb)RGB_GREEN_ON
                                 : (tRgb)RGB_GREY_7;
                     draw_button(mainArea, dial->rect, name, colour);
@@ -912,16 +940,26 @@ void synth_render(tRectangle area) {
                     set_rgb_colour((tRgb)RGB_GREY_7);
                     render_text(mainArea, valRect, valBuf);
                 }
-                tRectangle lblRect = {{dial->rect.coord.x, baseY + section->dialSize + 18.0},
-                    {section->spacing,                               12.0}};
 
-                // Explicit here, not left over from the valRect render_text
-                // above — that one's skipped for a binary button, which
-                // otherwise left the last colour draw_button() itself set
-                // (black, for the button's own text) in effect for this
-                // label too.
-                set_rgb_colour((tRgb)RGB_GREY_7);
-                render_text(mainArea, lblRect, dial->label);
+                // Skipped for any button-style dial (toggle, binary, or
+                // value-menu) — its button face already shows either
+                // dial->label (a toggle) or its own current-value name (any
+                // other button), so a separate label line underneath would
+                // just be unwanted duplication (e.g. "Filter A Poles" below
+                // a button already showing "2 Pole"), not a genuine second
+                // piece of information the way it is for a knob.
+                if (!panel_dial_is_binary(dial) && !panel_dial_needs_value_menu(dial)) {
+                    tRectangle lblRect = {{dial->rect.coord.x, baseY + section->dialSize + 18.0},
+                        {section->spacing,                               12.0}};
+
+                    // Explicit here, not left over from the valRect render_text
+                    // above — that one's skipped for a binary button, which
+                    // otherwise left the last colour draw_button() itself set
+                    // (black, for the button's own text) in effect for this
+                    // label too.
+                    set_rgb_colour((tRgb)RGB_GREY_7);
+                    render_text(mainArea, lblRect, dial->label);
+                }
             }
 
             if (!pageIsGrid) {

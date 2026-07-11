@@ -342,79 +342,80 @@ hidden
 
 dial soundCategory label="Category" max=32 dumpOffset=15 dumpBitOffset=3 dumpBitWidth=5 names="Not Assigned","Piano","Organs","Strings","Clav","Pads","Soft Lead","Bright Lead","Res Lead","Sync","Brass","Horn","Instruments","Evolution","Motion","Interval","Synth","Vox","Bells","Sequence","Percussion","Model D","Classic","Generic","Harmonics","Ring","Noise","Soft Bass","Bright Bass","Res Bass","Sub Bass","Sound FX"
 
-# Pitch Bend Up/Down pre-amp range — front-panel display-menu settings for
-# how far incoming Pitch Bend swings the pitch, separate from the physical
-# Pitch Bend wheel itself (which has no CC/dump wiring found at all so far —
-# not the same control). No dedicated panel-photo column exists for these
-# (menu-only settings, same as Category/Glide Mode), and the grid only has
-# rows 0-6 of vertical room (row=7 rendered off the bottom of the window —
-# see glideMode's own placement history above) with no free pair of cells
-# left, so these live in the Info Row like Category rather than the grid.
-#
-# CONFIRMED against real hardware 2026-07-11, live-diff method (owner
-# narrated each menu position, tools/moog_dump+syx_diff.py captured/diffed
-# against a clean both-off baseline): both are 11-position sequential-index
-# fields (raw value = index into names=, NOT the semitone count itself —
-# "not logical stepping", owner's own words, is why this needed the full
-# enumeration rather than a formula). Down: dumpOffset=17 dumpBitOffset=1
-# dumpBitWidth=4 (byte 18, bits 1-4). Up: dumpOffset=16 dumpBitOffset=4
-# dumpBitWidth=4 (byte 17's bits 4-6 + byte 18's bit 0 — spans the byte
-# boundary, same continuous-bitstream addressing every other multi-bit
-# field in this file uses). Both confirmed at three points each (Off=0,
-# "2 Semitones"=1, "1 Octave"=6, Max="Pre-Val:..."=10) — clean, no gaps.
-# The last position's label differs between the two (Down: "Pre-Val: 0",
-# Up: "Pre-Val: 254") — sounds like a raw-editable/calibration slot rather
-# than a real bend-range value; kept verbatim as the owner read it off the
-# display rather than guessed at what it means.
-dial pitchBendDown label="PB Down" max=11 dumpOffset=17 dumpBitOffset=1 dumpBitWidth=4 names="OFF!","2 Semitones","Minor Third","Major Third","Fourth","Fifth","1 Octave","1 Oct. & 5th","2 Octaves","2 Oct. & 5th","Pre-Val: 0"
-dial pitchBendUp   label="PB Up"   max=11 dumpOffset=16 dumpBitOffset=4 dumpBitWidth=4 names="OFF!","2 Semitones","Minor Third","Major Third","Fourth","Fifth","1 Octave","1 Oct. & 5th","2 Octaves","2 Oct. & 5th","Pre-Val: 254"
+# Everything else that used to live in this Info Row (Pitch Bend Up/Down,
+# Keyboard/Trigger Mode, Filter/Volume Envelope Gate Src, PGM Wheel/Pedal
+# Source+Dest, PGM Shaping 1/2 Src, plus Clock Div which used to be a grid
+# dial on the main panel page) moved to their own "Menu Settings" page
+# 2026-07-11 (owner's request) — these are all EDIT-mode MENU settings, not
+# physical front-panel controls, so they read better as real clickable
+# buttons on a dedicated page than as small text in this status row. Only
+# Category stays here — it's the one of this whole group the owner wants
+# visible at a glance without switching pages. See that page's own opening
+# comment (search "page Menu Settings" below) for the grid layout rationale
+# and each dial's own individual hardware-confirmation history is preserved
+# unchanged in its comment there — nothing about the FIELDS themselves
+# changed, only where they're drawn.
 
-# Keyboard Mode — EDIT mode menu 3.3 (owner's manual), keyboard priority for
-# a preset (what happens when more than one key is pressed). No dedicated
-# panel-photo column, same as Category/Pitch Bend above, so it lives in the
-# Info Row too. CONFIRMED against real hardware 2026-07-11, live-diff:
-# Lower Key(baseline)=0, Higher Key=1 (both bits of dumpOffset=127's field
-# clear/low bit only), 1 Key Only=3 (both bits set) — clean sequential
-# index, dumpOffset=127 dumpBitOffset=3 dumpBitWidth=2. Last Key (index 2)
-# not individually captured but follows the same confirmed pattern as
-# Glide Mode/Pitch Bend/Category (see [[project_voyager_edit_menu_sweep]]
-# in the assistant's own memory notes for the full sweep this belongs to).
-dial keyboardMode  label="KB Mode" max=4 dumpOffset=127 dumpBitOffset=3 dumpBitWidth=2 names="Lower Key","Higher Key","Last Key","1 Key Only"
+page       menuSettings
+section    menuSettings
+dialSize   36
+spacing    50
 
-# Trigger Mode — EDIT mode menu 3.4 (owner's manual): Single Trigger
-# (legato) vs Multi Trigger (envelopes retrigger on every note). CONFIRMED
-# against real hardware 2026-07-11, live-diff, single clean bit:
-# dumpOffset=128 dumpBitOffset=0 dumpBitWidth=1, Single Trigger=0, Multi
-# Trigger=1. RESOLVES an earlier open question ([[project_voyager_sysex_pdf_gap_audit]]):
-# this field/byte position was previously believed to exist ONLY in the
-# Single Preset Dump (mode 0x03), not the live Panel Dump (mode 0x02) this
-# app decodes — that turned out to be wrong, or at least not true for THIS
-# field: the diff below came from a Panel Dump Request/reply
-# (tools/moog_dump's own mode 0x05/0x02 round trip), and the bit showed up
-# cleanly, same byte position ("byte 129") the SysEx PDF's "a-glide
-# legato"/"multi=1" labels appear at in BOTH the Panel Dump and Single
-# Preset Dump table sections.
-dial triggerMode   label="Trigger"  max=2 dumpOffset=128 dumpBitOffset=0 dumpBitWidth=1 names="Single Trigger","Multi Trigger"
+# This page has no physical panel photo to match (unlike "panel"'s 12-column
+# grid, laid out to mirror the real Voyager's front panel), so column
+# placement here is just "spaced out enough that no button's text can run
+# into its neighbour" — col= steps of 3 (not 1) give each dial a 3*84=252px
+# gridColWidth pitch (gridColWidth is a single global value shared with the
+# "panel" page, declared once near the top of this file — there's no
+# per-page override), comfortably wider than any single name in these
+# dials' longest names= lists (e.g. "Filter KB Control Amt", the longest
+# entry in pgmShaping1Src/2Src's 43-item lists, measures well under 252px at
+# the button text's 12px height). Grouped loosely by theme, not by any
+# protocol relationship: row 0 keyboard/trigger/gate-source basics, row 1
+# pitch bend + clock, row 2 the four PGM Wheel/Pedal routing fields, row 3
+# the two big PGM Shaping fields. If any button still reads as cramped once
+# you've actually seen it rendered, widening the col= step (e.g. 3 -> 4) is
+# the fix — flag it and it's a one-line change.
+dial keyboardMode  label="KB Mode" max=4 dumpOffset=127 dumpBitOffset=3 dumpBitWidth=2 names="Lower Key","Higher Key","Last Key","1 Key Only" col=0 row=0
+dial triggerMode   label="Trigger"  max=2 dumpOffset=128 dumpBitOffset=0 dumpBitWidth=1 names="Single Trigger","Multi Trigger" col=3 row=0
+dial filEnvGateSrc label="F.Env Gate" max=7 dumpOffset=138 dumpBitOffset=6 dumpBitWidth=3 names="Envelope Gate Input","Touch Gate","S&H Gate","MIDI Clock","Keyboard Gate","Gate is ON","Gate is OFF" col=6 row=0
+dial volEnvGateSrc label="V.Env Gate" max=7 dumpOffset=139 dumpBitOffset=2 dumpBitWidth=3 names="Envelope Gate Input","Touch Gate","S&H Gate","MIDI Clock","Keyboard Gate","Gate is ON","Gate is OFF" col=9 row=0
 
-# Filter Envelope Gate Source — EDIT mode menu 4.3 (owner's manual):
-# alternate gate sources to trigger the Filter Envelope besides the
-# keyboard/ENV GATE jack. CONFIRMED against real hardware 2026-07-11,
-# live-diff, 3-bit field SPANNING A BYTE BOUNDARY: dumpOffset=138
-# dumpBitOffset=6 dumpBitWidth=3 (byte 139's last usable bit + byte 140's
-# first two bits — a first pass at this only looked at byte 140 in
-# isolation, found a 2-bit field, and wrongly concluded the raw order
-# didn't match the manual's listed order; re-diffing byte 139 too showed
-# the field's real span, and the sequential-index-matches-manual-order
-# pattern held after all once the correct byte was included). Confirmed
-# at 3 points: Envelope Gate Input(baseline)=0, Touch Gate=1, MIDI Clock=3.
-dial filEnvGateSrc label="F.Env Gate" max=7 dumpOffset=138 dumpBitOffset=6 dumpBitWidth=3 names="Envelope Gate Input","Touch Gate","S&H Gate","MIDI Clock","Keyboard Gate","Gate is ON","Gate is OFF"
+# Pitch Bend Up/Down pre-amp range — CONFIRMED against real hardware
+# 2026-07-11, live-diff method (owner narrated each menu position,
+# tools/moog_dump+syx_diff.py captured/diffed against a clean both-off
+# baseline): both are 11-position sequential-index fields (raw value =
+# index into names=, NOT the semitone count itself — "not logical
+# stepping", owner's own words, is why this needed the full enumeration
+# rather than a formula). Down: dumpOffset=17 dumpBitOffset=1 dumpBitWidth=4
+# (byte 18, bits 1-4). Up: dumpOffset=16 dumpBitOffset=4 dumpBitWidth=4
+# (byte 17's bits 4-6 + byte 18's bit 0 — spans the byte boundary, same
+# continuous-bitstream addressing every other multi-bit field in this file
+# uses). Both confirmed at three points each (Off=0, "2 Semitones"=1, "1
+# Octave"=6, Max="Pre-Val:..."=10) — clean, no gaps. The last position's
+# label differs between the two (Down: "Pre-Val: 0", Up: "Pre-Val: 254") —
+# sounds like a raw-editable/calibration slot rather than a real bend-range
+# value; kept verbatim as the owner read it off the display rather than
+# guessed at what it means.
+dial pitchBendDown label="PB Down" max=11 dumpOffset=17 dumpBitOffset=1 dumpBitWidth=4 names="OFF!","2 Semitones","Minor Third","Major Third","Fourth","Fifth","1 Octave","1 Oct. & 5th","2 Octaves","2 Oct. & 5th","Pre-Val: 0" col=0 row=1
+dial pitchBendUp   label="PB Up"   max=11 dumpOffset=16 dumpBitOffset=4 dumpBitWidth=4 names="OFF!","2 Semitones","Minor Third","Major Third","Fourth","Fifth","1 Octave","1 Oct. & 5th","2 Octaves","2 Oct. & 5th","Pre-Val: 254" col=3 row=1
 
-# Volume Envelope Gate Source — EDIT mode menu 4.4, same 7-name list as
-# Filter's own gate source above, packed immediately after it in the same
-# byte (bits 2-4, right after filEnvGateSrc's bits 6/0/1) — no collision.
-# CONFIRMED against real hardware 2026-07-11, live-diff: Touch Gate=1,
-# Gate is OFF=6 (baseline Envelope Gate Input=0).
-dial volEnvGateSrc label="V.Env Gate" max=7 dumpOffset=139 dumpBitOffset=2 dumpBitWidth=3 names="Envelope Gate Input","Touch Gate","S&H Gate","MIDI Clock","Keyboard Gate","Gate is ON","Gate is OFF"
+# MIDI Clock Divider — EDIT mode menu 6.1 (owner's manual): creates a new
+# clock signal from incoming MIDI clock, 48 divisions/beat, used to
+# retrigger the LFO (when LFO SYNC=MIDI) or trigger envelopes (Filter/Volume
+# Envelope Gate Src=MIDI Clock, above). Plain numeric, not an enum — raw
+# value = the displayed divider number directly, no scaling (unlike
+# glideRate/etc's CC-pair dials, this one has no CC at all, so display=raw +
+# dump-only, same shape as hPhoneVolume). CONFIRMED against real hardware
+# 2026-07-11, live-diff at 3 points: 96(baseline)->96, 2(hardware's actual
+# minimum — NOT 1 or 0, despite max=97 allowing the display to reach as low
+# as 0)->2, 48->48, all exact. dumpOffset=137 dumpBitOffset=5 dumpBitWidth=7
+# (7 bits comfortably covers 0-96; an 8th bit read as 0 in every capture so
+# far but was never confirmed to actually belong to this field). Briefly a
+# grid dial on the main "panel" page (col=2 row=6); moved here 2026-07-11
+# alongside the rest of the EDIT-menu settings, same owner request that
+# created this whole page.
+dial midiClkDivider label="Clock Div" color=g max=97 display=raw dumpOffset=137 dumpBitOffset=5 dumpBitWidth=7 col=6 row=1
 
 # PGM M-Whl Source — EDIT mode menu 2.1 (owner's manual): selects an
 # alternate modulation source that is routed to the Mod Wheel bus destination
@@ -425,7 +426,7 @@ dial volEnvGateSrc label="V.Env Gate" max=7 dumpOffset=139 dumpBitOffset=2 dumpB
 # location (98) also matched the SysEx PDF's own label ("whl src PGM") on
 # the first attempt, unlike the Pot Map 1-4 region which turned out to be
 # unsafe to hand-derive — see [[project_voyager_sysex_pdf_gap_audit]].
-dial pgmMwSource label="PGM MW Src" max=8 dumpOffset=97 dumpBitOffset=1 dumpBitWidth=3 names="Noise","Filter ENV","Amplitude ENV","Smoothed S&H","Osc 1","Osc 2","T.S. X","T.S. Y"
+dial pgmMwSource label="PGM MW Src" max=8 dumpOffset=97 dumpBitOffset=1 dumpBitWidth=3 names="Noise","Filter ENV","Amplitude ENV","Smoothed S&H","Osc 1","Osc 2","T.S. X","T.S. Y" col=0 row=2
 
 # PGM M-Whl Dest — EDIT mode menu 2.2 (owner's manual): alternate modulation
 # destination used when the Mod Wheel bus DESTINATION control is set to
@@ -438,7 +439,7 @@ dial pgmMwSource label="PGM MW Src" max=8 dumpOffset=97 dumpBitOffset=1 dumpBitW
 # nudged once early in the session and never touched again) — a reminder to
 # always re-baseline against a FRESH capture of the actual current state,
 # not reuse an old one from earlier in the sweep.
-dial pgmMwDest label="PGM MW Dest" max=8 dumpOffset=97 dumpBitOffset=4 dumpBitWidth=3 names="LFO Rate","Filter Resonance","Filter Spacing","Panorama","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level"
+dial pgmMwDest label="PGM MW Dest" max=8 dumpOffset=97 dumpBitOffset=4 dumpBitWidth=3 names="LFO Rate","Filter Resonance","Filter Spacing","Panorama","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level" col=3 row=2
 
 # PGM Pedal Source — EDIT mode menu 2.3 (owner's manual), same 8-option list
 # as PGM M-Whl Source. Packed in the byte right after the Wheel pair (byte
@@ -448,14 +449,14 @@ dial pgmMwDest label="PGM MW Dest" max=8 dumpOffset=97 dumpBitOffset=4 dumpBitWi
 # pgmMwSource) but the live diff showed bitOffset=0 — a genuine off-by-one
 # in the hand-read table, not a fresh unsafe region like Pot Map. Always
 # trust the live diff over the PDF reading when they disagree.
-dial pgmPedalSource label="PGM Ped Src" max=8 dumpOffset=98 dumpBitOffset=0 dumpBitWidth=3 names="Noise","Filter ENV","Amplitude ENV","Smoothed S&H","Osc 1","Osc 2","T.S. X","T.S. Y"
+dial pgmPedalSource label="PGM Ped Src" max=8 dumpOffset=98 dumpBitOffset=0 dumpBitWidth=3 names="Noise","Filter ENV","Amplitude ENV","Smoothed S&H","Osc 1","Osc 2","T.S. X","T.S. Y" col=6 row=2
 
 # PGM Pedal Dest — EDIT mode menu 2.4 (owner's manual), same 8-option list as
 # PGM M-Whl Dest. Packed immediately after pgmPedalSource in the same byte
 # (bits 3-5, right after pgmPedalSource's bits 0-2). CONFIRMED against real
 # hardware 2026-07-11, live-diff at 3 points: Panorama(baseline)=3, Noise
 # Level=7, LFO Rate=0.
-dial pgmPedalDest label="PGM Ped Dest" max=8 dumpOffset=98 dumpBitOffset=3 dumpBitWidth=3 names="LFO Rate","Filter Resonance","Filter Spacing","Panorama","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level"
+dial pgmPedalDest label="PGM Ped Dest" max=8 dumpOffset=98 dumpBitOffset=3 dumpBitWidth=3 names="LFO Rate","Filter Resonance","Filter Spacing","Panorama","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level" col=9 row=2
 
 # PGM Shaping 1 Src — EDIT mode menu 3.1 (owner's manual): the source signal
 # for Programmable Shaper 1, used to shape either Mod Bus's amount when that
@@ -470,7 +471,7 @@ dial pgmPedalDest label="PGM Ped Dest" max=8 dumpOffset=98 dumpBitOffset=3 dumpB
 # sub-fields (±64 range each, used only when Src=Fixed Value/Offset Value)
 # — those don't fit neatly in the 6-bit pattern established here and need
 # their own separate live-diff session; see [[project_voyager_edit_menu_sweep]].
-dial pgmShaping1Src label="PGM Shp1 Src" max=43 dumpOffset=140 dumpBitOffset=0 dumpBitWidth=6 names="Fixed Value","Pitch Bend Wheel","Modulation Wheel","Velocity Release","Pressure (AT)","Keyboard CV","Touch Surface X","Touch Surface Y","Touch Surface A","Mod1","Mod2","LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Headphone Volume"
+dial pgmShaping1Src label="PGM Shp1 Src" max=43 dumpOffset=140 dumpBitOffset=0 dumpBitWidth=6 names="Fixed Value","Pitch Bend Wheel","Modulation Wheel","Velocity Release","Pressure (AT)","Keyboard CV","Touch Surface X","Touch Surface Y","Touch Surface A","Mod1","Mod2","LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Headphone Volume" col=0 row=3
 
 # PGM Shaping 2 Src — EDIT mode menu 3.2 (owner's manual), same 43-item list
 # and same underlying shared shaper mechanism as pgmShaping1Src (both
@@ -484,7 +485,7 @@ dial pgmShaping1Src label="PGM Shp1 Src" max=43 dumpOffset=140 dumpBitOffset=0 d
 # bit assembly is correct (0x54/0x02 split decodes to exactly 42, not just
 # "some bits changed"). NOT YET DONE: HIGH/LOW Fixed Value for this shaper,
 # see pgmShaping1Src's own comment — same open item, doubled.
-dial pgmShaping2Src label="PGM Shp2 Src" max=43 dumpOffset=143 dumpBitOffset=3 dumpBitWidth=6 names="Fixed Value","Pitch Bend Wheel","Modulation Wheel","Velocity Release","Pressure (AT)","Keyboard CV","Touch Surface X","Touch Surface Y","Touch Surface A","Mod1","Mod2","LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Headphone Volume"
+dial pgmShaping2Src label="PGM Shp2 Src" max=43 dumpOffset=143 dumpBitOffset=3 dumpBitWidth=6 names="Fixed Value","Pitch Bend Wheel","Modulation Wheel","Velocity Release","Pressure (AT)","Keyboard CV","Touch Surface X","Touch Surface Y","Touch Surface A","Mod1","Mod2","LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Headphone Volume" col=3 row=3
 
 page       panel
 section    lfo
@@ -812,7 +813,12 @@ dial osc3Toggle    label="On"         color=m  nativeMax=127 max=2 names="Off","
 # 1=On/Hi). Found by testing each individually rather than assuming the
 # majority polarity held everywhere.
 dial osc3KB        label="KB Track"   color=ox nativeMax=127 max=2 names="Off","On" cc=79 dumpOffset=95 dumpBitOffset=0 dumpBitWidth=1 dumpNativeMax=1 col=5 row=3
-dial osc3FreqRange label="Freq Range" color=ox nativeMax=127 max=2 names="Lo","Hi" cc=80 dumpOffset=95 dumpBitOffset=1 dumpBitWidth=1 dumpNativeMax=1 col=5 row=4
+# names changed from "Lo","Hi" to "Freq Lo","Freq Hi" 2026-07-11 — a binary
+# dial's button face shows its current-value name alone, no code-level label
+# prefix (see synthGraphics.cpp's own comment on this), so bare "Lo"/"Hi"
+# would have been ambiguous on its own; the context is baked directly into
+# the names here instead, same as any other device's layout would do it.
+dial osc3FreqRange label="Freq Range" color=ox nativeMax=127 max=2 names="Freq Lo","Freq Hi" cc=80 dumpOffset=95 dumpBitOffset=1 dumpBitWidth=1 dumpNativeMax=1 col=5 row=4
 
 page       panel
 section    mixer
@@ -860,9 +866,9 @@ dial extLevel    label="External"  color=m  max=16384 display=raw cc=0x0E ccLsb=
 # the CC's own sense), hence dumpInvert=1 + dumpNativeMax=1 (see that
 # field's own comment in panelConfig.h for why nativeMax=127, needed for the
 # CC byte, would otherwise crush a raw dump bit of 0/1 down to 0 regardless).
-dial extToggle   label="Ext On"    color=m  nativeMax=127 max=2 names="Off","On" cc=81 dumpOffset=95 dumpBitOffset=3 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=7 row=0
+dial extToggle   label="On"        color=m  nativeMax=127 max=2 names="Off","On" cc=81 dumpOffset=95 dumpBitOffset=3 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=7 row=0
 dial noiseLevel  label="Noise"     color=m  max=16384 display=raw cc=0x12 ccLsb=0x32 dumpOffset=56 dumpBitOffset=6 dumpBitWidth=14 col=6 row=4
-dial noiseToggle label="Noise On"  color=m  nativeMax=127 max=2 names="Off","On" cc=85 dumpOffset=96 dumpBitOffset=0 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=7 row=4
+dial noiseToggle label="On"        color=m  nativeMax=127 max=2 names="Off","On" cc=85 dumpOffset=96 dumpBitOffset=0 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=7 row=4
 # oscSync/oscFM — CONFIRMED against real hardware (2026-07-08), same
 # inverted-polarity shape as most of this file's other toggles.
 dial oscSync     label="1->2 Sync" color=ox nativeMax=127 max=2 names="Off","On" cc=77 dumpOffset=94 dumpBitOffset=5 dumpBitWidth=1 dumpNativeMax=1 dumpInvert=1 col=3 row=3
