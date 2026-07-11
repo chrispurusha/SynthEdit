@@ -150,7 +150,7 @@ void set_last_backup_folder(const char * path) {
     [[NSUserDefaults standardUserDefaults] setObject:[NSString stringWithUTF8String:path] forKey:kLastBackupFolderKey];
 }
 
-int32_t show_device_choice_dialogue(const char * title, const char * message, const char *const * labels, uint32_t count) {
+int32_t show_device_choice_dialogue(const char * title, const char * message, const char *const * labels, uint32_t count, uint32_t defaultIndex) {
     if (count == 0) {
         return -1;
     }
@@ -171,6 +171,9 @@ int32_t show_device_choice_dialogue(const char * title, const char * message, co
         [popup addItemWithTitle:[NSString stringWithUTF8String:labels[i]]];
     }
 
+    if (defaultIndex < count) {
+        [popup selectItemAtIndex:defaultIndex];
+    }
     [alert setAccessoryView:popup];
     [[alert window] setInitialFirstResponder:popup];
 

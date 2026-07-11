@@ -382,8 +382,15 @@ static uint32_t synth_encode_dump_raw_value(tPanelDial * dial, uint32_t displayV
 // nothing before its forced '\n', which was fine for on-screen display
 // (trailing whitespace before a line break is invisible either way) but
 // silently discarded the real space "TIME FOR"'s filename needed.
-static void extract_moog_name(const uint8_t * payload, uint32_t payloadLen, int32_t offset, uint32_t bitOffset, uint32_t len, uint32_t lineWidth) {
-    if ((offset < 0) || (len == 0)) {
+// outName/outNameSize added 2026-07-11 (was hardcoded to gDevice.progName) —
+// synth_backup_flush_name_sweep() (synthBackup.c) needs to decode a name
+// from a SEPARATE, non-current-live-buffer preset's reply (a Load/Store
+// Patch to Bank picker's own name sweep) without touching gDevice.progName,
+// which is reserved for whatever the live edit buffer actually shows. Every
+// existing call site below still passes gDevice.progName/sizeof(...),
+// unchanged in behaviour.
+void synth_decode_moog_name(const uint8_t * payload, uint32_t payloadLen, int32_t offset, uint32_t bitOffset, uint32_t len, uint32_t lineWidth, char * outName, size_t outNameSize) {
+    if ((offset < 0) || (len == 0) || (outNameSize == 0)) {
         return;
     }
     uint32_t globalBit    = (uint32_t)offset * 7 + bitOffset;
@@ -392,7 +399,7 @@ static void extract_moog_name(const uint8_t * payload, uint32_t payloadLen, int3
     uint32_t width        = (lineWidth > 0) ? lineWidth : len;
     bool     lastWasSpace = false;
 
-    for (uint32_t i = 0; (i < len) && (outLen < sizeof(gDevice.progName) - 1); i++) {
+    for (uint32_t i = 0; (i < len) && (outLen < outNameSize - 1); i++) {
         uint32_t byteOffset = globalBit / 7;
         uint32_t bo         = globalBit % 7;
         uint32_t raw        = read_bitpacked_field(payload, payloadLen, (int32_t)byteOffset, bo, 8);
@@ -400,27 +407,27 @@ static void extract_moog_name(const uint8_t * payload, uint32_t payloadLen, int3
         bool     printable  = (ch >= 0x20) && (ch < 0x7F) && (ch != ' ');
 
         if (printable) {
-            gDevice.progName[outLen++] = (char)ch;
-            lastWasSpace               = false;
+            outName[outLen++] = (char)ch;
+            lastWasSpace      = false;
         } else if (!lastWasSpace && (outLen > 0)) {
-            gDevice.progName[outLen++] = ' ';
-            lastWasSpace               = true;
+            outName[outLen++] = ' ';
+            lastWasSpace      = true;
         }
         lineChars++;
         globalBit += 8;
 
-        if ((lineChars == width) && ((i + 1) < len) && (outLen < sizeof(gDevice.progName) - 1)) {
-            gDevice.progName[outLen++] = '\n';
-            lastWasSpace               = true;  // a forced break also suppresses a leading collapsed space on the next line
-            lineChars                  = 0;
+        if ((lineChars == width) && ((i + 1) < len) && (outLen < outNameSize - 1)) {
+            outName[outLen++] = '\n';
+            lastWasSpace      = true;  // a forced break also suppresses a leading collapsed space on the next line
+            lineChars         = 0;
         }
     }
 
-    while ((outLen > 0) && ((gDevice.progName[outLen - 1] == ' ') || (gDevice.progName[outLen - 1] == '\n'))) {
+    while ((outLen > 0) && ((outName[outLen - 1] == ' ') || (outName[outLen - 1] == '\n'))) {
         outLen--;
     }
-    gDevice.progName[outLen] = '\0';
-    LOG_DEBUG("Decoded name: \"%s\"\n", gDevice.progName);
+    outName[outLen] = '\0';
+    LOG_DEBUG("Decoded name: \"%s\"\n", outName);
 }
 
 // Same role as extract_prog_info() above, but for Moog's bit-packed dump
@@ -460,7 +467,7 @@ static void extract_moog_panel_info(const uint8_t * payload, uint32_t payloadLen
         // stomp a pending edit with the old, pre-change value this fresh
         // reply still carries" reasoning as the per-dial skip below,
         // applied to the name field instead of a dial's value.
-        extract_moog_name(payload, payloadLen, cfg->panelNameOffset, cfg->panelNameBitOffset, cfg->panelNameLen, cfg->nameLineWidth);
+        synth_decode_moog_name(payload, payloadLen, cfg->panelNameOffset, cfg->panelNameBitOffset, cfg->panelNameLen, cfg->nameLineWidth, gDevice.progName, sizeof(gDevice.progName));
     }
 
     for (uint32_t s = 0; s < cfg->sectionCount; s++) {
@@ -759,7 +766,22 @@ static void handle_moog_single_preset_dump(const uint8_t * data, uint32_t length
     uint32_t        payloadLen = length - skip - 1; // exclude trailing F7
     tPanelConfig *  cfg        = synth_panel_config();
 
-    extract_moog_name(payload, payloadLen, cfg->presetNameOffset, cfg->presetNameBitOffset, cfg->presetNameLen, cfg->nameLineWidth);
+    synth_decode_moog_name(payload, payloadLen, cfg->presetNameOffset, cfg->presetNameBitOffset, cfg->presetNameLen, cfg->nameLineWidth, gDevice.progName, sizeof(gDevice.progName));
+
+    // Keeps the Load/Store Patch to Bank name cache (synthBackup.c) accurate
+    // for this ONE slot regardless of why this reply arrived — Backup >
+    // Patch by Number, the name sweep itself, or anything else that ever
+    // requests a Single Preset Dump. 2026-07-11 owner observation: "the gap
+    // will be closed if we have to read the patch in question from the
+    // synth for any reason." The preset number is the same header byte
+    // restore_patch_file_chosen()/synth_load_patch_from_bank() already use
+    // (data[5], 0-based on the wire) — guarded by the length check above,
+    // which already requires at least 2 bytes; a genuinely truncated reply
+    // shorter than 6 bytes couldn't have decoded a real name above either,
+    // so this only ever fires with a real preset number in hand.
+    if (length > 5) {
+        synth_backup_note_preset_name((uint32_t)data[5] + 1, gDevice.progName);
+    }
     synth_backup_capture_dump(data, length, eBackupExpectPreset); // no-op unless a by-number Backup is pending — see synthBackup.c; after the name decode so a by-number backup's default filename can use it
 }
 

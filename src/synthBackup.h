@@ -194,6 +194,51 @@ void synth_backup_flush_restore_folder(void);
 // Restore/Backup by Number (which round-trip through an actual .syx file on
 // disk rather than acting directly against a chosen device location).
 
+// Which action to take once synth_backup_start_name_sweep() below finishes
+// fetching every preset's name and shows the resulting picker.
+typedef enum {
+    eNameSweepPurposeLoad = 0,
+    eNameSweepPurposeStore,
+} tNameSweepPurpose;
+
+// Triggered by "File > Load Patch from Bank…" / "File > Store Patch to
+// Bank…" (misc.mm) — rather than a bare 1-128 number picker (Backup Patch by
+// Number's own, simpler style), these fetch every preset's NAME first (owner
+// request, 2026-07-11: "we need to display the patch names in those slots")
+// so the picker actually reads like a patch list. Sequentially requests
+// preset 1..128 (Single Preset Dump can only address one at a time, same
+// constraint synth_backup_bank_to_folder() already works around) and decodes
+// each reply's name via synth_decode_moog_name() (synthComms.c) into an
+// in-memory label — no files touched. Reuses synth_backup_bank_to_folder()'s
+// OWN sequencing mechanism under the hood (same gBackupBatchActive state,
+// same per-preset timeout, same CoreMIDI-thread-copies/main-thread-sequences
+// split) via a mode flag, so synth_backup_flush_bank_to_folder() (already
+// called once per frame from the render loop) drives this too — no separate
+// flush function needed. Once the sweep finishes (or every remaining slot
+// times out), shows show_device_choice_dialogue() with "N: Name" entries and
+// acts on the chosen one: eNameSweepPurposeLoad calls
+// synth_load_patch_from_bank(), eNameSweepPurposeStore calls
+// synth_store_patch_to_bank() — for Store, the picker defaults to
+// gDevice.currentProgram + 1 (the slot the CURRENT panel was originally
+// loaded from), a second 2026-07-11 owner request ("default to write to the
+// slot... the one we're working on came from"). A no-op if no device is
+// connected, it isn't Moog-style, or another backup/restore/sweep operation
+// is already in progress.
+void synth_backup_start_name_sweep(tNameSweepPurpose purpose);
+
+// Updates the name cache above for ONE preset — called from
+// handle_moog_single_preset_dump() (synthComms.c) for EVERY incoming Single
+// Preset Dump reply, regardless of why it was requested (Backup > Patch by
+// Number, a future patch browser, anything at all) — 2026-07-11 owner
+// observation: "the gap will be closed if we have to read the patch in
+// question from the synth for any reason." presetNumber is 1-based
+// (1-128); name is whatever was just decoded for that reply (already
+// collapses any embedded '\n' the same way the sweep's own labels do). A
+// no-op if presetNumber is out of range — safe to call unconditionally
+// from a generic reply handler that doesn't know or care whether a name
+// sweep has ever run this session.
+void synth_backup_note_preset_name(uint32_t presetNumber, const char * name);
+
 // Triggered by "File > Load Patch from Bank…" — loads a specific STORED
 // preset directly into the live edit buffer, the same effect as physically
 // selecting that preset number on the front panel. Just a Program Change
@@ -242,6 +287,15 @@ void synth_backup_flush_store(void);
 // advances outCurrent without incrementing this.
 bool synth_backup_get_export_progress(uint32_t * outCurrent, uint32_t * outTotal, uint32_t * outActionCount);
 bool synth_backup_get_restore_progress(uint32_t * outCurrent, uint32_t * outTotal, uint32_t * outActionCount);
+
+// True while the CURRENTLY active synth_backup_get_export_progress() sweep
+// (if any) is actually a synth_backup_start_name_sweep() run rather than a
+// real synth_backup_bank_to_folder() export — both share the same
+// underlying progress state (gBackupBatchActive et al.), so
+// synth_render_backup_progress() (synthGraphics.cpp) needs this to show an
+// accurate title ("Fetching Preset Names" vs "Backing Up Bank") instead of
+// always assuming an export is running.
+bool synth_backup_export_progress_is_name_sweep(void);
 
 #ifdef __cplusplus
 }

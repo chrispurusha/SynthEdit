@@ -116,19 +116,64 @@ static uint32_t     gStoreReplyPresetNumber = 0;
 // the actual state-machine mutation (and all the file I/O) on one thread,
 // avoiding a two-writer race between "a reply arrived" and "this preset
 // timed out" advancing the same state concurrently.
-static _Atomic bool gBackupBatchActive         = false;
-static _Atomic bool gBackupBatchReplyReady     = false;
-static uint8_t *    gBackupBatchReplyData      = NULL;  // valid only while gBackupBatchReplyReady
-static uint32_t     gBackupBatchReplyLen       = 0;
+static _Atomic bool      gBackupBatchActive         = false;
+static _Atomic bool      gBackupBatchReplyReady     = false;
+static uint8_t *         gBackupBatchReplyData      = NULL; // valid only while gBackupBatchReplyReady
+static uint32_t          gBackupBatchReplyLen       = 0;
 
-static char         gBackupBatchFolder[1024]   = {0};
-static uint32_t     gBackupBatchCurrentPreset  = 0;     // 1-based; which preset the outstanding request is for
-static double       gBackupBatchRequestSinceMs = 0.0;
-static uint32_t     gBackupBatchRepliedCount   = 0;
-static uint32_t     gBackupBatchMissingCount   = 0;
+static char              gBackupBatchFolder[1024]   = {0};
+static uint32_t          gBackupBatchCurrentPreset  = 0; // 1-based; which preset the outstanding request is for
+static double            gBackupBatchRequestSinceMs = 0.0;
+static uint32_t          gBackupBatchRepliedCount   = 0;
+static uint32_t          gBackupBatchMissingCount   = 0;
+
+// Added 2026-07-11 for the Load/Store Patch to Bank name-sweep pickers
+// (synth_backup_start_name_sweep() below) — reuses this WHOLE sequencing
+// mechanism (gBackupBatchActive, the CoreMIDI-thread-copies/main-thread-
+// sequences reply handoff, the per-preset timeout) rather than duplicating
+// it, since the only real difference is what happens with each reply: write
+// a file (eBatchModeExportFiles, the original behaviour) or just decode a
+// name into gNameSweepLabels (eBatchModeNameSweep). synth_backup_capture_dump()'s
+// existing `gBackupBatchActive` check (CoreMIDI thread) doesn't need to know
+// which mode is active at all — only backup_batch_write_capture() and
+// backup_batch_advance()'s completion step (both main-thread) branch on it.
+typedef enum {
+    eBatchModeExportFiles = 0,
+    eBatchModeNameSweep,
+} tBackupBatchMode;
+
+static tBackupBatchMode  gBackupBatchMode           = eBatchModeExportFiles;
+static tNameSweepPurpose gNameSweepPurpose          = eNameSweepPurposeLoad;
 
 #define BACKUP_BATCH_PRESET_COUNT    128    // matches misc.mm's own "Patch by Number" range / synth_request_single_preset_dump()'s own range check (synthComms.c) — a base Voyager's single bank
 #define BACKUP_BATCH_TIMEOUT_MS      1500.0 // generous relative to a real reply's actual latency (well under 100ms in practice) — a fallback for a genuinely non-responding location, not the normal-case wait
+#define NAME_SWEEP_LABEL_LEN         40     // "128: " (5) + a generously-truncated single-line name + NUL — plenty for show_device_choice_dialogue()'s own popup width
+
+static char              gNameSweepLabels[BACKUP_BATCH_PRESET_COUNT][NAME_SWEEP_LABEL_LEN];
+
+// True once a full 128-preset name sweep has completed at least once this
+// session — synth_backup_start_name_sweep() below skips straight to
+// showing the picker with the cached gNameSweepLabels instead of re-running
+// the whole ~128-request sweep every single time Load/Store Patch to Bank
+// is opened (owner request, 2026-07-11: "we could consider caching the
+// names once pulled from the bank"). Kept up to date for everything THIS
+// APP can write to a known slot — see name_cache_update_from_preset_dump()
+// below, called after a successful synth_store_patch_to_bank() send,
+// Restore > Patch by Number, and each per-file send in Restore > Bank
+// (Individual Files); a whole-bank Restore (single opaque 18KB blob, no
+// safe way to extract 128 individual names from it — see this session's
+// own Pot Map lesson on not hand-deriving unconfirmed byte layouts)
+// invalidates the ENTIRE cache instead, forcing a fresh sweep next time.
+// Session-scoped only (not persisted to disk, reset on relaunch) — matches
+// gLastMoogDump and every other cache this file already keeps in memory
+// only. Explicit gap, not silently assumed away: a name changed via the
+// device's OWN front panel (SAVE PRESET with a different name than before)
+// has no notification mechanism this app can observe without polling —
+// and this codebase already found the hard way that polling interrupts
+// the Voyager's own front-panel menus (see
+// [[project_voyager_selector_dial_audit]] in the assistant's own memory
+// notes) — so that particular staleness is accepted, not solved.
+static bool gNameCacheValid = false;
 
 // Sanitizes gDevice.progName into a filename-safe single line — shared by
 // the single "Patch by Number" save dialog's default name (below) and the
@@ -270,6 +315,12 @@ static void backup_batch_append_index_line(uint32_t presetNumber, const char * n
     }
 }
 
+// Defined further down, after synth_store_patch_to_bank() (which it may
+// call) — forward-declared here since backup_batch_advance()'s completion
+// step below is the only caller and needs to reach it regardless of
+// definition order.
+static void name_sweep_show_picker(void);
+
 // Moves on to the next preset, or finishes the sweep once every preset has
 // either been captured or timed out. Called only from the main/render
 // thread (synth_backup_flush_bank_to_folder() below and its own helpers) —
@@ -282,11 +333,19 @@ static void backup_batch_advance(void) {
     // this function drives entirely on its own otherwise looks frozen on
     // screen even while genuinely progressing. Found 2026-07-11 while
     // adding the overlay itself, not from a bug report.
-    gReDraw                    = true;
+    gReDraw = true;
     gBackupBatchCurrentPreset++;
 
     if (gBackupBatchCurrentPreset > BACKUP_BATCH_PRESET_COUNT) {
         gBackupBatchActive = false;
+
+        if (gBackupBatchMode == eBatchModeNameSweep) {
+            LOG_DEBUG("Name sweep finished — %u replied, %u missing\n",
+                      (unsigned)gBackupBatchRepliedCount, (unsigned)gBackupBatchMissingCount);
+            gNameCacheValid = true; // even a slot that timed out keeps its "N: (no response)" label — good enough to skip re-sweeping; a future Load/Store on that slot will just show that placeholder rather than silently retrying
+            name_sweep_show_picker();
+            return;
+        }
         LOG_DEBUG("Backup: bank-to-folder export finished — %u captured, %u missing, folder %s\n",
                   (unsigned)gBackupBatchRepliedCount, (unsigned)gBackupBatchMissingCount, gBackupBatchFolder);
         // handle_moog_single_preset_dump() (synthComms.c) only ever touches
@@ -304,9 +363,83 @@ static void backup_batch_advance(void) {
     gBackupBatchRequestSinceMs = backup_monotonic_ms();
 }
 
+// Writes gNameSweepLabels[presetNumber-1] as "N: Name" (or "N: (unnamed)"),
+// ready to hand straight to show_device_choice_dialogue(). Shared by every
+// path that learns a preset's current name: the name sweep itself
+// (name_sweep_capture_name() below), and every KEEP-THE-CACHE-CURRENT call
+// site (name_cache_update_from_preset_dump() below) — see gNameCacheValid's
+// own comment for the full list.
+static void name_cache_set_label(uint32_t presetNumber, const char * name) {
+    if ((presetNumber < 1) || (presetNumber > BACKUP_BATCH_PRESET_COUNT)) {
+        return;
+    }
+    char   cleaned[sizeof(gDevice.progName)];
+
+    strncpy(cleaned, name ? name : "", sizeof(cleaned) - 1);
+    cleaned[sizeof(cleaned) - 1] = '\0';
+
+    // A Voyager name can carry an embedded '\n' (nameLineWidth's forced line
+    // break, matching the front panel's own 2-line LCD — see
+    // synth_decode_moog_name()'s own comment) — fine for gDevice.progName's
+    // on-screen multi-line display, but this is a SINGLE-LINE dropdown item;
+    // a literal newline in an NSPopUpButton title just renders broken.
+    // Collapsed to a space, same substitution backup_sanitize_name_for_file()
+    // already does for the same underlying reason (a different output
+    // format — filenames — but the same "no embedded newline" constraint).
+    for (char * p = cleaned; *p != '\0'; p++) {
+        if (*p == '\n') {
+            *p = ' ';
+        }
+    }
+
+    char * label = gNameSweepLabels[presetNumber - 1];
+
+    if (cleaned[0] != '\0') {
+        snprintf(label, NAME_SWEEP_LABEL_LEN, "%u: %s", (unsigned)presetNumber, cleaned);
+    } else {
+        snprintf(label, NAME_SWEEP_LABEL_LEN, "%u: (unnamed)", (unsigned)presetNumber);
+    }
+}
+
+// Decodes just the NAME out of a Single-Preset-Dump-shaped buffer (mode
+// 0x03 — a raw file about to be sent, or one already sent) and updates the
+// name cache for presetNumber via name_cache_set_label() above. Shared by
+// every write path that knows exactly which slot it just wrote and has the
+// preset-dump bytes on hand: synth_backup_flush_store() (this app's own
+// live-panel write), restore_patch_file_chosen() (Restore > Patch by
+// Number), and each per-file send in synth_backup_flush_restore_folder()
+// (Restore > Bank Individual Files). Does NOT touch gDevice.progName —
+// same "don't disturb what the live buffer is showing" reasoning as
+// name_sweep_capture_name() below.
+static void name_cache_update_from_preset_dump(uint32_t presetNumber, const uint8_t * data, uint32_t length) {
+    tPanelConfig *  cfg        = synth_panel_config();
+    const uint8_t * payload    = data + 1;                      // skip F0, matches every other Moog dump handler
+    uint32_t        payloadLen = (length > 2) ? length - 2 : 0; // exclude leading skip + trailing F7
+    char            name[sizeof(gDevice.progName)];
+
+    name[0] = '\0';
+    synth_decode_moog_name(payload, payloadLen, cfg->presetNameOffset, cfg->presetNameBitOffset, cfg->presetNameLen, cfg->nameLineWidth, name, sizeof(name));
+    name_cache_set_label(presetNumber, name);
+}
+
+// Decodes just the NAME out of a Single Preset Dump reply into
+// gNameSweepLabels[gBackupBatchCurrentPreset-1] — the eBatchModeNameSweep
+// counterpart to backup_batch_write_capture() below. Uses
+// synth_decode_moog_name() directly (not gDevice.progName) so this doesn't
+// disturb whatever the live edit buffer's own name is currently showing
+// on-screen while the sweep runs.
+static void name_sweep_capture_name(const uint8_t * data, uint32_t length) {
+    name_cache_update_from_preset_dump(gBackupBatchCurrentPreset, data, length);
+    gBackupBatchRepliedCount++;
+}
+
 // Writes the just-captured reply to its own file and appends the index
 // line, then advances. Called only from the main/render thread.
 static void backup_batch_write_capture(const uint8_t * data, uint32_t length) {
+    if (gBackupBatchMode == eBatchModeNameSweep) {
+        name_sweep_capture_name(data, length);
+        return;
+    }
     char   nameForFile[sizeof(gDevice.progName)];
 
     backup_sanitize_name_for_file(nameForFile, sizeof(nameForFile));
@@ -399,6 +532,105 @@ void synth_backup_bank_to_folder(void) {
     open_folder_choose_dialogue_async(backup_batch_folder_chosen, "Choose Backup Folder", get_last_backup_folder());
 }
 
+void synth_backup_note_preset_name(uint32_t presetNumber, const char * name) {
+    name_cache_set_label(presetNumber, name);
+}
+
+void synth_backup_start_name_sweep(tNameSweepPurpose purpose) {
+    if (!gDevice.connected) {
+        LOG_ERROR("Load/Store: no device connected\n");
+        return;
+    }
+
+    if (!synth_panel_config()->moogStyleDump) {
+        LOG_ERROR("Load/Store: name sweep only supports Moog-style devices so far\n");
+        return;
+    }
+
+    if (gBackupBatchActive) {
+        LOG_ERROR("Load/Store: a backup/name-sweep operation is already in progress\n");
+        return;
+    }
+
+    if (gBackupExpect != eBackupExpectNone) {
+        LOG_ERROR("Load/Store: another backup operation is already in progress\n");
+        return;
+    }
+    gNameSweepPurpose          = purpose;
+
+    if (gNameCacheValid) {
+        // Already have every name from a previous sweep this session, kept
+        // current by name_cache_update_from_preset_dump() at every write
+        // this app makes since — skip straight to the picker instead of
+        // re-running a ~128-request sweep just to re-learn what's already
+        // known. See gNameCacheValid's own comment for the accepted
+        // staleness gap (a name changed via the device's own front panel).
+        LOG_DEBUG("Load/Store: using cached preset names (purpose=%d)\n", (int)purpose);
+        name_sweep_show_picker();
+        return;
+    }
+    gBackupBatchMode           = eBatchModeNameSweep;
+    gBackupBatchActive         = true;
+    gBackupBatchCurrentPreset  = 1;
+    gBackupBatchRepliedCount   = 0;
+    gBackupBatchMissingCount   = 0;
+    gBackupExpect              = eBackupExpectPreset;
+    synth_request_single_preset_dump(gBackupBatchCurrentPreset);
+    gBackupBatchRequestSinceMs = backup_monotonic_ms();
+    LOG_DEBUG("Load/Store: starting a %u-preset name sweep (purpose=%d)\n",
+              (unsigned)BACKUP_BATCH_PRESET_COUNT, (int)purpose);
+}
+
+// Shows the "N: Name" picker once synth_backup_start_name_sweep()'s sweep
+// has finished (backup_batch_advance()'s own completion branch, above), and
+// acts on whatever the user chose. Runs on the main thread (called from
+// synth_backup_flush_bank_to_folder(), itself called once per frame from the
+// render loop) — show_device_choice_dialogue() is a blocking modal, same as
+// every other synchronous dialog this file already uses from a main-thread
+// context (e.g. synth_store_patch_to_bank()'s own show_confirm_dialogue()
+// call).
+static void name_sweep_show_picker(void) {
+    const char * labelPtrs[BACKUP_BATCH_PRESET_COUNT];
+
+    for (uint32_t i = 0; i < BACKUP_BATCH_PRESET_COUNT; i++) {
+        labelPtrs[i] = gNameSweepLabels[i];
+    }
+
+    // Store defaults to the slot the CURRENT panel was originally loaded
+    // from (gDevice.currentProgram, 0-based; -1 = unknown) — owner request,
+    // 2026-07-11: "default to write to the slot... the one we're working on
+    // came from". Load has no equivalent natural default, so it always
+    // starts at the first entry (index 0).
+    uint32_t     defaultIndex = 0;
+
+    if (  (gNameSweepPurpose == eNameSweepPurposeStore)
+       && (gDevice.currentProgram >= 0) && (gDevice.currentProgram < (int32_t)BACKUP_BATCH_PRESET_COUNT)) {
+        defaultIndex = (uint32_t)gDevice.currentProgram;
+    }
+    const char * title        = (gNameSweepPurpose == eNameSweepPurposeLoad) ? "Load Patch from Bank" : "Store Patch to Bank";
+    const char * message      = (gNameSweepPurpose == eNameSweepPurposeLoad)
+                ? "Choose a preset to load into the live panel:"
+                : "Choose a preset to store the current panel to:";
+    int32_t      chosen       = show_device_choice_dialogue(title, message, labelPtrs, BACKUP_BATCH_PRESET_COUNT, defaultIndex);
+
+    // The sweep leaves gDevice.progName showing the LAST swept preset's
+    // stored name (handle_moog_single_preset_dump() only touches that) —
+    // refresh it back to the live edit buffer's own name/dial state, same
+    // reasoning the export-mode completion path already has.
+    synth_request_state_dump();
+
+    if (chosen < 0) {
+        LOG_DEBUG("Load/Store: picker cancelled\n");
+        return;
+    }
+
+    if (gNameSweepPurpose == eNameSweepPurposeLoad) {
+        synth_load_patch_from_bank((uint32_t)(chosen + 1));
+    } else {
+        synth_store_patch_to_bank((uint32_t)(chosen + 1));
+    }
+}
+
 void synth_backup_flush_bank_to_folder(void) {
     if (!gBackupBatchActive) {
         return;
@@ -428,7 +660,13 @@ void synth_backup_flush_bank_to_folder(void) {
         LOG_ERROR("Backup: preset %u did not reply within %ums, skipping\n",
                   (unsigned)gBackupBatchCurrentPreset, (unsigned)BACKUP_BATCH_TIMEOUT_MS);
         gBackupBatchMissingCount++;
-        backup_batch_append_index_line(gBackupBatchCurrentPreset, "(no response)");
+
+        if (gBackupBatchMode == eBatchModeNameSweep) {
+            snprintf(gNameSweepLabels[gBackupBatchCurrentPreset - 1], NAME_SWEEP_LABEL_LEN,
+                     "%u: (no response)", (unsigned)gBackupBatchCurrentPreset);
+        } else {
+            backup_batch_append_index_line(gBackupBatchCurrentPreset, "(no response)");
+        }
         gBackupExpect = eBackupExpectNone;
         backup_batch_advance();
     }
@@ -759,6 +997,9 @@ void synth_backup_flush_store(void) {
     if (midi_send(converted, convertedLen)) {
         LOG_DEBUG("Store: sent %u byte Single Preset Dump (stored to preset %u)\n",
                   (unsigned)convertedLen, (unsigned)presetNumber);
+        // Keeps the name cache (gNameCacheValid) accurate for this slot
+        // without needing a full re-sweep — see that flag's own comment.
+        name_cache_update_from_preset_dump(presetNumber, converted, convertedLen);
         snprintf(message, sizeof(message), "Sent — Preset %u should now match the current panel.", (unsigned)presetNumber);
         show_info_dialogue("Store Patch to Bank", message);
     } else {
@@ -869,6 +1110,9 @@ static void restore_patch_file_chosen(const char * path) {
         if (midi_send(data, length)) {
             LOG_DEBUG("Restore: sent %u byte Single Preset Dump from %s (overwrote preset %u)\n",
                       (unsigned)length, path, (unsigned)presetNumber);
+            // Keeps the name cache (gNameCacheValid) accurate for this slot
+            // without needing a full re-sweep — see that flag's own comment.
+            name_cache_update_from_preset_dump(presetNumber, data, length);
             snprintf(message, sizeof(message), "Sent — Preset %u should now match this file.", (unsigned)presetNumber);
             show_info_dialogue("Restore Patch", message);
         } else {
@@ -914,6 +1158,12 @@ static void restore_bank_file_chosen(const char * path) {
                               "This will overwrite ALL 128 presets in the current bank on the connected device with the contents of this file. This cannot be undone.")) {
         if (midi_send(data, length)) {
             LOG_DEBUG("Restore: sent %u byte Bank dump from %s (overwrote entire current bank)\n", (unsigned)length, path);
+            // Invalidates the WHOLE name cache rather than trying to update
+            // it — a whole-bank dump is one opaque ~18KB blob with no
+            // confirmed per-preset name offset to extract 128 individual
+            // names from safely (see gNameCacheValid's own comment). The
+            // next Load/Store Patch to Bank will just re-sweep.
+            gNameCacheValid = false;
             show_info_dialogue("Restore Bank", "Sent — the current bank should now match this file.");
         } else {
             LOG_ERROR("Restore: failed to send %u byte Bank dump from %s\n", (unsigned)length, path);
@@ -1126,6 +1376,15 @@ void synth_backup_flush_restore_folder(void) {
 
             if (restore_validate_moog_dump(data, length, 0x03, "Single Preset Dump", reason, sizeof(reason)) && midi_send(data, length)) {
                 gRestoreFolderSentCount++;
+                // Keeps the name cache (gNameCacheValid) accurate for this
+                // slot without needing a full re-sweep — see that flag's
+                // own comment. Only meaningful if a sweep has already run
+                // this session (gNameCacheValid true) — name_cache_set_label()
+                // is a no-op-safe write either way, so no extra guard needed
+                // here; the NEXT Load/Store just won't see a cache at all
+                // yet if this is the first bank-scale operation this
+                // session, same as before this existed.
+                name_cache_update_from_preset_dump(presetNumber, data, length);
                 LOG_DEBUG("Restore: sent preset %u from %s (%u/%u)\n", (unsigned)presetNumber, filePath,
                           (unsigned)(gRestoreFolderIndex + 1), (unsigned)gRestoreFolderCount);
             } else {
@@ -1169,6 +1428,10 @@ bool synth_backup_get_export_progress(uint32_t * outCurrent, uint32_t * outTotal
     *outTotal       = BACKUP_BATCH_PRESET_COUNT;
     *outActionCount = gBackupBatchRepliedCount;
     return true;
+}
+
+bool synth_backup_export_progress_is_name_sweep(void) {
+    return gBackupBatchActive && (gBackupBatchMode == eBatchModeNameSweep);
 }
 
 bool synth_backup_get_restore_progress(uint32_t * outCurrent, uint32_t * outTotal, uint32_t * outActionCount) {

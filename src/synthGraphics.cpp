@@ -405,7 +405,7 @@ static void synth_choose_config_file(void) {
 
     int32_t               chosen = show_device_choice_dialogue("Choose Device",
                                                                "More than one device configuration was found in the layouts folder.",
-                                                               labels, count);
+                                                               labels, count, 0);
 
     if (chosen >= 0) {
         strncpy(gConfigFileName, candidates[(uint32_t)chosen].filename, sizeof(gConfigFileName) - 1);
@@ -453,8 +453,13 @@ static void synth_render_backup_progress(void) {
     const char * verb;
 
     if (synth_backup_get_export_progress(&current, &total, &actionCount)) {
-        title = "Backing Up Bank";
-        verb  = "written";
+        if (synth_backup_export_progress_is_name_sweep()) {
+            title = "Fetching Preset Names";
+            verb  = "found";
+        } else {
+            title = "Backing Up Bank";
+            verb  = "written";
+        }
     } else if (synth_backup_get_restore_progress(&current, &total, &actionCount)) {
         title = "Restoring Bank";
         verb  = "sent";

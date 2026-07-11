@@ -132,7 +132,7 @@ static int32_t choose_preset_number(const char * title, const char * message) {
         labels[i] = labelStorage[i];
     }
 
-    return show_device_choice_dialogue(title, message, labels, kPresetCount);
+    return show_device_choice_dialogue(title, message, labels, kPresetCount, 0);
 }
 
 @interface SynthMenuTarget : NSObject
@@ -174,19 +174,16 @@ static int32_t choose_preset_number(const char * title, const char * message) {
 }
 
 - (void)loadPatchFromBank:(id)sender {
-    int32_t chosen = choose_preset_number("Load Patch from Bank", "Choose a preset number to load into the live panel:");
-
-    if (chosen >= 0) {
-        synth_load_patch_from_bank((uint32_t)(chosen + 1));
-    }
+    // Fetches every preset's name first (synth_backup_start_name_sweep(),
+    // synthBackup.c), THEN shows the picker with "N: Name" entries and acts
+    // on the chosen one — see that function's own comment for why this is a
+    // sweep+completion-callback flow rather than a synchronous dialog like
+    // Backup Patch by Number's plain-number picker above.
+    synth_backup_start_name_sweep(eNameSweepPurposeLoad);
 }
 
 - (void)storePatchToBank:(id)sender {
-    int32_t chosen = choose_preset_number("Store Patch to Bank", "Choose a preset number to store the current panel to:");
-
-    if (chosen >= 0) {
-        synth_store_patch_to_bank((uint32_t)(chosen + 1));
-    }
+    synth_backup_start_name_sweep(eNameSweepPurposeStore);
 }
 
 - (void)backupBank:(id)sender {

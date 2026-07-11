@@ -66,8 +66,12 @@ void set_last_backup_folder(const char * path);
 // GLFW's Cocoa run loop is pumping events (an async completion handler
 // wouldn't fire yet at that point); NSApplication/the window already exist
 // by then, which is all a modal alert needs. Presents `labels[0..count-1]`
-// in a dropdown; returns the chosen index, or -1 if cancelled.
-int32_t show_device_choice_dialogue(const char * title, const char * message, const char *const * labels, uint32_t count);
+// in a dropdown, pre-selecting defaultIndex (clamped to a valid index if out
+// of range); returns the chosen index, or -1 if cancelled. defaultIndex
+// added 2026-07-11 for Store Patch to Bank, which defaults to the slot the
+// current panel was originally loaded from (gDevice.currentProgram) rather
+// than always starting at the first entry.
+int32_t show_device_choice_dialogue(const char * title, const char * message, const char *const * labels, uint32_t count, uint32_t defaultIndex);
 
 // Synchronous Yes/No confirmation (same [NSAlert runModal] shape as
 // show_device_choice_dialogue() above, no accessory view) — for a

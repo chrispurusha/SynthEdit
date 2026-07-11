@@ -20,6 +20,7 @@
 #ifndef __SYNTH_COMMS_H__
 #define __SYNTH_COMMS_H__
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "panelConfig.h"
@@ -30,6 +31,19 @@ extern "C" {
 
 // Called when a synth is identified on the MIDI bus
 void synth_on_connected(void);
+
+// Decodes a Moog-style name field (Panel Dump's panelNameOffset/... or
+// Single Preset Dump's presetNameOffset/... — see tPanelConfig's own field
+// comments, panelConfig.h) from `payload` into `outName` (an outNameSize-byte
+// caller-supplied buffer, NUL-terminated). Exposed (was `static
+// extract_moog_name()`, hardcoded to gDevice.progName) so
+// synth_backup_flush_name_sweep() (synthBackup.c) can decode OTHER presets'
+// names for the Load/Store Patch to Bank pickers without touching
+// gDevice.progName, which stays reserved for whatever the live edit buffer
+// actually shows. Every synthComms.c call site passes
+// gDevice.progName/sizeof(gDevice.progName), unchanged in behaviour from
+// before this had an output-buffer parameter at all.
+void synth_decode_moog_name(const uint8_t * payload, uint32_t payloadLen, int32_t offset, uint32_t bitOffset, uint32_t len, uint32_t lineWidth, char * outName, size_t outNameSize);
 
 // Dispatch an incoming synth SysEx message (full message including F0 header)
 void synth_handle_message(const uint8_t * data, uint32_t length);
