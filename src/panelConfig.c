@@ -25,19 +25,22 @@
 #include "synthlibDefs.h"
 #include "panelConfig.h"
 
-#define PANEL_LINE_LEN      512
+#define PANEL_LINE_LEN      1024
 #define PANEL_MAX_TOKENS    16
-// Raised from 64 to 512 (2026-07-10) — a single token can be as long as a
-// whole `names=` list (e.g. Voyager's soundCategory, 32 quoted names, ~290
-// bytes of actual content after quote-stripping). tokenize() below silently
-// drops anything past PANEL_TOKEN_LEN-1 with no error at all — that's what
-// let this go unnoticed: no parse error, just names beyond a certain point
-// permanently reading "?" in the UI. Matches PANEL_LINE_LEN since no single
-// token can ever exceed the length of the line it came from anyway. This is
-// a per-line stack buffer during parsing only (PANEL_MAX_TOKENS entries,
-// not stored in the persisted config), so the memory cost of raising it is
-// negligible and one-time per parsed line, not per dial.
-#define PANEL_TOKEN_LEN    512
+// Raised from 64 to 512 (2026-07-10), then 512 to 1024 (2026-07-11) — a
+// single token can be as long as a whole `names=` list (e.g. Voyager's
+// pgmShaping1Src/pgmShaping2Src, 43 quoted names each, 804 bytes for the
+// whole line — the 512 ceiling silently truncated these two lines entirely
+// on startup, breaking panel load). tokenize() below silently drops
+// anything past PANEL_TOKEN_LEN-1 with no error at all — that's what let
+// the earlier 64-byte ceiling go unnoticed: no parse error, just names
+// beyond a certain point permanently reading "?" in the UI. Matches
+// PANEL_LINE_LEN since no single token can ever exceed the length of the
+// line it came from anyway. This is a per-line stack buffer during parsing
+// only (PANEL_MAX_TOKENS entries, not stored in the persisted config), so
+// the memory cost of raising it is negligible and one-time per parsed
+// line, not per dial.
+#define PANEL_TOKEN_LEN    1024
 
 // ── Line tokenizer ────────────────────────────────────────────────────────────
 // Splits on whitespace, except inside "..." (which may itself contain spaces,

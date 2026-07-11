@@ -416,21 +416,6 @@ dial filEnvGateSrc label="F.Env Gate" max=7 dumpOffset=138 dumpBitOffset=6 dumpB
 # Gate is OFF=6 (baseline Envelope Gate Input=0).
 dial volEnvGateSrc label="V.Env Gate" max=7 dumpOffset=139 dumpBitOffset=2 dumpBitWidth=3 names="Envelope Gate Input","Touch Gate","S&H Gate","MIDI Clock","Keyboard Gate","Gate is ON","Gate is OFF"
 
-# MIDI Clock Divider — EDIT mode menu 6.1 (owner's manual): creates a new
-# clock signal from incoming MIDI clock, 48 divisions/beat, used to
-# retrigger the LFO (when LFO SYNC=MIDI) or trigger envelopes (Gate
-# Src=MIDI Clock above). Plain numeric, not an enum — raw value = the
-# displayed divider number directly, no scaling (unlike glideRate/etc's
-# CC-pair dials, this one has no CC at all, so display=raw + dump-only,
-# same shape as hPhoneVolume). CONFIRMED against real hardware 2026-07-11,
-# live-diff at 3 points: 96(baseline)->96, 2(hardware's actual minimum —
-# NOT 1 or 0, despite max=97 allowing the display to reach as low as 0)->2,
-# 48->48, all exact. dumpOffset=137 dumpBitOffset=5 dumpBitWidth=7 (7 bits
-# comfortably covers 0-96; an 8th bit read as 0 in every capture so far but
-# was never confirmed to actually belong to this field — see the
-# arithmetic derivation this session, [[project_voyager_edit_menu_sweep]]).
-dial midiClkDivider label="Clock Div" max=97 display=raw dumpOffset=137 dumpBitOffset=5 dumpBitWidth=7
-
 # PGM M-Whl Source — EDIT mode menu 2.1 (owner's manual): selects an
 # alternate modulation source that is routed to the Mod Wheel bus destination
 # below, independent of the actual mod wheel hardware. 8-option sequential
@@ -471,6 +456,35 @@ dial pgmPedalSource label="PGM Ped Src" max=8 dumpOffset=98 dumpBitOffset=0 dump
 # hardware 2026-07-11, live-diff at 3 points: Panorama(baseline)=3, Noise
 # Level=7, LFO Rate=0.
 dial pgmPedalDest label="PGM Ped Dest" max=8 dumpOffset=98 dumpBitOffset=3 dumpBitWidth=3 names="LFO Rate","Filter Resonance","Filter Spacing","Panorama","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level"
+
+# PGM Shaping 1 Src — EDIT mode menu 3.1 (owner's manual): the source signal
+# for Programmable Shaper 1, used to shape either Mod Bus's amount when that
+# bus's SHAPING control is set to ON/PGM. 43-option sequential index (6
+# bits) — whole low 6 bits of its own byte, same clean single-field-per-byte
+# shape as pgmMwSource's byte. Manual's "Fixed Value" (index 0) shows as
+# "Offset Value" on the actual hardware display; manual's "Headphone
+# Volume" (index 42) shows as "Headphone Level" — cosmetic label drift, same
+# underlying option. CONFIRMED against real hardware 2026-07-11, live-diff
+# at 3 points: Offset Value(baseline)=0, Pitch Bend Wheel=1, Headphone
+# Level(last)=42 — all exact. NOT YET DONE: the HIGH/LOW Fixed Value
+# sub-fields (±64 range each, used only when Src=Fixed Value/Offset Value)
+# — those don't fit neatly in the 6-bit pattern established here and need
+# their own separate live-diff session; see [[project_voyager_edit_menu_sweep]].
+dial pgmShaping1Src label="PGM Shp1 Src" max=43 dumpOffset=140 dumpBitOffset=0 dumpBitWidth=6 names="Fixed Value","Pitch Bend Wheel","Modulation Wheel","Velocity Release","Pressure (AT)","Keyboard CV","Touch Surface X","Touch Surface Y","Touch Surface A","Mod1","Mod2","LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Headphone Volume"
+
+# PGM Shaping 2 Src — EDIT mode menu 3.2 (owner's manual), same 43-item list
+# and same underlying shared shaper mechanism as pgmShaping1Src (both
+# sources feed the SAME shaping calculation, shared by both Mod Busses).
+# Unlike Shaping 1's clean single-byte field, this one SPANS A BYTE
+# BOUNDARY: lower 4 bits at byte 144 (bitOffset 3-6), upper 2 bits at byte
+# 145 (bitOffset 0-1) — continuous-bitstream addressing, same mechanism as
+# pitchBendUp. CONFIRMED against real hardware 2026-07-11, live-diff at 3
+# points: Offset Value(baseline)=0, Pitch Bend Wheel=1, Headphone Level
+# (last)=42 — the 42 check specifically confirms the cross-byte-boundary
+# bit assembly is correct (0x54/0x02 split decodes to exactly 42, not just
+# "some bits changed"). NOT YET DONE: HIGH/LOW Fixed Value for this shaper,
+# see pgmShaping1Src's own comment — same open item, doubled.
+dial pgmShaping2Src label="PGM Shp2 Src" max=43 dumpOffset=143 dumpBitOffset=3 dumpBitWidth=6 names="Fixed Value","Pitch Bend Wheel","Modulation Wheel","Velocity Release","Pressure (AT)","Keyboard CV","Touch Surface X","Touch Surface Y","Touch Surface A","Mod1","Mod2","LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Headphone Volume"
 
 page       panel
 section    lfo
@@ -571,6 +585,28 @@ dial glide         label="Glide"       color=g nativeMax=127 max=2 names="Off","
 # being drawn in the Mod Wheel column, same exception release (col=1 row=6)
 # already makes for the same reason (see its own comment above).
 dial glideMode     label="Glide Mode" color=g max=8 dumpOffset=16 dumpBitOffset=1 dumpBitWidth=3 names="Normal Glide","Legato Glide","Legato Glide to Second Only","Legato Glide back to First Only","Legato First Note","Mode 4+5 Combined","Legato back to 1st = Glide Off","Legato Glide Toggling" col=1 row=5
+
+# MIDI Clock Divider — EDIT mode menu 6.1 (owner's manual): creates a new
+# clock signal from incoming MIDI clock, 48 divisions/beat, used to
+# retrigger the LFO (when LFO SYNC=MIDI) or trigger envelopes (Filter/Volume
+# Envelope Gate Src=MIDI Clock, see the categoryInfo section above). Plain
+# numeric, not an enum — raw value = the displayed divider number directly,
+# no scaling (unlike glideRate/etc's CC-pair dials, this one has no CC at
+# all, so display=raw + dump-only, same shape as hPhoneVolume). CONFIRMED
+# against real hardware 2026-07-11, live-diff at 3 points: 96(baseline)->96,
+# 2(hardware's actual minimum — NOT 1 or 0, despite max=97 allowing the
+# display to reach as low as 0)->2, 48->48, all exact. dumpOffset=137
+# dumpBitOffset=5 dumpBitWidth=7 (7 bits comfortably covers 0-96; an 8th bit
+# read as 0 in every capture so far but was never confirmed to actually
+# belong to this field). Originally placed on the hidden Info Row like the
+# rest of the EDIT-menu sweep; moved to an actual grid dial 2026-07-11 (owner's
+# request — a real dial reads as more obviously interactive than a row of
+# plain text) at col=2 row=6, the first open cell in row 6 (col=0/1 are
+# glide/release above) — coloured "g" to match its row-6 neighbours despite
+# not being part of this section's own glide/LFO subject matter, same
+# exception release/glideMode already established for this row/section.
+dial midiClkDivider label="Clock Div" color=g max=97 display=raw dumpOffset=137 dumpBitOffset=5 dumpBitWidth=7 col=2 row=6
+
 # volume is declared further down, in the "output" section — it belongs in
 # the Output column (11), not here.
 

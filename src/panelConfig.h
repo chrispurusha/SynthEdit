@@ -35,7 +35,7 @@ extern "C" {
 
 #define PANEL_ID_LEN               16
 #define PANEL_LABEL_LEN            32
-#define PANEL_MAX_NAMES            32 // raised from 20 2026-07-10 — Voyager's soundCategory is a full 32-value enum (0-31, hardware-confirmed)
+#define PANEL_MAX_NAMES            48 // raised from 20 to 32 2026-07-10 (Voyager's soundCategory, a full 32-value enum, 0-31); raised from 32 to 48 2026-07-11 — Voyager's pgmShaping1Src/pgmShaping2Src are 43-value enums (0-42), values >= the old 32 cap silently had no stored name and rendered as "?"
 #define PANEL_MAX_COLOURS          16
 #define PANEL_MAX_DIALS            32
 #define PANEL_MAX_SECTIONS         32
