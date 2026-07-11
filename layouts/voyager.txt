@@ -431,6 +431,17 @@ dial volEnvGateSrc label="V.Env Gate" max=7 dumpOffset=139 dumpBitOffset=2 dumpB
 # arithmetic derivation this session, [[project_voyager_edit_menu_sweep]]).
 dial midiClkDivider label="Clock Div" max=97 display=raw dumpOffset=137 dumpBitOffset=5 dumpBitWidth=7
 
+# PGM M-Whl Source — EDIT mode menu 2.1 (owner's manual): selects an
+# alternate modulation source that is routed to the Mod Wheel bus destination
+# below, independent of the actual mod wheel hardware. 8-option sequential
+# index (3 bits). CONFIRMED against real hardware 2026-07-11, live-diff at
+# 3 points: Noise(baseline)=0, Filter ENV=1, T.S. Y (last)=7 — bit pattern at
+# each point matches a plain binary index (0/1/7), no reordering. Byte
+# location (98) also matched the SysEx PDF's own label ("whl src PGM") on
+# the first attempt, unlike the Pot Map 1-4 region which turned out to be
+# unsafe to hand-derive — see [[project_voyager_sysex_pdf_gap_audit]].
+dial pgmMwSource label="PGM MW Src" max=8 dumpOffset=97 dumpBitOffset=1 dumpBitWidth=3 names="Noise","Filter ENV","Amplitude ENV","Smoothed S&H","Osc 1","Osc 2","T.S. X","T.S. Y"
+
 page       panel
 section    lfo
 dialSize   36
