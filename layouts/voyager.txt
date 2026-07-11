@@ -442,6 +442,36 @@ dial midiClkDivider label="Clock Div" max=97 display=raw dumpOffset=137 dumpBitO
 # unsafe to hand-derive — see [[project_voyager_sysex_pdf_gap_audit]].
 dial pgmMwSource label="PGM MW Src" max=8 dumpOffset=97 dumpBitOffset=1 dumpBitWidth=3 names="Noise","Filter ENV","Amplitude ENV","Smoothed S&H","Osc 1","Osc 2","T.S. X","T.S. Y"
 
+# PGM M-Whl Dest — EDIT mode menu 2.2 (owner's manual): alternate modulation
+# destination used when the Mod Wheel bus DESTINATION control is set to
+# 'LFO RATE/PGM'. 8-option sequential index (3 bits), packed immediately
+# after pgmMwSource in the same byte (bits 4-6, right after pgmMwSource's
+# bits 1-3) — no collision. CONFIRMED against real hardware 2026-07-11,
+# live-diff at 3 points: LFO Rate(baseline)=0, Filter Resonance=1, Noise
+# Level (last)=7. First diff attempt against a stale baseline showed a
+# spurious change at dumpOffset=59-61 (Cutoff's 14-bit field, apparently
+# nudged once early in the session and never touched again) — a reminder to
+# always re-baseline against a FRESH capture of the actual current state,
+# not reuse an old one from earlier in the sweep.
+dial pgmMwDest label="PGM MW Dest" max=8 dumpOffset=97 dumpBitOffset=4 dumpBitWidth=3 names="LFO Rate","Filter Resonance","Filter Spacing","Panorama","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level"
+
+# PGM Pedal Source — EDIT mode menu 2.3 (owner's manual), same 8-option list
+# as PGM M-Whl Source. Packed in the byte right after the Wheel pair (byte
+# 99, not 98). CONFIRMED against real hardware 2026-07-11, live-diff at 2
+# points: Noise(baseline)=0, T.S. Y (last)=7, Filter ENV=1. The PDF's own
+# byte-map table predicted bitOffset=1 for this one (by analogy with
+# pgmMwSource) but the live diff showed bitOffset=0 — a genuine off-by-one
+# in the hand-read table, not a fresh unsafe region like Pot Map. Always
+# trust the live diff over the PDF reading when they disagree.
+dial pgmPedalSource label="PGM Ped Src" max=8 dumpOffset=98 dumpBitOffset=0 dumpBitWidth=3 names="Noise","Filter ENV","Amplitude ENV","Smoothed S&H","Osc 1","Osc 2","T.S. X","T.S. Y"
+
+# PGM Pedal Dest — EDIT mode menu 2.4 (owner's manual), same 8-option list as
+# PGM M-Whl Dest. Packed immediately after pgmPedalSource in the same byte
+# (bits 3-5, right after pgmPedalSource's bits 0-2). CONFIRMED against real
+# hardware 2026-07-11, live-diff at 3 points: Panorama(baseline)=3, Noise
+# Level=7, LFO Rate=0.
+dial pgmPedalDest label="PGM Ped Dest" max=8 dumpOffset=98 dumpBitOffset=3 dumpBitWidth=3 names="LFO Rate","Filter Resonance","Filter Spacing","Panorama","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level"
+
 page       panel
 section    lfo
 dialSize   36
