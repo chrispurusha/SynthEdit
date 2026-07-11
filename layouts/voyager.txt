@@ -409,6 +409,13 @@ dial triggerMode   label="Trigger"  max=2 dumpOffset=128 dumpBitOffset=0 dumpBit
 # at 3 points: Envelope Gate Input(baseline)=0, Touch Gate=1, MIDI Clock=3.
 dial filEnvGateSrc label="F.Env Gate" max=7 dumpOffset=138 dumpBitOffset=6 dumpBitWidth=3 names="Envelope Gate Input","Touch Gate","S&H Gate","MIDI Clock","Keyboard Gate","Gate is ON","Gate is OFF"
 
+# Volume Envelope Gate Source — EDIT mode menu 4.4, same 7-name list as
+# Filter's own gate source above, packed immediately after it in the same
+# byte (bits 2-4, right after filEnvGateSrc's bits 6/0/1) — no collision.
+# CONFIRMED against real hardware 2026-07-11, live-diff: Touch Gate=1,
+# Gate is OFF=6 (baseline Envelope Gate Input=0).
+dial volEnvGateSrc label="V.Env Gate" max=7 dumpOffset=139 dumpBitOffset=2 dumpBitWidth=3 names="Envelope Gate Input","Touch Gate","S&H Gate","MIDI Clock","Keyboard Gate","Gate is ON","Gate is OFF"
+
 page       panel
 section    lfo
 dialSize   36
