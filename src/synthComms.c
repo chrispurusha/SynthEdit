@@ -291,7 +291,7 @@ static void write_bitpacked_field(uint8_t * payload, uint32_t payloadLen,
         if ((value >> k) & 1) {
             payload[byteIdx] |= (uint8_t)(1 << column);
         } else {
-            payload[byteIdx] &= (uint8_t)~(1 << column);
+            payload[byteIdx] &= (uint8_t) ~(1 << column);
         }
     }
 }
@@ -432,11 +432,36 @@ static void extract_moog_name(const uint8_t * payload, uint32_t payloadLen, int3
 // reflects the live edit buffer, not necessarily an unmodified stored
 // preset) — confirmed by capture, see panelNameOffset's own comment in
 // panelConfig.h.
+// Same role as a dial's own dumpSendAwaitingFreshData (panelConfig.h), for a
+// pending program-name edit (synth_set_program_name() below) instead of a
+// dial — there's no per-dial struct to hang this off of for something that
+// isn't a dial at all. Unlike a dial's own two-phase debounce-then-fetch
+// (hasPendingDumpSend), a name edit only ever fires once per commit (Enter
+// key, not a drag), so there's no rapid-fire case to debounce — this goes
+// straight to "awaiting fresh data" the moment synth_set_program_name() is
+// called, requesting a fetch immediately (folding into one already in
+// flight via gAwaitingFreshDumpForPatch, same as a dial would). Declared
+// here, above extract_moog_panel_info() (its own first reader) rather than
+// alongside gAwaitingFreshDumpForPatch further down — this file has no
+// header-declared forward prototypes for file-scope statics, so a reader
+// earlier in the file can't see one declared later.
+static bool     gProgNameAwaitingFreshData                  = false;
+static uint8_t  gPendingProgNameRaw[SYNTH_PROG_NAME_MAXLEN] = {0};
+static uint32_t gPendingProgNameLen                         = 0;
+
 static void extract_moog_panel_info(const uint8_t * payload, uint32_t payloadLen) {
     tPanelConfig * cfg     = synth_panel_config();
     uint32_t       updated = 0;
 
-    extract_moog_name(payload, payloadLen, cfg->panelNameOffset, cfg->panelNameBitOffset, cfg->panelNameLen, cfg->nameLineWidth);
+    if (!gProgNameAwaitingFreshData) {
+        // Skip re-decoding the name field while a just-typed edit is queued
+        // to be merged into THIS very dump and sent back (see
+        // gProgNameAwaitingFreshData's own comment above) — same "don't
+        // stomp a pending edit with the old, pre-change value this fresh
+        // reply still carries" reasoning as the per-dial skip below,
+        // applied to the name field instead of a dial's value.
+        extract_moog_name(payload, payloadLen, cfg->panelNameOffset, cfg->panelNameBitOffset, cfg->panelNameLen, cfg->nameLineWidth);
+    }
 
     for (uint32_t s = 0; s < cfg->sectionCount; s++) {
         tPanelSection * section = &cfg->sections[s];
@@ -447,21 +472,38 @@ static void extract_moog_panel_info(const uint8_t * payload, uint32_t payloadLen
             if (dial->dumpBitWidth == 0) {
                 continue;
             }
-            if (dial->dumpSendAwaitingFreshData) {
-                // A user-set value for this dial is queued to be merged into
-                // THIS very dump and sent back (see dumpSendAwaitingFreshData's
-                // own comment, panelConfig.h) — don't let the decode below
-                // stomp it with the old, pre-change value this fresh reply
-                // still carries for this one field. synth_apply_pending_dump_
-                // patches() (called right after this function returns) is
-                // what actually applies the pending value, once for every
-                // dial in this state.
+
+            if (dial->dumpSendAwaitingFreshData || dial->hasPendingDumpSend) {
+                // A user-set value for this dial is either already queued to
+                // be merged into THIS very dump (dumpSendAwaitingFreshData —
+                // see its own comment, panelConfig.h) or still settling in
+                // the debounce window that precedes that (hasPendingDumpSend
+                // — see its own comment, panelConfig.h) — don't let the
+                // decode below stomp dial->value with the old, pre-change
+                // value this fresh reply still carries for this one field in
+                // EITHER case. A dump can legitimately arrive mid-debounce
+                // (e.g. preset navigation's own state-dump request, or a
+                // manual Sync, landing within the same ~150ms window as an
+                // in-flight dump-only dial edit) — previously only the
+                // second phase was covered here, so that race visibly
+                // reverted the dial on screen even though
+                // pendingDumpRawValue (captured once at edit time,
+                // untouched by this) meant the value eventually SENT to
+                // hardware was always correct regardless. Found 2026-07-11
+                // auditing this mechanism, no hardware repro needed — the
+                // gap was evident from reading the guard against
+                // hasPendingDumpSend's own debounce window. synth_apply_
+                // pending_dump_patches() (called right after this function
+                // returns) is what actually applies the pending value, once
+                // for every dial in the second phase — a dial still only in
+                // the first phase here just keeps waiting for its own
+                // debounce to elapse, unaffected by this dump.
                 continue;
             }
-            uint32_t     raw  = read_bitpacked_field(payload, payloadLen, dial->dumpOffset,
-                                                     dial->dumpBitOffset, dial->dumpBitWidth);
+            uint32_t raw        = read_bitpacked_field(payload, payloadLen, dial->dumpOffset,
+                                                       dial->dumpBitOffset, dial->dumpBitWidth);
 
-            uint32_t     totalWidth = dial->dumpBitWidth;
+            uint32_t totalWidth = dial->dumpBitWidth;
 
             if (dial->dumpBitWidth2 > 0) {
                 // Non-contiguous field (see dumpBitWidth2's comment in
@@ -494,7 +536,7 @@ static void extract_moog_panel_info(const uint8_t * payload, uint32_t payloadLen
             // physical knob directly, not present when the GUI itself sends
             // the CC — logged only when they actually differ, so a normal
             // Sync with nothing changed stays quiet).
-            uint32_t     oldValue = dial->value;
+            uint32_t oldValue = dial->value;
 
             apply_dial_wire_value(dial, raw, (dial->dumpNativeMax != 0) ? dial->dumpNativeMax : dial->nativeMax);
             updated++;
@@ -561,7 +603,7 @@ static void handle_curr_prog_dump(const uint8_t * data, uint32_t length) {
 // device, only a whole-dump load — confirmed against real Voyager hardware
 // (2026-07-08, see tools/moog_send.swift's own use in that investigation).
 static uint8_t  gLastMoogDump[256];
-static uint32_t gLastMoogDumpLen = 0;
+static uint32_t gLastMoogDumpLen           = 0;
 
 // True while a fresh Panel Dump has been requested specifically to merge in
 // one or more dials' pending dump-only changes (see
@@ -635,6 +677,31 @@ static void synth_apply_pending_dump_patches(void) {
         }
     }
 
+    if (gProgNameAwaitingFreshData) {
+        // Same addressing as extract_moog_name()'s own decode (synthComms.c
+        // above), run in reverse: each character is 8 bits in the same
+        // continuous 7-bit-per-byte bitstream write_bitpacked_field() uses
+        // for every other dump field, starting at panelNameOffset/
+        // panelNameBitOffset and advancing 8 bits per character (NOT 7 —
+        // see extract_moog_name()'s own comment on why a char's 8 bits
+        // straddle byte boundaries in this bitstream).
+        gProgNameAwaitingFreshData = false;
+        uint8_t * payload    = gLastMoogDump + 1;
+        uint32_t  payloadLen = gLastMoogDumpLen - 1 - 1;
+        uint32_t  globalBit  = (uint32_t)cfg->panelNameOffset * 7 + cfg->panelNameBitOffset;
+
+        for (uint32_t c = 0; c < gPendingProgNameLen; c++) {
+            uint32_t byteOffset = globalBit / 7;
+            uint32_t bo         = globalBit % 7;
+
+            write_bitpacked_field(payload, payloadLen, (int32_t)byteOffset, bo, 8, gPendingProgNameRaw[c]);
+            globalBit += 8;
+        }
+
+        anyPatched                 = true;
+        LOG_DEBUG("Patched program name into freshly-fetched Panel Dump\n");
+    }
+
     if (anyPatched) {
         midi_send(gLastMoogDump, gLastMoogDumpLen);
         LOG_DEBUG("Resent freshly-patched Panel Dump (%u bytes)\n", (unsigned)gLastMoogDumpLen);
@@ -660,7 +727,6 @@ static void handle_moog_panel_dump(const uint8_t * data, uint32_t length) {
         LOG_ERROR("Moog panel dump (%u bytes) too big to cache for resend (max %u)\n",
                   (unsigned)length, (unsigned)sizeof(gLastMoogDump));
     }
-
     extract_moog_panel_info(payload, payloadLen);
     synth_apply_pending_dump_patches();
 }
@@ -767,6 +833,7 @@ void synth_on_connected(void) {
             apply_dial_wire_value(&section->dials[d], 0, section->dials[d].nativeMax);
         }
     }
+
     // No gReDraw=true here (2026-07-08 fix) — this reset used to force an
     // immediate render before the state dump request below even went out,
     // producing a visible flash to 0 on every connect before the real values
@@ -913,7 +980,7 @@ void synth_send_parameter_change(uint8_t group, uint16_t paramId, uint16_t value
 // stays within this window between transitional messages, while a genuinely
 // separate switch flip is always seconds apart — see hasPendingCc's own
 // comment in panelConfig.h.
-#define CC_DEBOUNCE_MS 150.0
+#define CC_DEBOUNCE_MS    150.0
 
 static double monotonic_ms(void) {
     struct timespec now;
@@ -946,9 +1013,9 @@ bool synth_handle_cc(uint8_t cc, uint8_t value) {
         // mechanical bounce sends several transitional bytes within tens of
         // milliseconds before settling.
         if ((dial->nativeMax != 0) && (dial->display == dialDisplayNames)) {
-            dial->hasPendingCc   = true;
+            dial->hasPendingCc    = true;
             dial->pendingRawValue = value;
-            dial->pendingSinceMs = monotonic_ms();
+            dial->pendingSinceMs  = monotonic_ms();
         } else {
             apply_dial_wire_value(dial, value, dial->nativeMax);
         }
@@ -1009,7 +1076,7 @@ void synth_flush_pending_cc(void) {
             if (dial->hasPendingCc && ((now - dial->pendingSinceMs) >= CC_DEBOUNCE_MS)) {
                 dial->hasPendingCc = false;
                 apply_dial_wire_value(dial, dial->pendingRawValue, dial->nativeMax);
-                gReDraw = true;
+                gReDraw            = true;
             }
         }
     }
@@ -1156,6 +1223,7 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
             uint8_t wireValue = (dial->nativeMax != 0) ? dial->nativeValue : (uint8_t)storageValue;
             midi_send_cc(gDevice.id, (uint8_t)dial->ccNumber, wireValue);
         }
+
         // Mirror this change into the cached Panel Dump too (added
         // 2026-07-09) — a dial can have BOTH a CC and a dump field (most of
         // this file's dials do), and without this the cache only reflected
@@ -1186,11 +1254,92 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
         // path for dials that DO use it, e.g. mwDestination).
         uint32_t rawValue = synth_encode_dump_raw_value(dial, displayValue);
 
-        dial->hasPendingDumpSend   = true;
+        dial->hasPendingDumpSend  = true;
         dial->pendingDumpRawValue = rawValue;
         dial->pendingDumpSinceMs  = monotonic_ms();
     } else {
         synth_send_parameter_change((uint8_t)dial->paramGroup, (uint16_t)dial->paramId, (uint8_t)storageValue);
     }
     gReDraw = true;
+}
+
+uint32_t synth_effective_name_maxlen(void) {
+    tPanelConfig * cfg    = synth_panel_config();
+    uint32_t       maxLen = cfg->moogStyleDump ? cfg->panelNameLen : cfg->progNameLen;
+
+    return (maxLen < (SYNTH_PROG_NAME_MAXLEN - 1)) ? maxLen : (SYNTH_PROG_NAME_MAXLEN - 1);
+}
+
+// Mirrors extract_moog_name()'s own line-wrap-for-display insertion (its own
+// comment above explains why: nameLineWidth is a display-only concept, no
+// real separator exists in the wire format), applied here to the flat name
+// this app is about to send rather than one just decoded — so
+// gDevice.progName reads correctly immediately after a commit, without
+// waiting for the round trip through hardware and back. Deliberately not
+// shared code with extract_moog_name(): that function also collapses
+// whitespace runs and strips a hardware line-boundary quirk out of RAW
+// decoded bytes, neither of which applies to a clean user-typed string.
+static void set_prog_name_display(const char * flat, uint32_t lineWidth) {
+    uint32_t outLen    = 0;
+    uint32_t lineChars = 0;
+
+    for (const char * p = flat; (*p != '\0') && (outLen < sizeof(gDevice.progName) - 1); p++) {
+        gDevice.progName[outLen++] = *p;
+        lineChars++;
+
+        if ((lineWidth > 0) && (lineChars == lineWidth) && (*(p + 1) != '\0') && (outLen < sizeof(gDevice.progName) - 1)) {
+            gDevice.progName[outLen++] = '\n';
+            lineChars                  = 0;
+        }
+    }
+
+    gDevice.progName[outLen] = '\0';
+}
+
+void synth_set_program_name(const char * newName) {
+    if (!newName) {
+        return;
+    }
+    tPanelConfig * cfg    = synth_panel_config();
+    uint32_t       maxLen = synth_effective_name_maxlen();
+
+    if (maxLen == 0) {
+        return; // connected device's config declares no name field to send
+    }
+    char           padded[SYNTH_PROG_NAME_MAXLEN];
+    uint32_t       i;
+
+    for (i = 0; (i < maxLen) && (newName[i] != '\0'); i++) {
+        padded[i] = newName[i];
+    }
+
+    for ( ; i < maxLen; i++) {
+        padded[i] = ' '; // pad to the field's fixed wire width
+    }
+
+    padded[maxLen] = '\0';
+
+    set_prog_name_display(padded, cfg->nameLineWidth); // optimistic local update — see this function's own header comment (synthComms.h)
+
+    if (cfg->moogStyleDump) {
+        if ((cfg->panelNameOffset < 0) || (gLastMoogDumpLen == 0)) {
+            // No dump cached yet to patch into (not connected, or no Panel
+            // Dump received this session) — nothing to send. Matches
+            // synth_patch_moog_dump_cache()'s own no-op guard for the same
+            // reason.
+            return;
+        }
+        gPendingProgNameLen        = maxLen;
+        memcpy(gPendingProgNameRaw, padded, maxLen);
+        gProgNameAwaitingFreshData = true;
+
+        if (!gAwaitingFreshDumpForPatch) {
+            gAwaitingFreshDumpForPatch = true;
+            synth_request_state_dump();
+        }
+    } else {
+        for (uint32_t c = 0; c < maxLen; c++) {
+            synth_send_parameter_change(SYNTH_PARAM_GROUP_PROG, (uint16_t)(c + 1), (uint16_t)(uint8_t)padded[c]);
+        }
+    }
 }

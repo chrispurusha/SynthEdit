@@ -49,7 +49,7 @@ static void action_set_dial_value(int index) {
         synth_set_panel_dial_value(gMenuDial, (uint32_t)gContextMenu.items[index].param);
     }
     gContextMenu.active = false;
-    gReDraw              = true;
+    gReDraw             = true;
 }
 
 void open_dial_value_menu(tCoord coord, tPanelDial * dial) {
@@ -63,10 +63,11 @@ void open_dial_value_menu(tCoord coord, tPanelDial * dial) {
             dial->names[i], dial->colour, action_set_dial_value, i, NULL
         };
     }
+
     gDialMenuItems[n] = (tMenuItem){
         NULL, (tRgb)RGB_BLACK, NULL, 0, NULL
     };
 
-    gMenuDial = dial;
+    gMenuDial         = dial;
     open_context_menu(coord, gDialMenuItems, 0, 0.0);
 }

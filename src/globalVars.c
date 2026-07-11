@@ -21,16 +21,17 @@
 #include "types.h"
 #include "globalVars.h"
 
-tDialMode       gDialMode    = eDialModeVertical;
+tDialMode       gDialMode     = eDialModeVertical;
 
-_Atomic bool    gQuitAll     = false;
-_Atomic bool    gReDraw      = true;
+_Atomic bool    gQuitAll      = false;
+_Atomic bool    gReDraw       = true;
 
-void *          gWindow      = NULL;
+void *          gWindow       = NULL;
 
-tSynthDevice    gDevice      = {0};
-MIDIClientRef   gMidiClient  = 0;
-MIDIPortRef     gMidiInPort  = 0;
-MIDIPortRef     gMidiOutPort = 0;
-MIDIEndpointRef gMidiSource  = 0;
-MIDIEndpointRef gMidiDest    = 0;
+tSynthDevice    gDevice       = {0};
+tNameEdit       gProgNameEdit = {0};
+MIDIClientRef   gMidiClient   = 0;
+MIDIPortRef     gMidiInPort   = 0;
+MIDIPortRef     gMidiOutPort  = 0;
+MIDIEndpointRef gMidiSource   = 0;
+MIDIEndpointRef gMidiDest     = 0;

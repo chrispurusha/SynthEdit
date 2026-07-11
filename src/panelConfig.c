@@ -37,7 +37,7 @@
 // a per-line stack buffer during parsing only (PANEL_MAX_TOKENS entries,
 // not stored in the persisted config), so the memory cost of raising it is
 // negligible and one-time per parsed line, not per dial.
-#define PANEL_TOKEN_LEN     512
+#define PANEL_TOKEN_LEN    512
 
 // ── Line tokenizer ────────────────────────────────────────────────────────────
 // Splits on whitespace, except inside "..." (which may itself contain spaces,
@@ -173,13 +173,13 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
 
     memset(dial, 0, sizeof(*dial));
     strncpy(dial->id, tokens[1], sizeof(dial->id) - 1);
-    dial->gapBefore  = *pendingGap;
-    *pendingGap      = 0.0;
-    dial->dumpOffset  = -1;  // not present in a program dump unless "dumpOffset=" says otherwise
+    dial->gapBefore   = *pendingGap;
+    *pendingGap       = 0.0;
+    dial->dumpOffset  = -1;   // not present in a program dump unless "dumpOffset=" says otherwise
     dial->dumpMask    = 0xFF; // whole byte by default
-    dial->dumpOffset2 = -1;  // no second bit-location chunk unless "dumpOffset2=" says otherwise
-    dial->gridCol    = -1.0; // not grid-positioned unless "col=" says otherwise
-    dial->gridRow    = -1.0;
+    dial->dumpOffset2 = -1;   // no second bit-location chunk unless "dumpOffset2=" says otherwise
+    dial->gridCol     = -1.0; // not grid-positioned unless "col=" says otherwise
+    dial->gridRow     = -1.0;
 
     for (uint32_t i = 2; i < tokenCount; i++) {
         char key[32];

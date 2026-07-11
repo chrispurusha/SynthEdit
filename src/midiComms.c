@@ -102,14 +102,14 @@ void midi_arm_state_dump_debounce(void) {
 // too-small buffer would silently truncate the very backup this exists to
 // support (LOG_ERROR("SysEx buffer overflow...") below).
 #define SYSEX_BUF_SIZE    65536
-static uint8_t          gSysExBuf[SYSEX_BUF_SIZE];
-static uint32_t         gSysExLen               = 0;
-static MIDIEndpointRef  gSysExSrc               = 0;
+static uint8_t         gSysExBuf[SYSEX_BUF_SIZE];
+static uint32_t        gSysExLen   = 0;
+static MIDIEndpointRef gSysExSrc   = 0;
 
 // ── Non-SysEx message state (running status) ──────────────────────────────────
-static uint8_t          gMsgStatus              = 0;
-static uint8_t          gMsgData[2];
-static uint8_t          gMsgDataLen             = 0;
+static uint8_t         gMsgStatus  = 0;
+static uint8_t         gMsgData[2];
+static uint8_t         gMsgDataLen = 0;
 
 // ── Internal send ─────────────────────────────────────────────────────────────
 
@@ -453,8 +453,8 @@ static void midi_notify_cb(const MIDINotification * msg, void * refCon) {
 // guess. CLOCK_MONOTONIC, not a GLFW time call, since this runs on the MIDI
 // thread, not the render thread.
 static double debug_elapsed_ms(void) {
-    static struct timespec start          = {0};
-    static bool            startCaptured  = false;
+    static struct timespec start         = {0};
+    static bool            startCaptured = false;
     struct timespec        now;
 
     clock_gettime(CLOCK_MONOTONIC, &now);
@@ -463,7 +463,7 @@ static double debug_elapsed_ms(void) {
         start         = now;
         startCaptured = true;
     }
-    double seconds = (double)(now.tv_sec - start.tv_sec) + (double)(now.tv_nsec - start.tv_nsec) / 1e9;
+    double                 seconds       = (double)(now.tv_sec - start.tv_sec) + (double)(now.tv_nsec - start.tv_nsec) / 1e9;
 
     return seconds * 1000.0;
 }

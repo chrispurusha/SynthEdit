@@ -166,7 +166,7 @@ typedef struct {
     // with the OLD, pre-change hardware value), and
     // synth_apply_pending_dump_patches() patches pendingDumpRawValue into
     // the now-fresh gLastMoogDump and sends once, clearing this flag.
-    bool     dumpSendAwaitingFreshData;
+    bool dumpSendAwaitingFreshData;
 
     // Where this dial's value lives in a full program-dump byte buffer (a
     // different wire format from individual parameter-change messages, but

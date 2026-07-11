@@ -97,4 +97,20 @@ typedef struct {
     int32_t currentProgram;
 } tSynthDevice;
 
+// Inline-editable program name field state (click the name to start, type,
+// Enter commits via synth_set_program_name() (synthComms.h), Escape
+// cancels) — modelled on G2-Edit's own tNameEdit (mouseHandle.c there),
+// minus the multi-slot bookkeeping G2's 4-slot patch browser needs: this
+// app only ever edits the one currently-loaded program name. buffer holds
+// the FLAT name (no line-wrap '\n's — those are synth_render()'s own
+// display concern, see wrap_name_for_display() in synthGraphics.cpp),
+// capped at SYNTH_PROG_NAME_MAXLEN regardless of which connected device's
+// progNameLen/panelNameLen is actually shorter (synth_effective_name_maxlen(),
+// synthComms.h, is what enforces the real per-device cap while typing).
+typedef struct {
+    bool     active;
+    char     buffer[SYNTH_PROG_NAME_MAXLEN];
+    uint32_t cursorPos;
+} tNameEdit;
+
 #endif // __TYPES_H__

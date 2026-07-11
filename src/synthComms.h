@@ -121,6 +121,41 @@ void synth_send_parameter_change(uint8_t group, uint16_t paramId, uint16_t value
 // driven by the dial's descriptor, no per-dial code required at call sites.
 void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue);
 
+// Effective on-wire name length for the connected device's protocol —
+// cfg->panelNameLen for a Moog-style dump, cfg->progNameLen for a Korg-style
+// live parameter-change name (see synth_set_program_name()'s own comment for
+// why the two protocols encode a name so differently), capped at
+// SYNTH_PROG_NAME_MAXLEN-1 (types.h) so callers never need their own second
+// clamp. 0 if the connected device's config declares neither.
+uint32_t synth_effective_name_maxlen(void);
+
+// Commits a new program name typed by the user (see gProgNameEdit,
+// globalVars.h) to the connected device. Truncates/space-pads newName to
+// synth_effective_name_maxlen() first — both protocols below expect a fixed-
+// width field, not a variable-length string. Branches entirely on
+// cfg->moogStyleDump, same protocol split synth_set_panel_dial_value()
+// already does for a dump-only dial vs. a CC/parameter-change one:
+//   - Korg-style: one SYNTH_FUNC_PARAMETER_CHANGE per character (paramGroup
+//     SYNTH_PARAM_GROUP_PROG, paramId 1..len), mirroring the incoming
+//     per-char decode already in handle_parameter_change() (synthComms.c).
+//   - Moog-style: no per-parameter name write exists (same "whole-dump load
+//     only" constraint as a dump-only dial — see gLastMoogDump's own
+//     comment) — encodes the name into a freshly-fetched Panel Dump and
+//     resends, reusing the exact fetch-then-patch protection built for
+//     dump-only dials (gProgNameAwaitingFreshData mirrors a dial's own
+//     dumpSendAwaitingFreshData) rather than patching straight into
+//     whatever gLastMoogDump happens to hold. UNCONFIRMED against real
+//     hardware which bytes this actually writes are correct beyond matching
+//     extract_moog_name()'s own decode addressing exactly in reverse — that
+//     decode is hardware-confirmed, this encode has not itself been
+//     round-tripped through a real Voyager yet.
+// Also updates gDevice.progName immediately (optimistic, same reasoning as
+// synth_navigate_preset()'s own comment) so the UI reflects the new name
+// without waiting for a round trip. A no-op if synth_effective_name_maxlen()
+// is 0 (connected device's config declares no name field), or — Moog-style
+// only — if no Panel Dump has been received yet this session to patch into.
+void synth_set_program_name(const char * newName);
+
 #ifdef __cplusplus
 }
 #endif

@@ -83,6 +83,30 @@ int32_t synth_hit_test_patch_nav(tCoord coord);
 void synth_action_patch_nav(int32_t index);
 void synth_set_pressed_patch_nav(int32_t index);
 
+// The program name text block, laid out on the Program name row during the
+// last synth_render() call — a click starts inline editing (gProgNameEdit,
+// globalVars.h; see mouseHandle.c). No press/release split the way
+// gPressedValueMenuDial needs (panel_dial_needs_value_menu()'s own comment,
+// mouseHandle.c) — there's no menu here that a same-click release could
+// prematurely dismiss, so entering edit mode happens directly on press.
+bool synth_hit_test_prog_name(tCoord coord);
+
+// Hit-tests every dial belonging to a `hidden` section — the Info Row (see
+// synth_render()'s own comment) — anywhere in the config, not just whatever
+// page is currently showing (unlike synth_current_page_sections(), which
+// deliberately excludes hidden sections entirely). Mirrors the Info Row's
+// own render-time iteration exactly so a click lands on the segment it
+// visually corresponds to; each segment's tRectangle is (re)computed and
+// stored into that dial's own `rect` field during the last synth_render()
+// call, the same rect field a grid dial's own layout_panel_section() uses —
+// safe to share since a hidden-section dial is never grid-laid-out.
+// Returns NULL if nothing hit. Callers should still check
+// panel_dial_needs_value_menu() before acting on the result, same as the
+// generic per-page dial hit-test in mouseHandle.c does — not every hidden
+// dial is necessarily a selectable-by-menu one (e.g. a purely numeric
+// read-only field).
+tPanelDial * synth_hit_test_info_row(tCoord coord);
+
 #ifdef __cplusplus
 }
 #endif

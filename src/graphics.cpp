@@ -140,6 +140,11 @@ static void key_cb(GLFWwindow * win, int key, int scancode, int action, int mods
     gReDraw = true;
 }
 
+static void char_cb(GLFWwindow * win, unsigned int codepoint) {
+    handle_char(win, codepoint);
+    gReDraw = true;
+}
+
 static void scroll_cb(GLFWwindow * win, double dx, double dy) {
     handle_scroll(win, dx, dy);
     gReDraw = true;
@@ -254,6 +259,7 @@ void init_graphics(void) {
     glfwSwapInterval(1);
     glfwSetWindowCloseCallback((GLFWwindow *)gWindow, window_close_callback);
     glfwSetKeyCallback((GLFWwindow *)gWindow, key_cb);
+    glfwSetCharCallback((GLFWwindow *)gWindow, char_cb);
     glfwSetCursorPosCallback((GLFWwindow *)gWindow, cursor_pos_cb);
     glfwSetMouseButtonCallback((GLFWwindow *)gWindow, mouse_button_cb);
     glfwSetScrollCallback((GLFWwindow *)gWindow, scroll_cb);

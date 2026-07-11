@@ -35,6 +35,7 @@ extern void *          gWindow;            // GLFWwindow*; void* avoids pulling 
 
 // ── MIDI / device ─────────────────────────────────────────────────────────────
 extern tSynthDevice    gDevice;
+extern tNameEdit       gProgNameEdit;
 extern MIDIClientRef   gMidiClient;
 extern MIDIPortRef     gMidiInPort;
 extern MIDIPortRef     gMidiOutPort;

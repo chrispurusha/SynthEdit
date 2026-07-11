@@ -33,6 +33,16 @@
 #define GLFW_CURSOR_DISABLED    0x00034003
 #define GLFW_PRESS              1
 #define GLFW_RELEASE            0
+#define GLFW_REPEAT             2
+#define GLFW_KEY_ESCAPE         256
+#define GLFW_KEY_ENTER          257
+#define GLFW_KEY_KP_ENTER       335
+#define GLFW_KEY_BACKSPACE      259
+#define GLFW_KEY_DELETE         261
+#define GLFW_KEY_RIGHT          262
+#define GLFW_KEY_LEFT           263
+#define GLFW_KEY_HOME           268
+#define GLFW_KEY_END            269
 
 extern void glfwSetInputMode(void *, int, int);
 extern void glfwGetWindowSize(void *, int *, int *);
@@ -43,20 +53,20 @@ extern void glfwGetCursorPos(void *, double *, double *);
 // has no knowledge of what any given dial *is* (cutoff, resonance, routing,
 // ...). That all comes from the descriptor parsed out of the layout file
 // (see panelConfig.h/synthComms.c) and is looked up generically by rect.
-static tPanelDial * gDraggedDial       = NULL;
-static double       gDragPrevX         = 0.0; // cursor position at previous cursor_pos call — incremental delta
-static double       gDragPrevY         = 0.0;
-static int          gDragSkipCount     = 0;   // skip first N cursor_pos events after CURSOR_DISABLED — covers stale events + transition event
+static tPanelDial * gDraggedDial          = NULL;
+static double       gDragPrevX            = 0.0; // cursor position at previous cursor_pos call — incremental delta
+static double       gDragPrevY            = 0.0;
+static int          gDragSkipCount        = 0;   // skip first N cursor_pos events after CURSOR_DISABLED — covers stale events + transition event
 
 // Page tab press state — actions on mouse-up, not mouse-down (standard
 // button behaviour: press-and-drag-off cancels the click). -1 = no tab
 // currently pressed.
-static int32_t      gPressedTab        = -1;
-static double       gDragTypeAccum     = 0.0; // sub-step accumulator for discrete (named) dials
+static int32_t      gPressedTab           = -1;
+static double       gDragTypeAccum        = 0.0; // sub-step accumulator for discrete (named) dials
 
 // Same press-on-mouse-up convention as gPressedTab above, for the Prev/Next
 // patch buttons (see synth_hit_test_patch_nav() in synthGraphics.h).
-static int32_t      gPressedPatchNav   = -1;
+static int32_t      gPressedPatchNav      = -1;
 
 // A panel_dial_is_binary() dial (rendered as a button, not a knob — either
 // a power button or a plain named one, see synthGraphics.cpp) takes a
@@ -67,7 +77,7 @@ static int32_t      gPressedPatchNav   = -1;
 // above. A dial that looks like a button but only responded to a knob's
 // drag gesture wasn't actually clickable in practice with no synth
 // connected to confirm otherwise.
-static tPanelDial * gPressedToggleDial = NULL;
+static tPanelDial * gPressedToggleDial    = NULL;
 
 // Same press-arms/release-fires shape as gPressedToggleDial above, for a
 // panel_dial_needs_value_menu() dial — a discrete selector with no CC at
@@ -77,6 +87,16 @@ static tPanelDial * gPressedToggleDial = NULL;
 // whatever's active on ANY release) before a second click could ever reach
 // it. Real bug hit and fixed 2026-07-08 building this.
 static tPanelDial * gPressedValueMenuDial = NULL;
+
+// ── Program name edit (gProgNameEdit, globalVars.h) ──────────────────────────
+// Shared by the Enter-key commit path (handle_key() below) and the
+// click-outside-the-field commit path (handle_mouse_button() below) — see
+// the latter's own comment for why a stray click commits rather than
+// silently discarding or being ignored.
+static void synth_commit_prog_name_edit(void) {
+    gProgNameEdit.active = false;
+    synth_set_program_name(gProgNameEdit.buffer);
+}
 
 // ── Coordinate helpers ────────────────────────────────────────────────────────
 
@@ -164,19 +184,34 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
         return;
     }
 
+    // A press outside the program-name field while mid-edit commits
+    // whatever's typed so far — Enter/Escape (handle_key() below) are the
+    // deliberate paths, but a stray click elsewhere in the UI shouldn't
+    // strand the user in a half-finished edit with no visible way out.
+    // Consumes the click (returns rather than falling through to whatever
+    // else it landed on) — matches common text-field-blur convention, and
+    // avoids the same click both committing a name AND, say, pressing Next.
+    // A press back on the field itself falls through unhandled here; the
+    // "Program name" press-check further down just re-arms the same active
+    // state, a harmless no-op.
+    if (pressed && gProgNameEdit.active && !synth_hit_test_prog_name(coord)) {
+        synth_commit_prog_name_edit();
+        return;
+    }
+
     if (!pressed) {
         // Action a pressed tab only if release lands back on it — matches
         // standard button behaviour (press-and-drag-off cancels the click).
         if ((gPressedTab >= 0) && (synth_hit_test_page_tab(coord) == gPressedTab)) {
             synth_action_page_tab(gPressedTab);
         }
-        gPressedTab        = -1;
+        gPressedTab           = -1;
         synth_set_pressed_page_tab(-1);
 
         if ((gPressedPatchNav >= 0) && (synth_hit_test_patch_nav(coord) == gPressedPatchNav)) {
             synth_action_patch_nav(gPressedPatchNav);
         }
-        gPressedPatchNav   = -1;
+        gPressedPatchNav      = -1;
         synth_set_pressed_patch_nav(-1);
 
         // Same press-and-release-on-the-same-target convention as above —
@@ -186,7 +221,7 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
 
             synth_set_panel_dial_value(gPressedToggleDial, current ? 0 : 1);
         }
-        gPressedToggleDial = NULL;
+        gPressedToggleDial    = NULL;
 
         // Opening the menu here, on release, is required, not just
         // convention-matching — the very next line of this same function
@@ -216,6 +251,44 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
 
     if (gPressedPatchNav >= 0) {
         synth_set_pressed_patch_nav(gPressedPatchNav);
+        return;
+    }
+
+    // Program name field — checked before dial hit-testing, same reasoning
+    // as the page-tab row and Prev/Next/Sync buttons above. No press/release
+    // split the way gPressedValueMenuDial needs (see its own comment below)
+    // — there's no menu here a same-click release could prematurely
+    // dismiss, so edit mode starts immediately on press.
+    if (synth_hit_test_prog_name(coord)) {
+        gProgNameEdit.active    = true;
+
+        // Seed from the FLAT name — gDevice.progName may contain
+        // nameLineWidth's own display-only '\n's (see extract_moog_name(),
+        // synthComms.c), stripped back out here since the wire format has
+        // no real line breaks, only synth_render()'s own wrap-for-display.
+        uint32_t o = 0;
+
+        for (const char * p = gDevice.progName; (*p != '\0') && ((o + 1) < sizeof(gProgNameEdit.buffer)); p++) {
+            if (*p != '\n') {
+                gProgNameEdit.buffer[o++] = *p;
+            }
+        }
+
+        gProgNameEdit.buffer[o] = '\0';
+        gProgNameEdit.cursorPos = o;
+        return;
+    }
+    // Info Row dials (e.g. Voyager's soundCategory) — a hidden-section dial
+    // is deliberately excluded from synth_current_page_sections() (see that
+    // function's own comment), so it never reaches the generic per-page
+    // loop below and needs its own hit-test instead. Same press-arms/
+    // release-fires value-menu convention as a normal grid dial — shares
+    // gPressedValueMenuDial itself, so the release-time open_dial_value_menu()
+    // call above needs no changes to also handle this case.
+    tPanelDial *    infoRowHit   = synth_hit_test_info_row(coord);
+
+    if (infoRowHit && panel_dial_needs_value_menu(infoRowHit)) {
+        gPressedValueMenuDial = infoRowHit;
         return;
     }
     // Hit-test every section on the current panel page generically —
@@ -321,8 +394,65 @@ void handle_key(void * win, int key, int scancode, int action, int mods) {
     (void)win;
     (void)scancode;
     (void)mods;
-    (void)key;
-    (void)action;
+
+    if (!gProgNameEdit.active) {
+        return;
+    }
+
+    if ((action != GLFW_PRESS) && (action != GLFW_REPEAT)) {
+        return;
+    }
+    size_t   len       = strlen(gProgNameEdit.buffer);
+    uint32_t cursorPos = (gProgNameEdit.cursorPos <= len) ? gProgNameEdit.cursorPos : (uint32_t)len;
+
+    if (key == GLFW_KEY_BACKSPACE) {
+        if (cursorPos > 0) {
+            memmove(&gProgNameEdit.buffer[cursorPos - 1], &gProgNameEdit.buffer[cursorPos], len - cursorPos + 1);
+            gProgNameEdit.cursorPos = cursorPos - 1;
+        }
+    } else if (key == GLFW_KEY_DELETE) {
+        if (cursorPos < len) {
+            memmove(&gProgNameEdit.buffer[cursorPos], &gProgNameEdit.buffer[cursorPos + 1], len - cursorPos);
+        }
+    } else if (key == GLFW_KEY_LEFT) {
+        if (cursorPos > 0) {
+            gProgNameEdit.cursorPos = cursorPos - 1;
+        }
+    } else if (key == GLFW_KEY_RIGHT) {
+        if (cursorPos < len) {
+            gProgNameEdit.cursorPos = cursorPos + 1;
+        }
+    } else if (key == GLFW_KEY_HOME) {
+        gProgNameEdit.cursorPos = 0;
+    } else if (key == GLFW_KEY_END) {
+        gProgNameEdit.cursorPos = (uint32_t)len;
+    } else if ((key == GLFW_KEY_ENTER) || (key == GLFW_KEY_KP_ENTER)) {
+        synth_commit_prog_name_edit();
+    } else if (key == GLFW_KEY_ESCAPE) {
+        // Cancel — discard edits
+        gProgNameEdit.active = false;
+    }
+    gReDraw = true;
+}
+
+void handle_char(void * win, unsigned int codepoint) {
+    (void)win;
+
+    if (!gProgNameEdit.active) {
+        return;
+    }
+    uint32_t maxLen    = synth_effective_name_maxlen();
+    size_t   len       = strlen(gProgNameEdit.buffer);
+
+    if ((codepoint < 0x20) || (codepoint > 0x7E) || (len >= maxLen) || ((len + 1) >= sizeof(gProgNameEdit.buffer))) {
+        return;
+    }
+    uint32_t cursorPos = (gProgNameEdit.cursorPos <= len) ? gProgNameEdit.cursorPos : (uint32_t)len;
+
+    memmove(&gProgNameEdit.buffer[cursorPos + 1], &gProgNameEdit.buffer[cursorPos], len - cursorPos + 1);
+    gProgNameEdit.buffer[cursorPos] = (char)codepoint;
+    gProgNameEdit.cursorPos         = cursorPos + 1;
+    gReDraw                         = true;
 }
 
 void handle_scroll(void * win, double dx, double dy) {

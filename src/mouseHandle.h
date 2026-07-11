@@ -29,6 +29,7 @@ extern "C" {
 void handle_mouse_button(void * win, int button, int action, int mods, double x, double y);
 void handle_cursor_pos(void * win, double x, double y);
 void handle_key(void * win, int key, int scancode, int action, int mods);
+void handle_char(void * win, unsigned int codepoint);
 void handle_scroll(void * win, double dx, double dy);
 
 // Supplied for SynthLib's contextMenu.c to link against — current mouse

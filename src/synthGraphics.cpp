@@ -183,6 +183,63 @@ void synth_set_pressed_patch_nav(int32_t index) {
     }
 }
 
+// ── Program name (click-to-edit) ─────────────────────────────────────────────
+static tRectangle gProgNameRect    = {0};
+static bool       gProgNameLaidOut = false; // false until synth_render() has placed the rect at least once
+
+bool synth_hit_test_prog_name(tCoord coord) {
+    return gProgNameLaidOut && within_rectangle(coord, gProgNameRect);
+}
+
+// ── Info row hit-test ─────────────────────────────────────────────────────────
+// Mirrors synth_render()'s own Info Row iteration (every dial in a `hidden`
+// section, anywhere in the config) rather than synth_current_page_sections()
+// above, which deliberately excludes hidden sections — the Info Row is drawn
+// on every page, not scoped to gCurrentPage, so its hit-test can't be either.
+tPanelDial * synth_hit_test_info_row(tCoord coord) {
+    for (uint32_t s = 0; s < gSynthPanelConfig.sectionCount; s++) {
+        tPanelSection * section = &gSynthPanelConfig.sections[s];
+
+        if (!section->hidden) {
+            continue;
+        }
+
+        for (uint32_t d = 0; d < section->dialCount; d++) {
+            tPanelDial * dial = &section->dials[d];
+
+            if (within_rectangle(coord, dial->rect)) {
+                return dial;
+            }
+        }
+    }
+
+    return NULL;
+}
+
+// Inserts '\n' every lineWidth characters of `flat` for display — the same
+// display-only wrap extract_moog_name() applies when decoding a name off the
+// wire (see that function's own comment for why there's no real separator
+// byte to hang a break on), applied here to an in-progress edit buffer
+// instead of freshly-decoded bytes. Deliberately simpler than
+// extract_moog_name(): a user-typed buffer has no whitespace-collapsing or
+// hardware line-boundary quirk to undo.
+static void wrap_name_for_display(const char * flat, uint32_t lineWidth, char * out, size_t outSize) {
+    size_t outLen    = 0;
+    size_t lineChars = 0;
+
+    for (const char * p = flat; (*p != '\0') && (outLen + 1 < outSize); p++) {
+        out[outLen++] = *p;
+        lineChars++;
+
+        if ((lineWidth > 0) && (lineChars == lineWidth) && (*(p + 1) != '\0') && (outLen + 1 < outSize)) {
+            out[outLen++] = '\n';
+            lineChars     = 0;
+        }
+    }
+
+    out[outLen] = '\0';
+}
+
 // Rebuilds gPageTabs from the config's distinct page names and renders them
 // as a button row at `origin`, returning the height consumed. Defaults
 // gCurrentPage to the first page seen if it isn't set (or no longer exists).
@@ -392,21 +449,39 @@ void synth_render(tRectangle area) {
     // row beneath this one (dials, Info row, …) would shift up and down as
     // patches with a one-line vs. two-line name are selected.
     {
-        const char *   nm;
+        // Click-to-edit (see synth_hit_test_prog_name() above, mouseHandle.c
+        // for the click/keyboard handling) — while active, render the edit
+        // buffer (with an inserted '|' cursor marker, same idiom G2-Edit's
+        // own patch-name field uses) instead of gDevice.progName, wrapped
+        // for display the same way a decoded name is (wrap_name_for_display()
+        // above) so it visually matches the read-only view it'll return to
+        // on commit/cancel.
+        char nameBuf[SYNTH_PROG_NAME_MAXLEN * 2]; // headroom for the inserted cursor + wrap '\n's
 
-        if (gDevice.progName[0] != '\0') {
-            nm = gDevice.progName;
-        } else if (gDevice.connected) {
-            nm = synth_panel_config()->deviceName;
+        if (gProgNameEdit.active) {
+            char   withCursor[SYNTH_PROG_NAME_MAXLEN + 1];
+            size_t len = strlen(gProgNameEdit.buffer);
+            size_t cp  = (gProgNameEdit.cursorPos <= len) ? gProgNameEdit.cursorPos : len;
+
+            memcpy(withCursor, gProgNameEdit.buffer, cp);
+            withCursor[cp] = '|';
+            memcpy(&withCursor[cp + 1], &gProgNameEdit.buffer[cp], len - cp + 1);
+            wrap_name_for_display(withCursor, synth_panel_config()->nameLineWidth, nameBuf, sizeof(nameBuf));
+            set_rgb_colour((tRgb)RGB_GREEN_ON); // flags edit mode, same colour render_page_tabs() uses for "active"
         } else {
-            nm = "(loading\xe2\x80\xa6)";
+            const char * nm;
+
+            if (gDevice.progName[0] != '\0') {
+                nm = gDevice.progName;
+            } else if (gDevice.connected) {
+                nm = synth_panel_config()->deviceName;
+            } else {
+                nm = "(loading\xe2\x80\xa6)";
+            }
+            strncpy(nameBuf, nm, sizeof(nameBuf) - 1);
+            nameBuf[sizeof(nameBuf) - 1] = '\0';
+            set_rgb_colour((tRgb)RGB_WHITE);
         }
-        set_rgb_colour((tRgb)RGB_WHITE);
-
-        char           nameBuf[SYNTH_PROG_NAME_MAXLEN];
-        strncpy(nameBuf, nm, sizeof(nameBuf) - 1);
-        nameBuf[sizeof(nameBuf) - 1] = '\0';
-
         tPanelConfig * cfg          = synth_panel_config();
         uint32_t       maxFieldLen  = (cfg->panelNameLen > cfg->presetNameLen) ? cfg->panelNameLen : cfg->presetNameLen;
         uint32_t       reservedRows = (cfg->nameLineWidth > 0)
@@ -426,6 +501,9 @@ void synth_render(tRectangle area) {
             line = strtok(NULL, "\n");
             row++;
         }
+        gProgNameRect    = {{x, y}, {450.0, 32.0 * (double)reservedRows}};
+        gProgNameLaidOut = true;
+
         // Prev/Next patch buttons — see synth_navigate_preset() (synthComms.h)
         // for what they send (always something, even before a current
         // program number is known — see the comment in synth_navigate_preset()
@@ -455,12 +533,26 @@ void synth_render(tRectangle area) {
     }
 
     // ── Info row: every dial in a `hidden` section, anywhere in the config ────
-    // (e.g. the Z1's Category/Voice/Unison* — see layouts/z1.txt) — shown as
-    // "label: value" text rather than a rendered control. Fully generic: this
-    // block has no idea what any of these dials mean, so a different device
-    // with different (or no) hidden dials needs no change here.
+    // (e.g. the Z1's Category/Voice/Unison*, the Voyager's soundCategory —
+    // see layouts/z1.txt / voyager.txt) — shown as "label: value" text
+    // rather than a rendered control. Fully generic: this block has no idea
+    // what any of these dials mean, so a different device with different
+    // (or no) hidden dials needs no change here.
+    //
+    // Each segment is measured and drawn individually (rather than one
+    // concatenated string, as before 2026-07-11) so its on-screen
+    // tRectangle can be stored into that dial's own `rect` field —
+    // synth_hit_test_info_row() above then lets a panel_dial_needs_value_menu()
+    // dial here (e.g. soundCategory) open the same generic dropdown a normal
+    // grid dial's own click does (open_dial_value_menu(), menus.c), with no
+    // device-specific code: a numeric-only hidden dial just gets a rect
+    // nothing ever hit-tests true for a value-menu on, so it stays inert.
     {
-        char infoBuf[256] = {0};
+        const double rowHeight = 13.0;
+        double       ix        = x;
+        bool         first     = true;
+
+        set_rgb_colour((tRgb)RGB_GREY_7);
 
         for (uint32_t s = 0; s < gSynthPanelConfig.sectionCount; s++) {
             tPanelSection * section = &gSynthPanelConfig.sections[s];
@@ -471,6 +563,16 @@ void synth_render(tRectangle area) {
 
             for (uint32_t d = 0; d < section->dialCount; d++) {
                 tPanelDial * dial    = &section->dials[d];
+
+                if (!first) {
+                    const char * sep     = "  |  ";
+                    tRectangle   sepRect = {{ix, y}, {0.0, rowHeight}};
+
+                    render_text(mainArea, sepRect, sep);
+                    ix += get_text_width(sep, rowHeight, eNoCache);
+                }
+                first      = false;
+
                 uint32_t     dialVal = get_panel_dial_value(dial);
                 char         valStr[32];
 
@@ -482,16 +584,14 @@ void synth_render(tRectangle area) {
                 char         pair[64];
                 snprintf(pair, sizeof(pair), "%s: %s", dial->label, valStr);
 
-                if (infoBuf[0] != '\0') {
-                    strncat(infoBuf, "  |  ", sizeof(infoBuf) - strlen(infoBuf) - 1);
-                }
-                strncat(infoBuf, pair, sizeof(infoBuf) - strlen(infoBuf) - 1);
+                double       width   = get_text_width(pair, rowHeight, eNoCache);
+                dial->rect = {{ix, y}, {width, rowHeight}};
+
+                render_text(mainArea, dial->rect, pair);
+                ix        += width;
             }
         }
 
-        tRectangle r = {{x, y}, {700.0, 13.0}};
-        set_rgb_colour((tRgb)RGB_GREY_7);
-        render_text(mainArea, r, infoBuf);
         y += 25.0;
     }
 
