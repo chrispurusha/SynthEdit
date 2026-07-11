@@ -31,6 +31,16 @@ typedef void (*tFileDialogueCallback)(const char * path);
 void open_file_read_dialogue_async(tFileDialogueCallback callback);
 void open_file_write_dialogue_async(tFileDialogueCallback callback, const char * defaultName);
 
+// Folder variant of the two above — NSOpenPanel configured to choose (or
+// create) a directory rather than a file. Used by Backup > Bank (Individual
+// Files)… (synthBackup.c) to pick where the per-preset .syx files + index
+// land. Deliberately separate from misc.mm's own layouts-folder chooser,
+// which persists its choice as a security-scoped bookmark for reuse across
+// launches — a backup destination is a one-off, nothing to remember.
+// callback receives NULL if the panel was cancelled, same convention as the
+// two above.
+void open_folder_choose_dialogue_async(tFileDialogueCallback callback, const char * title);
+
 // Synchronous (unlike the two above) — blocks until the user responds, using
 // [NSAlert runModal] directly rather than the async dispatch pattern the
 // others use. Meant for the one-time startup device chooser, called before

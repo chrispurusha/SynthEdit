@@ -77,6 +77,33 @@ void open_file_write_dialogue_async(tFileDialogueCallback callback, const char *
     });
 }
 
+void open_folder_choose_dialogue_async(tFileDialogueCallback callback, const char * title) {
+    NSString * titleString = [NSString stringWithUTF8String:(title && title[0] != '\0') ? title : "Choose a Folder"];
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSOpenPanel * panel = [NSOpenPanel openPanel];
+        [panel setCanChooseFiles:NO];
+        [panel setCanChooseDirectories:YES];
+        [panel setCanCreateDirectories:YES];
+        [panel setAllowsMultipleSelection:NO];
+        [panel setTitle:titleString];
+
+        [panel beginWithCompletionHandler:^(NSModalResponse result) {
+             if (result == NSModalResponseOK) {
+                 NSString * path = [panel.URL path];
+
+                 if (callback) {
+                     callback([path UTF8String]);
+                 }
+             } else {
+                 if (callback) {
+                     callback(NULL);
+                 }
+             }
+         }];
+    });
+}
+
 int32_t show_device_choice_dialogue(const char * title, const char * message, const char *const * labels, uint32_t count) {
     if (count == 0) {
         return -1;

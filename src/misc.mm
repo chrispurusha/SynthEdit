@@ -124,6 +124,7 @@ void prompt_choose_layouts_folder(void) {
 - (void)backupCurrentPatch:(id)sender;
 - (void)backupPatchByNumber:(id)sender;
 - (void)backupBank:(id)sender;
+- (void)backupBankToFolder:(id)sender;
 - (BOOL)validateMenuItem:(NSMenuItem *)item;
 @end
 
@@ -160,6 +161,10 @@ void prompt_choose_layouts_folder(void) {
 
 - (void)backupBank:(id)sender {
     synth_backup_bank();
+}
+
+- (void)backupBankToFolder:(id)sender {
+    synth_backup_bank_to_folder();
 }
 
 - (void)chooseLayoutsFolder:(id)sender {
@@ -229,45 +234,45 @@ void setup_main_menu(void) {
 
         reposition_window(savedX, savedY);
     }
-    NSMenuItem * devMI       = [[NSMenuItem alloc] init];
-    NSMenu *     devMenu     = [[NSMenu alloc] initWithTitle:@"Device"];
-    NSMenuItem * scanItem    = [[NSMenuItem alloc] initWithTitle:@"Scan Devices"
-                                action:@selector(scanDevices:)
-                                keyEquivalent:@"r"];
+    NSMenuItem * devMI          = [[NSMenuItem alloc] init];
+    NSMenu *     devMenu        = [[NSMenu alloc] initWithTitle:@"Device"];
+    NSMenuItem * scanItem       = [[NSMenuItem alloc] initWithTitle:@"Scan Devices"
+                                   action:@selector(scanDevices:)
+                                   keyEquivalent:@"r"];
     [scanItem setTarget:target];
     [devMenu addItem:scanItem];
     [devMI setSubmenu:devMenu];
     [menuBar insertItem:devMI atIndex:1];
 
-    NSMenuItem * ctrlMI      = [[NSMenuItem alloc] init];
-    NSMenu *     ctrlMenu    = [[NSMenu alloc] initWithTitle:@"Controls"];
+    NSMenuItem * ctrlMI         = [[NSMenuItem alloc] init];
+    NSMenu *     ctrlMenu       = [[NSMenu alloc] initWithTitle:@"Controls"];
 
-    NSMenuItem * rotaryItem  = [[NSMenuItem alloc] initWithTitle:@"Rotary"
-                                action:@selector(setDialModeRotary:)
-                                keyEquivalent:@""];
+    NSMenuItem * rotaryItem     = [[NSMenuItem alloc] initWithTitle:@"Rotary"
+                                   action:@selector(setDialModeRotary:)
+                                   keyEquivalent:@""];
     [rotaryItem setTarget:target];
     [ctrlMenu addItem:rotaryItem];
 
-    NSMenuItem * vertItem    = [[NSMenuItem alloc] initWithTitle:@"Vertical"
-                                action:@selector(setDialModeVertical:)
-                                keyEquivalent:@""];
+    NSMenuItem * vertItem       = [[NSMenuItem alloc] initWithTitle:@"Vertical"
+                                   action:@selector(setDialModeVertical:)
+                                   keyEquivalent:@""];
     [vertItem setTarget:target];
     [ctrlMenu addItem:vertItem];
 
-    NSMenuItem * horizItem   = [[NSMenuItem alloc] initWithTitle:@"Horizontal"
-                                action:@selector(setDialModeHorizontal:)
-                                keyEquivalent:@""];
+    NSMenuItem * horizItem      = [[NSMenuItem alloc] initWithTitle:@"Horizontal"
+                                   action:@selector(setDialModeHorizontal:)
+                                   keyEquivalent:@""];
     [horizItem setTarget:target];
     [ctrlMenu addItem:horizItem];
 
     [ctrlMI setSubmenu:ctrlMenu];
     [menuBar insertItem:ctrlMI atIndex:2];
 
-    NSMenuItem * layoutsMI   = [[NSMenuItem alloc] init];
-    NSMenu *     layoutsMenu = [[NSMenu alloc] initWithTitle:@"Layouts"];
-    NSMenuItem * chooseItem  = [[NSMenuItem alloc] initWithTitle:@"Choose Layouts Folder…"
-                                action:@selector(chooseLayoutsFolder:)
-                                keyEquivalent:@""];
+    NSMenuItem * layoutsMI      = [[NSMenuItem alloc] init];
+    NSMenu *     layoutsMenu    = [[NSMenu alloc] initWithTitle:@"Layouts"];
+    NSMenuItem * chooseItem     = [[NSMenuItem alloc] initWithTitle:@"Choose Layouts Folder…"
+                                   action:@selector(chooseLayoutsFolder:)
+                                   keyEquivalent:@""];
     [chooseItem setTarget:target];
     [layoutsMenu addItem:chooseItem];
     [layoutsMI setSubmenu:layoutsMenu];
@@ -275,29 +280,38 @@ void setup_main_menu(void) {
 
     // No Restore yet — see synthBackup.h. Modeled on G2-Edit's Backup menu
     // (misc.mm there), scaled down to match what's actually implemented.
-    NSMenuItem * backupMI    = [[NSMenuItem alloc] init];
-    NSMenu *     backupMenu  = [[NSMenu alloc] initWithTitle:@"Backup"];
+    NSMenuItem * backupMI       = [[NSMenuItem alloc] init];
+    NSMenu *     backupMenu     = [[NSMenu alloc] initWithTitle:@"Backup"];
     // Live edit buffer, not a stored preset — see synth_backup_current_patch()
     // vs. synth_backup_patch_by_number() in synthBackup.h.
-    NSMenuItem * liveItem    = [[NSMenuItem alloc] initWithTitle:@"Current Panel (Edit Buffer)…"
-                                action:@selector(backupCurrentPatch:)
-                                keyEquivalent:@""];
+    NSMenuItem * liveItem       = [[NSMenuItem alloc] initWithTitle:@"Current Panel (Edit Buffer)…"
+                                   action:@selector(backupCurrentPatch:)
+                                   keyEquivalent:@""];
     [liveItem setTarget:target];
     [backupMenu addItem:liveItem];
-    NSMenuItem * numberItem  = [[NSMenuItem alloc] initWithTitle:@"Patch by Number…"
-                                action:@selector(backupPatchByNumber:)
-                                keyEquivalent:@""];
+    NSMenuItem * numberItem     = [[NSMenuItem alloc] initWithTitle:@"Patch by Number…"
+                                   action:@selector(backupPatchByNumber:)
+                                   keyEquivalent:@""];
     [numberItem setTarget:target];
     [backupMenu addItem:numberItem];
     // Whatever bank the connected unit's front panel currently has selected
     // — see synth_backup_bank()'s own comment (synthBackup.h) for why this
     // can't yet target a specific bank on an expanded (more-than-128-preset)
     // unit.
-    NSMenuItem * bankItem    = [[NSMenuItem alloc] initWithTitle:@"Bank…"
-                                action:@selector(backupBank:)
-                                keyEquivalent:@""];
+    NSMenuItem * bankItem       = [[NSMenuItem alloc] initWithTitle:@"Bank…"
+                                   action:@selector(backupBank:)
+                                   keyEquivalent:@""];
     [bankItem setTarget:target];
     [backupMenu addItem:bankItem];
+    // Requests every preset one at a time and saves each as its own file —
+    // see synth_backup_bank_to_folder()'s own comment (synthBackup.h) for
+    // why this needs a separate action from "Bank…" above (that one saves
+    // the whole bank as a single opaque blob).
+    NSMenuItem * bankFolderItem = [[NSMenuItem alloc] initWithTitle:@"Bank (Individual Files)…"
+                                   action:@selector(backupBankToFolder:)
+                                   keyEquivalent:@""];
+    [bankFolderItem setTarget:target];
+    [backupMenu addItem:bankFolderItem];
     [backupMI setSubmenu:backupMenu];
     [menuBar insertItem:backupMI atIndex:4];
 }

@@ -40,6 +40,7 @@ extern "C" {
 #include "menus.h"
 #include "midiComms.h"
 #include "synthComms.h"
+#include "synthBackup.h"
 #include "misc.h"
 #include "graphics.h"
 
@@ -313,6 +314,10 @@ void do_graphics_loop(void) {
         // patch-and-resend (e.g. Voyager's Headphone Volume) — see
         // hasPendingDumpSend's own comment in panelConfig.h.
         synth_flush_pending_dump_sends();
+        // Advances an in-progress Backup > Bank (Individual Files)… sweep
+        // (next preset request, or a per-preset timeout) — see
+        // synth_backup_flush_bank_to_folder()'s own comment (synthBackup.h).
+        synth_backup_flush_bank_to_folder();
 
         bool reDraw = atomic_exchange(&gReDraw, false);
 

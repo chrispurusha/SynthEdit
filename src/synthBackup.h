@@ -77,6 +77,33 @@ void synth_backup_patch_by_number(uint32_t presetNumber);
 // doesn't yet know how to select a non-default bank itself.
 void synth_backup_bank(void);
 
+// Triggered by the "Backup > Bank (Individual Files)…" menu action
+// (misc.mm) — requests every stored preset ONE AT A TIME (1..128; Single
+// Preset Dump can only address one preset per request, unlike
+// synth_backup_bank()'s single All Presets Dump message above) and saves
+// each as its own .syx file in a folder the user picks, plus a "Patches.txt"
+// index listing every preset number + decoded name once the whole sweep
+// finishes — the file-per-patch-plus-list-file shape G2-Edit's own patch
+// browser uses, adapted here since Moog's wire format has nothing like
+// G2's SUB_COMMAND_LIST_NAMES sweep to lean on (no batch name-only reply —
+// see synth_request_single_preset_dump()'s own comment, synthComms.h).
+// Fire-and-forget (opens the folder picker and returns) — the sweep itself
+// is driven by synth_backup_flush_bank_to_folder() below, called once per
+// frame from the render loop, plus synth_backup_capture_dump() advancing it
+// on each reply. A no-op if no device is connected, the connected device
+// isn't Moog-style, or another backup operation (of any kind) is already in
+// progress.
+void synth_backup_bank_to_folder(void);
+
+// Per-frame poll for an in-progress synth_backup_bank_to_folder() sweep —
+// advances to the next preset once BACKUP_BATCH_TIMEOUT_MS has passed with
+// no reply for the current one (an unresponsive/unpopulated location
+// shouldn't hang the whole export), same per-frame-check idiom as
+// synth_flush_pending_dump_sends() (synthComms.h) uses for a dial's own
+// pending send. A no-op if no sweep is in progress. Call once per frame
+// from the render loop.
+void synth_backup_flush_bank_to_folder(void);
+
 // Called from synthComms.c's dump handlers (handle_moog_panel_dump(),
 // handle_curr_prog_dump(), handle_moog_single_preset_dump(),
 // handle_moog_all_presets_dump()) with the complete raw SysEx message
