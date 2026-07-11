@@ -369,6 +369,46 @@ dial soundCategory label="Category" max=32 dumpOffset=15 dumpBitOffset=3 dumpBit
 dial pitchBendDown label="PB Down" max=11 dumpOffset=17 dumpBitOffset=1 dumpBitWidth=4 names="OFF!","2 Semitones","Minor Third","Major Third","Fourth","Fifth","1 Octave","1 Oct. & 5th","2 Octaves","2 Oct. & 5th","Pre-Val: 0"
 dial pitchBendUp   label="PB Up"   max=11 dumpOffset=16 dumpBitOffset=4 dumpBitWidth=4 names="OFF!","2 Semitones","Minor Third","Major Third","Fourth","Fifth","1 Octave","1 Oct. & 5th","2 Octaves","2 Oct. & 5th","Pre-Val: 254"
 
+# Keyboard Mode — EDIT mode menu 3.3 (owner's manual), keyboard priority for
+# a preset (what happens when more than one key is pressed). No dedicated
+# panel-photo column, same as Category/Pitch Bend above, so it lives in the
+# Info Row too. CONFIRMED against real hardware 2026-07-11, live-diff:
+# Lower Key(baseline)=0, Higher Key=1 (both bits of dumpOffset=127's field
+# clear/low bit only), 1 Key Only=3 (both bits set) — clean sequential
+# index, dumpOffset=127 dumpBitOffset=3 dumpBitWidth=2. Last Key (index 2)
+# not individually captured but follows the same confirmed pattern as
+# Glide Mode/Pitch Bend/Category (see [[project_voyager_edit_menu_sweep]]
+# in the assistant's own memory notes for the full sweep this belongs to).
+dial keyboardMode  label="KB Mode" max=4 dumpOffset=127 dumpBitOffset=3 dumpBitWidth=2 names="Lower Key","Higher Key","Last Key","1 Key Only"
+
+# Trigger Mode — EDIT mode menu 3.4 (owner's manual): Single Trigger
+# (legato) vs Multi Trigger (envelopes retrigger on every note). CONFIRMED
+# against real hardware 2026-07-11, live-diff, single clean bit:
+# dumpOffset=128 dumpBitOffset=0 dumpBitWidth=1, Single Trigger=0, Multi
+# Trigger=1. RESOLVES an earlier open question ([[project_voyager_sysex_pdf_gap_audit]]):
+# this field/byte position was previously believed to exist ONLY in the
+# Single Preset Dump (mode 0x03), not the live Panel Dump (mode 0x02) this
+# app decodes — that turned out to be wrong, or at least not true for THIS
+# field: the diff below came from a Panel Dump Request/reply
+# (tools/moog_dump's own mode 0x05/0x02 round trip), and the bit showed up
+# cleanly, same byte position ("byte 129") the SysEx PDF's "a-glide
+# legato"/"multi=1" labels appear at in BOTH the Panel Dump and Single
+# Preset Dump table sections.
+dial triggerMode   label="Trigger"  max=2 dumpOffset=128 dumpBitOffset=0 dumpBitWidth=1 names="Single Trigger","Multi Trigger"
+
+# Filter Envelope Gate Source — EDIT mode menu 4.3 (owner's manual):
+# alternate gate sources to trigger the Filter Envelope besides the
+# keyboard/ENV GATE jack. CONFIRMED against real hardware 2026-07-11,
+# live-diff, 3-bit field SPANNING A BYTE BOUNDARY: dumpOffset=138
+# dumpBitOffset=6 dumpBitWidth=3 (byte 139's last usable bit + byte 140's
+# first two bits — a first pass at this only looked at byte 140 in
+# isolation, found a 2-bit field, and wrongly concluded the raw order
+# didn't match the manual's listed order; re-diffing byte 139 too showed
+# the field's real span, and the sequential-index-matches-manual-order
+# pattern held after all once the correct byte was included). Confirmed
+# at 3 points: Envelope Gate Input(baseline)=0, Touch Gate=1, MIDI Clock=3.
+dial filEnvGateSrc label="F.Env Gate" max=7 dumpOffset=138 dumpBitOffset=6 dumpBitWidth=3 names="Envelope Gate Input","Touch Gate","S&H Gate","MIDI Clock","Keyboard Gate","Gate is ON","Gate is OFF"
+
 page       panel
 section    lfo
 dialSize   36
