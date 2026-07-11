@@ -140,7 +140,7 @@
 # above, unconfirmed on real hardware — same caveat as before, just no
 # longer also mislabeled as raw numbers once confirmed.
 device          Moog Voyager
-description     Cutoff/Resonance confirmed on hardware; rest from a Ctrlr panel (unconfirmed)
+description     Most controls hardware-confirmed; Pot Map/Shaping/Touch Surface still unconfirmed
 manufacturerId  0x04
 familyId        0x00
 memberId        0x00
