@@ -255,6 +255,53 @@ static void wrap_name_for_display(const char * flat, uint32_t lineWidth, char * 
     out[outLen] = '\0';
 }
 
+// Decodes a dialDisplaySignedHiLo dial's raw dump value (an unsigned
+// 0..2^dumpBitWidth-1 wire value, read normally via the existing generic
+// bitfield extraction) into its coarse (HIGH) and fine (LOW) components —
+// see that enum value's own long comment (panelConfig.h) for the field this
+// was derived against (Voyager's PGM Shaping 1/2 Fixed Value) and the full
+// worked examples that validated this exact formula against real hardware,
+// 2026-07-11/12.
+//
+// The tricky part isn't the arithmetic itself (adjusted = signed_raw -
+// hiLoOffset; HIGH = adjusted / hiLoCoarseScale; LOW = the remainder) — it's
+// that a naive floor(adjusted / coarseScale) lands LOW in [0, coarseScale/
+// fineScale - 1] (e.g. 0..127), not the SIGNED range the real front panel
+// actually shows (-64..+63) — the two ranges disagree by exactly one full
+// LOW span (128) for any `adjusted` that would need LOW >= coarseScale/
+// fineScale/2. Confirmed empirically: H=0,L=-64 (a real, reachable,
+// hardware-verified position) computes as adjusted=-512, naive
+// floor(-512/1024)=-1 with remainder 512 -> naive LOW=512/8=64 — a value
+// LOW can never actually show (its own confirmed range tops out at +63).
+// The fix is the same "if the naive fine value is in the UPPER half of its
+// own span, it's really NEGATIVE and the coarse value is one higher" carry
+// adjustment the real hardware itself performs when LOW overflows past +63
+// into HIGH+1 (owner observed this directly on real hardware, 2026-07-12).
+static void synth_decode_hilo_dial(const tPanelDial * dial, uint32_t rawValue, int32_t * outHigh, int32_t * outLow) {
+    uint32_t width       = (dial->dumpBitWidth > 0) ? dial->dumpBitWidth : 16;
+    uint32_t half        = 1u << (width - 1);
+    int32_t  signedRaw   = (rawValue >= half) ? (int32_t)(rawValue - (half * 2)) : (int32_t)rawValue;
+    int32_t  adjusted    = signedRaw - dial->hiLoOffset;
+    int32_t  coarse      = (int32_t)dial->hiLoCoarseScale;
+    int32_t  fine        = (int32_t)dial->hiLoFineScale;
+    int32_t  fineSpan    = (fine > 0) ? (coarse / fine) : 0;            // e.g. 1024/8 = 128 distinct LOW steps per HIGH step
+    // Python-style "always non-negative" remainder, not C's truncate-toward-
+    // zero one — see this function's own header comment for why a plain `%`
+    // here would land LOW outside its real -64..+63 range for any negative
+    // `adjusted`.
+    int32_t  mod         = (coarse > 0) ? ((adjusted % coarse) + coarse) % coarse : 0;
+    int32_t  high        = (coarse > 0) ? (adjusted - mod) / coarse : 0;
+    int32_t  lowUnsigned = (fine > 0) ? mod / fine : 0;                  // always in [0, fineSpan-1]
+
+    if ((fineSpan > 0) && (lowUnsigned >= fineSpan / 2)) {
+        *outLow  = lowUnsigned - fineSpan;
+        *outHigh = high + 1;
+    } else {
+        *outLow  = lowUnsigned;
+        *outHigh = high;
+    }
+}
+
 // Rebuilds gPageTabs from the config's distinct page names and renders them
 // as a button row at `origin`, returning the height consumed. Defaults
 // gCurrentPage to the first page seen if it isn't set (or no longer exists).
@@ -942,13 +989,34 @@ void synth_render(tRectangle area) {
                 } else {
                     render_dial(mainArea, dial->rect, dialVal, dial->max, 0, dial->colour);
                 }
-                char valBuf[24];
+                char valBuf[48]; // 24 was enough for every existing display mode, but not dialDisplaySignedHiLo's "High: N (or M)  Low: K" text (see that branch's own comment below)
 
                 if (dial->display == dialDisplayNames) {
                     snprintf(valBuf, sizeof(valBuf), "%s",
                              (dialVal < dial->nameCount) ? dial->names[dialVal] : "?");
                 } else if (dial->display == dialDisplayRaw) {
                     snprintf(valBuf, sizeof(valBuf), "%u", (unsigned)dialVal);
+                } else if (dial->display == dialDisplaySignedHiLo) {
+                    int32_t high      = 0;
+                    int32_t low       = 0;
+
+                    synth_decode_hilo_dial(dial, dialVal, &high, &low);
+                    // Always shows BOTH equally-valid High readings, not
+                    // just one — 2026-07-12 finding (see
+                    // dialDisplaySignedHiLo's own panelConfig.h comment):
+                    // EVERY High value has exactly one alias (High and
+                    // High-64, or High and High+64, whichever lands in
+                    // range) that produces bit-for-bit identical wire data,
+                    // not just a narrow subset — so there's no "unambiguous
+                    // case" to silently trust and no way to ever pick the
+                    // definitively "right" one from the dump alone. Rather
+                    // than silently showing one possibly-wrong number (the
+                    // earlier version of this code), or always showing an
+                    // uninformative "?" (equally true for every value, so
+                    // no better), every render honestly shows both.
+                    int32_t highAlias = (high < 0) ? (high + 64) : (high - 64);
+
+                    snprintf(valBuf, sizeof(valBuf), "High: %d (or %d)  Low: %d", (int)high, (int)highAlias, (int)low);
                 } else {
                     snprintf(valBuf, sizeof(valBuf), "%u (%u)", (unsigned)dialVal,
                              (unsigned)get_panel_dial_native_value(dial));

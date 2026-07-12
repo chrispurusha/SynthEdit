@@ -211,6 +211,8 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
                 dial->display = dialDisplayRaw;
             } else if (strcmp(val, "ccnative") == 0) {
                 dial->display = dialDisplayCcNative;
+            } else if (strcmp(val, "hiLo") == 0) {
+                dial->display = dialDisplaySignedHiLo;
             } else {
                 LOG_ERROR("panelConfig line %u: unknown display '%s'\n", lineNo, val);
             }
@@ -254,6 +256,12 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
             dial->noLabel = (strtoul(val, NULL, 0) != 0);
         } else if (strcmp(key, "readOnly") == 0) {
             dial->readOnly = (strtoul(val, NULL, 0) != 0);
+        } else if (strcmp(key, "hiLoOffset") == 0) {
+            dial->hiLoOffset = (int32_t)strtol(val, NULL, 0);
+        } else if (strcmp(key, "hiLoCoarseScale") == 0) {
+            dial->hiLoCoarseScale = (uint32_t)strtoul(val, NULL, 0);
+        } else if (strcmp(key, "hiLoFineScale") == 0) {
+            dial->hiLoFineScale = (uint32_t)strtoul(val, NULL, 0);
         } else {
             LOG_ERROR("panelConfig line %u: unknown dial attribute '%s'\n", lineNo, key);
         }

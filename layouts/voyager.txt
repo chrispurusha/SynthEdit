@@ -478,11 +478,53 @@ dial pgmPedalDest label="PGM Ped Dest" max=8 dumpOffset=98 dumpBitOffset=3 dumpB
 # Volume" (index 42) shows as "Headphone Level" — cosmetic label drift, same
 # underlying option. CONFIRMED against real hardware 2026-07-11, live-diff
 # at 3 points: Offset Value(baseline)=0, Pitch Bend Wheel=1, Headphone
-# Level(last)=42 — all exact. NOT YET DONE: the HIGH/LOW Fixed Value
-# sub-fields (±64 range each, used only when Src=Fixed Value/Offset Value)
-# — those don't fit neatly in the 6-bit pattern established here and need
-# their own separate live-diff session; see [[project_voyager_edit_menu_sweep]].
+# Level(last)=42 — all exact. HIGH/LOW Fixed Value sub-fields (used only
+# when Src=Fixed Value/Offset Value) are the next dial below.
 dial pgmShaping1Src label="PGM Shp1 Src" max=43 dumpOffset=140 dumpBitOffset=0 dumpBitWidth=6 names="Fixed Value","Pitch Bend Wheel","Modulation Wheel","Velocity Release","Pressure (AT)","Keyboard CV","Touch Surface X","Touch Surface Y","Touch Surface A","Mod1","Mod2","LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Headphone Volume" col=0 row=3
+
+# PGM Shaping 1 Fixed Value (HIGH/LOW) — the coarse/fine offset pair used
+# when pgmShaping1Src above is set to "Fixed Value"/"Offset Value" (index
+# 0), manual's own "-64 to +64" description (section 3.1, "Fixed Value has a
+# course adjustment labeled HIGH and a fine adjustment labeled LOW... both
+# adjustable from -64 to +64, a total range of +/- 2.5V"). CONFIRMED against
+# real hardware 2026-07-11/12, careful single-step live-diff (a first attempt
+# the same day as pgmShaping1Src itself hit a real contradiction using
+# jump-to-max shortcuts — see [[project_voyager_edit_menu_sweep]] for that
+# postmortem — this redo used +1/-1 single steps throughout instead):
+# HIGH and LOW share ONE 16-bit two's-complement signed dump word —
+# signed_raw = 512 + HIGH*1024 + LOW*8 — confirmed exactly across 9 points
+# spanning both full ranges (HIGH -2..+2 step-by-step, then jumped to the
+# true extremes +63/-64; LOW similarly to +63/-64), including the discovery
+# that LOW overflowing past +63 carries into HIGH (like an odometer) — the
+# owner found this directly on real hardware, which is also what the
+# original contradiction turned out to be silently hitting. Real max/min
+# are +63/-64 (NOT +64 as the manual's prose loosely implies — a jump to
+# "max" on real hardware confirmed +63 is the true ceiling). Both HIGH and
+# LOW share the SAME dumpOffset=141 dumpBitOffset=0 dumpBitWidth=16 field —
+# genuinely not two independent bit-slices. One combined dial (owner's own
+# call, rather than adding a whole new shared-storage engine concept for
+# two separate on-screen dials) showing "High: N  Low: M" as a live-decoded
+# readout — see display=hiLo's own panelConfig.h comment for the general
+# mechanism this introduced.
+#
+# KNOWN LIMITATION, confirmed 2026-07-12, owner explicitly chose to accept
+# it rather than change approach: the raw 16-bit wire value CANNOT always
+# distinguish HIGH from HIGH+64 — every HIGH in -64..-1 produces bit-for-bit
+# IDENTICAL wire data to HIGH+64 (landing in 0..63) for the same LOW
+# (confirmed computationally across the whole range, not just a boundary
+# case — e.g. real hardware showing High=-64,Low=-64 and this app decoding
+# the resulting dump as High=0,Low=-64 are the EXACT SAME wire bits, 0x0000).
+# The Voyager's own front panel apparently tracks HIGH/LOW as separate UI
+# state, not something fully recoverable by re-parsing a dump. This app
+# picks the plain two's-complement interpretation of the 16-bit word as its
+# display convention (synth_decode_hilo_dial(), synthGraphics.cpp) — fully
+# deterministic and self-consistent (drag it here, read it back here, always
+# agrees with itself), but NOT guaranteed to show the same HIGH number the
+# real hardware's own screen shows whenever the true HIGH is negative. The
+# actual SOUND/MODULATION amount sent to the device is always correct
+# either way — both labelings produce the identical wire bits — this is a
+# display-only ambiguity, not a functional bug.
+dial pgmShaping1FixedValue label="PGM Shp1 Fixed Value" color=menu max=65536 display=hiLo dumpOffset=141 dumpBitOffset=0 dumpBitWidth=16 hiLoOffset=512 hiLoCoarseScale=1024 hiLoFineScale=8 col=6 row=3
 
 # PGM Shaping 2 Src — EDIT mode menu 3.2 (owner's manual), same 43-item list
 # and same underlying shared shaper mechanism as pgmShaping1Src (both
@@ -494,9 +536,25 @@ dial pgmShaping1Src label="PGM Shp1 Src" max=43 dumpOffset=140 dumpBitOffset=0 d
 # points: Offset Value(baseline)=0, Pitch Bend Wheel=1, Headphone Level
 # (last)=42 — the 42 check specifically confirms the cross-byte-boundary
 # bit assembly is correct (0x54/0x02 split decodes to exactly 42, not just
-# "some bits changed"). NOT YET DONE: HIGH/LOW Fixed Value for this shaper,
-# see pgmShaping1Src's own comment — same open item, doubled.
+# "some bits changed"). HIGH/LOW Fixed Value sub-fields are the next dial
+# below.
 dial pgmShaping2Src label="PGM Shp2 Src" max=43 dumpOffset=143 dumpBitOffset=3 dumpBitWidth=6 names="Fixed Value","Pitch Bend Wheel","Modulation Wheel","Velocity Release","Pressure (AT)","Keyboard CV","Touch Surface X","Touch Surface Y","Touch Surface A","Mod1","Mod2","LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Headphone Volume" col=3 row=3
+
+# PGM Shaping 2 Fixed Value (HIGH/LOW) — same mechanism as pgmShaping1FixedValue
+# above (see that dial's own long comment for the full derivation, formula,
+# and the known HIGH/HIGH+64 wire-ambiguity limitation — all identical here).
+# CONFIRMED against real hardware 2026-07-12 with a minimal point set, using
+# Shaping 1's already-fully-validated formula as the model rather than
+# re-deriving from scratch: H=0,L=0 → raw=512 (same baseline as Shaping 1,
+# confirms hiLoOffset=512 unchanged); H=1,L=0 → raw=1536 (confirms
+# hiLoCoarseScale=1024 unchanged); H=1,L=1 → raw=1544 (confirms
+# hiLoFineScale=8 unchanged). Only the byte placement differs from Shaping
+# 1: PDF predicted dumpOffset=144 dumpBitOffset=4 (byte 145's "shap 2 fixed
+# v." label, spanning byte145→147), live-diff showed dumpBitOffset=3 instead
+# — the same "PDF gets the byte right, bitOffset can be off by one" pattern
+# already seen elsewhere in this file (e.g. pgmPedalSource), not a new kind
+# of error.
+dial pgmShaping2FixedValue label="PGM Shp2 Fixed Value" color=menu max=65536 display=hiLo dumpOffset=144 dumpBitOffset=3 dumpBitWidth=16 hiLoOffset=512 hiLoCoarseScale=1024 hiLoFineScale=8 col=9 row=3
 
 page       panel
 section    lfo

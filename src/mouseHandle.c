@@ -43,10 +43,13 @@
 #define GLFW_KEY_LEFT           263
 #define GLFW_KEY_HOME           268
 #define GLFW_KEY_END            269
+#define GLFW_KEY_LEFT_SHIFT     340
+#define GLFW_KEY_RIGHT_SHIFT    344
 
 extern void glfwSetInputMode(void *, int, int);
 extern void glfwGetWindowSize(void *, int *, int *);
 extern void glfwGetCursorPos(void *, double *, double *);
+extern int glfwGetKey(void *, int);
 
 // ── Dial drag state ───────────────────────────────────────────────────────────
 // Deliberately just a pointer into whichever tPanelDial was hit — this file
@@ -179,6 +182,18 @@ static double delta_to_logical(void * win, double winDelta, bool isX) {
     } else {
         return (winH > 0) ? (winDelta / winH) * (get_render_height() / gGlobalGuiScale) : winDelta;
     }
+}
+
+// True while either Shift key is physically held — polled directly
+// (glfwGetKey()) rather than tracked via handle_key()'s own key-event
+// callback, since a drag's per-pixel resolution needs to react to Shift
+// changing mid-drag without requiring the key event to have fired through
+// this specific window/callback first (glfwGetKey() reflects the CURRENT
+// physical state regardless of event delivery order). See its own call
+// sites in handle_cursor_pos() below for why this matters.
+static bool shift_held(void * win) {
+    return (glfwGetKey(win, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
+           || (glfwGetKey(win, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS);
 }
 
 // Clamps to the dial's own display-space range [0, max-1] — the one thing
@@ -398,13 +413,49 @@ void handle_cursor_pos(void * win, double x, double y) {
         gDragTypeAccum -= (double)step;
         newVal         += step;
     } else if (gDialMode == eDialModeVertical) {
-        double dy = delta_to_logical(win, gDragPrevY - y, false);
-        gDragPrevY = y;
-        newVal    += (int32_t)(dy * (double)(range - 1) / 200.0);
+        // Holding Shift maps the full range over as many pixels as the
+        // range HAS units (1 raw unit per pixel, the finest mouse movement
+        // can resolve) — but never FEWER than the default 200, or a
+        // narrow-range dial (e.g. Clock Div, max=97) would map its full
+        // range over FEWER pixels than normal, making Shift move FASTER
+        // instead of finer. Real bug, found 2026-07-12 right after adding
+        // this: Clock Div sped up under Shift instead of slowing down —
+        // 97 < 200 meant the "shift = pixelsForFullRange equals the range"
+        // formula was backwards for anything narrower than the default
+        // mapping. The max(range, 200) floor fixes that while still
+        // reaching exactly 1 unit/pixel for any WIDE-range dial (e.g. the
+        // 65536-step pgmShaping1FixedValue this was originally added for).
+        double  pixelsForFullRange = shift_held(win) ? ((range > 200) ? (double)range : 200.0) : 200.0;
+        double  dy                 = delta_to_logical(win, gDragPrevY - y, false);
+
+        gDragPrevY      = y;
+        // Accumulates the fractional remainder across calls (same idiom as
+        // the discrete/stepped branch above, gDragTypeAccum) rather than
+        // truncating each individual cursor-move event's own delta and
+        // discarding the remainder — the accumulator-less version silently
+        // dropped any movement smaller than one whole unit, so several slow
+        // sub-unit movements in a row could add up and then jump by more
+        // than 1 at once on whichever event finally crossed a whole-unit
+        // boundary, rather than advancing smoothly. Reusing gDragTypeAccum
+        // is safe here: only one of the stepped/continuous branches is ever
+        // reachable for a single dial (display type doesn't change
+        // mid-drag), and it's reset to 0 at the start of every drag
+        // (arm_dial_press()).
+        gDragTypeAccum += dy * (double)(range - 1) / pixelsForFullRange;
+        int32_t step               = (int32_t)gDragTypeAccum;
+
+        gDragTypeAccum -= (double)step;
+        newVal         += step;
     } else {
-        double dx = delta_to_logical(win, x - gDragPrevX, true);
-        gDragPrevX = x;
-        newVal    += (int32_t)(dx * (double)(range - 1) / 200.0);
+        double  pixelsForFullRange = shift_held(win) ? ((range > 200) ? (double)range : 200.0) : 200.0;
+        double  dx                 = delta_to_logical(win, x - gDragPrevX, true);
+
+        gDragPrevX      = x;
+        gDragTypeAccum += dx * (double)(range - 1) / pixelsForFullRange;
+        int32_t step               = (int32_t)gDragTypeAccum;
+
+        gDragTypeAccum -= (double)step;
+        newVal         += step;
     }
     synth_set_panel_dial_value(gDraggedDial, clamp_dial_value(newVal, range));
 }

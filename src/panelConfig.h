@@ -47,6 +47,38 @@ typedef enum {
     dialDisplayRaw = 0,
     dialDisplayCcNative,
     dialDisplayNames,
+    // "display=hiLo" — for a dial whose raw dump bits are a single 16-bit
+    // TWO'S-COMPLEMENT signed value that a real front panel splits into two
+    // separately-adjustable coarse/fine controls sharing one storage word
+    // (Voyager's PGM Shaping 1/2 "Fixed Value" HIGH/LOW, confirmed
+    // 2026-07-11/12: signed_raw = 512 + HIGH*1024 + LOW*8, HIGH/LOW both
+    // -64..+63, with LOW overflowing carrying into HIGH exactly like a
+    // coarse/fine odometer pair — see synth_decode_hilo_dial() in
+    // synthGraphics.cpp for the derivation. Genuinely NOT a plain bit-slice:
+    // confirmed 2026-07-12 that the wire bits alone cannot always
+    // distinguish HIGH from HIGH+64 — this isn't a narrow boundary case,
+    // EVERY HIGH in -64..-1 is bit-for-bit identical on the wire to HIGH+64
+    // (0..63) for the same LOW. The device's own front panel apparently
+    // tracks HIGH/LOW as separate UI state that a dump can't always fully
+    // recover. synth_decode_hilo_dial() picks the plain two's-complement
+    // reading as a deterministic, self-consistent display convention —
+    // accepted by the owner as a known display-only limitation (the actual
+    // value sent to the device is always correct regardless of which
+    // labeling is shown; only the on-screen HIGH number can disagree with
+    // the real hardware's own screen when the true HIGH is negative). The
+    // dial's own dumpOffset/dumpBitWidth still reads
+    // the raw 16-bit word normally via the existing generic bitfield
+    // extraction (no engine change needed there) — this display mode only
+    // changes how that raw value is FORMATTED ("High: -2  Low: +63") and
+    // how a drag maps back to storage (see mouseHandle.c). Generic, not
+    // Voyager-specific — any device with a real hi/lo coarse+fine pair
+    // sharing one signed dump word can use it the same way; the specific
+    // 512/1024/8 constants are declared per-dial via
+    // hiLoOffset=/hiLoCoarseScale=/hiLoFineScale= (no hidden defaults —
+    // every dial using this display mode must declare all three
+    // explicitly, same "no magic numbers in generic code" reasoning as
+    // dumpNativeMax/nativeMax already follow).
+    dialDisplaySignedHiLo,
 } tDialDisplay;
 
 typedef struct {
@@ -286,6 +318,24 @@ typedef struct {
     // wheel/pedal/shaping menus, etc.) genuinely IS a stored firmware
     // setting, not a live analog readout, so this should stay rare.
     bool readOnly;
+
+    // "hiLoOffset="/"hiLoCoarseScale="/"hiLoFineScale=" — only meaningful
+    // when display == dialDisplaySignedHiLo (see that enum value's own long
+    // comment for the derivation). The raw dump value read via the normal
+    // dumpOffset/dumpBitWidth bitfield extraction is interpreted as:
+    //   signed_raw = (raw >= 2^(dumpBitWidth-1)) ? raw - 2^dumpBitWidth : raw
+    //   adjusted   = signed_raw - hiLoOffset
+    //   HIGH       = coarse component of adjusted (see synth_decode_hilo() —
+    //                floor(adjusted/hiLoCoarseScale), then a boundary
+    //                adjustment so LOW always lands in its own signed range)
+    //   LOW        = fine component, same signed range as HIGH
+    // All three required (0 is not a meaningful default for any of them —
+    // hiLoCoarseScale=0/hiLoFineScale=0 would divide by zero) whenever this
+    // display mode is used; the parser logs an error rather than silently
+    // defaulting if any is missing.
+    int32_t  hiLoOffset;
+    uint32_t hiLoCoarseScale;
+    uint32_t hiLoFineScale;
 } tPanelDial;
 
 typedef struct {
