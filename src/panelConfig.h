@@ -166,6 +166,29 @@ typedef struct {
     char linkedMaxDialId[PANEL_ID_LEN];
     char linkedMinDialId[PANEL_ID_LEN];
 
+    // "disableUnless=<dialId>:<value>" — this dial is greyed out and takes
+    // no interaction (same as readOnly — see arm_dial_press() in
+    // mouseHandle.c) unless the NAMED dial's own CURRENT display value
+    // equals <value>. Added 2026-07-13 per the Z1 Owner's Manual (p.52/53):
+    // Filter 2's own controls are only real when Filter 1&2 Link is OFF
+    // ("When this is ON, filter 2 settings cannot be made" — the manual's
+    // own words), and Filter-B's controls only matter when that filter's
+    // own Type is 2BPF ("If 2BPF is selected, the parameters explained in
+    // 'Filter B settings...' will be displayed"). Purely a UI convenience —
+    // deliberately NOT a write-side block in synth_set_panel_dial_value()
+    // (a disabled dial simply can't be dragged/clicked in the first place,
+    // per arm_dial_press(), so there's nothing left to guard there) and NOT
+    // a substitute for reading back a full dump to confirm a value actually
+    // took — it just stops the user from attempting an edit the real
+    // hardware would ignore anyway, rather than the app silently sending
+    // something the synth won't apply. Resolved by id via find_panel_dial_
+    // anywhere() at render/hit-test time (not cached), same pattern as
+    // linkedMaxDialId/linkedMinDialId above — empty string (the default)
+    // means always-enabled, a no-op for every dial in every OTHER device
+    // file. See panel_dial_is_disabled() below.
+    char     disabledUnlessDialId[PANEL_ID_LEN];
+    uint32_t disabledUnlessValue;
+
     // Protocol wiring — describes how to read/write/send this control's value,
     // so generic code (mouse handling, rendering) never needs to know what a
     // given dial *means*. All parsed from the file. The dial owns its own
@@ -608,6 +631,14 @@ bool panel_dial_is_binary(const tPanelDial * dial);
 // panelConfig.c for why dumpBitWidth alone wasn't a complete "has real
 // protocol wiring" test.
 bool panel_dial_needs_value_menu(const tPanelDial * dial);
+
+// See disabledUnlessDialId/disabledUnlessValue's own comment above — false
+// (always enabled) if disabledUnlessDialId is empty, or if the named dial
+// can't be found. Takes config explicitly (rather than reaching for a
+// global) since panelConfig.c has no dependency on synthGraphics.h — same
+// reasoning find_panel_dial_anywhere() below already follows; callers pass
+// synth_panel_config().
+bool panel_dial_is_disabled(const tPanelDial * dial, tPanelConfig * config);
 
 tPanelSection * find_panel_section(tPanelConfig * config, const char * page, const char * section);
 tPanelDial * find_panel_dial(tPanelSection * section, const char * id);

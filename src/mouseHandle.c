@@ -116,6 +116,14 @@ static void arm_dial_press(void * win, tPanelDial * dial, double x, double y) {
         return;
     }
 
+    // Same no-op treatment for a dial currently gated off by disableUnless=
+    // (panelConfig.h) — e.g. Filter 2's own controls while Filter 1&2 Link
+    // is ON, or Filter-B's controls while that filter's own Type isn't
+    // 2BPF. Checked right after readOnly, before any interactive branch.
+    if (panel_dial_is_disabled(dial, synth_panel_config())) {
+        return;
+    }
+
     if (panel_dial_needs_value_menu(dial)) {
         // Opens on RELEASE, not here — see gPressedValueMenuDial's own
         // comment above for why.
@@ -552,7 +560,7 @@ void handle_scroll(void * win, double dx, double dy) {
         dial = find_panel_dial(sections[s], cfg->scrollDialId);
     }
 
-    if (dial) {
+    if (dial && !dial->readOnly && !panel_dial_is_disabled(dial, cfg)) {
         int32_t newVal = (int32_t)get_panel_dial_value(dial) + (int32_t)dy;
         synth_set_panel_dial_value(dial, clamp_dial_value(newVal, dial->max));
     }

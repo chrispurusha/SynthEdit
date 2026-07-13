@@ -268,6 +268,25 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
             strncpy(dial->linkedMaxDialId, val, sizeof(dial->linkedMaxDialId) - 1);
         } else if (strcmp(key, "linkedMinDial") == 0) {
             strncpy(dial->linkedMinDialId, val, sizeof(dial->linkedMinDialId) - 1);
+        } else if (strcmp(key, "disableUnless") == 0) {
+            // "disableUnless=<dialId>:<value>" — see disabledUnlessDialId's
+            // own comment in panelConfig.h. Split on ':' here rather than
+            // reusing split_csv() (that's for a variable-length names= list;
+            // this is always exactly two fixed fields).
+            const char * colon = strchr(val, ':');
+
+            if (colon) {
+                size_t idLen = (size_t)(colon - val);
+
+                if (idLen >= sizeof(dial->disabledUnlessDialId)) {
+                    idLen = sizeof(dial->disabledUnlessDialId) - 1;
+                }
+                memcpy(dial->disabledUnlessDialId, val, idLen);
+                dial->disabledUnlessDialId[idLen] = '\0';
+                dial->disabledUnlessValue         = (uint32_t)strtoul(colon + 1, NULL, 0);
+            } else {
+                LOG_ERROR("panelConfig line %u: disableUnless missing ':<value>' — '%s'\n", lineNo, val);
+            }
         } else if (strcmp(key, "hiLoOffset") == 0) {
             dial->hiLoOffset = (int32_t)strtol(val, NULL, 0);
         } else if (strcmp(key, "hiLoCoarseScale") == 0) {
@@ -634,6 +653,15 @@ bool panel_dial_needs_value_menu(const tPanelDial * dial) {
            && (dial->ccNumber == 0)
            && ((dial->dumpBitWidth > 0) || (dial->paramId != 0))
            && !dial->asDial;
+}
+
+bool panel_dial_is_disabled(const tPanelDial * dial, tPanelConfig * config) {
+    if (!dial || (dial->disabledUnlessDialId[0] == '\0')) {
+        return false;
+    }
+    tPanelDial * gate = find_panel_dial_anywhere(config, dial->disabledUnlessDialId);
+
+    return gate && (get_panel_dial_value(gate) != dial->disabledUnlessValue);
 }
 
 uint32_t get_panel_dial_value(const tPanelDial * dial) {

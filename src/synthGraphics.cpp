@@ -923,13 +923,18 @@ void synth_render(tRectangle area) {
             layout_panel_section(section, (tRectangle){{x, y}, {0, 0}}, cfg->gridColWidth, cfg->gridRowHeight);
 
             for (uint32_t i = 0; i < section->dialCount; i++) {
-                tPanelDial * dial    = &section->dials[i];
-                uint32_t     dialVal = get_panel_dial_value(dial);
+                tPanelDial * dial     = &section->dials[i];
+                uint32_t     dialVal  = get_panel_dial_value(dial);
+                // See disabledUnlessDialId's own comment in panelConfig.h —
+                // greyed out and non-interactive (mouseHandle.c) unless the
+                // gating dial's current value matches. Checked once here so
+                // both the button and knob render paths below can use it.
+                bool         disabled = panel_dial_is_disabled(dial, cfg);
                 // Captured before a binary button below shrinks/recentres
                 // dial->rect itself — the label text further down still
                 // needs to sit relative to where a full-size knob would
                 // have been, not the shrunk button.
-                double       baseY   = dial->rect.coord.y;
+                double       baseY    = dial->rect.coord.y;
 
                 // Any 2-position named dial (Off/On, but also Filters' Mode
                 // "Dual LP"/"HP/LP", Osc 3's Freq Range "Lo"/"Hi", ...)
@@ -1021,12 +1026,16 @@ void synth_render(tRectangle area) {
                     // render_page_tabs()'s own identical comment above:
                     // the latter is a dark grey in this build, too
                     // low-contrast for draw_button's fixed black text.
-                    tRgb         colour       = isToggle && (dialVal != 0)
+                    // disabled (see panel_dial_is_disabled() above) wins over
+                    // the on/off green — a greyed-out button shouldn't still
+                    // read as "on".
+                    tRgb colour = disabled ? (tRgb)RGB_GREY_3
+                                : isToggle && (dialVal != 0)
                                 ? (tRgb)RGB_GREEN_ON
                                 : (tRgb)RGB_GREY_7;
                     draw_button(mainArea, dial->rect, name, colour);
                 } else {
-                    render_dial(mainArea, dial->rect, dialVal, dial->max, 0, dial->colour);
+                    render_dial(mainArea, dial->rect, dialVal, dial->max, 0, disabled ? (tRgb)RGB_GREY_3 : dial->colour);
                 }
                 char valBuf[48]; // 24 was enough for every existing display mode, but not dialDisplaySignedHiLo's "High: N (or M)  Low: K" text (see that branch's own comment below)
 
