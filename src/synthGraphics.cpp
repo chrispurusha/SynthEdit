@@ -660,12 +660,6 @@ static void synth_render_backup_progress(void) {
 }
 
 void synth_render(tRectangle area) {
-    if (!gDevice.connected) {
-        tRectangle r = {{area.coord.x + 300.0, area.coord.y + 2.0}, {800.0, 28.0}};
-        set_rgb_colour((tRgb){0.8, 0.4, 0.4});
-        render_text(mainArea, r, "No synth detected — connect and press Cmd+R to scan");
-        //return;
-    }
     double x = area.coord.x + 30.0;
     double y = area.coord.y + 20.0;
 
@@ -673,12 +667,11 @@ void synth_render(tRectangle area) {
     y += render_page_tabs({{x, y}, {0, 0}});
 
     // ── Program name ──────────────────────────────────────────────────────────
-    // "(loading…)" only means anything while we're still waiting on the
-    // device's first dump reply. Some protocols never send a program name at
-    // all (e.g. the Voyager's Panel Dump — see extract_moog_panel_info() in
-    // synthComms.c), so once connected an empty progName isn't "still
-    // loading", it's "this device doesn't report one" — show the device name
-    // instead rather than a permanently-wrong loading message.
+    // While disconnected, show "Not connected" instead of a name. Some
+    // protocols never send a program name at all once connected (e.g. the
+    // Voyager's Panel Dump — see extract_moog_panel_info() in synthComms.c),
+    // so an empty progName after connecting isn't "still loading", it's
+    // "this device doesn't report one" — show the device name instead.
     //
     // gDevice.progName may contain embedded '\n's (nameLineWidth in the
     // device's .txt — see the tPanelConfig field comment in panelConfig.h),
@@ -717,7 +710,7 @@ void synth_render(tRectangle area) {
             } else if (gDevice.connected) {
                 nm = synth_panel_config()->deviceName;
             } else {
-                nm = "(loading\xe2\x80\xa6)";
+                nm = "Not connected";
             }
             strncpy(nameBuf, nm, sizeof(nameBuf) - 1);
             nameBuf[sizeof(nameBuf) - 1] = '\0';
