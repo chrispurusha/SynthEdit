@@ -266,6 +266,8 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
             dial->readOnly = (strtoul(val, NULL, 0) != 0);
         } else if (strcmp(key, "asDial") == 0) {
             dial->asDial = (strtoul(val, NULL, 0) != 0);
+        } else if (strcmp(key, "asMenu") == 0) {
+            dial->asMenu = (strtoul(val, NULL, 0) != 0);
         } else if (strcmp(key, "linkedMaxDial") == 0) {
             strncpy(dial->linkedMaxDialId, val, sizeof(dial->linkedMaxDialId) - 1);
         } else if (strcmp(key, "linkedMinDial") == 0) {
@@ -656,9 +658,14 @@ bool panel_dial_needs_value_menu(const tPanelDial * dial) {
     // own param table is 1-indexed (Program Name starts at param 1), so
     // paramId==0 reliably means "no param wiring" here, same as dumpBitWidth
     // ==0 meaning "no dump wiring" already did.
+    //
+    // nameCount>2 OR asMenu — asMenu (see its own comment in panelConfig.h)
+    // opts a 2-name dial (otherwise panel_dial_is_binary()'s territory) into
+    // this same value-menu path, e.g. the Z1's Porta on/off wanting its
+    // section colour instead of a flat grey/green.
     return dial
            && (dial->display == dialDisplayNames)
-           && (dial->nameCount > 2)
+           && ((dial->nameCount > 2) || dial->asMenu)
            && (dial->ccNumber == 0)
            && ((dial->dumpBitWidth > 0) || (dial->paramId != 0))
            && !dial->asDial;

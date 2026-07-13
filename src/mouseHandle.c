@@ -94,10 +94,13 @@ static tPanelDial * gPressedValueMenuDial = NULL;
 // Given a dial that was just hit on press — by EITHER hit-test source, the
 // generic per-page grid loop or synth_hit_test_info_row() (both in
 // handle_mouse_button() below) — arms whichever interaction it needs: a
-// value-menu dropdown (3+ named positions, no CC), a click-to-toggle (2
-// named positions, e.g. On/Off or, as of 2026-07-11, any 2-way enum like
-// triggerMode's Single/Multi Trigger — panel_dial_is_binary() doesn't
-// require the names to literally be "Off"/"On"), or a plain drag (anything
+// value-menu dropdown (3+ named positions, no CC — or, as of 2026-07-13, a
+// 2-position dial explicitly opted in via asMenu=, e.g. the Z1's Porta
+// on/off, to pick up its section colour instead of the toggle styling
+// below), a click-to-toggle (2 named positions, e.g. On/Off or, as of
+// 2026-07-11, any 2-way enum like triggerMode's Single/Multi Trigger —
+// panel_dial_is_binary() doesn't require the names to literally be
+// "Off"/"On"), or a plain drag (anything
 // else, e.g. a raw-numeric Info Row dial like midiClkDivider). Which
 // hit-test found the dial doesn't change which of these three it needs —
 // that's entirely the dial's own descriptor — so both call sites share

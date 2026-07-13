@@ -141,8 +141,8 @@ dial pbIntPlus   label="PB Int+"   color=common max=85  display=signed displayOf
 dial pbIntMinus  label="PB Int-"   color=common max=85  display=signed displayOffset=60 group=1 param=164 dumpOffset=146
 dial pbStepPlus  label="PB Step+"  color=common max=16  display=raw group=1 param=165 dumpOffset=147 dumpMask=0x0F
 dial pbStepMinus label="PB Step-"  color=common max=16  display=raw group=1 param=166 dumpOffset=147 dumpShift=4 dumpMask=0x0F
-dial portSW      label="Porta"     color=common max=2   names=OFF,ON          group=1 param=169 dumpOffset=150 dumpMask=0x01
-dial portMode    label="Porta Mode" color=common max=2  names=NORMAL,FINGERED group=1 param=170 dumpOffset=150 dumpShift=1 dumpMask=0x01
+dial portSW      label="Porta"     color=common max=2   names=OFF,ON          group=1 param=169 dumpOffset=150 dumpMask=0x01 asMenu=1
+dial portMode    label="Porta Mode" color=common max=2  names=NORMAL,FINGERED group=1 param=170 dumpOffset=150 dumpShift=1 dumpMask=0x01 asMenu=1
 dial portTime    label="Porta Time" color=common max=100 display=raw          group=1 param=171 dumpOffset=151
 
 # ── Voice/Unison (Oscillators page) ──────────────────────────────────────────
@@ -183,8 +183,8 @@ color common 0.9 0.7 0.3
 
 dial voiceMode label="Voice" color=common max=3 group=1 param=21 dumpOffset=18 dumpShift=3 dumpMask=0x03 names="Mono Multi","Mono Single",Poly
 dial unisonType label="Unison" color=common max=4 group=1 param=24 dumpOffset=21 dumpMask=0x03 names=OFF,"2 voices","3 voices","6 voices"
-dial unisonSW label="Unison SW" color=common max=2 group=1 param=25 dumpOffset=21 dumpShift=2 dumpMask=0x01 names=OFF,ON
-dial unisonMode label="Unison Mode" color=common max=2 group=1 param=26 dumpOffset=21 dumpShift=3 dumpMask=0x01 names=FIXED,DYNAMIC
+dial unisonSW label="Unison SW" color=common max=2 group=1 param=25 dumpOffset=21 dumpShift=2 dumpMask=0x01 names=OFF,ON asMenu=1
+dial unisonMode label="Unison Mode" color=common max=2 group=1 param=26 dumpOffset=21 dumpShift=3 dumpMask=0x01 names=FIXED,DYNAMIC asMenu=1
 dial unisonDetune label="Detune" color=common max=100 display=raw group=1 param=27 dumpOffset=22
 
 page       oscillators
@@ -310,7 +310,7 @@ color f2    0.3 0.9 0.5
 # routing. Purely a UI gate (see disabledUnlessDialId's own comment in
 # panelConfig.h) — doesn't touch what's sent/received on the wire.
 dial route  label="Route"    color=route  max=3    names=SERI1,SERI2,PARA          group=1 param=258 dumpOffset=311 dumpMask=0x03
-dial f2link label="F2 Link"  color=route  max=2    names=OFF,ON                    group=1 param=259 dumpOffset=311 dumpShift=2 dumpMask=0x01
+dial f2link label="F2 Link"  color=route  max=2    names=OFF,ON                    group=1 param=259 dumpOffset=311 dumpShift=2 dumpMask=0x01 asMenu=1
 dial fegtgt label="EG Target" color=route max=3    names=FLT1,FLT2,FLT1&2          group=1 param=260 offset=1 dumpOffset=311 dumpShift=4 dumpMask=0x03
 dial f1type label="F1 Type"  color=f1     max=5    names=LPF,HPF,BPF,BRF,2BPF      group=1 param=261 offset=1 dumpOffset=312
 dial f1trim label="F1 Trim"  color=f1     max=100  display=raw                     group=1 param=262 dumpOffset=313
@@ -831,7 +831,7 @@ dial lfo1fadein           label="LFO1 Fade In" color=lfo1 max=100 display=raw gr
 dial lfo1ampmodsrc        label="LFO1 Amp Mod Src" color=lfo1 max=49  display=raw group=1 param=115
 dial lfo1ampmodint        label="LFO1 Amp Mod Int" color=lfo1 max=199 display=signed displayOffset=99 group=1 param=116
 dial lfo1offset           label="LFO1 Offset" color=lfo1 max=101 display=signed displayOffset=50 group=1 param=117
-dial lfo1midisync         label="LFO1 MIDI Sync" color=lfo1 max=2   names=OFF,ON group=1 param=118
+dial lfo1midisync         label="LFO1 MIDI Sync" color=lfo1 max=2   names=OFF,ON group=1 param=118 asMenu=1
 dial lfo1midisyncbase     label="LFO1 MIDI Sync Base" color=lfo1 max=8   display=raw group=1 param=119
 dial lfo1midisynctime     label="LFO1 MIDI Sync Time" color=lfo1 max=16  display=raw group=1 param=120
 
@@ -862,7 +862,7 @@ dial lfo2fadein           label="LFO2 Fade In" color=lfo2 max=100 display=raw gr
 dial lfo2ampmodsrc        label="LFO2 Amp Mod Src" color=lfo2 max=49  display=raw group=1 param=129
 dial lfo2ampmodint        label="LFO2 Amp Mod Int" color=lfo2 max=199 display=signed displayOffset=99 group=1 param=130
 dial lfo2offset           label="LFO2 Offset" color=lfo2 max=101 display=signed displayOffset=50 group=1 param=131
-dial lfo2midisync         label="LFO2 MIDI Sync" color=lfo2 max=2   names=OFF,ON group=1 param=132
+dial lfo2midisync         label="LFO2 MIDI Sync" color=lfo2 max=2   names=OFF,ON group=1 param=132 asMenu=1
 dial lfo2midisyncbase     label="LFO2 MIDI Sync Base" color=lfo2 max=8   display=raw group=1 param=133
 dial lfo2midisynctime     label="LFO2 MIDI Sync Time" color=lfo2 max=16  display=raw group=1 param=134
 
@@ -893,7 +893,7 @@ dial lfo3fadein           label="LFO3 Fade In" color=lfo3 max=100 display=raw gr
 dial lfo3ampmodsrc        label="LFO3 Amp Mod Src" color=lfo3 max=49  display=raw group=1 param=143
 dial lfo3ampmodint        label="LFO3 Amp Mod Int" color=lfo3 max=199 display=signed displayOffset=99 group=1 param=144
 dial lfo3offset           label="LFO3 Offset" color=lfo3 max=101 display=signed displayOffset=50 group=1 param=145
-dial lfo3midisync         label="LFO3 MIDI Sync" color=lfo3 max=2   names=OFF,ON group=1 param=146
+dial lfo3midisync         label="LFO3 MIDI Sync" color=lfo3 max=2   names=OFF,ON group=1 param=146 asMenu=1
 dial lfo3midisyncbase     label="LFO3 MIDI Sync Base" color=lfo3 max=8   display=raw group=1 param=147
 dial lfo3midisynctime     label="LFO3 MIDI Sync Time" color=lfo3 max=16  display=raw group=1 param=148
 
@@ -924,7 +924,7 @@ dial lfo4fadein           label="LFO4 Fade In" color=lfo4 max=100 display=raw gr
 dial lfo4ampmodsrc        label="LFO4 Amp Mod Src" color=lfo4 max=49  display=raw group=1 param=157
 dial lfo4ampmodint        label="LFO4 Amp Mod Int" color=lfo4 max=199 display=signed displayOffset=99 group=1 param=158
 dial lfo4offset           label="LFO4 Offset" color=lfo4 max=101 display=signed displayOffset=50 group=1 param=159
-dial lfo4midisync         label="LFO4 MIDI Sync" color=lfo4 max=2   names=OFF,ON group=1 param=160
+dial lfo4midisync         label="LFO4 MIDI Sync" color=lfo4 max=2   names=OFF,ON group=1 param=160 asMenu=1
 dial lfo4midisyncbase     label="LFO4 MIDI Sync Base" color=lfo4 max=8   display=raw group=1 param=161
 dial lfo4midisynctime     label="LFO4 MIDI Sync Time" color=lfo4 max=16  display=raw group=1 param=162
 

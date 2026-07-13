@@ -992,6 +992,15 @@ void synth_render(tRectangle area) {
                 // needs to sit relative to where a full-size knob would
                 // have been, not the shrunk button.
                 double       baseY    = dial->rect.coord.y;
+                // A structurally genuine Off/On pair (panel_dial_is_toggle())
+                // that's opted into asMenu (panelConfig.h) is styled as a
+                // value-menu button instead — label+green/grey toggle
+                // treatment excluded — so every use of "is this a toggle for
+                // rendering purposes" below (button face text/colour further
+                // down, and the below-button label line's own toggle
+                // shortcut near the end of this loop) goes through this one
+                // flag rather than re-deriving it, so both stay consistent.
+                bool         isToggle = panel_dial_is_toggle(dial) && !dial->asMenu;
 
                 // Any 2-position named dial (Off/On, but also Filters' Mode
                 // "Dual LP"/"HP/LP", Osc 3's Freq Range "Lo"/"Hi", ...)
@@ -1033,9 +1042,10 @@ void synth_render(tRectangle area) {
                     // label line beneath the button is still skipped for
                     // ALL of these (toggle, binary, or value-menu — further
                     // down this loop), since the button's own face already
-                    // says enough on its own.
-                    bool         isToggle = panel_dial_is_toggle(dial);
-                    const char * name     = isToggle ? dial->label
+                    // says enough on its own. isToggle itself (declared
+                    // above, alongside disabled/baseY) already excludes an
+                    // asMenu dial.
+                    const char * name = isToggle ? dial->label
                                 : (dialVal < dial->nameCount) ? dial->names[dialVal]
                                                                                      : "?";
 
@@ -1218,7 +1228,13 @@ void synth_render(tRectangle area) {
                                                  || panel_dial_is_toggle(dial);
                 double lblY                    = baseY + section->dialSize + (isButtonDial ? 4.0 : 18.0);
 
-                if (!panel_dial_is_toggle(dial) && !isSelfExplanatoryButton) {
+                // !isToggle, not !panel_dial_is_toggle(dial) — an asMenu
+                // dial is structurally a genuine Off/On pair but no longer
+                // shows its label on the button face (its face shows the
+                // current value instead, see isToggle's own declaration
+                // above), so it needs this label line same as any other
+                // value-menu button, unlike a real toggle.
+                if (!isToggle && !isSelfExplanatoryButton) {
                     tRectangle lblRect = {{dial->rect.coord.x, lblY},
                         {section->spacing,   12.0}};
 

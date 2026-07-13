@@ -409,6 +409,24 @@ typedef struct {
     // dropdown-button behaviour unchanged.
     bool asDial;
 
+    // "asMenu" in the file — the opposite pull from asDial above: forces
+    // panel_dial_needs_value_menu() to TRUE for a names= dial that wouldn't
+    // otherwise qualify because it only has 2 positions (panel_dial_
+    // is_binary()'s territory, normally a click-to-cycle button or, for a
+    // literal Off/On pair, panel_dial_is_toggle()'s label+green/grey
+    // styling). Added 2026-07-13 for the Z1's Porta on/off, Porta Mode,
+    // Unison SW/Mode, F2 Link, and LFO 1-4 MIDI Sync — owner wanted these to
+    // read their section's own colour (dial->colour) the same way every
+    // 3+-position value-menu dial already does, rather than a flat grey (or,
+    // for the Off/On ones, green-when-on) that ignores it. synthGraphics.cpp
+    // ANDs isToggle with !asMenu before using it, so an asMenu dial falls
+    // straight into the existing >2-name value-menu code path (colour, text,
+    // and — via arm_dial_press() in mouseHandle.c, which already checks
+    // panel_dial_needs_value_menu() before panel_dial_is_binary() — click-to-
+    // open-dropdown routing) with no separate special-casing needed anywhere.
+    // Default false — every other 2-name dial keeps today's behaviour.
+    bool asMenu;
+
     // "hiLoOffset="/"hiLoCoarseScale="/"hiLoFineScale=" — only meaningful
     // when display == dialDisplaySignedHiLo (see that enum value's own long
     // comment for the derivation). The raw dump value read via the normal
