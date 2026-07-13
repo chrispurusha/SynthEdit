@@ -367,9 +367,20 @@ spacing    50
 # page, a plain numeric knob) needs its own colour declared in THIS section
 # or it renders unset/black — this bit us once already (2026-07-11: Clock
 # Div rendered as a black circle on the dark background right after moving
-# it here, exactly because of this). Every other dial on this page is a
-# button (binary/value-menu), which doesn't read dial->colour at all, so
-# only this one declaration is actually needed.
+# it here, exactly because of this).
+#
+# Every OTHER dial on this page is a button (binary/value-menu) — until
+# 2026-07-13 those didn't read dial->colour at all, so only midiClkDivider's
+# declaration above was ever needed. Now that a button's background/dropdown
+# both use dial->colour (owner request, so a value-menu button visually
+# matches the dropdown it opens — see panel_dial_needs_value_menu()'s own
+# render-side comment in synthGraphics.cpp), an undeclared button silently
+# fell back to a generic default grey rather than this page's own colour,
+# reading visibly lighter next to dials elsewhere (e.g. the main panel
+# page's Glide Mode) that DO declare a colour — not a bug, just this page's
+# buttons never having needed one before. `color=menu` is now added to every
+# button dial on this page explicitly, so they render this page's own
+# uniform grey rather than that incidental default.
 color menu 0.5 0.5 0.5
 
 # This page has no physical panel photo to match (unlike "panel"'s 12-column
@@ -387,10 +398,10 @@ color menu 0.5 0.5 0.5
 # the two big PGM Shaping fields. If any button still reads as cramped once
 # you've actually seen it rendered, widening the col= step (e.g. 3 -> 4) is
 # the fix — flag it and it's a one-line change.
-dial keyboardMode  label="KB Mode" max=4 dumpOffset=127 dumpBitOffset=3 dumpBitWidth=2 names="Lower Key","Higher Key","Last Key","1 Key Only" col=0 row=0
-dial triggerMode   label="Trigger"  max=2 dumpOffset=128 dumpBitOffset=0 dumpBitWidth=1 names="Single Trigger","Multi Trigger" col=3 row=0
-dial filEnvGateSrc label="F.Env Gate" max=7 dumpOffset=138 dumpBitOffset=6 dumpBitWidth=3 names="Envelope Gate Input","Touch Gate","S&H Gate","MIDI Clock","Keyboard Gate","Gate is ON","Gate is OFF" col=6 row=0
-dial volEnvGateSrc label="V.Env Gate" max=7 dumpOffset=139 dumpBitOffset=2 dumpBitWidth=3 names="Envelope Gate Input","Touch Gate","S&H Gate","MIDI Clock","Keyboard Gate","Gate is ON","Gate is OFF" col=9 row=0
+dial keyboardMode  label="KB Mode" color=menu max=4 dumpOffset=127 dumpBitOffset=3 dumpBitWidth=2 names="Lower Key","Higher Key","Last Key","1 Key Only" col=0 row=0
+dial triggerMode   label="Trigger" color=menu  max=2 dumpOffset=128 dumpBitOffset=0 dumpBitWidth=1 names="Single Trigger","Multi Trigger" col=3 row=0 asMenu=1
+dial filEnvGateSrc label="F.Env Gate" color=menu max=7 dumpOffset=138 dumpBitOffset=6 dumpBitWidth=3 names="Envelope Gate Input","Touch Gate","S&H Gate","MIDI Clock","Keyboard Gate","Gate is ON","Gate is OFF" col=6 row=0
+dial volEnvGateSrc label="V.Env Gate" color=menu max=7 dumpOffset=139 dumpBitOffset=2 dumpBitWidth=3 names="Envelope Gate Input","Touch Gate","S&H Gate","MIDI Clock","Keyboard Gate","Gate is ON","Gate is OFF" col=9 row=0
 
 # Pitch Bend Up/Down pre-amp range — CONFIRMED against real hardware
 # 2026-07-11, live-diff method (owner narrated each menu position,
@@ -408,8 +419,8 @@ dial volEnvGateSrc label="V.Env Gate" max=7 dumpOffset=139 dumpBitOffset=2 dumpB
 # sounds like a raw-editable/calibration slot rather than a real bend-range
 # value; kept verbatim as the owner read it off the display rather than
 # guessed at what it means.
-dial pitchBendDown label="PB Down" max=11 dumpOffset=17 dumpBitOffset=1 dumpBitWidth=4 names="OFF!","2 Semitones","Minor Third","Major Third","Fourth","Fifth","1 Octave","1 Oct. & 5th","2 Octaves","2 Oct. & 5th","Pre-Val: 0" col=0 row=1
-dial pitchBendUp   label="PB Up"   max=11 dumpOffset=16 dumpBitOffset=4 dumpBitWidth=4 names="OFF!","2 Semitones","Minor Third","Major Third","Fourth","Fifth","1 Octave","1 Oct. & 5th","2 Octaves","2 Oct. & 5th","Pre-Val: 254" col=3 row=1
+dial pitchBendDown label="PB Down" color=menu max=11 dumpOffset=17 dumpBitOffset=1 dumpBitWidth=4 names="OFF!","2 Semitones","Minor Third","Major Third","Fourth","Fifth","1 Octave","1 Oct. & 5th","2 Octaves","2 Oct. & 5th","Pre-Val: 0" col=0 row=1
+dial pitchBendUp   label="PB Up" color=menu   max=11 dumpOffset=16 dumpBitOffset=4 dumpBitWidth=4 names="OFF!","2 Semitones","Minor Third","Major Third","Fourth","Fifth","1 Octave","1 Oct. & 5th","2 Octaves","2 Oct. & 5th","Pre-Val: 254" col=3 row=1
 
 # MIDI Clock Divider — EDIT mode menu 6.1 (owner's manual): creates a new
 # clock signal from incoming MIDI clock, 48 divisions/beat, used to
@@ -437,7 +448,7 @@ dial midiClkDivider label="Clock Div" color=menu max=97 display=raw dumpOffset=1
 # location (98) also matched the SysEx PDF's own label ("whl src PGM") on
 # the first attempt, unlike the Pot Map 1-4 region which turned out to be
 # unsafe to hand-derive — see [[project_voyager_sysex_pdf_gap_audit]].
-dial pgmMwSource label="PGM MW Src" max=8 dumpOffset=97 dumpBitOffset=1 dumpBitWidth=3 names="Noise","Filter ENV","Amplitude ENV","Smoothed S&H","Osc 1","Osc 2","T.S. X","T.S. Y" col=0 row=2
+dial pgmMwSource label="PGM MW Src" color=menu max=8 dumpOffset=97 dumpBitOffset=1 dumpBitWidth=3 names="Noise","Filter ENV","Amplitude ENV","Smoothed S&H","Osc 1","Osc 2","T.S. X","T.S. Y" col=0 row=2
 
 # PGM M-Whl Dest — EDIT mode menu 2.2 (owner's manual): alternate modulation
 # destination used when the Mod Wheel bus DESTINATION control is set to
@@ -450,7 +461,7 @@ dial pgmMwSource label="PGM MW Src" max=8 dumpOffset=97 dumpBitOffset=1 dumpBitW
 # nudged once early in the session and never touched again) — a reminder to
 # always re-baseline against a FRESH capture of the actual current state,
 # not reuse an old one from earlier in the sweep.
-dial pgmMwDest label="PGM MW Dest" max=8 dumpOffset=97 dumpBitOffset=4 dumpBitWidth=3 names="LFO Rate","Filter Resonance","Filter Spacing","Panorama","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level" col=3 row=2
+dial pgmMwDest label="PGM MW Dest" color=menu max=8 dumpOffset=97 dumpBitOffset=4 dumpBitWidth=3 names="LFO Rate","Filter Resonance","Filter Spacing","Panorama","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level" col=3 row=2
 
 # PGM Pedal Source — EDIT mode menu 2.3 (owner's manual), same 8-option list
 # as PGM M-Whl Source. Packed in the byte right after the Wheel pair (byte
@@ -460,14 +471,14 @@ dial pgmMwDest label="PGM MW Dest" max=8 dumpOffset=97 dumpBitOffset=4 dumpBitWi
 # pgmMwSource) but the live diff showed bitOffset=0 — a genuine off-by-one
 # in the hand-read table, not a fresh unsafe region like Pot Map. Always
 # trust the live diff over the PDF reading when they disagree.
-dial pgmPedalSource label="PGM Ped Src" max=8 dumpOffset=98 dumpBitOffset=0 dumpBitWidth=3 names="Noise","Filter ENV","Amplitude ENV","Smoothed S&H","Osc 1","Osc 2","T.S. X","T.S. Y" col=6 row=2
+dial pgmPedalSource label="PGM Ped Src" color=menu max=8 dumpOffset=98 dumpBitOffset=0 dumpBitWidth=3 names="Noise","Filter ENV","Amplitude ENV","Smoothed S&H","Osc 1","Osc 2","T.S. X","T.S. Y" col=6 row=2
 
 # PGM Pedal Dest — EDIT mode menu 2.4 (owner's manual), same 8-option list as
 # PGM M-Whl Dest. Packed immediately after pgmPedalSource in the same byte
 # (bits 3-5, right after pgmPedalSource's bits 0-2). CONFIRMED against real
 # hardware 2026-07-11, live-diff at 3 points: Panorama(baseline)=3, Noise
 # Level=7, LFO Rate=0.
-dial pgmPedalDest label="PGM Ped Dest" max=8 dumpOffset=98 dumpBitOffset=3 dumpBitWidth=3 names="LFO Rate","Filter Resonance","Filter Spacing","Panorama","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level" col=9 row=2
+dial pgmPedalDest label="PGM Ped Dest" color=menu max=8 dumpOffset=98 dumpBitOffset=3 dumpBitWidth=3 names="LFO Rate","Filter Resonance","Filter Spacing","Panorama","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level" col=9 row=2
 
 # PGM Shaping 1 Src — EDIT mode menu 3.1 (owner's manual): the source signal
 # for Programmable Shaper 1, used to shape either Mod Bus's amount when that
@@ -480,7 +491,7 @@ dial pgmPedalDest label="PGM Ped Dest" max=8 dumpOffset=98 dumpBitOffset=3 dumpB
 # at 3 points: Offset Value(baseline)=0, Pitch Bend Wheel=1, Headphone
 # Level(last)=42 — all exact. HIGH/LOW Fixed Value sub-fields (used only
 # when Src=Fixed Value/Offset Value) are the next dial below.
-dial pgmShaping1Src label="PGM Shp1 Src" max=43 dumpOffset=140 dumpBitOffset=0 dumpBitWidth=6 names="Fixed Value","Pitch Bend Wheel","Modulation Wheel","Velocity Release","Pressure (AT)","Keyboard CV","Touch Surface X","Touch Surface Y","Touch Surface A","Mod1","Mod2","LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Headphone Volume" col=0 row=3
+dial pgmShaping1Src label="PGM Shp1 Src" color=menu max=43 dumpOffset=140 dumpBitOffset=0 dumpBitWidth=6 names="Fixed Value","Pitch Bend Wheel","Modulation Wheel","Velocity Release","Pressure (AT)","Keyboard CV","Touch Surface X","Touch Surface Y","Touch Surface A","Mod1","Mod2","LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Headphone Volume" col=0 row=3
 
 # PGM Shaping 1 Fixed Value (HIGH/LOW) — the coarse/fine offset pair used
 # when pgmShaping1Src above is set to "Fixed Value"/"Offset Value" (index
@@ -538,7 +549,7 @@ dial pgmShaping1FixedValue label="PGM Shp1 Fixed Value" color=menu max=65536 dis
 # bit assembly is correct (0x54/0x02 split decodes to exactly 42, not just
 # "some bits changed"). HIGH/LOW Fixed Value sub-fields are the next dial
 # below.
-dial pgmShaping2Src label="PGM Shp2 Src" max=43 dumpOffset=143 dumpBitOffset=3 dumpBitWidth=6 names="Fixed Value","Pitch Bend Wheel","Modulation Wheel","Velocity Release","Pressure (AT)","Keyboard CV","Touch Surface X","Touch Surface Y","Touch Surface A","Mod1","Mod2","LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Headphone Volume" col=3 row=3
+dial pgmShaping2Src label="PGM Shp2 Src" color=menu max=43 dumpOffset=143 dumpBitOffset=3 dumpBitWidth=6 names="Fixed Value","Pitch Bend Wheel","Modulation Wheel","Velocity Release","Pressure (AT)","Keyboard CV","Touch Surface X","Touch Surface Y","Touch Surface A","Mod1","Mod2","LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Headphone Volume" col=3 row=3
 
 # PGM Shaping 2 Fixed Value (HIGH/LOW) — same mechanism as pgmShaping1FixedValue
 # above (see that dial's own long comment for the full derivation, formula,
@@ -561,10 +572,13 @@ section    touchSurface
 dialSize   36
 spacing    50
 
-# Colours are per-section (see the Menu Settings page's own note above for
-# why) — declared here for the same reason: the Ctrl No dials are plain
-# numeric (display=raw), not button/value-menu style, so they need an
-# explicit colour or they render as unset/black.
+# Colours are per-section (see the Menu Settings page's own note above,
+# including the 2026-07-13 update, for the full reasoning) — declared here
+# for the same reason: the Ctrl No dials are plain numeric (display=raw),
+# not button/value-menu style, so they need an explicit colour or they
+# render as unset/black. `color=menu` is likewise now added to every button
+# dial on this page, so they render this page's own uniform grey instead of
+# the generic default a button falls back to when undeclared.
 color menu 0.5 0.5 0.5
 
 # Touch Surface Destination/MIDI Ctrl No/Direction/Amount (X/Y/A axes) — EDIT
@@ -599,20 +613,20 @@ color menu 0.5 0.5 0.5
 # unwired, same treatment as the similar unexplained byte97 bit hit earlier
 # investigating this device (see git history/session notes, not chased
 # further, low value either way).
-dial tsxDest      label="TSX Dest"      max=32 dumpOffset=128 dumpBitOffset=4 dumpBitWidth=5 names="LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Key Pitch" col=0 row=0
+dial tsxDest      label="TSX Dest" color=menu      max=32 dumpOffset=128 dumpBitOffset=4 dumpBitWidth=5 names="LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Key Pitch" col=0 row=0
 dial tsxCtrl      label="TSX Ctrl No"   color=menu max=128 display=raw dumpOffset=129 dumpBitOffset=5 dumpBitWidth=6 col=3 row=0
-dial tsxDirection label="TSX Direction" max=2  dumpOffset=129 dumpBitOffset=4 dumpBitWidth=1 names="Normal","Inverted" col=6 row=0
-dial tsxAmount    label="TSX Amount"    max=4  dumpOffset=129 dumpBitOffset=2 dumpBitWidth=2 names="Off","25%","50%","100%" col=9 row=0
+dial tsxDirection label="TSX Direction" color=menu max=2  dumpOffset=129 dumpBitOffset=4 dumpBitWidth=1 names="Normal","Inverted" col=6 row=0 asMenu=1
+dial tsxAmount    label="TSX Amount" color=menu    max=4  dumpOffset=129 dumpBitOffset=2 dumpBitWidth=2 names="Off","25%","50%","100%" col=9 row=0
 
-dial tsyDest      label="TSY Dest"      max=32 dumpOffset=130 dumpBitOffset=6 dumpBitWidth=5 names="LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Key Pitch" col=0 row=1
+dial tsyDest      label="TSY Dest" color=menu      max=32 dumpOffset=130 dumpBitOffset=6 dumpBitWidth=5 names="LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Key Pitch" col=0 row=1
 dial tsyCtrl      label="TSY Ctrl No"   color=menu max=128 display=raw dumpOffset=132 dumpBitOffset=0 dumpBitWidth=7 col=3 row=1
-dial tsyDirection label="TSY Direction" max=2  dumpOffset=131 dumpBitOffset=6 dumpBitWidth=1 names="Normal","Inverted" col=6 row=1
-dial tsyAmount    label="TSY Amount"    max=4  dumpOffset=131 dumpBitOffset=4 dumpBitWidth=2 names="Off","25%","50%","100%" col=9 row=1
+dial tsyDirection label="TSY Direction" color=menu max=2  dumpOffset=131 dumpBitOffset=6 dumpBitWidth=1 names="Normal","Inverted" col=6 row=1 asMenu=1
+dial tsyAmount    label="TSY Amount" color=menu    max=4  dumpOffset=131 dumpBitOffset=4 dumpBitWidth=2 names="Off","25%","50%","100%" col=9 row=1
 
-dial tsaDest      label="TSA Dest"      max=32 dumpOffset=133 dumpBitOffset=1 dumpBitWidth=5 names="LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Key Pitch" col=0 row=2
+dial tsaDest      label="TSA Dest" color=menu      max=32 dumpOffset=133 dumpBitOffset=1 dumpBitWidth=5 names="LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Key Pitch" col=0 row=2
 dial tsaCtrl      label="TSA Ctrl No"   color=menu max=128 display=raw dumpOffset=134 dumpBitOffset=2 dumpBitWidth=7 col=3 row=2
-dial tsaDirection label="TSA Direction" max=2  dumpOffset=134 dumpBitOffset=1 dumpBitWidth=1 names="Normal","Inverted" col=6 row=2
-dial tsaAmount    label="TSA Amount"    max=4  dumpOffset=133 dumpBitOffset=6 dumpBitWidth=2 names="Off","25%","50%","100%" col=9 row=2
+dial tsaDirection label="TSA Direction" color=menu max=2  dumpOffset=134 dumpBitOffset=1 dumpBitWidth=1 names="Normal","Inverted" col=6 row=2 asMenu=1
+dial tsaAmount    label="TSA Amount" color=menu    max=4  dumpOffset=133 dumpBitOffset=6 dumpBitWidth=2 names="Off","25%","50%","100%" col=9 row=2
 
 # TS Gate — EDIT mode menu 5.1's 4th control (separate from X/Y/A, "the TS
 # Gate menu is different" per the manual). Unlike X/Y/A this drives SWITCHES,
@@ -631,7 +645,7 @@ dial tsaAmount    label="TSA Amount"    max=4  dumpOffset=133 dumpBitOffset=6 du
 # had contaminated the diff. Confirmed clean at 3 points once Ctrl No was
 # pinned to a fixed value across each comparison: No Switch=0, Glide
 # Switch=1, Oscillator 3=10, all exact.
-dial tsGateControl label="TS Gate Ctrl" max=14 dumpOffset=135 dumpBitOffset=3 dumpBitWidth=4 names="No Switch","Glide Switch","Release Switch","Osc. 1-2 Sync","Osc. 3-1 FM","Osc. 3 KB Ctrl","Osc. 3 Frequency","External Audio","Oscillator 1","Oscillator 2","Oscillator 3","Noise Switch","Filter Mode","ENV Gate Switch" col=0 row=3
+dial tsGateControl label="TS Gate Ctrl" color=menu max=14 dumpOffset=135 dumpBitOffset=3 dumpBitWidth=4 names="No Switch","Glide Switch","Release Switch","Osc. 1-2 Sync","Osc. 3-1 FM","Osc. 3 KB Ctrl","Osc. 3 Frequency","External Audio","Oscillator 1","Oscillator 2","Oscillator 3","Noise Switch","Filter Mode","ENV Gate Switch" col=0 row=3
 
 # MIDI Ctrl No: same auto-reset-on-Control-change quirk as X/Y/A's Ctrl No
 # (confirmed again here — selecting Control auto-sets Ctrl No to that
@@ -712,7 +726,7 @@ dial tsGateCtrl    label="TS Gate Ctrl No" color=menu max=65 offset=63 asDial=1 
 
 # Polarity: clean single bit, sits immediately before Ctrl No's own field
 # (bit 3 vs Ctrl No's bit 4 start) with no overlap.
-dial tsGatePolarity label="TS Gate Polarity" max=2 dumpOffset=136 dumpBitOffset=3 dumpBitWidth=1 names="Normal","Inverted" col=6 row=3
+dial tsGatePolarity label="TS Gate Polarity" color=menu max=2 dumpOffset=136 dumpBitOffset=3 dumpBitWidth=1 names="Normal","Inverted" col=6 row=3 asMenu=1
 
 # LFO Restart — EDIT mode menu 5.1's 4th sub-item under TS Gate (scrolled to
 # via CURSOR, same UI pattern as the Amount field in the X/Y/A menus).
@@ -720,7 +734,16 @@ dial tsGatePolarity label="TS Gate Polarity" max=2 dumpOffset=136 dumpBitOffset=
 # 21, unused elsewhere in this file) rather than packed alongside
 # Control/Ctrl No/Polarity — plausible given it's really an LFO-section
 # setting, not a Touch-Surface-section one.
-dial tsGateLfoRestart label="TS Gate LFO Restart" max=2 dumpOffset=21 dumpBitOffset=4 dumpBitWidth=1 names="Off","On" col=9 row=3
+#
+# Unlike this page's other 2-position dials (Direction, Mem Mod Bus/Global,
+# TS Gate Polarity — all given asMenu=1 above so their button actually reads
+# this page's `menu` colour), this one keeps its real green-on/grey-off
+# toggle styling (owner call, 2026-07-13) since Off/On is a genuine on/off
+# state here, not an arbitrary 2-way enum like Normal/Inverted. `color=menu`
+# stays declared for consistency with every other dial on this page, but a
+# genuine toggle button never reads dial->colour, so it has no visible
+# effect here.
+dial tsGateLfoRestart label="TS Gate LFO Restart" color=menu max=2 dumpOffset=21 dumpBitOffset=4 dumpBitWidth=1 names="Off","On" col=9 row=3
 
 # T.S. MEM MOD BUS (EDIT 5.2) / T.S. MEMORY GLOBAL (EDIT 5.3) — two plain
 # Yes/No toggles, CONFIRMED against real hardware 2026-07-13, live-diff
@@ -736,8 +759,8 @@ dial tsGateLfoRestart label="TS Gate LFO Restart" max=2 dumpOffset=21 dumpBitOff
 # gate-off until gate-on again) more closely than 5.2's (Mod Bus SOURCE
 # values only, zeroed rather than remembered when off), so tsMemGlobal
 # below is assumed to be the one carrying that exact prompt text.
-dial tsMemModBus label="TS Mem Mod Bus" max=2 dumpOffset=128 dumpBitOffset=1 dumpBitWidth=1 names="No","Yes" col=0 row=4
-dial tsMemGlobal label="TS Memory Global" max=2 dumpOffset=128 dumpBitOffset=2 dumpBitWidth=1 names="No","Yes" col=3 row=4
+dial tsMemModBus label="TS Mem Mod Bus" color=menu max=2 dumpOffset=128 dumpBitOffset=1 dumpBitWidth=1 names="No","Yes" col=0 row=4 asMenu=1
+dial tsMemGlobal label="TS Memory Global" color=menu max=2 dumpOffset=128 dumpBitOffset=2 dumpBitWidth=1 names="No","Yes" col=3 row=4 asMenu=1
 
 page       Pot Map
 section    potMap
