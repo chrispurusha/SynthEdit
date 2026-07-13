@@ -424,6 +424,313 @@ dial f2bmod2int   label="F2B Mod2"     color=f2b max=199 display=signed displayO
 dial f2bres       label="F2B Res"      color=f2b max=100 display=raw group=1 param=313 dumpOffset=364 disableUnless=f2type:4
 dial f2bresmodint label="F2B Res Mod"  color=f2b max=199 display=signed displayOffset=99 group=1 param=314 dumpOffset=365 disableUnless=f2type:4
 
+
+# ── Amp / EG pages ────────────────────────────────────────────────────────────
+# Added 2026-07-13 from the official parameter table (params 31-106 for
+# EG1-4, 315-355 for Amp1/Amp2/Amp EG/Output) — no hardware capture available
+# to add this session, so dumpOffset= is DELIBERATELY OMITTED throughout
+# both pages: live editing (param= writes) and live incoming Parameter
+# Change decode both work fully regardless (paramId alone drives both, no
+# byte-offset arithmetic involved), but "Sync from synth" won't populate
+# these dials from a full Program Dump until dumpOffset is added and
+# verified — the exact kind of byte-counting arithmetic that produced two
+# separate real bugs earlier this same session (F1 Cut's CC scaling, and
+# the 7-to-8 bit decode order) is not something to guess at further
+# unsupervised. Add dumpOffset once confirmed against a live dump capture.
+#
+# Row width AND page height both measured live (2026-07-13, owner's own
+# console capture: usableWidth=1280.0pt) after an earlier 2-section-per-EG
+# attempt still ran a section off the right edge (9 dials at a ~157pt
+# pitch — driven by "Node Time Mod Src", the longest label — totalled
+# ~1417pt, over the 1280pt budget) AND the 8-section-tall single
+# "envelopes" page ran off the BOTTOM of the window. Fixed both at once:
+# each EG's 19 params now split 3 ways (7/6/6, every group comfortably
+# under budget even with its worst-case label), and the page itself split
+# in two (EG1+EG2 on "envelopes", EG3+EG4 on "envelopes2") so neither page
+# stacks more than 6 section-rows — matching Filters' own 7-row page,
+# already proven to fit. Amp EG (17 params) split the same way (6/6/5),
+# keeping the Amp page at 6 total section-rows (amp1/amp2/ampeg1/ampeg2/
+# ampeg3/output).
+
+# ── EG1 (params 31-49), split across 3 sections — see
+# header comment above this whole Amp/EG block for why. ──
+page       envelopes
+section    eg1a
+dialSize   40
+spacing    50
+
+color eg1 0.9 0.3 0.3
+
+dial eg1startlevel        label="EG1 Start Level" color=eg1 max=199 display=signed displayOffset=99 group=1 param=31
+dial eg1attacktime        label="EG1 Attack Time" color=eg1 max=100 display=raw group=1 param=32
+dial eg1attacklevel       label="EG1 Attack Level" color=eg1 max=199 display=signed displayOffset=99 group=1 param=33
+dial eg1decaytime         label="EG1 Decay Time" color=eg1 max=100 display=raw group=1 param=34
+dial eg1breaklevel        label="EG1 Break Level" color=eg1 max=199 display=signed displayOffset=99 group=1 param=35
+dial eg1slopetime         label="EG1 Slope Time" color=eg1 max=100 display=raw group=1 param=36
+dial eg1sustainlevel      label="EG1 Sustain Level" color=eg1 max=199 display=signed displayOffset=99 group=1 param=37
+
+page       envelopes
+section    eg1b
+dialSize   40
+spacing    50
+
+color eg1 0.9 0.3 0.3
+
+dial eg1releasetime       label="EG1 Release Time" color=eg1 max=100 display=raw group=1 param=38
+dial eg1releaselevel      label="EG1 Release Level" color=eg1 max=199 display=signed displayOffset=99 group=1 param=39
+dial eg1levelmodsrc       label="EG1 Level Mod Src" color=eg1 max=49  display=raw group=1 param=40
+dial eg1levelmodint       label="EG1 Level Mod Int" color=eg1 max=199 display=signed displayOffset=99 group=1 param=41
+dial eg1levelvelctrl      label="EG1 Level Vel Ctrl" color=eg1 max=199 display=signed displayOffset=99 group=1 param=42
+dial eg1timemodsrc        label="EG1 Time Mod Src" color=eg1 max=49  display=raw group=1 param=43
+
+page       envelopes
+section    eg1c
+dialSize   40
+spacing    50
+
+color eg1 0.9 0.3 0.3
+
+dial eg1timemodint        label="EG1 Time Mod Int" color=eg1 max=199 display=signed displayOffset=99 group=1 param=44
+dial eg1nodetimemodsrc    label="EG1 Node Time Mod Src" color=eg1 max=49  display=raw group=1 param=45
+dial eg1atkmodint         label="EG1 Atk Time Mod Int" color=eg1 max=199 display=signed displayOffset=99 group=1 param=46
+dial eg1dcymodint         label="EG1 Dcy Time Mod Int" color=eg1 max=199 display=signed displayOffset=99 group=1 param=47
+dial eg1slpmodint         label="EG1 Slp Time Mod Int" color=eg1 max=199 display=signed displayOffset=99 group=1 param=48
+dial eg1rlsmodint         label="EG1 Rls Time Mod Int" color=eg1 max=199 display=signed displayOffset=99 group=1 param=49
+
+# ── EG2 (params 50-68), split across 3 sections — see
+# header comment above this whole Amp/EG block for why. ──
+page       envelopes
+section    eg2a
+dialSize   40
+spacing    50
+
+color eg2 0.3 0.6 0.9
+
+dial eg2startlevel        label="EG2 Start Level" color=eg2 max=199 display=signed displayOffset=99 group=1 param=50
+dial eg2attacktime        label="EG2 Attack Time" color=eg2 max=100 display=raw group=1 param=51
+dial eg2attacklevel       label="EG2 Attack Level" color=eg2 max=199 display=signed displayOffset=99 group=1 param=52
+dial eg2decaytime         label="EG2 Decay Time" color=eg2 max=100 display=raw group=1 param=53
+dial eg2breaklevel        label="EG2 Break Level" color=eg2 max=199 display=signed displayOffset=99 group=1 param=54
+dial eg2slopetime         label="EG2 Slope Time" color=eg2 max=100 display=raw group=1 param=55
+dial eg2sustainlevel      label="EG2 Sustain Level" color=eg2 max=199 display=signed displayOffset=99 group=1 param=56
+
+page       envelopes
+section    eg2b
+dialSize   40
+spacing    50
+
+color eg2 0.3 0.6 0.9
+
+dial eg2releasetime       label="EG2 Release Time" color=eg2 max=100 display=raw group=1 param=57
+dial eg2releaselevel      label="EG2 Release Level" color=eg2 max=199 display=signed displayOffset=99 group=1 param=58
+dial eg2levelmodsrc       label="EG2 Level Mod Src" color=eg2 max=49  display=raw group=1 param=59
+dial eg2levelmodint       label="EG2 Level Mod Int" color=eg2 max=199 display=signed displayOffset=99 group=1 param=60
+dial eg2levelvelctrl      label="EG2 Level Vel Ctrl" color=eg2 max=199 display=signed displayOffset=99 group=1 param=61
+dial eg2timemodsrc        label="EG2 Time Mod Src" color=eg2 max=49  display=raw group=1 param=62
+
+page       envelopes
+section    eg2c
+dialSize   40
+spacing    50
+
+color eg2 0.3 0.6 0.9
+
+dial eg2timemodint        label="EG2 Time Mod Int" color=eg2 max=199 display=signed displayOffset=99 group=1 param=63
+dial eg2nodetimemodsrc    label="EG2 Node Time Mod Src" color=eg2 max=49  display=raw group=1 param=64
+dial eg2atkmodint         label="EG2 Atk Time Mod Int" color=eg2 max=199 display=signed displayOffset=99 group=1 param=65
+dial eg2dcymodint         label="EG2 Dcy Time Mod Int" color=eg2 max=199 display=signed displayOffset=99 group=1 param=66
+dial eg2slpmodint         label="EG2 Slp Time Mod Int" color=eg2 max=199 display=signed displayOffset=99 group=1 param=67
+dial eg2rlsmodint         label="EG2 Rls Time Mod Int" color=eg2 max=199 display=signed displayOffset=99 group=1 param=68
+
+# ── EG3 (params 69-87), split across 3 sections — see
+# header comment above this whole Amp/EG block for why. ──
+page       envelopes2
+section    eg3a
+dialSize   40
+spacing    50
+
+color eg3 0.6 0.9 0.3
+
+dial eg3startlevel        label="EG3 Start Level" color=eg3 max=199 display=signed displayOffset=99 group=1 param=69
+dial eg3attacktime        label="EG3 Attack Time" color=eg3 max=100 display=raw group=1 param=70
+dial eg3attacklevel       label="EG3 Attack Level" color=eg3 max=199 display=signed displayOffset=99 group=1 param=71
+dial eg3decaytime         label="EG3 Decay Time" color=eg3 max=100 display=raw group=1 param=72
+dial eg3breaklevel        label="EG3 Break Level" color=eg3 max=199 display=signed displayOffset=99 group=1 param=73
+dial eg3slopetime         label="EG3 Slope Time" color=eg3 max=100 display=raw group=1 param=74
+dial eg3sustainlevel      label="EG3 Sustain Level" color=eg3 max=199 display=signed displayOffset=99 group=1 param=75
+
+page       envelopes2
+section    eg3b
+dialSize   40
+spacing    50
+
+color eg3 0.6 0.9 0.3
+
+dial eg3releasetime       label="EG3 Release Time" color=eg3 max=100 display=raw group=1 param=76
+dial eg3releaselevel      label="EG3 Release Level" color=eg3 max=199 display=signed displayOffset=99 group=1 param=77
+dial eg3levelmodsrc       label="EG3 Level Mod Src" color=eg3 max=49  display=raw group=1 param=78
+dial eg3levelmodint       label="EG3 Level Mod Int" color=eg3 max=199 display=signed displayOffset=99 group=1 param=79
+dial eg3levelvelctrl      label="EG3 Level Vel Ctrl" color=eg3 max=199 display=signed displayOffset=99 group=1 param=80
+dial eg3timemodsrc        label="EG3 Time Mod Src" color=eg3 max=49  display=raw group=1 param=81
+
+page       envelopes2
+section    eg3c
+dialSize   40
+spacing    50
+
+color eg3 0.6 0.9 0.3
+
+dial eg3timemodint        label="EG3 Time Mod Int" color=eg3 max=199 display=signed displayOffset=99 group=1 param=82
+dial eg3nodetimemodsrc    label="EG3 Node Time Mod Src" color=eg3 max=49  display=raw group=1 param=83
+dial eg3atkmodint         label="EG3 Atk Time Mod Int" color=eg3 max=199 display=signed displayOffset=99 group=1 param=84
+dial eg3dcymodint         label="EG3 Dcy Time Mod Int" color=eg3 max=199 display=signed displayOffset=99 group=1 param=85
+dial eg3slpmodint         label="EG3 Slp Time Mod Int" color=eg3 max=199 display=signed displayOffset=99 group=1 param=86
+dial eg3rlsmodint         label="EG3 Rls Time Mod Int" color=eg3 max=199 display=signed displayOffset=99 group=1 param=87
+
+# ── EG4 (params 88-106), split across 3 sections — see
+# header comment above this whole Amp/EG block for why. ──
+page       envelopes2
+section    eg4a
+dialSize   40
+spacing    50
+
+color eg4 0.9 0.6 0.2
+
+dial eg4startlevel        label="EG4 Start Level" color=eg4 max=199 display=signed displayOffset=99 group=1 param=88
+dial eg4attacktime        label="EG4 Attack Time" color=eg4 max=100 display=raw group=1 param=89
+dial eg4attacklevel       label="EG4 Attack Level" color=eg4 max=199 display=signed displayOffset=99 group=1 param=90
+dial eg4decaytime         label="EG4 Decay Time" color=eg4 max=100 display=raw group=1 param=91
+dial eg4breaklevel        label="EG4 Break Level" color=eg4 max=199 display=signed displayOffset=99 group=1 param=92
+dial eg4slopetime         label="EG4 Slope Time" color=eg4 max=100 display=raw group=1 param=93
+dial eg4sustainlevel      label="EG4 Sustain Level" color=eg4 max=199 display=signed displayOffset=99 group=1 param=94
+
+page       envelopes2
+section    eg4b
+dialSize   40
+spacing    50
+
+color eg4 0.9 0.6 0.2
+
+dial eg4releasetime       label="EG4 Release Time" color=eg4 max=100 display=raw group=1 param=95
+dial eg4releaselevel      label="EG4 Release Level" color=eg4 max=199 display=signed displayOffset=99 group=1 param=96
+dial eg4levelmodsrc       label="EG4 Level Mod Src" color=eg4 max=49  display=raw group=1 param=97
+dial eg4levelmodint       label="EG4 Level Mod Int" color=eg4 max=199 display=signed displayOffset=99 group=1 param=98
+dial eg4levelvelctrl      label="EG4 Level Vel Ctrl" color=eg4 max=199 display=signed displayOffset=99 group=1 param=99
+dial eg4timemodsrc        label="EG4 Time Mod Src" color=eg4 max=49  display=raw group=1 param=100
+
+page       envelopes2
+section    eg4c
+dialSize   40
+spacing    50
+
+color eg4 0.9 0.6 0.2
+
+dial eg4timemodint        label="EG4 Time Mod Int" color=eg4 max=199 display=signed displayOffset=99 group=1 param=101
+dial eg4nodetimemodsrc    label="EG4 Node Time Mod Src" color=eg4 max=49  display=raw group=1 param=102
+dial eg4atkmodint         label="EG4 Atk Time Mod Int" color=eg4 max=199 display=signed displayOffset=99 group=1 param=103
+dial eg4dcymodint         label="EG4 Dcy Time Mod Int" color=eg4 max=199 display=signed displayOffset=99 group=1 param=104
+dial eg4slpmodint         label="EG4 Slp Time Mod Int" color=eg4 max=199 display=signed displayOffset=99 group=1 param=105
+dial eg4rlsmodint         label="EG4 Rls Time Mod Int" color=eg4 max=199 display=signed displayOffset=99 group=1 param=106
+
+# ── Amp1 (params 315-323; 321 is a documented "reserved" param, skipped) ──
+page       amp
+section    amp1
+dialSize   40
+spacing    50
+
+color amp1 0.9 0.7 0.3
+
+# linkedMaxDial/linkedMinDial on amp1lowkey/amp1highkey (and amp2's pair,
+# below) applied BY ANALOGY with Filter's own confirmed Lo Key<=Hi Key
+# hardware clamp — NOT independently confirmed for Amp specifically (no
+# hardware available to test while adding this). Same shape of field
+# (a keyboard-track window), so the same local clamp is a reasonable,
+# harmless precaution either way — worst case it's a no-op if Amp turns
+# out not to enforce this itself.
+dial amp1level        label="Amp1 Level" color=amp1 max=100 display=raw group=1 param=315
+dial amp1lowkey       label="Amp1 Lo Key" color=amp1 max=128 display=note group=1 param=316 linkedMaxDial=amp1highkey
+dial amp1highkey      label="Amp1 Hi Key" color=amp1 max=128 display=note group=1 param=317 linkedMinDial=amp1lowkey
+dial amp1lowint       label="Amp1 Lo Int" color=amp1 max=199 display=signed displayOffset=99 group=1 param=318
+dial amp1highint      label="Amp1 Hi Int" color=amp1 max=199 display=signed displayOffset=99 group=1 param=319
+dial amp1modeg        label="Amp1 Mod EG" color=amp1 max=5  names=EG1,EG2,EG3,EG4,A.EG offset=1 group=1 param=320
+dial amp1modsrc       label="Amp1 Mod Src" color=amp1 max=49  display=raw group=1 param=322
+dial amp1modint       label="Amp1 Mod Int" color=amp1 max=199 display=signed displayOffset=99 group=1 param=323
+
+# ── Amp2 (params 324-332; 330 is a documented "(Not Use)" param, skipped) ──
+page       amp
+section    amp2
+dialSize   40
+spacing    50
+
+color amp2 0.3 0.9 0.7
+
+dial amp2level        label="Amp2 Level" color=amp2 max=100 display=raw group=1 param=324
+dial amp2lowkey       label="Amp2 Lo Key" color=amp2 max=128 display=note group=1 param=325 linkedMaxDial=amp2highkey
+dial amp2highkey      label="Amp2 Hi Key" color=amp2 max=128 display=note group=1 param=326 linkedMinDial=amp2lowkey
+dial amp2lowint       label="Amp2 Lo Int" color=amp2 max=199 display=signed displayOffset=99 group=1 param=327
+dial amp2highint      label="Amp2 Hi Int" color=amp2 max=199 display=signed displayOffset=99 group=1 param=328
+dial amp2modeg        label="Amp2 Mod EG" color=amp2 max=5  names=EG1,EG2,EG3,EG4,A.EG offset=1 group=1 param=329
+dial amp2modsrc       label="Amp2 Mod Src" color=amp2 max=49  display=raw group=1 param=331
+dial amp2modint       label="Amp2 Mod Int" color=amp2 max=199 display=signed displayOffset=99 group=1 param=332
+
+# ── Amp EG (params 334-351; 333/341 are documented "reserved" params,
+# skipped) — levels are display=raw (0~99), NOT signed, per the manual:
+# amplitude can't go negative, unlike the general-purpose EG1-4. Split
+# into 3 sections (6/6/5) — see header comment above this whole block.
+page       amp
+section    ampeg1
+dialSize   40
+spacing    50
+
+color ampeg 0.6 0.6 0.9
+
+dial ampegattacktime  label="AmpEG Attack Time" color=ampeg max=100 display=raw group=1 param=334
+dial ampegattacklevel label="AmpEG Attack Level" color=ampeg max=100 display=raw group=1 param=335
+dial ampegdecaytime   label="AmpEG Decay Time" color=ampeg max=100 display=raw group=1 param=336
+dial ampegbreaklevel  label="AmpEG Break Level" color=ampeg max=100 display=raw group=1 param=337
+dial ampegslopetime   label="AmpEG Slope Time" color=ampeg max=100 display=raw group=1 param=338
+dial ampegsustainlevel label="AmpEG Sustain Level" color=ampeg max=100 display=raw group=1 param=339
+
+page       amp
+section    ampeg2
+dialSize   40
+spacing    50
+
+color ampeg 0.6 0.6 0.9
+
+dial ampegreleasetime label="AmpEG Release Time" color=ampeg max=100 display=raw group=1 param=340
+dial ampeglevelmodsrc label="AmpEG Level Mod Src" color=ampeg max=49  display=raw group=1 param=342
+dial ampeglevelmodint label="AmpEG Level Mod Int" color=ampeg max=199 display=signed displayOffset=99 group=1 param=343
+dial ampeglevelvelctrl label="AmpEG Level Vel Ctrl" color=ampeg max=199 display=signed displayOffset=99 group=1 param=344
+dial ampegtimemodsrc  label="AmpEG Time Mod Src" color=ampeg max=49  display=raw group=1 param=345
+dial ampegtimemodint  label="AmpEG Time Mod Int" color=ampeg max=199 display=signed displayOffset=99 group=1 param=346
+
+page       amp
+section    ampeg3
+dialSize   40
+spacing    50
+
+color ampeg 0.6 0.6 0.9
+
+dial ampegnodetimemodsrc label="AmpEG Node Time Mod Src" color=ampeg max=49  display=raw group=1 param=347
+dial ampegatkmodint   label="AmpEG Atk Time Mod Int" color=ampeg max=199 display=signed displayOffset=99 group=1 param=348
+dial ampegdcymodint   label="AmpEG Dcy Time Mod Int" color=ampeg max=199 display=signed displayOffset=99 group=1 param=349
+dial ampegslpmodint   label="AmpEG Slp Time Mod Int" color=ampeg max=199 display=signed displayOffset=99 group=1 param=350
+dial ampegrlsmodint   label="AmpEG Rls Time Mod Int" color=ampeg max=199 display=signed displayOffset=99 group=1 param=351
+
+# ── Output (params 352-355) ──
+page       amp
+section    output
+dialSize   40
+spacing    50
+
+color output 0.8 0.8 0.3
+
+dial panpot           label="Panpot" color=output max=128 display=raw group=1 param=352
+dial panpotmodsrc     label="Panpot Mod Src" color=output max=49  display=raw group=1 param=353
+dial panpotmodint     label="Panpot Mod Int" color=output max=199 display=signed displayOffset=99 group=1 param=354
+dial outputlevel      label="Output Level" color=output max=128 display=raw group=1 param=355
+
 # ── Effects page ──────────────────────────────────────────────────────────────
 # Placeholder — no controls transcribed yet. The page exists so the page-tab
 # row has something to switch to; add dials here once the Effects parameters
