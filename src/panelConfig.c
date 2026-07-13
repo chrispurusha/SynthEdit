@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #include "synthlibDefs.h"
 #include "panelConfig.h"
@@ -623,11 +624,18 @@ int32_t hit_test_panel_section(tPanelSection * section, tCoord point) {
 }
 
 bool panel_dial_is_toggle(const tPanelDial * dial) {
+    // Case-insensitive — Voyager's own device file writes "Off"/"On", the
+    // Z1's writes "OFF"/"ON" (matching the Korg manual's own convention).
+    // Was strcmp() (exact-case) until 2026-07-13: silently excluded every
+    // single one of the Z1's 11 genuine on/off dials from the green-when-
+    // on/label-only/no-OFF-ON-text button styling this function exists to
+    // grant — they all rendered as plain 2-name buttons literally showing
+    // "OFF"/"ON" instead, discovered via the owner's own screenshot review.
     return dial
            && (dial->display == dialDisplayNames)
            && (dial->nameCount == 2)
-           && (strcmp(dial->names[0], "Off") == 0)
-           && (strcmp(dial->names[1], "On") == 0);
+           && (strcasecmp(dial->names[0], "Off") == 0)
+           && (strcasecmp(dial->names[1], "On") == 0);
 }
 
 bool panel_dial_is_binary(const tPanelDial * dial) {

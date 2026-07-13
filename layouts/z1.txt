@@ -150,6 +150,16 @@ dial portTime    label="Porta Time" color=common max=100 display=raw          gr
 # exact failure mode — see render_text()'s own comment on the Info Row further
 # up this file's history), so a long enough single row can silently run off
 # the right edge of the window.
+#
+# BUG FOUND + FIXED 2026-07-13: the "page oscillators" line below is
+# REQUIRED — "section" alone only renames whichever section is already
+# current (see process_line()'s own handling in panelConfig.c: only "page"
+# advances to a fresh tPanelSection). Without it, this had been silently
+# RENAMING oscCommon to voiceCommon and appending these 5 dials onto its
+# existing 7, producing exactly the single 12-dial-wide merged row this
+# comment block was written to avoid — confirmed via the backdoor DUMP
+# command (all 12 dials reporting under one "section=voiceCommon").
+page       oscillators
 section    voiceCommon
 dialSize   40
 spacing    50
@@ -195,9 +205,27 @@ spacing    50
 
 color sub 0.8 0.5 0.9
 
+# Empirically-derived gaps below (owner request 2026-07-13, confirmed via
+# the backdoor DUMP command) force Sub Osc's Oct/Semi/Fine/Freq columns to
+# line up with Osc1/Osc2's, which otherwise drift apart for two independent
+# reasons: (1) Sub Osc has no "Type" selector before Oct (Osc1/Osc2 both
+# have Type+Oct ahead of theirs), and (2) Sub Osc's own per-dial pitch,
+# auto-computed from ITS widest label (75.5pt), is inherently wider than
+# Osc1/Osc2's (66.5pt, from THEIR own widest label) — section_required_
+# spacing() applies ONE uniform pitch per section, so this 9.0pt/step gap
+# reopens after every dial unless re-compensated each time; the first gap
+# (66.5) aligns Oct, the rest (-9.0 each) hold that alignment through
+# Semi/Fine/Freq despite the section's own wider natural pitch. Brittle to
+# any future label-width change in either section (would need re-deriving),
+# but the simplest fix available short of converting this whole page to
+# col=/row= grid positioning (col= comparisons/tradeoffs not evaluated).
+gap 66.5
 dial suboct  label="Sub Oct"  color=sub max=4   names="32',16',8',4'" group=1 param=202 dumpOffset=258
+gap -9.0
 dial subsemi label="Sub Semi" color=sub max=25  display=raw          group=1 param=203 dumpOffset=259
+gap -9.0
 dial subfine label="Sub Fine" color=sub max=101 display=raw          group=1 param=204 dumpOffset=260
+gap -9.0
 dial subfreq label="Sub Freq" color=sub max=201 display=raw          group=1 param=205 dumpOffset=261
 dial subwave label="Sub Wave" color=sub max=4   names=SAW,SQU,TRI,SIN group=1 param=215 dumpOffset=271
 
