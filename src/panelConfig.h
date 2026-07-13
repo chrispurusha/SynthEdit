@@ -33,7 +33,7 @@ extern "C" {
 
 #include "geometry.h"
 
-#define PANEL_ID_LEN               16
+#define PANEL_ID_LEN               24 // raised from 16 2026-07-13 — discovered via the backdoor DUMP command (graphics.cpp): 19 real Z1 Amp/EG/LFO dial ids (e.g. "ampegnodetimemodsrc", 19 chars) silently truncated to 15+NUL on load (parse_dial_line()'s strncpy() in panelConfig.c has no length check/warning), losing up to 4 trailing characters with no error at all. No two truncated ids happened to collide this time (checked: `grep dial layouts/z1.txt | awk '{print substr($2,1,15)}' | sort | uniq -d` was empty) — pure luck, not a guarantee for any future id added to any device file. 24 gives real headroom over the current worst case (19) rather than tuning to the exact number again.
 #define PANEL_LABEL_LEN            32
 #define PANEL_MAX_NAMES            65 // raised from 20 to 32 2026-07-10 (Voyager's soundCategory, a full 32-value enum, 0-31); raised from 32 to 48 2026-07-11 — Voyager's pgmShaping1Src/pgmShaping2Src are 43-value enums (0-42), values >= the old 32 cap silently had no stored name and rendered as "?"; raised from 48 to 65 2026-07-13 — Voyager's tsGateCtrl uses storageOffset to give TS Gate's MIDI Ctrl No (64-127 plus a distinct Off state) a proper named 65-value enum instead of a raw 0-128 dial with an unlabeled dead zone below 64
 #define PANEL_MAX_COLOURS          16

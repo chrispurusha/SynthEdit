@@ -55,6 +55,14 @@ static void start_accessing_layouts_dir(NSURL * url) {
     gLayoutsDirURL = url;
 }
 
+const char * synth_temp_dir(void) {
+    static char buf[1024];
+
+    strncpy(buf, [NSTemporaryDirectory() UTF8String], sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+    return buf;
+}
+
 // Under App Sandbox, a plain saved path string doesn't carry access rights
 // across launches — only the security-scoped bookmark created at pick time
 // does (see chooseLayoutsFolder: below). Returns NULL if there's no saved

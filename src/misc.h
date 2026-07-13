@@ -29,6 +29,18 @@ void setup_main_menu(void);
 void save_window_size(int w);
 void save_window_pos(int x, int y);
 
+// This app runs under App Sandbox (com.apple.security.app-sandbox — see
+// SynthEdit.entitlements) with no broad filesystem entitlement, so a
+// hardcoded /tmp/... path is silently unreachable — fopen() on one just
+// returns NULL, no error. NSTemporaryDirectory() is the correct sandbox-
+// aware equivalent, resolving to this app's own container tmp folder
+// (~/Library/Containers/<bundle id>/Data/tmp) instead. Added 2026-07-13 for
+// backdoor_poll() (graphics.cpp)'s command/result files, discovered the
+// hard way when a real running instance never responded to a command
+// written to plain /tmp. Valid until the next call — copy it if you need
+// to keep it.
+const char * synth_temp_dir(void);
+
 // Returns the persisted "layoutsDir" preference, or NULL if never set.
 // Valid until the next call — copy it if you need to keep it.
 const char * get_saved_layouts_dir(void);

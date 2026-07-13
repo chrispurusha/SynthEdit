@@ -36,6 +36,7 @@ extern "C" {
 #include "utils.h"
 #include "utilsGraphics.h"
 #include "synthGraphics.h"
+#include "panelConfig.h"
 #include "mouseHandle.h"
 #include "menus.h"
 #include "midiComms.h"
@@ -43,6 +44,19 @@ extern "C" {
 #include "synthBackup.h"
 #include "misc.h"
 #include "graphics.h"
+
+#include <stdio.h>
+#include <unistd.h>
+
+// stb_image_write is already bundled as a GLFW build dependency — reused
+// here (single-header, so just #include-with-implementation) rather than
+// pulling in a second PNG-writing library, purely for backdoor_screenshot()
+// below.
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
+#include "../SynthLib/ThirdParty/glfw/deps/stb_image_write.h"
+#pragma clang diagnostic pop
 
 static float gContentScale = 2.0f;
 
@@ -297,6 +311,245 @@ static void render_frame(GLFWwindow * win) {
     glfwSwapBuffers(win);
 }
 
+// ── Backdoor test-control channel ───────────────────────────────────────────
+// Added 2026-07-13 at the owner's explicit request: a way for Claude to
+// drive AND independently verify the running app — set the current page,
+// poke a dial's value, switch device, or capture a screenshot — without a
+// real mouse/window click, and without relying on a headless launch
+// actually getting a GLFW paint event (unreliable in practice — several
+// attempts this same session produced zero rendered frames when launched
+// from a background shell with no window focus). This polls a plain text
+// command file once per loop iteration (cheap: one access() check when
+// idle) rather than opening a socket or spawning a listener thread — the
+// existing ~50ms glfwWaitEventsTimeout() cadence already gives it a home
+// with no new concurrency to reason about. Always active, not gated behind
+// an env var/flag: this is a single-user local desktop app with no network
+// exposure, and the command surface is narrow (page switch, dial set,
+// device switch, one-shot state dump, screenshot) — nothing here can do
+// anything a real mouse click couldn't already do.
+//
+// Command file format: one command per file, first line only —
+// "<COMMAND> <rest of line as its argument>". Commands:
+//   PAGE <page id>          — synth_set_current_page()
+//   SET <dialId> <value>    — find_panel_dial_anywhere() + synth_set_panel_dial_value()
+//   DEVICE <filename>       — synth_switch_device_config()
+//   SYNC                    — synth_request_state_dump(), same as the real
+//                             "Sync from synth" button — async, poll with
+//                             a later DUMP to see the result once it lands
+//   DUMP                    — current page + every dial on it: id, label,
+//                             current value, rect (x/y/w/h) — the same
+//                             numbers a screenshot would otherwise require
+//                             visual inspection to read off
+//   SCREENSHOT <path>       — forces an immediate render (not queued —
+//                             synchronous, so the capture below always
+//                             reflects whatever PAGE/SET/DEVICE command
+//                             most recently ran, not a stale frame) then
+//                             glReadPixels()+stbi_write_png() to path
+// Writes "OK\n" (DUMP/nothing else appends its own text after) or
+// "ERROR: <reason>\n" to the result file once the command's fully handled,
+// then deletes the command file — so a caller can poll for the command
+// file's disappearance (or just the result file's own presence/mtime) to
+// know when it's safe to read the result.
+// App Sandbox (com.apple.security.app-sandbox — SynthEdit.entitlements)
+// makes a hardcoded plain "/tmp/..." path silently unreachable: fopen() on
+// one just returns NULL, no error, no crash — confirmed the hard way
+// (2026-07-13) testing this exact mechanism against a real running
+// instance that never responded. synth_temp_dir() (misc.h) resolves to
+// this app's own container tmp folder instead, which sandboxing DOES
+// allow unrestricted read/write to.
+static const char * backdoor_cmd_path(void) {
+    static char path[1088];
+
+    snprintf(path, sizeof(path), "%ssynthedit_cmd.txt", synth_temp_dir());
+    return path;
+}
+
+static const char * backdoor_result_path(void) {
+    static char path[1088];
+
+    snprintf(path, sizeof(path), "%ssynthedit_result.txt", synth_temp_dir());
+    return path;
+}
+
+static void backdoor_write_result(const char * text) {
+    FILE * f = fopen(backdoor_result_path(), "w");
+
+    if (f) {
+        fputs(text, f);
+        fclose(f);
+    }
+}
+
+static void backdoor_screenshot(GLFWwindow * win, const char * path) {
+    render_frame(win); // synchronous — see this whole block's own header comment for why
+
+    int       w      = get_render_width();
+    int       h      = get_render_height();
+
+    if ((w <= 0) || (h <= 0)) {
+        backdoor_write_result("ERROR: zero-size framebuffer\n");
+        return;
+    }
+    uint8_t * pixels = (uint8_t *)malloc((size_t)w * (size_t)h * 3);
+
+    if (!pixels) {
+        backdoor_write_result("ERROR: out of memory\n");
+        return;
+    }
+    glReadPixels(0, 0, w, h, GL_RGB, GL_UNSIGNED_BYTE, pixels);
+    // OpenGL's origin is bottom-left; PNGs are conventionally read top-down.
+    stbi_flip_vertically_on_write(1);
+
+    int       ok     = stbi_write_png(path, w, h, 3, pixels, w * 3);
+
+    free(pixels);
+
+    if (ok) {
+        backdoor_write_result("OK\n");
+    } else {
+        backdoor_write_result("ERROR: stbi_write_png failed\n");
+    }
+}
+
+static void backdoor_dump_state(char * out, size_t outMax) {
+    size_t          used         = 0;
+    tPanelSection * sections[PANEL_MAX_SECTIONS];
+    uint32_t        sectionCount = synth_current_page_sections(sections, PANEL_MAX_SECTIONS);
+
+    used += (size_t)snprintf(out + used, outMax - used, "OK\npage=%s\n", synth_current_page());
+
+    for (uint32_t s = 0; (s < sectionCount) && (used < outMax); s++) {
+        tPanelSection * section = sections[s];
+
+        for (uint32_t d = 0; (d < section->dialCount) && (used < outMax); d++) {
+            tPanelDial * dial = &section->dials[d];
+
+            used += (size_t)snprintf(out + used, outMax - used,
+                                     "section=%s id=%s label=\"%s\" value=%u rect=%.1f,%.1f,%.1f,%.1f\n",
+                                     section->section, dial->id, dial->label, get_panel_dial_value(dial),
+                                     dial->rect.coord.x, dial->rect.coord.y, dial->rect.size.w, dial->rect.size.h);
+        }
+    }
+}
+
+static void backdoor_dispatch(const char * cmd, const char * arg, GLFWwindow * win) {
+    if (strcmp(cmd, "PAGE") == 0) {
+        synth_set_current_page(arg);
+        gReDraw = true;
+        backdoor_write_result("OK\n");
+    } else if (strcmp(cmd, "SET") == 0) {
+        // Parsed manually (not sscanf's "%Ns" with a hand-typed width) so
+        // the copy bound always tracks PANEL_ID_LEN itself — a literal
+        // width here already drifted silently out of sync once already
+        // today when PANEL_ID_LEN moved 16->24 (found via this exact
+        // command, see PANEL_ID_LEN's own comment in panelConfig.h).
+        char         dialId[PANEL_ID_LEN] = {0};
+        const char * sep                  = strchr(arg, ' ');
+
+        if (!sep) {
+            backdoor_write_result("ERROR: expected 'SET <dialId> <value>'\n");
+            return;
+        }
+        size_t       idLen                = (size_t)(sep - arg);
+
+        if (idLen >= sizeof(dialId)) {
+            idLen = sizeof(dialId) - 1;
+        }
+        memcpy(dialId, arg, idLen);
+        dialId[idLen] = '\0';
+
+        uint32_t     value                = 0;
+
+        if (sscanf(sep + 1, "%u", &value) != 1) {
+            backdoor_write_result("ERROR: expected 'SET <dialId> <value>'\n");
+            return;
+        }
+        tPanelDial * dial                 = find_panel_dial_anywhere(synth_panel_config(), dialId);
+
+        if (!dial) {
+            char msg[128];
+
+            snprintf(msg, sizeof(msg), "ERROR: no dial '%s' in the current device config\n", dialId);
+            backdoor_write_result(msg);
+            return;
+        }
+        synth_set_panel_dial_value(dial, value);
+        gReDraw       = true;
+        backdoor_write_result("OK\n");
+    } else if (strcmp(cmd, "DEVICE") == 0) {
+        synth_switch_device_config(arg);
+        backdoor_write_result("OK\n");
+    } else if (strcmp(cmd, "SYNC") == 0) {
+        // Same "Sync from synth" round trip the real button triggers
+        // (synth_hit_test_patch_nav() index 2, synthGraphics.cpp) — re-
+        // requests the current live state dump so a caller can verify a
+        // just-SET value actually took (and was correctly re-decoded) on
+        // real hardware, not just that the app's own local state changed.
+        // Async: the reply lands over MIDI some ms later, so this only
+        // confirms the REQUEST was sent, not that the dump has arrived —
+        // a caller should wait briefly, then poll with DUMP to see the
+        // result once it lands.
+        if (!synth_dump_patch_in_flight()) {
+            synth_request_state_dump();
+        }
+        backdoor_write_result("OK\n");
+    } else if (strcmp(cmd, "DUMP") == 0) {
+        char dump[16384];
+
+        backdoor_dump_state(dump, sizeof(dump));
+        backdoor_write_result(dump);
+    } else if (strcmp(cmd, "SCREENSHOT") == 0) {
+        backdoor_screenshot(win, arg);
+    } else {
+        char msg[128];
+
+        snprintf(msg, sizeof(msg), "ERROR: unknown command '%s'\n", cmd);
+        backdoor_write_result(msg);
+    }
+}
+
+static void backdoor_poll(GLFWwindow * win) {
+    const char * cmdPath   = backdoor_cmd_path();
+
+    if (access(cmdPath, F_OK) != 0) {
+        return;
+    }
+    FILE *       f         = fopen(cmdPath, "r");
+
+    if (!f) {
+        return;
+    }
+    char         line[512] = {0};
+
+    if (!fgets(line, sizeof(line), f)) {
+        line[0] = '\0';
+    }
+    fclose(f);
+    remove(cmdPath);
+
+    size_t       len       = strlen(line);
+
+    while ((len > 0) && ((line[len - 1] == '\n') || (line[len - 1] == '\r'))) {
+        line[--len] = '\0';
+    }
+    char         cmd[32]   = {0};
+    char *       space     = strchr(line, ' ');
+
+    if (space) {
+        size_t cmdLen = (size_t)(space - line);
+
+        if (cmdLen >= sizeof(cmd)) {
+            cmdLen = sizeof(cmd) - 1;
+        }
+        memcpy(cmd, line, cmdLen);
+        cmd[cmdLen] = '\0';
+        backdoor_dispatch(cmd, space + 1, win);
+    } else {
+        strncpy(cmd, line, sizeof(cmd) - 1);
+        backdoor_dispatch(cmd, "", win);
+    }
+}
+
 // ── do_graphics_loop ──────────────────────────────────────────────────────────
 
 void do_graphics_loop(void) {
@@ -338,6 +591,9 @@ void do_graphics_loop(void) {
         // hover-dwell submenu-opening timer to elapse even while the mouse
         // sits still over a flyout parent, per that same header comment.
         update_context_menu_hover();
+        // See this whole mechanism's own header comment (backdoor_poll()
+        // above) — cheap no-op check every iteration when idle.
+        backdoor_poll(win);
 
         bool reDraw = atomic_exchange(&gReDraw, false);
 
