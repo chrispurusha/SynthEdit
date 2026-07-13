@@ -318,10 +318,19 @@ color f1kt 0.2 0.6 1.0
 # pair in the first place, rather than relying on a later Sync to reveal
 # the hardware's own correction. See linkedMaxDialId's own comment in
 # panelConfig.h for the full mechanism (generic, not Z1-specific).
-dial f1lowkey  label="F1 Lo Key"  color=f1kt max=128 display=raw group=1 param=264 dumpOffset=315 linkedMaxDial=f1highkey
-dial f1highkey label="F1 Hi Key"  color=f1kt max=128 display=raw group=1 param=265 dumpOffset=316 linkedMinDial=f1lowkey
-dial f1lowint  label="F1 Lo Int"  color=f1kt max=199 display=raw group=1 param=266 dumpOffset=317
-dial f1highint label="F1 Hi Int"  color=f1kt max=199 display=raw group=1 param=267 dumpOffset=318
+# display=note — these are MIDI note numbers (C-1..G9), not plain counts;
+# CC in/out both already confirmed correct, this is purely cosmetic.
+dial f1lowkey  label="F1 Lo Key"  color=f1kt max=128 display=note group=1 param=264 dumpOffset=315 linkedMaxDial=f1highkey
+dial f1highkey label="F1 Hi Key"  color=f1kt max=128 display=note group=1 param=265 dumpOffset=316 linkedMinDial=f1lowkey
+# display=signed displayOffset=99 — this whole "Int" (intensity/amount)
+# family is raw 0-198 on the wire/dump but shown as -99..+99 on the synth's
+# own front panel (owner-confirmed 2026-07-13 for Lo/Hi Int; applied to the
+# rest of the max=199 family here too — ModEG/Mod1/Mod2/Res Mod Int and the
+# F1B/F2/F2B equivalents below — since they're the same parameter class in
+# the official table). Purely cosmetic, same as display=note above — CC/
+# param in and out are unaffected.
+dial f1lowint  label="F1 Lo Int"  color=f1kt max=199 display=signed displayOffset=99 group=1 param=266 dumpOffset=317
+dial f1highint label="F1 Hi Int"  color=f1kt max=199 display=signed displayOffset=99 group=1 param=267 dumpOffset=318
 
 page       filters
 section    filter1mod
@@ -331,13 +340,13 @@ spacing    50
 color f1mod 0.2 0.6 1.0
 
 dial f1modeg     label="F1 Mod EG"      color=f1mod max=5  names=EG1,EG2,EG3,EG4,A.EG group=1 param=268 offset=1 dumpOffset=319
-dial f1modegint  label="F1 ModEG Int"   color=f1mod max=199 display=raw              group=1 param=269 dumpOffset=320
+dial f1modegint  label="F1 ModEG Int"   color=f1mod max=199 display=signed displayOffset=99              group=1 param=269 dumpOffset=320
 dial f1mod1src   label="F1 Mod1 Src"    color=f1mod max=49  display=raw              group=1 param=270 dumpOffset=321
-dial f1mod1int   label="F1 Mod1 Int"    color=f1mod max=199 display=raw              group=1 param=271 dumpOffset=322
+dial f1mod1int   label="F1 Mod1 Int"    color=f1mod max=199 display=signed displayOffset=99              group=1 param=271 dumpOffset=322
 dial f1mod2src   label="F1 Mod2 Src"    color=f1mod max=49  display=raw              group=1 param=272 dumpOffset=323
-dial f1mod2int   label="F1 Mod2 Int"    color=f1mod max=199 display=raw              group=1 param=273 dumpOffset=324
+dial f1mod2int   label="F1 Mod2 Int"    color=f1mod max=199 display=signed displayOffset=99              group=1 param=273 dumpOffset=324
 dial f1resmodsrc label="F1 Res Mod Src" color=f1mod max=49  display=raw              group=1 param=275 dumpOffset=326
-dial f1resmodint label="F1 Res Mod Int" color=f1mod max=199 display=raw              group=1 param=276 dumpOffset=327
+dial f1resmodint label="F1 Res Mod Int" color=f1mod max=199 display=signed displayOffset=99              group=1 param=276 dumpOffset=327
 
 page       filters
 section    filter1b
@@ -348,15 +357,15 @@ color f1b 0.2 0.6 1.0
 
 dial f1btrim      label="F1B Trim"     color=f1b max=100 display=raw group=1 param=277 dumpOffset=328
 dial f1bcut       label="F1B Cutoff"   color=f1b max=100 display=raw group=1 param=278 dumpOffset=329
-dial f1blowkey    label="F1B Lo Key"   color=f1b max=128 display=raw group=1 param=279 dumpOffset=330 linkedMaxDial=f1bhighkey
-dial f1bhighkey   label="F1B Hi Key"   color=f1b max=128 display=raw group=1 param=280 dumpOffset=331 linkedMinDial=f1blowkey
-dial f1blowint    label="F1B Lo Int"   color=f1b max=199 display=raw group=1 param=281 dumpOffset=332
-dial f1bhighint   label="F1B Hi Int"   color=f1b max=199 display=raw group=1 param=282 dumpOffset=333
-dial f1bmodegint  label="F1B ModEG"    color=f1b max=199 display=raw group=1 param=283 dumpOffset=334
-dial f1bmod1int   label="F1B Mod1"     color=f1b max=199 display=raw group=1 param=284 dumpOffset=335
-dial f1bmod2int   label="F1B Mod2"     color=f1b max=199 display=raw group=1 param=285 dumpOffset=336
+dial f1blowkey    label="F1B Lo Key"   color=f1b max=128 display=note group=1 param=279 dumpOffset=330 linkedMaxDial=f1bhighkey
+dial f1bhighkey   label="F1B Hi Key"   color=f1b max=128 display=note group=1 param=280 dumpOffset=331 linkedMinDial=f1blowkey
+dial f1blowint    label="F1B Lo Int"   color=f1b max=199 display=signed displayOffset=99 group=1 param=281 dumpOffset=332
+dial f1bhighint   label="F1B Hi Int"   color=f1b max=199 display=signed displayOffset=99 group=1 param=282 dumpOffset=333
+dial f1bmodegint  label="F1B ModEG"    color=f1b max=199 display=signed displayOffset=99 group=1 param=283 dumpOffset=334
+dial f1bmod1int   label="F1B Mod1"     color=f1b max=199 display=signed displayOffset=99 group=1 param=284 dumpOffset=335
+dial f1bmod2int   label="F1B Mod2"     color=f1b max=199 display=signed displayOffset=99 group=1 param=285 dumpOffset=336
 dial f1bres       label="F1B Res"      color=f1b max=100 display=raw group=1 param=286 dumpOffset=337
-dial f1bresmodint label="F1B Res Mod"  color=f1b max=199 display=raw group=1 param=287 dumpOffset=338
+dial f1bresmodint label="F1B Res Mod"  color=f1b max=199 display=signed displayOffset=99 group=1 param=287 dumpOffset=338
 
 page       filters
 section    filter2kt
@@ -365,10 +374,10 @@ spacing    50
 
 color f2kt 0.3 0.9 0.5
 
-dial f2lowkey  label="F2 Lo Key"  color=f2kt max=128 display=raw group=1 param=291 dumpOffset=342 linkedMaxDial=f2highkey
-dial f2highkey label="F2 Hi Key"  color=f2kt max=128 display=raw group=1 param=292 dumpOffset=343 linkedMinDial=f2lowkey
-dial f2lowint  label="F2 Lo Int"  color=f2kt max=199 display=raw group=1 param=293 dumpOffset=344
-dial f2highint label="F2 Hi Int"  color=f2kt max=199 display=raw group=1 param=294 dumpOffset=345
+dial f2lowkey  label="F2 Lo Key"  color=f2kt max=128 display=note group=1 param=291 dumpOffset=342 linkedMaxDial=f2highkey
+dial f2highkey label="F2 Hi Key"  color=f2kt max=128 display=note group=1 param=292 dumpOffset=343 linkedMinDial=f2lowkey
+dial f2lowint  label="F2 Lo Int"  color=f2kt max=199 display=signed displayOffset=99 group=1 param=293 dumpOffset=344
+dial f2highint label="F2 Hi Int"  color=f2kt max=199 display=signed displayOffset=99 group=1 param=294 dumpOffset=345
 
 page       filters
 section    filter2mod
@@ -378,13 +387,13 @@ spacing    50
 color f2mod 0.3 0.9 0.5
 
 dial f2modeg     label="F2 Mod EG"      color=f2mod max=5  names=EG1,EG2,EG3,EG4,A.EG group=1 param=295 offset=1 dumpOffset=346
-dial f2modegint  label="F2 ModEG Int"   color=f2mod max=199 display=raw              group=1 param=296 dumpOffset=347
+dial f2modegint  label="F2 ModEG Int"   color=f2mod max=199 display=signed displayOffset=99              group=1 param=296 dumpOffset=347
 dial f2mod1src   label="F2 Mod1 Src"    color=f2mod max=49  display=raw              group=1 param=297 dumpOffset=348
-dial f2mod1int   label="F2 Mod1 Int"    color=f2mod max=199 display=raw              group=1 param=298 dumpOffset=349
+dial f2mod1int   label="F2 Mod1 Int"    color=f2mod max=199 display=signed displayOffset=99              group=1 param=298 dumpOffset=349
 dial f2mod2src   label="F2 Mod2 Src"    color=f2mod max=49  display=raw              group=1 param=299 dumpOffset=350
-dial f2mod2int   label="F2 Mod2 Int"    color=f2mod max=199 display=raw              group=1 param=300 dumpOffset=351
+dial f2mod2int   label="F2 Mod2 Int"    color=f2mod max=199 display=signed displayOffset=99              group=1 param=300 dumpOffset=351
 dial f2resmodsrc label="F2 Res Mod Src" color=f2mod max=49  display=raw              group=1 param=302 dumpOffset=353
-dial f2resmodint label="F2 Res Mod Int" color=f2mod max=199 display=raw              group=1 param=303 dumpOffset=354
+dial f2resmodint label="F2 Res Mod Int" color=f2mod max=199 display=signed displayOffset=99              group=1 param=303 dumpOffset=354
 
 page       filters
 section    filter2b
@@ -395,15 +404,15 @@ color f2b 0.3 0.9 0.5
 
 dial f2btrim      label="F2B Trim"     color=f2b max=100 display=raw group=1 param=304 dumpOffset=355
 dial f2bcut       label="F2B Cutoff"   color=f2b max=100 display=raw group=1 param=305 dumpOffset=356
-dial f2blowkey    label="F2B Lo Key"   color=f2b max=128 display=raw group=1 param=306 dumpOffset=357 linkedMaxDial=f2bhighkey
-dial f2bhighkey   label="F2B Hi Key"   color=f2b max=128 display=raw group=1 param=307 dumpOffset=358 linkedMinDial=f2blowkey
-dial f2blowint    label="F2B Lo Int"   color=f2b max=199 display=raw group=1 param=308 dumpOffset=359
-dial f2bhighint   label="F2B Hi Int"   color=f2b max=199 display=raw group=1 param=309 dumpOffset=360
-dial f2bmodegint  label="F2B ModEG"    color=f2b max=199 display=raw group=1 param=310 dumpOffset=361
-dial f2bmod1int   label="F2B Mod1"     color=f2b max=199 display=raw group=1 param=311 dumpOffset=362
-dial f2bmod2int   label="F2B Mod2"     color=f2b max=199 display=raw group=1 param=312 dumpOffset=363
+dial f2blowkey    label="F2B Lo Key"   color=f2b max=128 display=note group=1 param=306 dumpOffset=357 linkedMaxDial=f2bhighkey
+dial f2bhighkey   label="F2B Hi Key"   color=f2b max=128 display=note group=1 param=307 dumpOffset=358 linkedMinDial=f2blowkey
+dial f2blowint    label="F2B Lo Int"   color=f2b max=199 display=signed displayOffset=99 group=1 param=308 dumpOffset=359
+dial f2bhighint   label="F2B Hi Int"   color=f2b max=199 display=signed displayOffset=99 group=1 param=309 dumpOffset=360
+dial f2bmodegint  label="F2B ModEG"    color=f2b max=199 display=signed displayOffset=99 group=1 param=310 dumpOffset=361
+dial f2bmod1int   label="F2B Mod1"     color=f2b max=199 display=signed displayOffset=99 group=1 param=311 dumpOffset=362
+dial f2bmod2int   label="F2B Mod2"     color=f2b max=199 display=signed displayOffset=99 group=1 param=312 dumpOffset=363
 dial f2bres       label="F2B Res"      color=f2b max=100 display=raw group=1 param=313 dumpOffset=364
-dial f2bresmodint label="F2B Res Mod"  color=f2b max=199 display=raw group=1 param=314 dumpOffset=365
+dial f2bresmodint label="F2B Res Mod"  color=f2b max=199 display=signed displayOffset=99 group=1 param=314 dumpOffset=365
 
 # ── Effects page ──────────────────────────────────────────────────────────────
 # Placeholder — no controls transcribed yet. The page exists so the page-tab

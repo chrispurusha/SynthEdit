@@ -213,11 +213,17 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
                 dial->display = dialDisplayCcNative;
             } else if (strcmp(val, "hiLo") == 0) {
                 dial->display = dialDisplaySignedHiLo;
+            } else if (strcmp(val, "note") == 0) {
+                dial->display = dialDisplayNote;
+            } else if (strcmp(val, "signed") == 0) {
+                dial->display = dialDisplaySigned;
             } else {
                 LOG_ERROR("panelConfig line %u: unknown display '%s'\n", lineNo, val);
             }
         } else if (strcmp(key, "offset") == 0) {
             dial->storageOffset = (int32_t)strtol(val, NULL, 0);
+        } else if (strcmp(key, "displayOffset") == 0) {
+            dial->displayOffset = (int32_t)strtol(val, NULL, 0);
         } else if (strcmp(key, "group") == 0) {
             dial->paramGroup = (uint32_t)strtoul(val, NULL, 0);
         } else if (strcmp(key, "param") == 0) {

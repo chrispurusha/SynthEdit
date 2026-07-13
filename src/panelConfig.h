@@ -79,6 +79,31 @@ typedef enum {
     // explicitly, same "no magic numbers in generic code" reasoning as
     // dumpNativeMax/nativeMax already follow).
     dialDisplaySignedHiLo,
+
+    // "display=note" — this dial's raw value IS a MIDI note number (0-127)
+    // rather than an arbitrary quantity, so it's shown as a note name
+    // (C-1..G9, note 0 = C-1, matching the synth's own front-panel
+    // convention) instead of a bare integer. Added 2026-07-13 for the Z1's
+    // Filter Lo/Hi Key keyboard-track boundaries (f1lowkey/f1highkey and
+    // the same shape ×3 more — f1b/f2/f2b, see linkedMaxDialId/
+    // linkedMinDialId above), whose CC in/out were confirmed already
+    // correct — this only changes on-screen FORMATTING, nothing sent or
+    // received on the wire (dial otherwise behaves exactly like a plain
+    // max=128 dialDisplayRaw dial).
+    dialDisplayNote,
+
+    // "display=signed" — this dial's raw wire/dump value is an unsigned
+    // 0..max-1 count that represents a SIGNED quantity centred somewhere in
+    // that range on the real front panel (e.g. the Z1's Filter Lo/Hi
+    // Int/ModEG Int/Mod1 Int/Mod2 Int/Res Mod Int family: raw 0-198 on the
+    // wire, shown as -99..+99 on the synth's own display). Shown as
+    // `(int)dialVal - displayOffset` rather than the bare raw count.
+    // displayOffset must be declared explicitly per-dial (no hidden
+    // default, same "no magic numbers in generic code" reasoning as
+    // dialDisplaySignedHiLo's hiLoOffset/scale attributes) — purely a
+    // display-time subtraction, doesn't touch storageOffset or anything
+    // sent/received on the wire.
+    dialDisplaySigned,
 } tDialDisplay;
 
 typedef struct {
@@ -148,6 +173,7 @@ typedef struct {
     // there is no separate application-side struct/binding step for any of
     // this, which is what makes a new device just a new <device>.txt file.
     int32_t  storageOffset;     // storage_value = display_value + storageOffset (e.g. 1-5 vs 0-4 for "type")
+    int32_t  displayOffset;     // dialDisplaySigned only — shown_value = display_value - displayOffset; see that enum value's own comment above. Unrelated to storageOffset: never touches the wire.
     uint32_t paramGroup;        // SysEx parameter group
     uint32_t paramId;           // SysEx parameter ID
     uint32_t ccNumber;          // MIDI CC number; 0 = not CC-controlled (send SysEx param change instead)

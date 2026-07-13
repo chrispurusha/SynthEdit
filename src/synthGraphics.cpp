@@ -1056,6 +1056,20 @@ void synth_render(tRectangle area) {
                     int32_t highAlias = (high < 0) ? (high + 64) : (high - 64);
 
                     snprintf(valBuf, sizeof(valBuf), "High: %d (or %d)  Low: %d", (int)high, (int)highAlias, (int)low);
+                } else if (dial->display == dialDisplayNote) {
+                    // See dialDisplayNote's own comment in panelConfig.h —
+                    // dialVal IS the MIDI note number already (0-127), just
+                    // formatted as a note name instead of a bare integer.
+                    static const char * kNoteNames[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+                    int32_t             octave         = ((int32_t)dialVal / 12) - 1;
+
+                    snprintf(valBuf, sizeof(valBuf), "%s%d", kNoteNames[dialVal % 12], (int)octave);
+                } else if (dial->display == dialDisplaySigned) {
+                    // See dialDisplaySigned's own comment in panelConfig.h —
+                    // dialVal is the raw unsigned count; displayOffset
+                    // recentres it to the signed range the synth's own
+                    // front panel shows (e.g. 0-198 -> -99..+99).
+                    snprintf(valBuf, sizeof(valBuf), "%d", (int)dialVal - dial->displayOffset);
                 } else if (dial->display == dialDisplayCcNative) {
                     // "X (Y)" — X is the primary display value (0..max-1,
                     // the number actually sent/received on the wire — see
