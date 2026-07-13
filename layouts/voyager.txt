@@ -739,6 +739,75 @@ dial tsGateLfoRestart label="TS Gate LFO Restart" max=2 dumpOffset=21 dumpBitOff
 dial tsMemModBus label="TS Mem Mod Bus" max=2 dumpOffset=128 dumpBitOffset=1 dumpBitWidth=1 names="No","Yes" col=0 row=4
 dial tsMemGlobal label="TS Memory Global" max=2 dumpOffset=128 dumpBitOffset=2 dumpBitWidth=1 names="No","Yes" col=3 row=4
 
+page       Pot Map
+section    potMap
+dialSize   36
+spacing    50
+color menu 0.5 0.5 0.5
+
+# EDIT mode menu 5.4 (owner's manual): 4 independent modulation routings
+# (Pot Map 1-4), each with its own identical SRC/DEST/Direction/Amount menu.
+# Unlike Touch Surface, there is NO MIDI Ctrl No field at all here — the
+# manual describes this purely as internal routing ("independent of the Mod
+# Busses"), and that's now empirically confirmed too: sweeping every field
+# of Pot Map 1 turned up exactly 4 fields per map, nothing resembling a CC
+# assignment. Pot Map cannot transmit MIDI.
+#
+# SRC and DEST share the SAME 40-item list (8 Performance Controls + 32
+# Front Panel Controls, owner's manual page 58). The 32 Front Panel Controls
+# are the SAME list, in the SAME order, as pgmShaping1Src/2Src's own tail
+# (already live-diff-confirmed end-to-end in an earlier session — exact
+# match at index 0, 1, and 42/Headphone Level) — strong signal Moog reused
+# one canonical ordering across menus, not just a coincidence. The 8
+# Performance Controls are single-column in the manual (lower misread risk
+# than TS Gate Control's two-column list, which needed correcting once).
+#
+# Pot Map 1 fields ALL CONFIRMED against real hardware 2026-07-13, live-diff
+# method, multiple points each (Source/Dest confirmed at 3 points: index
+# 3/0/39 for Source, 38/0/39 for Dest, all exact):
+dial potMap1Src label="Pot Map1 Src"  max=40 dumpOffset=4 dumpBitOffset=0 dumpBitWidth=6 names="Pitch Bend","Modulation Wheel","Pressure","Velocity Attack","Velocity Release","MOD 1","MOD 2","Key Pitch","LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Headphone Volume" col=0 row=0
+dial potMap1Dest label="Pot Map1 Dest" max=40 dumpOffset=5 dumpBitOffset=1 dumpBitWidth=6 names="Pitch Bend","Modulation Wheel","Pressure","Velocity Attack","Velocity Release","MOD 1","MOD 2","Key Pitch","LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Headphone Volume" col=3 row=0
+dial potMap1Direction label="Pot Map1 Direction" max=2 dumpOffset=5 dumpBitOffset=0 dumpBitWidth=1 names="Normal","Inverted" col=6 row=0
+dial potMap1Amount    label="Pot Map1 Amount"    max=4 dumpOffset=6 dumpBitOffset=0 dumpBitWidth=2 names="Off","25%","50%","100%" col=9 row=0
+
+# Pot Map 2 — CONFIRMED 2026-07-13, predicted by continuing Map 1's own
+# confirmed 16-bit-per-map bitstream pattern (Source 6 bits, Direction 1
+# bit, Dest 6 bits, Amount 2 bits, back to back with no gap) and spot-
+# checked rather than fully re-derived from scratch, same approach that
+# worked for Touch Surface Y/A once X's pattern was nailed down. EVERY
+# field matched the predicted position exactly, first try, at every point
+# tested (Source at 7/0/39, Dest at 27/0, Direction, Amount) — strong
+# confirmation the maps really are identical fixed-size blocks back to
+# back, not just directionally similar. A stray, unexplained single-bit
+# change at dumpOffset=95 bit0 (osc3KB, an already hardware-confirmed,
+# unrelated field) showed up once sweeping Source to its max value —
+# physical switch bump ruled out (owner confirmed unchanged) — same
+# treatment as the other unexplained stray bits found earlier this session:
+# not chased further, doesn't affect osc3KB's own already-correct mapping.
+dial potMap2Src label="Pot Map2 Src"  max=40 dumpOffset=6 dumpBitOffset=2 dumpBitWidth=6 names="Pitch Bend","Modulation Wheel","Pressure","Velocity Attack","Velocity Release","MOD 1","MOD 2","Key Pitch","LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Headphone Volume" col=0 row=1
+dial potMap2Dest label="Pot Map2 Dest" max=40 dumpOffset=7 dumpBitOffset=3 dumpBitWidth=6 names="Pitch Bend","Modulation Wheel","Pressure","Velocity Attack","Velocity Release","MOD 1","MOD 2","Key Pitch","LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Headphone Volume" col=3 row=1
+dial potMap2Direction label="Pot Map2 Direction" max=2 dumpOffset=7 dumpBitOffset=2 dumpBitWidth=1 names="Normal","Inverted" col=6 row=1
+dial potMap2Amount    label="Pot Map2 Amount"    max=4 dumpOffset=8 dumpBitOffset=2 dumpBitWidth=2 names="Off","25%","50%","100%" col=9 row=1
+
+# Pot Maps 3 and 4 — CONFIRMED 2026-07-13, same predicted-then-verified
+# approach as Map 2, but batched further: rather than one field at a time,
+# owner set ALL 4 fields of BOTH maps at once to extreme, maximally-
+# distinguishable values (Map3: Src=Headphone Volume/Dest=Pitch Bend/
+# Inverted/100%; Map4: Src=Pitch Bend/Dest=Headphone Volume/Normal/50%) and
+# a SINGLE dump capture was decoded against all 8 predicted positions at
+# once (continuing Map 1/2's confirmed 16-bit-per-map, back-to-back, no-gap
+# pattern) — all 8 values matched exactly, no per-field back-and-forth
+# needed. Same underlying field shapes/encodings as every other map.
+dial potMap3Src label="Pot Map3 Src"  max=40 dumpOffset=8 dumpBitOffset=4 dumpBitWidth=6 names="Pitch Bend","Modulation Wheel","Pressure","Velocity Attack","Velocity Release","MOD 1","MOD 2","Key Pitch","LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Headphone Volume" col=0 row=2
+dial potMap3Dest label="Pot Map3 Dest" max=40 dumpOffset=9 dumpBitOffset=5 dumpBitWidth=6 names="Pitch Bend","Modulation Wheel","Pressure","Velocity Attack","Velocity Release","MOD 1","MOD 2","Key Pitch","LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Headphone Volume" col=3 row=2
+dial potMap3Direction label="Pot Map3 Direction" max=2 dumpOffset=9 dumpBitOffset=4 dumpBitWidth=1 names="Normal","Inverted" col=6 row=2
+dial potMap3Amount    label="Pot Map3 Amount"    max=4 dumpOffset=10 dumpBitOffset=4 dumpBitWidth=2 names="Off","25%","50%","100%" col=9 row=2
+
+dial potMap4Src label="Pot Map4 Src"  max=40 dumpOffset=10 dumpBitOffset=6 dumpBitWidth=6 names="Pitch Bend","Modulation Wheel","Pressure","Velocity Attack","Velocity Release","MOD 1","MOD 2","Key Pitch","LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Headphone Volume" col=0 row=3
+dial potMap4Dest label="Pot Map4 Dest" max=40 dumpOffset=12 dumpBitOffset=0 dumpBitWidth=6 names="Pitch Bend","Modulation Wheel","Pressure","Velocity Attack","Velocity Release","MOD 1","MOD 2","Key Pitch","LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Headphone Volume" col=3 row=3
+dial potMap4Direction label="Pot Map4 Direction" max=2 dumpOffset=11 dumpBitOffset=6 dumpBitWidth=1 names="Normal","Inverted" col=6 row=3
+dial potMap4Amount    label="Pot Map4 Amount"    max=4 dumpOffset=12 dumpBitOffset=6 dumpBitWidth=2 names="Off","25%","50%","100%" col=9 row=3
+
 page       panel
 section    lfo
 dialSize   36

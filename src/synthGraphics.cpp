@@ -328,7 +328,12 @@ static double render_page_tabs(tRectangle origin) {
     if ((gCurrentPage[0] == '\0') && (gPageTabCount > 0)) {
         synth_set_current_page(gPageTabs[0].page);
     }
-    const double tabHeight = 24.0;
+    // 18.0 = 1.5x navBtnHeight (12.0, "Sync from synth"'s own text height,
+    // see its own comment further down this file) — was a flat 24.0 (2x),
+    // shrunk 2026-07-13 on owner request so the page tabs read closer in
+    // scale to the nav/sync buttons on the same row rather than dominating
+    // them.
+    const double tabHeight = 18.0;
     const double tabGap    = 6.0;
     double       x         = origin.coord.x;
 
