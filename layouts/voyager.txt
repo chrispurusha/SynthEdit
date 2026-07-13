@@ -140,7 +140,7 @@
 # above, unconfirmed on real hardware — same caveat as before, just no
 # longer also mislabeled as raw numbers once confirmed.
 device          Moog Voyager
-description     Most controls hardware-confirmed; Pot Map/Shaping/Touch Surface still unconfirmed
+description     Most controls hardware-confirmed; Pot Map still unconfirmed (Touch Surface config done 2026-07-13, live position deliberately not wired — see comment above tsxDest)
 manufacturerId  0x04
 familyId        0x00
 memberId        0x00
@@ -555,6 +555,64 @@ dial pgmShaping2Src label="PGM Shp2 Src" max=43 dumpOffset=143 dumpBitOffset=3 d
 # already seen elsewhere in this file (e.g. pgmPedalSource), not a new kind
 # of error.
 dial pgmShaping2FixedValue label="PGM Shp2 Fixed Value" color=menu max=65536 display=hiLo dumpOffset=144 dumpBitOffset=3 dumpBitWidth=16 hiLoOffset=512 hiLoCoarseScale=1024 hiLoFineScale=8 col=9 row=3
+
+page       Touch Surface
+section    touchSurface
+dialSize   36
+spacing    50
+
+# Colours are per-section (see the Menu Settings page's own note above for
+# why) — declared here for the same reason: the Ctrl No dials are plain
+# numeric (display=raw), not button/value-menu style, so they need an
+# explicit colour or they render as unset/black.
+color menu 0.5 0.5 0.5
+
+# Touch Surface Destination/MIDI Ctrl No/Direction/Amount (X/Y/A axes) — EDIT
+# mode menu 5.1 (owner's manual). Each axis has its own identical 4-field
+# menu; the X/Y/A live position values themselves are NOT here — per the
+# manual, "the X, Y and A outputs are generated only when you make contact
+# with the Touch Surface" (real-time MIDI CC only, confirmed 2026-07-13 with
+# a MIDI monitor: touching sends whatever CC the MIDI CTRL NO field below is
+# set to). That CC number is picked from the SAME CC space every other panel
+# control here already uses — CC 1-31 is fully claimed by existing dials in
+# this file (checked exhaustively) — so wiring a live on-screen readout for
+# X/Y/A would require dedicating a CC number that necessarily collides with
+# an already-wired, hardware-confirmed control (confirmed happening live:
+# CTRL NO 85 collided with noiseToggle, CTRL NO 7 with volume's MSB). Not
+# wired; deliberate scope cut, not an oversight.
+#
+# All 12 fields below CONFIRMED against real hardware 2026-07-13, live-diff
+# method (owner set each field via the front panel, tools/moog_dump +
+# syx_diff.py captured/diffed). Destination is a 32-item sequential index
+# (list order/labels straight from the manual's own DEST. table); Amount is
+# 0=Off,1=25%,2=50%,3=100%; Direction is 0=Normal,1=Inverted — same encoding
+# on all three axes, just at different byte/bit offsets. MIDI CTRL NO's raw
+# dump value is the literal CC number (not an index) on all three axes.
+#
+# A real, reproducible quirk hit while deriving these: changing DEST. also
+# silently resets MIDI CTRL NO on real hardware (seen on both TSY and TSA,
+# not just the "Key Pitch" internal-only destination) — had to re-set CTRL
+# NO by hand after every DEST. change to get a clean isolated diff. One
+# stray single-bit change (dumpOffset=135 dumpBitOffset=2, TSA only, appeared
+# when DEST. changed to Master Volume with Direction/Amount confirmed
+# unchanged) couldn't be explained by any field derived here — left
+# unwired, same treatment as the similar unexplained byte97 bit hit earlier
+# investigating this device (see git history/session notes, not chased
+# further, low value either way).
+dial tsxDest      label="TSX Dest"      max=32 dumpOffset=128 dumpBitOffset=4 dumpBitWidth=5 names="LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Key Pitch" col=0 row=0
+dial tsxCtrl      label="TSX Ctrl No"   color=menu max=128 display=raw dumpOffset=129 dumpBitOffset=5 dumpBitWidth=6 col=3 row=0
+dial tsxDirection label="TSX Direction" max=2  dumpOffset=129 dumpBitOffset=4 dumpBitWidth=1 names="Normal","Inverted" col=6 row=0
+dial tsxAmount    label="TSX Amount"    max=4  dumpOffset=129 dumpBitOffset=2 dumpBitWidth=2 names="Off","25%","50%","100%" col=9 row=0
+
+dial tsyDest      label="TSY Dest"      max=32 dumpOffset=130 dumpBitOffset=6 dumpBitWidth=5 names="LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Key Pitch" col=0 row=1
+dial tsyCtrl      label="TSY Ctrl No"   color=menu max=128 display=raw dumpOffset=132 dumpBitOffset=0 dumpBitWidth=7 col=3 row=1
+dial tsyDirection label="TSY Direction" max=2  dumpOffset=131 dumpBitOffset=6 dumpBitWidth=1 names="Normal","Inverted" col=6 row=1
+dial tsyAmount    label="TSY Amount"    max=4  dumpOffset=131 dumpBitOffset=4 dumpBitWidth=2 names="Off","25%","50%","100%" col=9 row=1
+
+dial tsaDest      label="TSA Dest"      max=32 dumpOffset=133 dumpBitOffset=1 dumpBitWidth=5 names="LFO Rate","Glide Rate","Mod. Wheel Amt","Pedal Amount","Osc.1 Octave","Osc. 1 Waveform","Osc. 2 Frequency","Osc. 2 Octave","Osc. 2 Waveform","Osc. 3 Frequency","Osc. 3 Octave","Osc. 3 Waveform","Ext. Audio Level","Osc. 1 Level","Osc. 2 Level","Osc. 3 Level","Noise Level","Filter Cutoff","Filter Spacing","Filter Resonance","Filter KB Control Amt","Filter Attack","Filter Decay","Filter Sustain","Filter Release","Filter Envelope Amt","Volume Attack","Volume Decay","Volume Sustain","Volume Release","Master Volume","Key Pitch" col=0 row=2
+dial tsaCtrl      label="TSA Ctrl No"   color=menu max=128 display=raw dumpOffset=134 dumpBitOffset=2 dumpBitWidth=7 col=3 row=2
+dial tsaDirection label="TSA Direction" max=2  dumpOffset=134 dumpBitOffset=1 dumpBitWidth=1 names="Normal","Inverted" col=6 row=2
+dial tsaAmount    label="TSA Amount"    max=4  dumpOffset=133 dumpBitOffset=6 dumpBitWidth=2 names="Off","25%","50%","100%" col=9 row=2
 
 page       panel
 section    lfo
