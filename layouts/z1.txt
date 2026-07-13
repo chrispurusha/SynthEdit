@@ -109,12 +109,27 @@ dial category label="Category" max=18 group=1 param=17 dumpOffset=16 dumpMask=0x
 # PARAMETER CHANGE message carries the logical parameter ID directly.
 #
 # Signed-range values (Semi Tone, Fine Tune, Frequency Offset, Pitch Bend
-# Intensity) are shown here as the raw unsigned byte from the wire/dump — e.g.
-# Semi Tone's raw range is 0-24 for a displayed -12~+12 — rather than
-# translating to a signed display, since this format has no offset-label
-# convention yet. Inferred from the manual's documented value ranges, not
-# confirmed against a live capture; treat the signed meaning as unconfirmed
-# until checked against hardware.
+# Intensity) now use display=signed displayOffset=N — fixed 2026-07-13 using
+# the same raw=value+offset convention independently confirmed on real Z1
+# hardware for the Filter/EG/Amp/LFO "Int" family (-99..+99 stored as raw
+# 0-198): the manual's own parameter table uses the identical convention
+# (Display and Value columns both showing e.g. "-12~+12" for Semi Tone,
+# param 176/190/203) for every field below, so the same fix applies:
+#   - Semi Tone: raw 0-24, displayOffset=12 (manual: -12~+12)
+#   - Fine Tune: raw 0-100, displayOffset=50 (manual: -50~+50cent)
+#   - Pitch Bend Intensity+/-: raw 0-84, displayOffset=60 (manual: -60~+24,
+#     an ASYMMETRIC range — displayOffset=60 correctly reproduces this
+#     since it's a plain subtraction, not a re-centring)
+#   - Frequency Offset: raw 0-200, displayOffset=100 — shows the manual's
+#     own documented "Value" column range (-100~+100) directly; the
+#     "Display" column's further Hz scaling (-10.0~+10.0Hz, i.e. Value/10
+#     with one decimal) has NO engine support yet (display=signed only
+#     does integer subtraction) — showing the correctly-SIGNED raw Value
+#     is a real improvement over the previous unsigned 0-200, even without
+#     the extra Hz decimal conversion.
+# None of this has been independently round-tripped against real hardware
+# the way the Int family was (SET + SYNC + compare) — treat as high-
+# confidence by analogy, not independently hardware-confirmed.
 page       oscillators
 section    oscCommon
 dialSize   40
@@ -122,8 +137,8 @@ spacing    50
 
 color common 0.9 0.7 0.3
 
-dial pbIntPlus   label="PB Int+"   color=common max=85  display=raw group=1 param=163 dumpOffset=145
-dial pbIntMinus  label="PB Int-"   color=common max=85  display=raw group=1 param=164 dumpOffset=146
+dial pbIntPlus   label="PB Int+"   color=common max=85  display=signed displayOffset=60 group=1 param=163 dumpOffset=145
+dial pbIntMinus  label="PB Int-"   color=common max=85  display=signed displayOffset=60 group=1 param=164 dumpOffset=146
 dial pbStepPlus  label="PB Step+"  color=common max=16  display=raw group=1 param=165 dumpOffset=147 dumpMask=0x0F
 dial pbStepMinus label="PB Step-"  color=common max=16  display=raw group=1 param=166 dumpOffset=147 dumpShift=4 dumpMask=0x0F
 dial portSW      label="Porta"     color=common max=2   names=OFF,ON          group=1 param=169 dumpOffset=150 dumpMask=0x01
@@ -181,9 +196,9 @@ color osc1 0.4 0.7 0.9
 
 dial o1type label="O1 Type" color=osc1 max=13  names=Std,Comb,VPM,Reso,Ring,Cross,Sync,Organ,EPno,Brass,Reed,Pluck,Bowed group=1 param=174 dumpOffset=154
 dial o1oct  label="O1 Oct"  color=osc1 max=4   names="32',16',8',4'"          group=1 param=175 dumpOffset=155
-dial o1semi label="O1 Semi" color=osc1 max=25  display=raw                    group=1 param=176 dumpOffset=156
-dial o1fine label="O1 Fine" color=osc1 max=101 display=raw                    group=1 param=177 dumpOffset=157
-dial o1freq label="O1 Freq" color=osc1 max=201 display=raw                    group=1 param=178 dumpOffset=158
+dial o1semi label="O1 Semi" color=osc1 max=25  display=signed displayOffset=12    group=1 param=176 dumpOffset=156
+dial o1fine label="O1 Fine" color=osc1 max=101 display=signed displayOffset=50    group=1 param=177 dumpOffset=157
+dial o1freq label="O1 Freq" color=osc1 max=201 display=signed displayOffset=100   group=1 param=178 dumpOffset=158
 
 page       oscillators
 section    osc2
@@ -194,9 +209,9 @@ color osc2 0.5 0.9 0.6
 
 dial o2type label="O2 Type" color=osc2 max=9   names=Std,Comb,VPM,Reso,Ring,Cross,Sync,Organ,EPno group=1 param=188 dumpOffset=206
 dial o2oct  label="O2 Oct"  color=osc2 max=4   names="32',16',8',4'"          group=1 param=189 dumpOffset=207
-dial o2semi label="O2 Semi" color=osc2 max=25  display=raw                    group=1 param=190 dumpOffset=208
-dial o2fine label="O2 Fine" color=osc2 max=101 display=raw                    group=1 param=191 dumpOffset=209
-dial o2freq label="O2 Freq" color=osc2 max=201 display=raw                    group=1 param=192 dumpOffset=210
+dial o2semi label="O2 Semi" color=osc2 max=25  display=signed displayOffset=12    group=1 param=190 dumpOffset=208
+dial o2fine label="O2 Fine" color=osc2 max=101 display=signed displayOffset=50    group=1 param=191 dumpOffset=209
+dial o2freq label="O2 Freq" color=osc2 max=201 display=signed displayOffset=100   group=1 param=192 dumpOffset=210
 
 page       oscillators
 section    subOsc
@@ -222,11 +237,11 @@ color sub 0.8 0.5 0.9
 gap 66.5
 dial suboct  label="Sub Oct"  color=sub max=4   names="32',16',8',4'" group=1 param=202 dumpOffset=258
 gap -9.0
-dial subsemi label="Sub Semi" color=sub max=25  display=raw          group=1 param=203 dumpOffset=259
+dial subsemi label="Sub Semi" color=sub max=25  display=signed displayOffset=12 group=1 param=203 dumpOffset=259
 gap -9.0
-dial subfine label="Sub Fine" color=sub max=101 display=raw          group=1 param=204 dumpOffset=260
+dial subfine label="Sub Fine" color=sub max=101 display=signed displayOffset=50 group=1 param=204 dumpOffset=260
 gap -9.0
-dial subfreq label="Sub Freq" color=sub max=201 display=raw          group=1 param=205 dumpOffset=261
+dial subfreq label="Sub Freq" color=sub max=201 display=signed displayOffset=100 group=1 param=205 dumpOffset=261
 dial subwave label="Sub Wave" color=sub max=4   names=SAW,SQU,TRI,SIN group=1 param=215 dumpOffset=271
 
 page       oscillators
