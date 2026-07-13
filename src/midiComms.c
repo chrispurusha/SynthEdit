@@ -686,6 +686,29 @@ int midi_scan_devices(void) {
             LOG_DEBUG("MIDI dest %lu: %s (ref=0x%08X)\n", (unsigned long)i, buf, (unsigned)dest);
         }
         midi_send_to(idReq, sizeof(idReq), dest);
+
+        // Small stagger between each destination's identity request —
+        // confirmed 2026-07-13 with 4 real synths (Korg Z1, Moog Minitaur,
+        // Waldorf Pulse, ASM Hydrasynth) sharing one MIDI interface (an
+        // Elektron TM-1): blasting every destination's request back-to-back
+        // with zero gap made every device's reply land at nearly the same
+        // instant, and the Z1 specifically almost never got through cleanly
+        // (repeated attempts, sometimes 20+ seconds) while unplugging the
+        // other three made it connect in well under a second every time.
+        // Not a device-matching bug — the manufacturer/family/member filter
+        // in process_identity_replies() was already provably correct, just
+        // never SEEING a usable Z1 reply to filter. Most likely explanation:
+        // several devices' SysEx replies converging on the interface's
+        // merged input at once collide/corrupt rather than interleaving
+        // cleanly. 15 ms per destination (e.g. 60 ms total for 4 devices) is
+        // negligible next to the multi-second retry cycle around this
+        // function, but should measurably cut how often replies actually
+        // collide. CFRunLoopRunInMode, not usleep/nanosleep — this thread is
+        // CFRunLoop-driven throughout (see MIDI_IDLE_TICK_SECONDS's own
+        // comment below), not the platform-thread model those assume.
+        if ((i + 1) < destCount) {
+            CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.015, false);
+        }
     }
 
     if ((MIDIGetNumberOfSources() > 0) && (destCount > 0)) {
@@ -791,9 +814,23 @@ static void * midi_thread(void * arg) {
                 process_identity_replies();
 
                 if (!gDevice.connected) {
-                    // Nothing found — wait up to 2 s in 100 ms slices.  Wakes early
-                    // if a setup-change notification fires (via gRescanNeeded).
-                    for (int t = 0; t < 20 && !gRescanNeeded; t++) {
+                    // Nothing found — wait up to 0.5 s in 100 ms slices before
+                    // retrying (was 2 s). Some real hardware (confirmed for a
+                    // Korg Z1, 2026-07-13) doesn't reliably answer a Universal
+                    // Device Inquiry every time it's asked — most attempts get
+                    // no reply at all within the 500 ms collection window
+                    // above, then occasionally one does, essentially a coin
+                    // flip per attempt rather than a fixed latency. With that
+                    // shape, retrying MORE often (not waiting longer per
+                    // attempt) is what actually shortens the expected time to
+                    // connect — shrinking this from 2 s to 0.5 s takes each
+                    // full attempt (0.5 s collect + this wait) from ~2.5 s
+                    // down to ~1 s, roughly 2.5x more attempts per minute, cut
+                    // a real ~20-25 s connect time down substantially without
+                    // touching the 500 ms collection window fast-responding
+                    // devices already rely on. Wakes early if a setup-change
+                    // notification fires (via gRescanNeeded).
+                    for (int t = 0; t < 5 && !gRescanNeeded; t++) {
                         CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.1, false);
                     }
                 }
