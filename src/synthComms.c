@@ -1043,19 +1043,22 @@ void synth_navigate_preset(int32_t delta) {
         LOG_ERROR("Preset navigation: no device connected\n");
         return;
     }
-    // Was previously a no-op ("current program unknown, ignoring") whenever
-    // gDevice.currentProgram hadn't been learned from a real Program Change
-    // yet — safer in theory (no guessed jump on real hardware), but in
-    // practice meant every click silently did nothing at all, with only a
-    // LOG_ERROR (easy to miss — nothing visibly wrong beyond a slightly
-    // darker button) as the only sign why, until the device happened to send
-    // a Program Change of its own. Defaulting to 0 here instead means Prev/
-    // Next always sends something and always follows up with a state dump
-    // (below) — worse only in that the very first press's destination is a
-    // guess rather than a genuine relative step, which resolves itself the
-    // moment it lands (this app's own send updates currentProgram same as a
-    // real reply would).
-    int32_t next = (gDevice.currentProgram < 0) ? 0 : (gDevice.currentProgram + delta);
+    // A "default to slot 0 when unknown" fallback lived here 2026-07-11 to
+    // 2026-07-13 — removed once synth_hit_test_patch_nav() (synthGraphics.cpp)
+    // started disabling Prev/Next at the hit-test level (not just cosmetic
+    // greying) whenever gDevice.currentProgram is unknown, making this
+    // function uncallable in that state via the button at all. The fallback
+    // itself was the real bug behind the owner's 2026-07-13 report ("Prev/
+    // Next always starts at the first patch") — since Load Patch from Bank
+    // wasn't working either (a separate, still-open issue), currentProgram
+    // routinely stayed unknown for an entire session, so EVERY press
+    // guessed from slot 0 instead of stepping relative to whatever was
+    // actually loaded. Genuinely unreachable with currentProgram<0 now (the
+    // button can't be clicked), so no clamp-to-0 fallback is needed here —
+    // if some OTHER future caller reaches this with currentProgram still
+    // negative, that's a bug at the CALL SITE worth surfacing, not
+    // something to silently paper over here again.
+    int32_t next = gDevice.currentProgram + delta;
 
     if (next < 0) {
         next = 0;

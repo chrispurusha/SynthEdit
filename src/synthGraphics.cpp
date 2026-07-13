@@ -154,11 +154,22 @@ int32_t synth_hit_test_patch_nav(tCoord coord) {
         return -1;
     }
 
-    if (within_rectangle(coord, gPrevPatchRect)) {
+    // Prev/Next need a known gDevice.currentProgram to mean anything (see
+    // synth_navigate_preset()'s own comment, synthComms.c) — disabled here
+    // at the hit-test level, not just cosmetically greyed, so a click
+    // genuinely does nothing (no press-highlight, no navigation) rather
+    // than silently guessing a relative step from an assumed slot 0.
+    // Fixed 2026-07-13 per owner report: with the OLD "default to 0 when
+    // unknown" behaviour, Prev/Next always jumped to/from slot 0 on a
+    // fresh connect (since nothing else sets currentProgram — Load Patch
+    // from Bank wasn't working either), reading as "Prev/Next always
+    // starts at the first patch." Sync (index 2) is unaffected — it needs
+    // no known program to mean something.
+    if ((gDevice.currentProgram >= 0) && within_rectangle(coord, gPrevPatchRect)) {
         return 0;
     }
 
-    if (within_rectangle(coord, gNextPatchRect)) {
+    if ((gDevice.currentProgram >= 0) && within_rectangle(coord, gNextPatchRect)) {
         return 1;
     }
 
@@ -735,26 +746,30 @@ void synth_render(tRectangle area) {
         gProgNameLaidOut = true;
 
         // Prev/Next patch buttons — see synth_navigate_preset() (synthComms.h)
-        // for what they send (always something, even before a current
-        // program number is known — see the comment in synth_navigate_preset()
-        // for why guessing beats silently refusing to click). Greyed out
-        // only while there's no device to send to at all. Widths measured
-        // the same way render_page_tabs() sizes its own buttons —
-        // draw_button() doesn't clip text to the rect it's given (see
-        // internal_render_text()), so an under-measured box would bleed.
-        bool           navEnabled   = gDevice.connected;
+        // for what they send. Prev/Next specifically ALSO need a known
+        // gDevice.currentProgram (fixed 2026-07-13 — see synth_hit_test_
+        // patch_nav()'s own comment for the "always jumps to slot 0"
+        // problem this solves); Sync doesn't need one. navEnabled here only
+        // covers the "no device at all" case shared by all three buttons —
+        // prevNextEnabled below adds the extra Prev/Next-only condition on
+        // top of it. Widths measured the same way render_page_tabs() sizes
+        // its own buttons — draw_button() doesn't clip text to the rect
+        // it's given (see internal_render_text()), so an under-measured box
+        // would bleed.
+        bool         navEnabled      = gDevice.connected;
+        bool         prevNextEnabled = navEnabled && (gDevice.currentProgram >= 0);
         // 12.0, not the old 26.0 * (2.0 / 3.0) (~17px) — matches
         // buttonHeight, the size every dial's own value-menu/toggle button
         // face and label text renders at elsewhere in this file (2026-07-11
         // user request: these three should read at the same size as the
         // panel's own dial labels, not a bespoke larger one).
-        const double   navBtnHeight = 12.0;
-        double         prevWidth    = get_text_width("< Prev", navBtnHeight, eNoCache);
-        double         nextWidth    = get_text_width("Next >", navBtnHeight, eNoCache);
-        double         syncWidth    = get_text_width("Sync from synth", navBtnHeight, eNoCache);
-        tRgb           prevColour   = (gPressedPatchNav == 0) ? (tRgb)RGB_GREY_5 : (navEnabled ? (tRgb)RGB_GREY_7 : (tRgb)RGB_GREY_3);
-        tRgb           nextColour   = (gPressedPatchNav == 1) ? (tRgb)RGB_GREY_5 : (navEnabled ? (tRgb)RGB_GREY_7 : (tRgb)RGB_GREY_3);
-        tRgb           syncColour   = (gPressedPatchNav == 2) ? (tRgb)RGB_GREY_5 : (navEnabled ? (tRgb)RGB_GREY_7 : (tRgb)RGB_GREY_3);
+        const double navBtnHeight    = 12.0;
+        double       prevWidth       = get_text_width("< Prev", navBtnHeight, eNoCache);
+        double       nextWidth       = get_text_width("Next >", navBtnHeight, eNoCache);
+        double       syncWidth       = get_text_width("Sync from synth", navBtnHeight, eNoCache);
+        tRgb         prevColour      = (gPressedPatchNav == 0) ? (tRgb)RGB_GREY_5 : (prevNextEnabled ? (tRgb)RGB_GREY_7 : (tRgb)RGB_GREY_3);
+        tRgb         nextColour      = (gPressedPatchNav == 1) ? (tRgb)RGB_GREY_5 : (prevNextEnabled ? (tRgb)RGB_GREY_7 : (tRgb)RGB_GREY_3);
+        tRgb         syncColour      = (gPressedPatchNav == 2) ? (tRgb)RGB_GREY_5 : (navEnabled ? (tRgb)RGB_GREY_7 : (tRgb)RGB_GREY_3);
 
         gPrevPatchRect   = {{x + 460.0, y}, {prevWidth, navBtnHeight}};
         gNextPatchRect   = {{x + 460.0 + prevWidth + 12.0, y}, {nextWidth, navBtnHeight}};
