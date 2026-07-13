@@ -722,6 +722,23 @@ dial tsGatePolarity label="TS Gate Polarity" max=2 dumpOffset=136 dumpBitOffset=
 # setting, not a Touch-Surface-section one.
 dial tsGateLfoRestart label="TS Gate LFO Restart" max=2 dumpOffset=21 dumpBitOffset=4 dumpBitWidth=1 names="Off","On" col=9 row=3
 
+# T.S. MEM MOD BUS (EDIT 5.2) / T.S. MEMORY GLOBAL (EDIT 5.3) — two plain
+# Yes/No toggles, CONFIRMED against real hardware 2026-07-13, live-diff
+# method. Both live in byte129 (dumpOffset=128), right next to triggerMode's
+# own bit 0 in the same byte — deliberately NOT hand-read from the PDF's own
+# byte map, which claims these two live at bits 5/6 of this exact byte,
+# directly conflicting with tsxDest's already-confirmed bits 4-6 above (see
+# [[project_voyager_sysex_pdf_gap_audit]] for why this PDF's bit columns
+# have been wrong before and shouldn't be trusted over a live diff). Owner's
+# own on-screen wording for at least one of these two menus: "Store X/Y
+# Values when the T.S. Gate is off? YES / NO" — matches 5.3's own manual
+# description (adds memory to X/Y's DIRECT destinations, remembered from
+# gate-off until gate-on again) more closely than 5.2's (Mod Bus SOURCE
+# values only, zeroed rather than remembered when off), so tsMemGlobal
+# below is assumed to be the one carrying that exact prompt text.
+dial tsMemModBus label="TS Mem Mod Bus" max=2 dumpOffset=128 dumpBitOffset=1 dumpBitWidth=1 names="No","Yes" col=0 row=4
+dial tsMemGlobal label="TS Memory Global" max=2 dumpOffset=128 dumpBitOffset=2 dumpBitWidth=1 names="No","Yes" col=3 row=4
+
 page       panel
 section    lfo
 dialSize   36
