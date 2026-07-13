@@ -121,6 +121,26 @@ typedef struct {
     double       gapBefore;                               // extra flow-space inserted before this dial
     tRectangle   rect;                                    // populated by layout_panel_section(); used for render + hit-test
 
+    // "linkedMaxDial=<id>"/"linkedMinDial=<id>" — this dial's value can
+    // never be set (from ANY source that goes through synth_set_panel_
+    // dial_value(): drag, value-menu click, or a programmatic set) above/
+    // below the NAMED dial's own CURRENT value. Added 2026-07-13 for the
+    // Z1's Filter keyboard-track Lo/Hi Key pairs (f1lowkey/f1highkey and
+    // the same shape ×3 more — f1b/f2/f2b): real hardware enforces Lo Key
+    // <= Hi Key itself, silently clamping whichever one crosses — owner
+    // wanted the app to enforce the SAME constraint locally rather than
+    // let an invalid combination get sent at all and rely on a later Sync
+    // to reveal the hardware's own correction. Deliberately NOT applied on
+    // the DECODE side (apply_dial_wire_value()/extract_prog_info() etc.) —
+    // an incoming dump/CC is already the hardware's own resolved truth,
+    // nothing to re-clamp there. Resolved by id via find_panel_dial_
+    // anywhere() at the moment of each value-set (not cached, so it always
+    // reflects whichever value the linked dial most recently held) — empty
+    // string (the default) means no constraint, so this is a no-op for
+    // every dial in every OTHER device file.
+    char linkedMaxDialId[PANEL_ID_LEN];
+    char linkedMinDialId[PANEL_ID_LEN];
+
     // Protocol wiring — describes how to read/write/send this control's value,
     // so generic code (mouse handling, rendering) never needs to know what a
     // given dial *means*. All parsed from the file. The dial owns its own
@@ -199,39 +219,6 @@ typedef struct {
     // synth_apply_pending_dump_patches() patches pendingDumpRawValue into
     // the now-fresh gLastMoogDump and sends once, clearing this flag.
     bool dumpSendAwaitingFreshData;
-
-    // Debounce for a param= FOLLOW-UP after a live CC send, for a dial that
-    // has BOTH — added 2026-07-13, a real hardware finding on the Z1's
-    // Filter Cutoff/Resonance (f1cut/f1res/f2cut/f2res, layouts/z1.txt):
-    // this is an EDITOR, not a real-time performance controller, so exact
-    // final values matter more than avoiding one extra message per settled
-    // drag. Sending CC=127 (this dial's own confirmed max) was independently
-    // confirmed to only reach native 97 on the real synth's own front panel,
-    // not 99 — the Z1's CC-IN scaling for this parameter isn't a clean
-    // mirror of its CC-OUT scaling (native 99 on the knob is confirmed to
-    // SEND CC 127, but SENDING CC 127 back doesn't reach native 99) — a real
-    // hardware asymmetry, not a bug in this app's own encode/decode (which
-    // is now internally consistent and matches every confirmed data point).
-    // A param= PARAMETER CHANGE message (synth_send_parameter_change(),
-    // synthComms.c) sets the native value DIRECTLY in the parameter's own
-    // units, with no CC-scaling step for the Z1 to (im)precisely reverse —
-    // sidesteps the asymmetry entirely rather than trying to characterize
-    // and compensate for it in software. Fires the CC immediately (for
-    // instant audible feedback while dragging, matching every other CC dial
-    // in this app) and this follow-up only once CC_DEBOUNCE_MS have passed
-    // with no further change — same trailing-edge idiom as hasPendingCc/
-    // hasPendingDumpSend above, just a plain single send with no
-    // fetch-fresh-data second phase (unlike hasPendingDumpSend, there's no
-    // existing cached buffer this needs to avoid stomping — it's one
-    // parameter, sent once, computed fresh from the dial's own current
-    // value at flush time). Generic and gated purely on the dial's own
-    // declared wiring (ccNumber != 0 && paramId != 0 — see synth_set_panel_
-    // dial_value()'s own trigger site) — never fires for a dial with only
-    // one of the two, so it can't affect any device/dial that doesn't
-    // explicitly declare both, e.g. it's a no-op for every Voyager dial
-    // (checked 2026-07-13: zero uses of param= anywhere in voyager.txt).
-    bool   hasPendingParamFollowup;
-    double pendingParamFollowupSinceMs;
 
     // Where this dial's value lives in a full program-dump byte buffer (a
     // different wire format from individual parameter-change messages, but
@@ -449,22 +436,6 @@ typedef struct {
     // display name. Empty (the default) falls back to the first destination
     // found, same as before this existed.
     char midiPortName[64];                    // only meaningful when !supportsIdentity
-
-    // "paramFollowupAfterCc yes" — device-level opt-in for the debounced
-    // param= follow-up after a live CC send (see hasPendingParamFollowup's
-    // own comment in panelConfig.h) — added 2026-07-13 for the Z1's Filter
-    // Cutoff/Resonance, whose CC-in scaling was found NOT to be a clean
-    // mirror of its own CC-out scaling (sending the confirmed max CC value
-    // only reached the synth's native value a couple of counts short of its
-    // true max). Deliberately a per-DEVICE switch, not automatic just from a
-    // dial declaring both cc= and param= — a hardware quirk this specific
-    // synth has isn't safe to assume for every future device that happens
-    // to wire a dial both ways; some might have CC-in/out perfectly
-    // symmetric already; and a device with completely different real-time
-    // requirements might not want the extra SysEx traffic regardless.
-    // Default false (the pre-2026-07-13 behaviour: CC only) — every existing
-    // device file that doesn't mention this keyword is unaffected.
-    bool paramFollowupAfterCc;
 
     // Optional SysEx sent right after connecting (see connect_without_identity()
     // in midiComms.c) — asks the device to report its own current state instead

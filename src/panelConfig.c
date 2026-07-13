@@ -258,6 +258,10 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
             dial->readOnly = (strtoul(val, NULL, 0) != 0);
         } else if (strcmp(key, "asDial") == 0) {
             dial->asDial = (strtoul(val, NULL, 0) != 0);
+        } else if (strcmp(key, "linkedMaxDial") == 0) {
+            strncpy(dial->linkedMaxDialId, val, sizeof(dial->linkedMaxDialId) - 1);
+        } else if (strcmp(key, "linkedMinDial") == 0) {
+            strncpy(dial->linkedMinDialId, val, sizeof(dial->linkedMinDialId) - 1);
         } else if (strcmp(key, "hiLoOffset") == 0) {
             dial->hiLoOffset = (int32_t)strtol(val, NULL, 0);
         } else if (strcmp(key, "hiLoCoarseScale") == 0) {
@@ -347,8 +351,6 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
         strncpy(config->scrollDialId, tokens[1], sizeof(config->scrollDialId) - 1);
     } else if (strcmp(keyword, "identityQuery") == 0) {
         config->supportsIdentity = (strcmp(tokens[1], "no") != 0);
-    } else if (strcmp(keyword, "paramFollowupAfterCc") == 0) {
-        config->paramFollowupAfterCc = (strcmp(tokens[1], "yes") == 0);
     } else if (strcmp(keyword, "midiChannel") == 0) {
         config->midiChannel = (uint32_t)strtoul(tokens[1], NULL, 0);
     } else if (strcmp(keyword, "midiPort") == 0) {

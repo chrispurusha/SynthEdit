@@ -78,20 +78,6 @@ memberId        0x01
 progNameLen     16
 scrollDial      f1cut
 
-# CC-driven dials that also declare a param= (f1cut/f1res/f2cut/f2res right
-# now) send the CC immediately for live feedback while dragging, then a
-# precise param= PARAMETER CHANGE once the drag settles — see
-# hasPendingParamFollowup's own comment in panelConfig.h for the full
-# derivation. Found necessary 2026-07-13: this is an editor, not a
-# real-time performance controller, so getting the FINAL value exactly
-# right matters more than the extra SysEx traffic — and Filter Cutoff's own
-# CC-in scaling was confirmed live to NOT be a clean mirror of its CC-out
-# scaling (sending the confirmed-correct max CC only reached native 97, not
-# the true max 99). A per-device opt-in, not automatic just from a dial
-# declaring both cc= and param= — some other device might have those
-# perfectly symmetric already and not need this at all.
-paramFollowupAfterCc yes
-
 # ── Program info (Oscillators page, not rendered as dials — see "hidden" above)
 # Byte layout (Program Common section of the parameter table):
 #   0-15 : Program Name chars (params 1-16, see progNameLen above)
@@ -275,39 +261,25 @@ dial f2link label="F2 Link"  color=route  max=2    names=OFF,ON                 
 dial fegtgt label="EG Target" color=route max=3    names=FLT1,FLT2,FLT1&2          group=1 param=260 offset=1 dumpOffset=311 dumpShift=4 dumpMask=0x03
 dial f1type label="F1 Type"  color=f1     max=5    names=LPF,HPF,BPF,BRF,2BPF      group=1 param=261 offset=1 dumpOffset=312
 dial f1trim label="F1 Trim"  color=f1     max=100  display=raw                     group=1 param=262 dumpOffset=313
-# f1cut/f1res (and f2cut/f2res below) — nativeMax=99 REMOVED 2026-07-13, a
-# real bug found live: the parameter table documents Cutoff/Resonance's
-# STORED/dumped value as 0~99 (param 263/274 etc — see the [Filter 1]
-# section of the official parameter list), which this dial's old
-# `nativeMax=99` copied unverified onto the CC path too, on the assumption
-# the raw CC byte itself only spans 0-99. Owner tested directly against real
-# hardware: turning the physical knob to ITS OWN max (99 on the Z1's own
-# display) sent CC=127 over MIDI, not CC=99 — the CC wire genuinely uses the
-# full 0-127 byte, linearly scaled up from the synth's internal 0-99
-# storage. Since max=128 here, `dial->value` (0-127) was ALREADY exactly
-# that scaled-up number (127 for native 99) — nativeMax=99 wasn't missing a
-# scale step, it was applied in the wrong PLACE: `synth_set_panel_dial_
-# value()`'s generic CC-write path sends `nativeValue` (the raw 0-99
-# number) as the wire byte whenever nativeMax!=0, which is correct for a
-# dial where native IS the wire value directly (e.g. Voyager's toggles,
-# nativeMax=127) but wrong here, where the ALREADY-COMPUTED display value
-# was the correct wire byte all along. Removing nativeMax lets the generic
-# CC path fall through to sending storageValue (0-127) directly — matching
-# confirmed hardware — instead of touching the shared apply_dial_wire_value
-# ()/synth_set_panel_dial_value() mechanism itself, which Voyager's own
-# nativeMax=127 dials genuinely depend on working exactly as it already
-# does (checked before this change: zero Voyager dials use param=, so
-# nothing there was ever affected by any of today's edits regardless).
-# dumpNativeMax=99 keeps the SEPARATE dump-decode path (Sync from synth)
-# correctly scaling the genuinely-0-99 dump byte up to the same 0-127
-# display range the CC path now uses directly — the one place nativeMax=99
-# WAS the right number, just needed its own explicit attribute rather than
-# doing double duty for the CC path too. display=raw (not ccnative) since
-# there's no longer a second, differently-scaled "native" number worth
-# showing separately — dial->value alone is now the single correct number
-# for both write and read.
-dial f1cut  label="F1 Cut"   color=f1     max=128  display=ccnative                group=1 param=263 cc=0x55 dumpNativeMax=99 dumpOffset=314
-dial f1res  label="F1 Res"   color=f1     max=128  display=ccnative                group=1 param=274 cc=0x56 dumpNativeMax=99 dumpOffset=325
+# f1cut/f1res (and f2cut/f2res below) — CC binding REMOVED 2026-07-13. Owner
+# confirmed live on real hardware that the Z1's CC-IN scaling for Cutoff/
+# Resonance isn't a clean mirror of its own CC-OUT scaling (turning the
+# physical knob to its own max sent CC=127, but sending CC=127 back only
+# reached native 97, not the true max 99) — a genuine, asymmetric hardware
+# quirk, not a bug in this app's own encode/decode. Rather than work around
+# that asymmetry (an earlier same-day attempt debounced the CC then sent a
+# precise param= correction afterwards), these dials now drop cc= entirely
+# and behave exactly like F1 Trim (above): a plain native-0-99 param=
+# dial, max=100, display=raw, no scaling anywhere. This is safe because the
+# Z1's own front panel was confirmed to dual-send CC then PARAMETER CHANGE
+# on every physical knob tick (e.g. F0 42 33 46 41 01 07 02 3D 00 F7 decodes
+# to param=263, value=61 — exactly Filter1 Cutoff) — so the live Parameter
+# Change message alone (handled generically by handle_parameter_change())
+# already keeps the GUI in sync with the physical knob with no CC decode
+# needed at all, and GUI-side drags write the same native value straight
+# back via param=, matching what the hardware itself does.
+dial f1cut  label="F1 Cut"   color=f1     max=100  display=raw                     group=1 param=263 dumpOffset=314
+dial f1res  label="F1 Res"   color=f1     max=100  display=raw                     group=1 param=274 dumpOffset=325
 
 gap 20
 
@@ -315,8 +287,8 @@ dial f2type label="F2 Type"  color=f2     max=5    names=LPF,HPF,BPF,BRF,2BPF   
 dial f2trim label="F2 Trim"  color=f2     max=100  display=raw                     group=1 param=289 dumpOffset=340
 # See f1cut/f1res's own comment (above, Filters row) for the full derivation
 # — same fix, same confirmed hardware behaviour, same reasoning.
-dial f2cut  label="F2 Cut"   color=f2     max=128  display=ccnative                group=1 param=290 cc=0x58 dumpNativeMax=99 dumpOffset=341
-dial f2res  label="F2 Res"   color=f2     max=128  display=ccnative                group=1 param=301 cc=0x59 dumpNativeMax=99 dumpOffset=352
+dial f2cut  label="F2 Cut"   color=f2     max=100  display=raw                     group=1 param=290 dumpOffset=341
+dial f2res  label="F2 Res"   color=f2     max=100  display=raw                     group=1 param=301 dumpOffset=352
 
 # ── Filter1/Filter2 keyboard track, modulation, and "-B" sub-filter (Filters
 # page) — the remaining Filter parameters (258-314) beyond the core knobs
@@ -340,8 +312,14 @@ spacing    50
 
 color f1kt 0.2 0.6 1.0
 
-dial f1lowkey  label="F1 Lo Key"  color=f1kt max=128 display=raw group=1 param=264 dumpOffset=315
-dial f1highkey label="F1 Hi Key"  color=f1kt max=128 display=raw group=1 param=265 dumpOffset=316
+# linkedMaxDial/linkedMinDial — 2026-07-13, owner request: real hardware
+# enforces Lo Key <= Hi Key itself (silently clamping whichever one
+# crosses), so these keep the app's own drag from ever sending an invalid
+# pair in the first place, rather than relying on a later Sync to reveal
+# the hardware's own correction. See linkedMaxDialId's own comment in
+# panelConfig.h for the full mechanism (generic, not Z1-specific).
+dial f1lowkey  label="F1 Lo Key"  color=f1kt max=128 display=raw group=1 param=264 dumpOffset=315 linkedMaxDial=f1highkey
+dial f1highkey label="F1 Hi Key"  color=f1kt max=128 display=raw group=1 param=265 dumpOffset=316 linkedMinDial=f1lowkey
 dial f1lowint  label="F1 Lo Int"  color=f1kt max=199 display=raw group=1 param=266 dumpOffset=317
 dial f1highint label="F1 Hi Int"  color=f1kt max=199 display=raw group=1 param=267 dumpOffset=318
 
@@ -370,8 +348,8 @@ color f1b 0.2 0.6 1.0
 
 dial f1btrim      label="F1B Trim"     color=f1b max=100 display=raw group=1 param=277 dumpOffset=328
 dial f1bcut       label="F1B Cutoff"   color=f1b max=100 display=raw group=1 param=278 dumpOffset=329
-dial f1blowkey    label="F1B Lo Key"   color=f1b max=128 display=raw group=1 param=279 dumpOffset=330
-dial f1bhighkey   label="F1B Hi Key"   color=f1b max=128 display=raw group=1 param=280 dumpOffset=331
+dial f1blowkey    label="F1B Lo Key"   color=f1b max=128 display=raw group=1 param=279 dumpOffset=330 linkedMaxDial=f1bhighkey
+dial f1bhighkey   label="F1B Hi Key"   color=f1b max=128 display=raw group=1 param=280 dumpOffset=331 linkedMinDial=f1blowkey
 dial f1blowint    label="F1B Lo Int"   color=f1b max=199 display=raw group=1 param=281 dumpOffset=332
 dial f1bhighint   label="F1B Hi Int"   color=f1b max=199 display=raw group=1 param=282 dumpOffset=333
 dial f1bmodegint  label="F1B ModEG"    color=f1b max=199 display=raw group=1 param=283 dumpOffset=334
@@ -387,8 +365,8 @@ spacing    50
 
 color f2kt 0.3 0.9 0.5
 
-dial f2lowkey  label="F2 Lo Key"  color=f2kt max=128 display=raw group=1 param=291 dumpOffset=342
-dial f2highkey label="F2 Hi Key"  color=f2kt max=128 display=raw group=1 param=292 dumpOffset=343
+dial f2lowkey  label="F2 Lo Key"  color=f2kt max=128 display=raw group=1 param=291 dumpOffset=342 linkedMaxDial=f2highkey
+dial f2highkey label="F2 Hi Key"  color=f2kt max=128 display=raw group=1 param=292 dumpOffset=343 linkedMinDial=f2lowkey
 dial f2lowint  label="F2 Lo Int"  color=f2kt max=199 display=raw group=1 param=293 dumpOffset=344
 dial f2highint label="F2 Hi Int"  color=f2kt max=199 display=raw group=1 param=294 dumpOffset=345
 
@@ -417,8 +395,8 @@ color f2b 0.3 0.9 0.5
 
 dial f2btrim      label="F2B Trim"     color=f2b max=100 display=raw group=1 param=304 dumpOffset=355
 dial f2bcut       label="F2B Cutoff"   color=f2b max=100 display=raw group=1 param=305 dumpOffset=356
-dial f2blowkey    label="F2B Lo Key"   color=f2b max=128 display=raw group=1 param=306 dumpOffset=357
-dial f2bhighkey   label="F2B Hi Key"   color=f2b max=128 display=raw group=1 param=307 dumpOffset=358
+dial f2blowkey    label="F2B Lo Key"   color=f2b max=128 display=raw group=1 param=306 dumpOffset=357 linkedMaxDial=f2bhighkey
+dial f2bhighkey   label="F2B Hi Key"   color=f2b max=128 display=raw group=1 param=307 dumpOffset=358 linkedMinDial=f2blowkey
 dial f2blowint    label="F2B Lo Int"   color=f2b max=199 display=raw group=1 param=308 dumpOffset=359
 dial f2bhighint   label="F2B Hi Int"   color=f2b max=199 display=raw group=1 param=309 dumpOffset=360
 dial f2bmodegint  label="F2B ModEG"    color=f2b max=199 display=raw group=1 param=310 dumpOffset=361

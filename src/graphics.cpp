@@ -314,10 +314,6 @@ void do_graphics_loop(void) {
         // patch-and-resend (e.g. Voyager's Headphone Volume) — see
         // hasPendingDumpSend's own comment in panelConfig.h.
         synth_flush_pending_dump_sends();
-        // Same per-frame check, for a CC+param= dial's debounced precise
-        // follow-up (e.g. the Z1's Filter Cutoff/Resonance) — see
-        // hasPendingParamFollowup's own comment in panelConfig.h.
-        synth_flush_pending_param_followups();
         // Advances an in-progress Backup > Bank (Individual Files)… sweep
         // (next preset request, or a per-preset timeout) — see
         // synth_backup_flush_bank_to_folder()'s own comment (synthBackup.h).

@@ -860,7 +860,22 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
         }
 
         if (dial) {
-            apply_dial_wire_value(dial, value, dial->nativeMax);
+            // dumpNativeMax falls back to nativeMax exactly like extract_
+            // prog_info()'s own identical fallback (synthComms.c, above) —
+            // an incoming Parameter Change message carries a value in the
+            // parameter's own native units (e.g. Filter Cutoff: 0-99), the
+            // SAME units the full program dump uses, not necessarily the
+            // dial's own CC-side native range if those two differ (f1cut's
+            // own case: CC wire is 0-127, param/dump native is 0-99). Fixed
+            // 2026-07-13 alongside discovering the Z1's own hardware sends
+            // a Parameter Change immediately after every CC when a knob
+            // turns — without this fallback, an incoming param=263 value
+            // of 61 was being stored as display=61 directly (dial->
+            // nativeMax was 0 once f1cut stopped using it for CC-write
+            // scaling), instead of the correctly scaled ~78 matching what
+            // the CC and dump paths both already show for that same
+            // native value.
+            apply_dial_wire_value(dial, value, (dial->dumpNativeMax != 0) ? dial->dumpNativeMax : dial->nativeMax);
             LOG_DEBUG("Param %u (%s) = %u\n", (unsigned)paramId, dial->label, (unsigned)value);
         }
     }
@@ -1196,44 +1211,6 @@ void synth_flush_pending_dump_sends(void) {
     }
 }
 
-// Commits any dial's debounced param= follow-up (see hasPendingParamFollowup's
-// own comment in panelConfig.h) once CC_DEBOUNCE_MS have passed since the
-// last CC this dial sent. Single-phase, unlike synth_flush_pending_dump_
-// sends() above — there's no cached buffer to keep fresh here, just one
-// parameter, so the correct native value is simply recomputed from the
-// dial's own current display value at the moment this fires (the same
-// formula the "X (Y)" ccnative display already uses for its own secondary
-// number — see that render code's own comment, synthGraphics.cpp) and sent
-// once. Called once per frame from the render loop, alongside synth_flush_
-// pending_cc()/synth_flush_pending_dump_sends().
-void synth_flush_pending_param_followups(void) {
-    tPanelConfig * cfg = synth_panel_config();
-    double         now = monotonic_ms();
-
-    for (uint32_t s = 0; s < cfg->sectionCount; s++) {
-        tPanelSection * section = &cfg->sections[s];
-
-        for (uint32_t d = 0; d < section->dialCount; d++) {
-            tPanelDial * dial = &section->dials[d];
-
-            if (dial->hasPendingParamFollowup && ((now - dial->pendingParamFollowupSinceMs) >= CC_DEBOUNCE_MS)) {
-                dial->hasPendingParamFollowup = false;
-                uint32_t displayValue = get_panel_dial_value(dial);
-                uint32_t native       = (dial->dumpNativeMax != 0)
-                            ? ((dial->max > 1)
-                               ? ((displayValue * dial->dumpNativeMax) + ((dial->max - 1) / 2)) / (dial->max - 1)
-                               : 0)
-                            : displayValue;
-
-                synth_send_parameter_change((uint8_t)dial->paramGroup, (uint16_t)dial->paramId, (uint16_t)native);
-                LOG_DEBUG("param follow-up %s: display=%u -> native=%u (group=%u param=%u)\n",
-                          dial->id, (unsigned)displayValue, (unsigned)native,
-                          (unsigned)dial->paramGroup, (unsigned)dial->paramId);
-            }
-        }
-    }
-}
-
 void synth_handle_message(const uint8_t * data, uint32_t length) {
     if (synth_panel_config()->moogStyleDump) {
         // Entirely separate header shape and dispatch from the Korg-style
@@ -1306,6 +1283,38 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
     if ((dial->max > 0) && (displayValue >= dial->max)) {
         displayValue = dial->max - 1;
     }
+
+    // Linked min/max constraint (see linkedMaxDialId/linkedMinDialId's own
+    // comment in panelConfig.h) — clamps against the OTHER dial's CURRENT
+    // value, resolved fresh here rather than cached, so it always reflects
+    // whatever that dial most recently held (including a change from
+    // earlier in this same user action, e.g. dragging Hi Key down past Lo
+    // Key first). Applied before storageOffset/dedup below so a clamped
+    // value that happens to equal what's already stored correctly takes
+    // the early-return path just like any other unchanged value.
+    if (dial->linkedMaxDialId[0] != '\0') {
+        tPanelDial * other = find_panel_dial_anywhere(synth_panel_config(), dial->linkedMaxDialId);
+
+        if (other) {
+            uint32_t otherVal = get_panel_dial_value(other);
+
+            if (displayValue > otherVal) {
+                displayValue = otherVal;
+            }
+        }
+    }
+
+    if (dial->linkedMinDialId[0] != '\0') {
+        tPanelDial * other = find_panel_dial_anywhere(synth_panel_config(), dial->linkedMinDialId);
+
+        if (other) {
+            uint32_t otherVal = get_panel_dial_value(other);
+
+            if (displayValue < otherVal) {
+                displayValue = otherVal;
+            }
+        }
+    }
     uint32_t storageValue = (uint32_t)((int32_t)displayValue + dial->storageOffset);
 
     if (storageValue == dial->value) {
@@ -1354,24 +1363,6 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
         // the CC message above already told the hardware.
         if (synth_panel_config()->moogStyleDump && (dial->dumpBitWidth > 0)) {
             synth_patch_moog_dump_cache(dial, synth_encode_dump_raw_value(dial, displayValue));
-        }
-
-        // Arm the param= follow-up debounce (see hasPendingParamFollowup's
-        // own comment in panelConfig.h) for a dial wired with BOTH a CC and
-        // a param= — an editor-specific correctness step, not a performance
-        // concern: the CC above already gave instant feedback, this just
-        // makes sure the FINAL settled value lands exactly right too,
-        // working around real hardware (the Z1) whose CC-in scaling isn't a
-        // perfect mirror of its own CC-out scaling. Gated on the device's
-        // own explicit "paramFollowupAfterCc yes" (panelConfig.h) as well as
-        // paramId != 0 — a per-DEVICE opt-in, not automatic just from a
-        // dial declaring both, since this hardware quirk isn't safe to
-        // assume for every future device that happens to wire a dial both
-        // ways. No-op for any device that doesn't set it (which is every
-        // device file as of this writing except z1.txt).
-        if (synth_panel_config()->paramFollowupAfterCc && (dial->paramId != 0)) {
-            dial->hasPendingParamFollowup     = true;
-            dial->pendingParamFollowupSinceMs = monotonic_ms();
         }
     } else if (synth_panel_config()->moogStyleDump && (dial->dumpBitWidth > 0)) {
         // No CC exists for this dial (e.g. Voyager's Filter A/B Pole Select)
