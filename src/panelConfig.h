@@ -38,7 +38,7 @@ extern "C" {
 #define PANEL_MAX_NAMES            65 // raised from 20 to 32 2026-07-10 (Voyager's soundCategory, a full 32-value enum, 0-31); raised from 32 to 48 2026-07-11 — Voyager's pgmShaping1Src/pgmShaping2Src are 43-value enums (0-42), values >= the old 32 cap silently had no stored name and rendered as "?"; raised from 48 to 65 2026-07-13 — Voyager's tsGateCtrl uses storageOffset to give TS Gate's MIDI Ctrl No (64-127 plus a distinct Off state) a proper named 65-value enum instead of a raw 0-128 dial with an unlabeled dead zone below 64
 #define PANEL_MAX_COLOURS          16
 #define PANEL_MAX_DIALS            32
-#define PANEL_MAX_SECTIONS         32
+#define PANEL_MAX_SECTIONS         48 // raised from 32 2026-07-13 — Z1's Amp/EG pages split into enough narrow sections (to fit the window's width/height, see synth_render()'s own section-splitting comments in z1.txt) to push the file's total section count to 34, past the old ceiling; process_line() (panelConfig.c) silently drops any "page" line past this cap and keeps attributing its dials to whatever section WAS current, so the failure mode isn't "missing a page" but dials silently landing in the wrong one — worth raising generously rather than tuning exactly to today's count
 #define PANEL_MAX_LIST_ITEMS       32
 #define PANEL_MAX_LISTS            8
 #define PANEL_MAX_COLUMN_LABELS    32

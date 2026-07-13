@@ -32,7 +32,20 @@
 // layouts folder has been resolved — either from a saved bookmark at launch,
 // or from a fresh pick via the menu. macOS revokes access on process exit,
 // so there's no matching stopAccessingSecurityScopedResource on quit.
-static NSURL * gLayoutsDirURL = nil;
+static NSURL *           gLayoutsDirURL = nil;
+
+// The "Device" menu's dynamic device-list section (everything below "Scan
+// Devices" + its separator) — kept so rebuild_devices_menu() can be called
+// again later, not just once at setup_main_menu() time, whenever the set of
+// candidates might have changed (picking a new layouts folder).
+static NSMenu *          gDevicesMenu   = nil;
+
+// Forward-declared so rebuild_devices_menu() (below, needed by both
+// setup_main_menu() and do_choose_layouts_folder()) can reference the one
+// SynthMenuTarget instance without the whole @interface/@implementation
+// having to move earlier in the file.
+@class                   SynthMenuTarget;
+static SynthMenuTarget * gMenuTarget    = nil;
 
 static void start_accessing_layouts_dir(NSURL * url) {
     if (gLayoutsDirURL) {
@@ -74,6 +87,71 @@ const char * get_saved_layouts_dir(void) {
     return buf;
 }
 
+// Plain NSUserDefaults string, unlike the layouts folder above — a
+// <device>.txt filename lives INSIDE that already-bookmarked folder, so it
+// needs no security-scoped access of its own to read back on a future
+// launch.
+const char * get_saved_device_config(void) {
+    static char buf[64];
+    NSString *  saved = [[NSUserDefaults standardUserDefaults] stringForKey:@"lastDeviceConfig"];
+
+    if (!saved) {
+        return NULL;
+    }
+    strncpy(buf, [saved UTF8String], sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+    return buf;
+}
+
+void set_saved_device_config(const char * filename) {
+    if (!filename || (filename[0] == '\0')) {
+        return;
+    }
+    [[NSUserDefaults standardUserDefaults] setObject:[NSString stringWithUTF8String:filename] forKey:@"lastDeviceConfig"];
+    [[NSUserDefaults standardUserDefaults] synchronize];
+}
+
+// Rebuilds the "Device" menu's dynamic device-list section (everything
+// after "Scan Devices" + its separator, which are added once by
+// setup_main_menu() and never touched here) from whatever scan_panel_
+// configs() finds in the CURRENT layouts folder right now. Called once at
+// setup_main_menu() time, and again from do_choose_layouts_folder()'s own
+// completion handler below whenever the layouts folder itself changes —
+// the set of candidates a device.txt lives among can only change together
+// with that folder, so those are the only two times this needs to run.
+static void rebuild_devices_menu(void) {
+    if (!gDevicesMenu) {
+        return;
+    }
+
+    while ([gDevicesMenu numberOfItems] > 2) {
+        [gDevicesMenu removeItemAtIndex:2];
+    }
+    tPanelConfigCandidate candidates[PANEL_MAX_CANDIDATES];
+    uint32_t              count = scan_panel_configs(synth_layouts_dir(), candidates, PANEL_MAX_CANDIDATES);
+
+    for (uint32_t i = 0; i < count; i++) {
+        NSString *   title;
+
+        if (candidates[i].description[0] != '\0') {
+            title = [NSString stringWithFormat:@"%s \xe2\x80\x94 %s", candidates[i].deviceName, candidates[i].description];
+        } else {
+            title = [NSString stringWithUTF8String:candidates[i].deviceName];
+        }
+        NSMenuItem * item = [[NSMenuItem alloc] initWithTitle:title
+                             action:@selector(switchDevice:)
+                             keyEquivalent:@""];
+
+        [item setTarget:gMenuTarget];
+        // Carries the actual filename (e.g. "z1.txt") through to switchDevice:
+        // and validateMenuItem: — the title above is just what's shown, the
+        // menu item itself needs the real filename scan_panel_configs()
+        // returned it under.
+        [item setRepresentedObject:[NSString stringWithUTF8String:candidates[i].filename]];
+        [gDevicesMenu addItem:item];
+    }
+}
+
 // Shared by the "Choose Layouts Folder…" menu action and the automatic
 // prompt synth_choose_config_file() triggers when the current folder has no
 // valid <device>.txt in it.
@@ -108,6 +186,7 @@ static void do_choose_layouts_folder(void) {
          [[NSUserDefaults standardUserDefaults] synchronize];
 
          synth_set_layouts_dir([[url path] UTF8String]);
+         rebuild_devices_menu();
          wake_glfw();
      }];
 }
@@ -137,6 +216,7 @@ static int32_t choose_preset_number(const char * title, const char * message) {
 
 @interface SynthMenuTarget : NSObject
 - (void)scanDevices:(id)sender;
+- (void)switchDevice:(id)sender;
 - (void)setDialModeRotary:(id)sender;
 - (void)setDialModeVertical:(id)sender;
 - (void)setDialModeHorizontal:(id)sender;
@@ -158,6 +238,13 @@ static int32_t choose_preset_number(const char * title, const char * message) {
 
 - (void)scanDevices:(id)sender {
     midi_scan_devices();
+    wake_glfw();
+}
+
+- (void)switchDevice:(id)sender {
+    NSMenuItem * item = (NSMenuItem *)sender;
+
+    synth_switch_device_config([(NSString *)[item representedObject] UTF8String]);
     wake_glfw();
 }
 
@@ -238,6 +325,11 @@ static int32_t choose_preset_number(const char * title, const char * message) {
         [item setState:(gDialMode == eDialModeVertical) ? NSControlStateValueOn : NSControlStateValueOff];
     } else if (action == @selector(setDialModeHorizontal:)) {
         [item setState:(gDialMode == eDialModeHorizontal) ? NSControlStateValueOn : NSControlStateValueOff];
+    } else if (action == @selector(switchDevice:)) {
+        const char * current  = synth_current_device_config();
+        BOOL         isActive = current && [(NSString *)[item representedObject] isEqualToString:[NSString stringWithUTF8String:current]];
+
+        [item setState:isActive ? NSControlStateValueOn : NSControlStateValueOff];
     }
     return YES;
 }
@@ -249,7 +341,8 @@ void setup_main_menu(void) {
     static SynthMenuTarget * target   = nil;
 
     if (target == nil) {
-        target = [[SynthMenuTarget alloc] init];
+        target      = [[SynthMenuTarget alloc] init];
+        gMenuTarget = target;
     }
 
     if (menuBar == nil) {
@@ -330,6 +423,16 @@ void setup_main_menu(void) {
                                       keyEquivalent:@"r"];
     [scanItem setTarget:target];
     [devMenu addItem:scanItem];
+    // Item 1 (a separator) plus everything rebuild_devices_menu() adds from
+    // item 2 on — one item per <device>.txt found in the current layouts
+    // folder (see scan_panel_configs()), a checkmark on whichever's
+    // actually loaded (validateMenuItem: above), clicking a different one
+    // live-switches via synth_switch_device_config() (synthGraphics.h).
+    // Added 2026-07-13 per owner request — so switching, say, Z1 to
+    // Voyager doesn't need a relaunch.
+    [devMenu addItem:[NSMenuItem separatorItem]];
+    gDevicesMenu = devMenu;
+    rebuild_devices_menu();
     [devMI setSubmenu:devMenu];
     [menuBar insertItem:devMI atIndex:2];
 

@@ -38,6 +38,7 @@ extern "C" {
 #include "panelConfig.h"
 #include "synthComms.h"
 #include "synthBackup.h"
+#include "midiComms.h"
 #include "misc.h"
 #include "fileDialogue.h"
 #include "synthGraphics.h"
@@ -453,11 +454,18 @@ static void synth_reload_panel_config(void) {
 }
 
 // Scans gLayoutsDir for every <device>.txt it contains; a single match is
-// used directly (no prompt — nothing to choose), but more than one presents
-// a chooser (device name + description, from each file's own "device"/
-// "description" lines) and switches gConfigFileName to whichever was picked.
-// If the user cancels, whatever gConfigFileName already held is left alone
-// rather than blocking startup.
+// used directly (no prompt — nothing to choose), but more than one first
+// tries the persisted "lastDeviceConfig" preference (get_saved_device_
+// config(), misc.h) before ever prompting — added 2026-07-13 per owner
+// request, so a returning user isn't asked to re-pick every single launch.
+// Only falls through to the actual chooser (device name + description, from
+// each file's own "device"/"description" lines) if there's no saved choice
+// yet, or the saved filename isn't among what's actually here right now
+// (e.g. that device.txt was removed/renamed since). If the user cancels the
+// chooser, whatever gConfigFileName already held is left alone rather than
+// blocking startup. Every path that settles on a filename persists it via
+// set_saved_device_config() — including the saved-preference fast path,
+// which is a harmless re-write of what's already there.
 //
 // Zero candidates (no folder ever chosen, or the saved one moved/was
 // emptied) instead puts up the same folder picker as the "Choose Layouts
@@ -475,7 +483,20 @@ static void synth_choose_config_file(void) {
     if (count == 1) {
         strncpy(gConfigFileName, candidates[0].filename, sizeof(gConfigFileName) - 1);
         gConfigFileName[sizeof(gConfigFileName) - 1] = '\0';
+        set_saved_device_config(gConfigFileName);
         return;
+    }
+    const char *          saved = get_saved_device_config();
+
+    if (saved) {
+        for (uint32_t i = 0; i < count; i++) {
+            if (strcmp(candidates[i].filename, saved) == 0) {
+                strncpy(gConfigFileName, saved, sizeof(gConfigFileName) - 1);
+                gConfigFileName[sizeof(gConfigFileName) - 1] = '\0';
+                set_saved_device_config(gConfigFileName);
+                return;
+            }
+        }
     }
     char                  labelBuf[PANEL_MAX_CANDIDATES][200];
     const char *          labels[PANEL_MAX_CANDIDATES];
@@ -496,6 +517,7 @@ static void synth_choose_config_file(void) {
     if (chosen >= 0) {
         strncpy(gConfigFileName, candidates[(uint32_t)chosen].filename, sizeof(gConfigFileName) - 1);
         gConfigFileName[sizeof(gConfigFileName) - 1] = '\0';
+        set_saved_device_config(gConfigFileName);
     }
 }
 
@@ -506,6 +528,33 @@ void synth_set_layouts_dir(const char * dir) {
     }
     synth_choose_config_file();
     synth_reload_panel_config();
+}
+
+const char * synth_layouts_dir(void) {
+    return gLayoutsDir;
+}
+
+const char * synth_current_device_config(void) {
+    return gConfigFileName;
+}
+
+void synth_switch_device_config(const char * filename) {
+    if (!filename || (filename[0] == '\0') || (strcmp(filename, gConfigFileName) == 0)) {
+        return;
+    }
+    strncpy(gConfigFileName, filename, sizeof(gConfigFileName) - 1);
+    gConfigFileName[sizeof(gConfigFileName) - 1] = '\0';
+    synth_reload_panel_config();
+    set_saved_device_config(gConfigFileName);
+    // Whatever was connected under the PREVIOUS config's SysEx identity
+    // means nothing once a different device's protocol is loaded — don't
+    // leave the UI showing a stale "connected" state while the fresh scan
+    // below runs. synth_on_connected() (synthComms.c) does the matching
+    // dial-state reset already, once/if a real identity reply for the
+    // NEWLY loaded device actually arrives.
+    gDevice.connected                            = false;
+    midi_scan_devices();
+    gReDraw                                      = true;
 }
 
 void synth_init_graphics(void) {

@@ -33,6 +33,18 @@ void save_window_pos(int x, int y);
 // Valid until the next call — copy it if you need to keep it.
 const char * get_saved_layouts_dir(void);
 
+// Returns the persisted "lastDeviceConfig" preference (a <device>.txt
+// filename, e.g. "z1.txt"), or NULL if never set. Valid until the next
+// call — copy it if you need to keep it.
+const char * get_saved_device_config(void);
+
+// Persists filename as the device config to default to on next launch —
+// called from synth_choose_config_file() (synthGraphics.cpp) whenever a
+// device is actually settled on, whichever of its 3 paths that came from
+// (the single-candidate auto-pick, the startup chooser dialogue, or the
+// "Devices" menu's own live switch, synth_switch_device_config()).
+void set_saved_device_config(const char * filename);
+
 // Puts up the same "Choose Layouts Folder…" NSOpenPanel as the Layouts menu
 // item, asynchronously. Called from synth_choose_config_file() when the
 // current layouts folder (saved bookmark, or the built-in default) has zero

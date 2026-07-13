@@ -40,6 +40,23 @@ void synth_render(tRectangle area);
 // xxxx.txt from the new location immediately.
 void synth_set_layouts_dir(const char * dir);
 
+// Current layouts folder / active <device>.txt filename (e.g. "z1.txt") —
+// exposed for the native "Devices" menu (misc.mm) to list scan_panel_
+// configs() candidates against and mark which one is currently loaded.
+const char * synth_layouts_dir(void);
+const char * synth_current_device_config(void);
+
+// Switches to a different <device>.txt already known to be in the current
+// layouts folder (see scan_panel_configs()) — e.g. picked from the native
+// "Devices" menu. No-op if filename is already the one loaded. Resets
+// gDevice.connected first: whatever was connected under the PREVIOUS
+// config's identity means nothing once a different device's protocol is
+// loaded, so the UI shouldn't keep showing it as connected while a fresh
+// identity scan runs — then re-scans MIDI so the newly-loaded device can
+// be (re)detected. Persists the choice (set_saved_device_config(), misc.h)
+// so it's also what synth_init_graphics() defaults to next launch.
+void synth_switch_device_config(const char * filename);
+
 // The full parsed config, for callers that need named lists (see
 // get_panel_list_item()/get_panel_list_count()) rather than a specific dial.
 tPanelConfig * synth_panel_config(void);
