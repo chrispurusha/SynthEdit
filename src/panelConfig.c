@@ -347,6 +347,8 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
         strncpy(config->scrollDialId, tokens[1], sizeof(config->scrollDialId) - 1);
     } else if (strcmp(keyword, "identityQuery") == 0) {
         config->supportsIdentity = (strcmp(tokens[1], "no") != 0);
+    } else if (strcmp(keyword, "paramFollowupAfterCc") == 0) {
+        config->paramFollowupAfterCc = (strcmp(tokens[1], "yes") == 0);
     } else if (strcmp(keyword, "midiChannel") == 0) {
         config->midiChannel = (uint32_t)strtoul(tokens[1], NULL, 0);
     } else if (strcmp(keyword, "midiPort") == 0) {
@@ -606,11 +608,23 @@ bool panel_dial_is_binary(const tPanelDial * dial) {
 }
 
 bool panel_dial_needs_value_menu(const tPanelDial * dial) {
+    // dumpBitWidth>0 covers a Moog-style dump-only dial (its original
+    // 2026-07-08 use case, e.g. Voyager's Filter A/B Pole Select — see this
+    // function's own header comment). paramId!=0 covers the OLDER Korg-style
+    // path a device like the Z1 uses instead: a real SysEx parameter-change
+    // dial with no CC (ccNumber==0, already required below) and no Moog dump
+    // field either, wired via group=/param= alone. Both are equally "this
+    // dial has real, working protocol wiring, not just a placeholder" —
+    // dumpBitWidth alone missed every Z1 dial with >2 names (voiceMode,
+    // unisonType), silently falling back to knob rendering for them. Z1's
+    // own param table is 1-indexed (Program Name starts at param 1), so
+    // paramId==0 reliably means "no param wiring" here, same as dumpBitWidth
+    // ==0 meaning "no dump wiring" already did.
     return dial
            && (dial->display == dialDisplayNames)
            && (dial->nameCount > 2)
            && (dial->ccNumber == 0)
-           && (dial->dumpBitWidth > 0)
+           && ((dial->dumpBitWidth > 0) || (dial->paramId != 0))
            && !dial->asDial;
 }
 

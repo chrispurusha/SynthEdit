@@ -200,6 +200,39 @@ typedef struct {
     // the now-fresh gLastMoogDump and sends once, clearing this flag.
     bool dumpSendAwaitingFreshData;
 
+    // Debounce for a param= FOLLOW-UP after a live CC send, for a dial that
+    // has BOTH — added 2026-07-13, a real hardware finding on the Z1's
+    // Filter Cutoff/Resonance (f1cut/f1res/f2cut/f2res, layouts/z1.txt):
+    // this is an EDITOR, not a real-time performance controller, so exact
+    // final values matter more than avoiding one extra message per settled
+    // drag. Sending CC=127 (this dial's own confirmed max) was independently
+    // confirmed to only reach native 97 on the real synth's own front panel,
+    // not 99 — the Z1's CC-IN scaling for this parameter isn't a clean
+    // mirror of its CC-OUT scaling (native 99 on the knob is confirmed to
+    // SEND CC 127, but SENDING CC 127 back doesn't reach native 99) — a real
+    // hardware asymmetry, not a bug in this app's own encode/decode (which
+    // is now internally consistent and matches every confirmed data point).
+    // A param= PARAMETER CHANGE message (synth_send_parameter_change(),
+    // synthComms.c) sets the native value DIRECTLY in the parameter's own
+    // units, with no CC-scaling step for the Z1 to (im)precisely reverse —
+    // sidesteps the asymmetry entirely rather than trying to characterize
+    // and compensate for it in software. Fires the CC immediately (for
+    // instant audible feedback while dragging, matching every other CC dial
+    // in this app) and this follow-up only once CC_DEBOUNCE_MS have passed
+    // with no further change — same trailing-edge idiom as hasPendingCc/
+    // hasPendingDumpSend above, just a plain single send with no
+    // fetch-fresh-data second phase (unlike hasPendingDumpSend, there's no
+    // existing cached buffer this needs to avoid stomping — it's one
+    // parameter, sent once, computed fresh from the dial's own current
+    // value at flush time). Generic and gated purely on the dial's own
+    // declared wiring (ccNumber != 0 && paramId != 0 — see synth_set_panel_
+    // dial_value()'s own trigger site) — never fires for a dial with only
+    // one of the two, so it can't affect any device/dial that doesn't
+    // explicitly declare both, e.g. it's a no-op for every Voyager dial
+    // (checked 2026-07-13: zero uses of param= anywhere in voyager.txt).
+    bool   hasPendingParamFollowup;
+    double pendingParamFollowupSinceMs;
+
     // Where this dial's value lives in a full program-dump byte buffer (a
     // different wire format from individual parameter-change messages, but
     // still just data the file describes). -1 = not present in a dump.
@@ -417,6 +450,22 @@ typedef struct {
     // found, same as before this existed.
     char midiPortName[64];                    // only meaningful when !supportsIdentity
 
+    // "paramFollowupAfterCc yes" — device-level opt-in for the debounced
+    // param= follow-up after a live CC send (see hasPendingParamFollowup's
+    // own comment in panelConfig.h) — added 2026-07-13 for the Z1's Filter
+    // Cutoff/Resonance, whose CC-in scaling was found NOT to be a clean
+    // mirror of its own CC-out scaling (sending the confirmed max CC value
+    // only reached the synth's native value a couple of counts short of its
+    // true max). Deliberately a per-DEVICE switch, not automatic just from a
+    // dial declaring both cc= and param= — a hardware quirk this specific
+    // synth has isn't safe to assume for every future device that happens
+    // to wire a dial both ways; some might have CC-in/out perfectly
+    // symmetric already; and a device with completely different real-time
+    // requirements might not want the extra SysEx traffic regardless.
+    // Default false (the pre-2026-07-13 behaviour: CC only) — every existing
+    // device file that doesn't mention this keyword is unaffected.
+    bool paramFollowupAfterCc;
+
     // Optional SysEx sent right after connecting (see connect_without_identity()
     // in midiComms.c) — asks the device to report its own current state instead
     // of leaving every dial showing a stale/default value until physically
@@ -556,7 +605,11 @@ bool panel_dial_is_binary(const tPanelDial * dial);
 // intermediate step a drag gesture would pass through. mouseHandle.c uses
 // this to open a value-picker menu (menus.c) instead of starting a drag —
 // added 2026-07-08 for Voyager's Filter A/B Pole Select, the first dials of
-// this kind (see fltAPole/fltBPole's own comment in voyager.txt).
+// this kind (see fltAPole/fltBPole's own comment in voyager.txt). Broadened
+// 2026-07-13 to also cover a param=-wired dial with no dump field at all
+// (e.g. the Z1's voiceMode/unisonType) — see this function's own comment in
+// panelConfig.c for why dumpBitWidth alone wasn't a complete "has real
+// protocol wiring" test.
 bool panel_dial_needs_value_menu(const tPanelDial * dial);
 
 tPanelSection * find_panel_section(tPanelConfig * config, const char * page, const char * section);

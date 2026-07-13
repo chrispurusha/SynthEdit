@@ -65,6 +65,12 @@ void synth_flush_pending_cc(void);
 // Call once per frame from the render loop, alongside synth_flush_pending_cc().
 void synth_flush_pending_dump_sends(void);
 
+// Sends a precise param= follow-up for any CC+param dial once its CC stream
+// has been quiet for CC_DEBOUNCE_MS — see hasPendingParamFollowup's own
+// comment in panelConfig.h. Call once per frame from the render loop,
+// alongside synth_flush_pending_cc()/synth_flush_pending_dump_sends().
+void synth_flush_pending_param_followups(void);
+
 // Request the currently loaded program from the synth
 void synth_request_current_program(void);
 

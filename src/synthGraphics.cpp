@@ -370,6 +370,40 @@ static double render_page_tabs(tRectangle origin) {
     return (gPageTabCount > 0) ? (tabHeight + 12.0) : 0.0;
 }
 
+// Shared between section_required_spacing() below and the binary/value-menu
+// button-rendering block further down this file (search BUTTON_TEXT_PADDING)
+// — both need the EXACT same padding a button's own text gets, not just a
+// similar one. Used to be two independently-chosen numbers (8.0 here,
+// 10.0 there) that quietly drifted apart: an auto-flow section's spacing
+// this function widens to fit its own widest button was computed 2px
+// narrower than the button that same text actually rendered at, so the
+// button's right edge bled into the next dial's slot by that same 2px —
+// found 2026-07-13 on the Z1's Porta Mode/Porta Time pair ("FINGERED"
+// pushing Porta Time's knob rect partially under Porta Mode's button).
+// One named constant instead of two hand-typed literals means this can't
+// silently re-drift the next time either call site gets tweaked.
+#define BUTTON_TEXT_PADDING    10.0
+
+// Extra clearance section_required_spacing() reserves BETWEEN adjacent
+// buttons, on top of BUTTON_TEXT_PADDING — added 2026-07-13 investigating a
+// real overlap report on the Z1's Voice/Unison row, AFTER the
+// BUTTON_TEXT_PADDING unification above. Live-logged numbers showed no
+// actual overlap in the numbers themselves (Voice's own button ended a mere
+// ~4px before Unison's started, same tight single-digit-pixel margin on
+// every other button pair on the page) — get_text_width() sums per-glyph
+// advance widths to measure a string, which is a good estimate but not
+// guaranteed pixel-identical to whatever the GPU actually rasterizes for
+// that exact string (kerning, hinting, antialiasing edge bleed). With only
+// ~4px of slack, that estimate only has to be off by a couple of percent for
+// the drawn button to visually touch or bleed into its neighbour even though
+// the measured rects don't overlap. This constant is deliberately NOT added
+// to a button's own rect.size (kept snug, matching BUTTON_TEXT_PADDING
+// exactly, so an individual button doesn't look oversized on its own — see
+// that constant's own comment) — only to the shared PITCH between dials in
+// section_required_spacing(), so there's always a visible gap regardless of
+// small measurement/rendering discrepancies like this one.
+#define MIN_BUTTON_GAP    8.0
+
 // Widens a section's spacing (floor: whatever dialSize/spacing the file gave
 // it) to fit its own widest label or discrete-name text — render_text() draws
 // unclipped by rectangle width (see internal_render_text() in
@@ -380,7 +414,7 @@ static double render_page_tabs(tRectangle origin) {
 // same result, so calling this every frame is fine.
 static double section_required_spacing(tPanelSection * section) {
     const double textHeight = 12.0; // matches the value/label render_text() calls below
-    const double padding    = 8.0;
+    const double padding    = BUTTON_TEXT_PADDING + MIN_BUTTON_GAP;
     double       required   = section->spacing;
 
     for (uint32_t i = 0; i < section->dialCount; i++) {
@@ -966,7 +1000,7 @@ void synth_render(tRectangle area) {
                     // size as every other label on the panel, not an
                     // arbitrarily bigger one.
                     const double buttonHeight = 12.0;
-                    const double padding      = 10.0;
+                    const double padding      = BUTTON_TEXT_PADDING; // must match section_required_spacing()'s own use of this constant — see its comment
                     double       widest       = 0.0;
 
                     if (isToggle) {
@@ -1022,6 +1056,36 @@ void synth_render(tRectangle area) {
                     int32_t highAlias = (high < 0) ? (high + 64) : (high - 64);
 
                     snprintf(valBuf, sizeof(valBuf), "High: %d (or %d)  Low: %d", (int)high, (int)highAlias, (int)low);
+                } else if (dial->display == dialDisplayCcNative) {
+                    // "X (Y)" — X is the primary display value (0..max-1,
+                    // the number actually sent/received on the wire — see
+                    // synth_set_panel_dial_value()), Y is a SEPARATE,
+                    // display-only number scaled via dumpNativeMax, purely
+                    // so the on-screen reading matches the synth's own
+                    // front-panel number too (e.g. the Z1's Filter Cutoff:
+                    // wire is 0-127, but the synth's own LCD tops out at 99
+                    // — see f1cut's own comment in z1.txt for the full
+                    // derivation). Computed FRESH from the already-correct
+                    // display value every render, not read from dial->
+                    // nativeValue — that field is only ever populated by
+                    // the nativeMax!=0 branches in apply_dial_wire_value()/
+                    // synth_set_panel_dial_value(), which f1cut and its
+                    // siblings deliberately do NOT use any more (nativeMax
+                    // driving the actual CC byte was the real bug fixed
+                    // 2026-07-13); reusing dumpNativeMax here instead keeps
+                    // this purely a cosmetic, read-only second number that
+                    // can never again silently feed back into what gets
+                    // sent on the wire. Falls back to the older nativeValue-
+                    // based reading only for a hypothetical dial that sets
+                    // display=ccnative without dumpNativeMax — none exist in
+                    // any device file as of this writing.
+                    uint32_t nativeShown = (dial->dumpNativeMax != 0)
+                                ? ((dial->max > 1)
+                                   ? ((dialVal * dial->dumpNativeMax) + ((dial->max - 1) / 2)) / (dial->max - 1)
+                                   : 0)
+                                : get_panel_dial_native_value(dial);
+
+                    snprintf(valBuf, sizeof(valBuf), "%u (%u)", (unsigned)dialVal, (unsigned)nativeShown);
                 } else {
                     snprintf(valBuf, sizeof(valBuf), "%u (%u)", (unsigned)dialVal,
                              (unsigned)get_panel_dial_native_value(dial));
