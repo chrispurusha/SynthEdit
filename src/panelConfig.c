@@ -179,11 +179,12 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
     strncpy(dial->id, tokens[1], sizeof(dial->id) - 1);
     dial->gapBefore   = *pendingGap;
     *pendingGap       = 0.0;
-    dial->dumpOffset  = -1;   // not present in a program dump unless "dumpOffset=" says otherwise
-    dial->dumpMask    = 0xFF; // whole byte by default
-    dial->dumpOffset2 = -1;   // no second bit-location chunk unless "dumpOffset2=" says otherwise
-    dial->gridCol     = -1.0; // not grid-positioned unless "col=" says otherwise
+    dial->dumpOffset  = -1;               // not present in a program dump unless "dumpOffset=" says otherwise
+    dial->dumpMask    = 0xFF;             // whole byte by default
+    dial->dumpOffset2 = -1;               // no second bit-location chunk unless "dumpOffset2=" says otherwise
+    dial->gridCol     = -1.0;             // not grid-positioned unless "col=" says otherwise
     dial->gridRow     = -1.0;
+    dial->colour      = (tRgb)RGB_GREY_7; // neutral, matches an off toggle — overwritten below if "color=" says otherwise; a names= dial with no color= would otherwise render/menu as unset black (see voyager.txt's own notes on this)
 
     for (uint32_t i = 2; i < tokenCount; i++) {
         char key[32];

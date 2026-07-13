@@ -1086,9 +1086,21 @@ void synth_render(tRectangle area) {
                     // disabled (see panel_dial_is_disabled() above) wins over
                     // the on/off green — a greyed-out button shouldn't still
                     // read as "on".
+                    //
+                    // A panel_dial_needs_value_menu() button opens a
+                    // dropdown whose items are backgrounded in dial->colour
+                    // (open_dial_value_menu(), menus.c) — the button itself
+                    // now matches, 2026-07-13 user request, so it visually
+                    // ties to the menu it opens. A plain binary (2-position,
+                    // no dropdown — e.g. Dual LP/HP-LP) has no menu colour to
+                    // match, so it stays RGB_GREY_7 same as an off toggle.
+                    // draw_button() itself now picks black/white label text
+                    // per contrasting_text_colour(), so an arbitrarily dark
+                    // dial->colour here stays readable the same way the
+                    // dropdown's own items do.
                     tRgb colour = disabled ? (tRgb)RGB_GREY_3
-                                : isToggle && (dialVal != 0)
-                                ? (tRgb)RGB_GREEN_ON
+                                : (isToggle && (dialVal != 0)) ? (tRgb)RGB_GREEN_ON
+                                : panel_dial_needs_value_menu(dial) ? dial->colour
                                 : (tRgb)RGB_GREY_7;
                     draw_button(mainArea, dial->rect, name, colour);
                 } else {
