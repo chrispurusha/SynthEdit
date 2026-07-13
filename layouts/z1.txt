@@ -735,6 +735,156 @@ dial panpotmodsrc     label="Panpot Mod Src" color=output max=49  display=raw gr
 dial panpotmodint     label="Panpot Mod Int" color=output max=199 display=signed displayOffset=99 group=1 param=354
 dial outputlevel      label="Output Level" color=output max=128 display=raw group=1 param=355
 
+# ── LFO1-4 pages ─────────────────────────────────────────────────────────────
+# Added 2026-07-13 from the official parameter table (params 107-162, 14
+# each). Same deliberate omissions/choices as the Amp/EG pages above:
+#   - dumpOffset= left out entirely — live editing and live incoming
+#     Parameter Change decode both work fully (paramId alone drives both),
+#     but "Sync from synth" won't populate these until dumpOffset is added
+#     and verified against a live dump capture.
+#   - "Wave Form" (18 positions) and every "...Mod Src" (Mod.Source List 1,
+#     49 positions) are display=raw, not names= — the manual footnotes a
+#     fuller name list for both that wasn't transcribed this session;
+#     showing a bare number honestly reflects "not yet decoded" rather
+#     than guessing at names that could be wrong.
+#   - "Offset" is -50..+50 (not the usual -99..+99 Int family) — displayOffset
+#     is a per-dial value for exactly this reason, not hardcoded to 99.
+#   - "MIDI Sync Base"/"MIDI Sync Time" shown as their raw wire range (0-7,
+#     0-15) rather than the manual's own human-facing 1-based relabelling
+#     — same convention already used elsewhere in this file (e.g. Filter
+#     Type's storage 1-5 displays as 0-4), not a new inconsistency.
+# Split 7+7 per LFO (comfortably under the ~1280pt width budget measured
+# live for the Envelopes pages — see that section's own header comment for
+# the full derivation) and across 2 pages — "LFO 1" (LFO1+LFO2) / "LFO 2"
+# (LFO3+LFO4) — so neither page stacks more than 4 section-rows, well under
+# Filters' own proven 7-row page. Page ids are typed already-capitalized
+# ("LFO 1") since render_page_tabs() only uppercases the FIRST character —
+# lowercase "lfo 1" would render as the wrong-looking tab "Lfo 1".
+
+# ── LFO1 (params 107-120), split across 2 sections ──
+page       LFO 1
+section    lfo1a
+dialSize   40
+spacing    50
+
+color lfo1 0.9 0.4 0.6
+
+dial lfo1waveform         label="LFO1 Wave Form" color=lfo1 max=18  display=raw group=1 param=107
+dial lfo1keysyncsw        label="LFO1 Key Sync SW" color=lfo1 max=3   names=OFF,byTIMBRE,byVOICE group=1 param=108
+dial lfo1frequency        label="LFO1 Frequency" color=lfo1 max=200 display=raw group=1 param=109
+dial lfo1freqmod1src      label="LFO1 Freq Mod1 Src" color=lfo1 max=49  display=raw group=1 param=110
+dial lfo1freqmod1int      label="LFO1 Freq Mod1 Int" color=lfo1 max=199 display=signed displayOffset=99 group=1 param=111
+dial lfo1freqmod2src      label="LFO1 Freq Mod2 Src" color=lfo1 max=49  display=raw group=1 param=112
+dial lfo1freqmod2int      label="LFO1 Freq Mod2 Int" color=lfo1 max=199 display=signed displayOffset=99 group=1 param=113
+
+page       LFO 1
+section    lfo1b
+dialSize   40
+spacing    50
+
+color lfo1 0.9 0.4 0.6
+
+dial lfo1fadein           label="LFO1 Fade In" color=lfo1 max=100 display=raw group=1 param=114
+dial lfo1ampmodsrc        label="LFO1 Amp Mod Src" color=lfo1 max=49  display=raw group=1 param=115
+dial lfo1ampmodint        label="LFO1 Amp Mod Int" color=lfo1 max=199 display=signed displayOffset=99 group=1 param=116
+dial lfo1offset           label="LFO1 Offset" color=lfo1 max=101 display=signed displayOffset=50 group=1 param=117
+dial lfo1midisync         label="LFO1 MIDI Sync" color=lfo1 max=2   names=OFF,ON group=1 param=118
+dial lfo1midisyncbase     label="LFO1 MIDI Sync Base" color=lfo1 max=8   display=raw group=1 param=119
+dial lfo1midisynctime     label="LFO1 MIDI Sync Time" color=lfo1 max=16  display=raw group=1 param=120
+
+# ── LFO2 (params 121-134), split across 2 sections ──
+page       LFO 1
+section    lfo2a
+dialSize   40
+spacing    50
+
+color lfo2 0.4 0.6 0.9
+
+dial lfo2waveform         label="LFO2 Wave Form" color=lfo2 max=18  display=raw group=1 param=121
+dial lfo2keysyncsw        label="LFO2 Key Sync SW" color=lfo2 max=3   names=OFF,byTIMBRE,byVOICE group=1 param=122
+dial lfo2frequency        label="LFO2 Frequency" color=lfo2 max=200 display=raw group=1 param=123
+dial lfo2freqmod1src      label="LFO2 Freq Mod1 Src" color=lfo2 max=49  display=raw group=1 param=124
+dial lfo2freqmod1int      label="LFO2 Freq Mod1 Int" color=lfo2 max=199 display=signed displayOffset=99 group=1 param=125
+dial lfo2freqmod2src      label="LFO2 Freq Mod2 Src" color=lfo2 max=49  display=raw group=1 param=126
+dial lfo2freqmod2int      label="LFO2 Freq Mod2 Int" color=lfo2 max=199 display=signed displayOffset=99 group=1 param=127
+
+page       LFO 1
+section    lfo2b
+dialSize   40
+spacing    50
+
+color lfo2 0.4 0.6 0.9
+
+dial lfo2fadein           label="LFO2 Fade In" color=lfo2 max=100 display=raw group=1 param=128
+dial lfo2ampmodsrc        label="LFO2 Amp Mod Src" color=lfo2 max=49  display=raw group=1 param=129
+dial lfo2ampmodint        label="LFO2 Amp Mod Int" color=lfo2 max=199 display=signed displayOffset=99 group=1 param=130
+dial lfo2offset           label="LFO2 Offset" color=lfo2 max=101 display=signed displayOffset=50 group=1 param=131
+dial lfo2midisync         label="LFO2 MIDI Sync" color=lfo2 max=2   names=OFF,ON group=1 param=132
+dial lfo2midisyncbase     label="LFO2 MIDI Sync Base" color=lfo2 max=8   display=raw group=1 param=133
+dial lfo2midisynctime     label="LFO2 MIDI Sync Time" color=lfo2 max=16  display=raw group=1 param=134
+
+# ── LFO3 (params 135-148), split across 2 sections ──
+page       LFO 2
+section    lfo3a
+dialSize   40
+spacing    50
+
+color lfo3 0.6 0.9 0.4
+
+dial lfo3waveform         label="LFO3 Wave Form" color=lfo3 max=18  display=raw group=1 param=135
+dial lfo3keysyncsw        label="LFO3 Key Sync SW" color=lfo3 max=3   names=OFF,byTIMBRE,byVOICE group=1 param=136
+dial lfo3frequency        label="LFO3 Frequency" color=lfo3 max=200 display=raw group=1 param=137
+dial lfo3freqmod1src      label="LFO3 Freq Mod1 Src" color=lfo3 max=49  display=raw group=1 param=138
+dial lfo3freqmod1int      label="LFO3 Freq Mod1 Int" color=lfo3 max=199 display=signed displayOffset=99 group=1 param=139
+dial lfo3freqmod2src      label="LFO3 Freq Mod2 Src" color=lfo3 max=49  display=raw group=1 param=140
+dial lfo3freqmod2int      label="LFO3 Freq Mod2 Int" color=lfo3 max=199 display=signed displayOffset=99 group=1 param=141
+
+page       LFO 2
+section    lfo3b
+dialSize   40
+spacing    50
+
+color lfo3 0.6 0.9 0.4
+
+dial lfo3fadein           label="LFO3 Fade In" color=lfo3 max=100 display=raw group=1 param=142
+dial lfo3ampmodsrc        label="LFO3 Amp Mod Src" color=lfo3 max=49  display=raw group=1 param=143
+dial lfo3ampmodint        label="LFO3 Amp Mod Int" color=lfo3 max=199 display=signed displayOffset=99 group=1 param=144
+dial lfo3offset           label="LFO3 Offset" color=lfo3 max=101 display=signed displayOffset=50 group=1 param=145
+dial lfo3midisync         label="LFO3 MIDI Sync" color=lfo3 max=2   names=OFF,ON group=1 param=146
+dial lfo3midisyncbase     label="LFO3 MIDI Sync Base" color=lfo3 max=8   display=raw group=1 param=147
+dial lfo3midisynctime     label="LFO3 MIDI Sync Time" color=lfo3 max=16  display=raw group=1 param=148
+
+# ── LFO4 (params 149-162), split across 2 sections ──
+page       LFO 2
+section    lfo4a
+dialSize   40
+spacing    50
+
+color lfo4 0.9 0.7 0.4
+
+dial lfo4waveform         label="LFO4 Wave Form" color=lfo4 max=18  display=raw group=1 param=149
+dial lfo4keysyncsw        label="LFO4 Key Sync SW" color=lfo4 max=3   names=OFF,byTIMBRE,byVOICE group=1 param=150
+dial lfo4frequency        label="LFO4 Frequency" color=lfo4 max=200 display=raw group=1 param=151
+dial lfo4freqmod1src      label="LFO4 Freq Mod1 Src" color=lfo4 max=49  display=raw group=1 param=152
+dial lfo4freqmod1int      label="LFO4 Freq Mod1 Int" color=lfo4 max=199 display=signed displayOffset=99 group=1 param=153
+dial lfo4freqmod2src      label="LFO4 Freq Mod2 Src" color=lfo4 max=49  display=raw group=1 param=154
+dial lfo4freqmod2int      label="LFO4 Freq Mod2 Int" color=lfo4 max=199 display=signed displayOffset=99 group=1 param=155
+
+page       LFO 2
+section    lfo4b
+dialSize   40
+spacing    50
+
+color lfo4 0.9 0.7 0.4
+
+dial lfo4fadein           label="LFO4 Fade In" color=lfo4 max=100 display=raw group=1 param=156
+dial lfo4ampmodsrc        label="LFO4 Amp Mod Src" color=lfo4 max=49  display=raw group=1 param=157
+dial lfo4ampmodint        label="LFO4 Amp Mod Int" color=lfo4 max=199 display=signed displayOffset=99 group=1 param=158
+dial lfo4offset           label="LFO4 Offset" color=lfo4 max=101 display=signed displayOffset=50 group=1 param=159
+dial lfo4midisync         label="LFO4 MIDI Sync" color=lfo4 max=2   names=OFF,ON group=1 param=160
+dial lfo4midisyncbase     label="LFO4 MIDI Sync Base" color=lfo4 max=8   display=raw group=1 param=161
+dial lfo4midisynctime     label="LFO4 MIDI Sync Time" color=lfo4 max=16  display=raw group=1 param=162
+
 # ── Effects page ──────────────────────────────────────────────────────────────
 # Placeholder — no controls transcribed yet. The page exists so the page-tab
 # row has something to switch to; add dials here once the Effects parameters
