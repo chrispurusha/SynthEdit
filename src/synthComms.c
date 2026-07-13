@@ -317,7 +317,18 @@ static uint32_t synth_encode_dump_raw_value(tPanelDial * dial, uint32_t displayV
     if ((dumpMax != 0) && (dial->max > 1)) {
         native = ((displayValue * dumpMax) + ((dial->max - 1) / 2)) / (dial->max - 1);
     } else {
-        native = displayValue; // plain continuous dial — dump value IS the display value
+        // plain continuous/named dial — dump value is the display value,
+        // shifted by storageOffset for a dial whose wire range doesn't
+        // start at 0 (e.g. Voyager tsGateCtrl's 64-127+Off, storageOffset=
+        // 64). Mirrors apply_dial_wire_value()'s decode side and the Z1
+        // param-change encode path below, both of which already add
+        // storageOffset — this branch just never had a dial exercise
+        // BOTH storageOffset and a dump-only Moog field until tsGateCtrl,
+        // 2026-07-13: found live, dragging the dial changed the on-screen
+        // display but never reached the hardware, because the un-offset
+        // displayValue (0-64) was being sent instead of the actual wire
+        // value (64-128) tsGateCtrl's own dumpOffset field expects.
+        native = (uint32_t)((int32_t)displayValue + dial->storageOffset);
     }
 
     if (dial->dumpInvert) {

@@ -256,6 +256,8 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
             dial->noLabel = (strtoul(val, NULL, 0) != 0);
         } else if (strcmp(key, "readOnly") == 0) {
             dial->readOnly = (strtoul(val, NULL, 0) != 0);
+        } else if (strcmp(key, "asDial") == 0) {
+            dial->asDial = (strtoul(val, NULL, 0) != 0);
         } else if (strcmp(key, "hiLoOffset") == 0) {
             dial->hiLoOffset = (int32_t)strtol(val, NULL, 0);
         } else if (strcmp(key, "hiLoCoarseScale") == 0) {
@@ -608,7 +610,8 @@ bool panel_dial_needs_value_menu(const tPanelDial * dial) {
            && (dial->display == dialDisplayNames)
            && (dial->nameCount > 2)
            && (dial->ccNumber == 0)
-           && (dial->dumpBitWidth > 0);
+           && (dial->dumpBitWidth > 0)
+           && !dial->asDial;
 }
 
 uint32_t get_panel_dial_value(const tPanelDial * dial) {

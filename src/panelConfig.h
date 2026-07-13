@@ -35,7 +35,7 @@ extern "C" {
 
 #define PANEL_ID_LEN               16
 #define PANEL_LABEL_LEN            32
-#define PANEL_MAX_NAMES            48 // raised from 20 to 32 2026-07-10 (Voyager's soundCategory, a full 32-value enum, 0-31); raised from 32 to 48 2026-07-11 — Voyager's pgmShaping1Src/pgmShaping2Src are 43-value enums (0-42), values >= the old 32 cap silently had no stored name and rendered as "?"
+#define PANEL_MAX_NAMES            65 // raised from 20 to 32 2026-07-10 (Voyager's soundCategory, a full 32-value enum, 0-31); raised from 32 to 48 2026-07-11 — Voyager's pgmShaping1Src/pgmShaping2Src are 43-value enums (0-42), values >= the old 32 cap silently had no stored name and rendered as "?"; raised from 48 to 65 2026-07-13 — Voyager's tsGateCtrl uses storageOffset to give TS Gate's MIDI Ctrl No (64-127 plus a distinct Off state) a proper named 65-value enum instead of a raw 0-128 dial with an unlabeled dead zone below 64
 #define PANEL_MAX_COLOURS          16
 #define PANEL_MAX_DIALS            32
 #define PANEL_MAX_SECTIONS         32
@@ -318,6 +318,27 @@ typedef struct {
     // wheel/pedal/shaping menus, etc.) genuinely IS a stored firmware
     // setting, not a live analog readout, so this should stay rare.
     bool readOnly;
+
+    // "asDial" in the file — forces panel_dial_needs_value_menu() to false
+    // for a names= dial that would otherwise qualify (>2 positions, no CC,
+    // has a dumpBitWidth) and default to a click-to-open dropdown button
+    // (the 2026-07-08 "a menu-select control reads as a button, not
+    // something you'd drag" call — see that function's own comment). Added
+    // 2026-07-13 for Voyager's tsGateCtrl: a 65-position named enum (Off,
+    // 64-127) that owner explicitly wanted to keep behaving like every
+    // other continuous CC dial (drag a knob) rather than open a 65-row
+    // dropdown, once the plain `display=raw` version's unlabelled 0-63 dead
+    // zone got fixed by switching to names=+offset= — the earlier
+    // button-only rule assumed every >2-name dump-only dial was a discrete
+    // "pick one of these labelled things" selector (true for every other
+    // one so far — destinations, sources, categories), not a numeric range
+    // that just happens to render itself with named steps. Rendering
+    // (synthGraphics.cpp) and click routing (mouseHandle.c's
+    // arm_dial_press()) both key off panel_dial_needs_value_menu() alone,
+    // so this one flag automatically fixes both without a separate check in
+    // each. Default false — every other names= dial keeps today's
+    // dropdown-button behaviour unchanged.
+    bool asDial;
 
     // "hiLoOffset="/"hiLoCoarseScale="/"hiLoFineScale=" — only meaningful
     // when display == dialDisplaySignedHiLo (see that enum value's own long

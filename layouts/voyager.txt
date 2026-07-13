@@ -614,6 +614,114 @@ dial tsaCtrl      label="TSA Ctrl No"   color=menu max=128 display=raw dumpOffse
 dial tsaDirection label="TSA Direction" max=2  dumpOffset=134 dumpBitOffset=1 dumpBitWidth=1 names="Normal","Inverted" col=6 row=2
 dial tsaAmount    label="TSA Amount"    max=4  dumpOffset=133 dumpBitOffset=6 dumpBitWidth=2 names="Off","25%","50%","100%" col=9 row=2
 
+# TS Gate — EDIT mode menu 5.1's 4th control (separate from X/Y/A, "the TS
+# Gate menu is different" per the manual). Unlike X/Y/A this drives SWITCHES,
+# not continuous destinations, so there's no Amount field — instead: Control
+# (which switch it toggles), MIDI Ctrl No, Polarity, and a separate LFO
+# Restart on/off. All 4 CONFIRMED against real hardware 2026-07-13, same
+# live-diff method as X/Y/A.
+#
+# Control: 14-item sequential index. The manual prints this list in two PDF
+# columns (7 items each) — initially assumed left-column-then-right-column
+# order matched the real menu order, which LOOKED wrong (an "Oscillator 3"
+# capture decoded to a value inconsistent with index 10) until the owner
+# read the actual on-hardware cycling order via +1 from "No Switch": it
+# turned out to match the assumed print order after all — the real problem
+# was MIDI CTRL NO auto-resetting when CONTROL changes (see below), which
+# had contaminated the diff. Confirmed clean at 3 points once Ctrl No was
+# pinned to a fixed value across each comparison: No Switch=0, Glide
+# Switch=1, Oscillator 3=10, all exact.
+dial tsGateControl label="TS Gate Ctrl" max=14 dumpOffset=135 dumpBitOffset=3 dumpBitWidth=4 names="No Switch","Glide Switch","Release Switch","Osc. 1-2 Sync","Osc. 3-1 FM","Osc. 3 KB Ctrl","Osc. 3 Frequency","External Audio","Oscillator 1","Oscillator 2","Oscillator 3","Noise Switch","Filter Mode","ENV Gate Switch" col=0 row=3
+
+# MIDI Ctrl No: same auto-reset-on-Control-change quirk as X/Y/A's Ctrl No
+# (confirmed again here — selecting Control auto-sets Ctrl No to that
+# switch's own real fixed CC, e.g. Glide Switch -> CC65, matching `glide`'s
+# own cc=65 elsewhere in this file). 8-bit field, raw = literal CC number
+# (0-127) with 128 as a distinct OFF sentinel (the manual's "0 = OFF" prose
+# describes the DISPLAY, not the wire — the wire uses 128, confirmed exactly
+# at two independent points: OFF->128, 65->65, 127->127, all with Control
+# held fixed throughout each comparison). A "Control also changed" report
+# while sweeping Ctrl No up to 127 turned out to be an unrelated UI
+# navigation slip (62 button presses from 65), not a real coupling — byte
+# 135 (Control) provably didn't move at all in the clean Ctrl No isolation
+# captures.
+#
+# 2026-07-13: originally wired as a plain `display=raw max=129` dial —
+# functionally correct (writing any raw 0-63 does register as Off on real
+# hardware, confirmed live) but a confusing dead zone: half the drag range
+# displayed as a raw number instead of "Off", nothing like the real EDIT
+# menu's own clean Off/64/65/.../127 cycle. Replaced with a plain `names=`
+# enum (65 entries) + `offset=` — no new engine code needed for the field
+# itself, `offset` (parsed into dial->storageOffset; storage_value =
+# display_value + storageOffset) already existed for exactly this "wire
+# range doesn't start at 0" shape. TWO real bugs found getting this
+# working, neither in the field derivation above: (1) `synthComms.c`'s
+# synth_encode_dump_raw_value() never applied storageOffset on the WRITE
+# side (only the decode/render side used it) — no existing dial combined
+# storageOffset with a dump-only Moog field before this one, so the gap was
+# latent; fixed generically, not a Voyager-only patch. (2) this dial's own
+# layout line originally said `storageOffset=` (the C struct field's name)
+# instead of the parser's actual keyword `offset=` — parse_dial_line() logs
+# unknown attributes but doesn't treat them as fatal, so this failed
+# completely silently (field stayed at its zero default) until caught by
+# the debug log's "unknown dial attribute" line. Required raising
+# PANEL_MAX_NAMES 48->65 (panelConfig.h) — first dial in this file needing
+# more than 48 names.
+#
+# `asDial=1` — added same session: a plain names= dial with >2 positions
+# normally renders as a click-to-open dropdown button (panel_dial_
+# needs_value_menu(), a deliberate 2026-07-08 design choice — see that
+# function's own comment in panelConfig.c), which would mean a 65-row menu
+# here. Owner explicitly preferred this stay a draggable knob like every
+# other continuous CC dial, matching how it looked before the Off/64-127
+# names= rework (when it was a plain `display=raw` dial). `asDial` is a
+# small generic opt-out (panelConfig.h/.c) — forces panel_dial_needs_value_
+# menu() to false for this one dial, which both the button/knob render
+# branch (synthGraphics.cpp) and the click-vs-drag routing (mouseHandle.c's
+# arm_dial_press()) already key off of, so one flag fixes both. `color=menu`
+# is required alongside it — a names= dial normally renders as a text
+# button and never reads dial->colour at all, but forcing knob rendering
+# via asDial brings that need right back; missed on the first pass and hit
+# the exact same "unset colour renders a black knob" bug already on record
+# for Clock Div (see that dial's own comment further up this file) — same
+# root cause (colour lookup is per-SECTION, not global, and only applies
+# to whichever dials actually get drawn as a knob), different dial.
+#
+# `offset=63`, "Off" placed FIRST (owner's explicit call — wanted Off at
+# the knob's rest/minimum position, ascending to 127, matching how every
+# other continuous dial in this file behaves) rather than last: index 0 ->
+# raw 63, still comfortably under the confirmed <64-reads-as-Off threshold,
+# so a single plain linear offset covers "Off" and the real 64-127 range
+# with no special-casing. Trade-off accepted, not fixed: the real
+# hardware's OWN front-panel OFF sentinel is raw=128 (confirmed earlier
+# this session), one past this dial's clamp ceiling (63+64=127) — syncing
+# after navigating to Off via the actual front panel (not this app) will
+# decode as "127" instead of "Off" until the dial is touched again in-app.
+# A first pass put "Off" last specifically to avoid this gap, but that put
+# it at the WRONG END of the knob for a natural drag feel — same kind of
+# accepted-not-fixed display limitation as dialDisplaySignedHiLo's own
+# documented HIGH/LOW ambiguity elsewhere in this file, not chased further.
+#
+# Not extended to tsxCtrl/tsyCtrl/tsaCtrl (X/Y/A's own Ctrl No dials) in
+# the same pass — those are still plain `display=raw` 0-128 dials. The
+# manual documents a DIFFERENT valid range for X/Y/A (CC 1-31 or OFF) than
+# TS Gate's (CC 64-127 or OFF, confirmed live this session) — unlike Gate,
+# X/Y/A's own OFF threshold/exact range was never live-diffed, so copying
+# TS Gate's 64-127+Off encoding onto them would be guessing, not confirmed.
+dial tsGateCtrl    label="TS Gate Ctrl No" color=menu max=65 offset=63 asDial=1 dumpOffset=136 dumpBitOffset=4 dumpBitWidth=8 names="Off","64","65","66","67","68","69","70","71","72","73","74","75","76","77","78","79","80","81","82","83","84","85","86","87","88","89","90","91","92","93","94","95","96","97","98","99","100","101","102","103","104","105","106","107","108","109","110","111","112","113","114","115","116","117","118","119","120","121","122","123","124","125","126","127" col=3 row=3
+
+# Polarity: clean single bit, sits immediately before Ctrl No's own field
+# (bit 3 vs Ctrl No's bit 4 start) with no overlap.
+dial tsGatePolarity label="TS Gate Polarity" max=2 dumpOffset=136 dumpBitOffset=3 dumpBitWidth=1 names="Normal","Inverted" col=6 row=3
+
+# LFO Restart — EDIT mode menu 5.1's 4th sub-item under TS Gate (scrolled to
+# via CURSOR, same UI pattern as the Amount field in the X/Y/A menus).
+# Lives in a completely different byte from the rest of TS Gate (dumpOffset
+# 21, unused elsewhere in this file) rather than packed alongside
+# Control/Ctrl No/Polarity — plausible given it's really an LFO-section
+# setting, not a Touch-Surface-section one.
+dial tsGateLfoRestart label="TS Gate LFO Restart" max=2 dumpOffset=21 dumpBitOffset=4 dumpBitWidth=1 names="Off","On" col=9 row=3
+
 page       panel
 section    lfo
 dialSize   36
