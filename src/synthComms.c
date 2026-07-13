@@ -67,7 +67,27 @@ static bool is_moog_sysex(const uint8_t * data, uint32_t length) {
 
 // ── 7-to-8 bit decoding ───────────────────────────────────────────────────────
 // Korg packs 7 data bytes into 8 MIDI bytes.
-// Byte 0 of each group holds the MSBs (bit6 = MSB of byte1, bit5 = MSB of byte2, …)
+// Byte 0 of each group holds the MSBs — bit0 = MSB of data byte 7n+0 (the
+// FIRST data byte in the group, right after this MSB byte), bit6 = MSB of
+// data byte 7n+6 (the LAST). Bit index == in-group data-byte index. Fixed
+// 2026-07-13 — was previously (6-j) (mirrored: bit6 for the first data byte,
+// bit0 for the last), confirmed backwards against the MIDI Implementation
+// PDF's own diagram (p.19: MSB byte's boxes read left-to-right as bit6..bit0,
+// labelled "7n+6,5,4,3,2,1,0" — i.e. bit6 pairs with 7n+6, bit0 with 7n+0).
+// Real-world symptom that led here: F1 Mod EG (dumpOffset 319, group n=45,
+// in-group index 4) always read back as A.EG (its max/clamp value) after a
+// GUI write that hardware confirmed took (e.g. wrote EG1, hardware displayed
+// EG1) — root cause was F1 Lo Int's (dumpOffset 317, in-group index 2) own
+// true MSB landing on the WRONG bit under the old mirrored mapping, so
+// whenever Lo Int held a large-magnitude value, its stray MSB got OR'd onto
+// F1 Mod EG's byte instead of its own, pushing Mod EG's raw value past its
+// valid range and clamping it to A.EG. Every dump-decoded byte near another
+// byte needing bit7 (any raw value >=128 — e.g. the "Int" -99..+99 family,
+// stored as 0-198) was equally at risk, not just this one field. Both
+// encode_8to7() below and this function were wrong the same mirrored way, so
+// they round-tripped correctly against EACH OTHER (masking the bug for
+// anything only ever built and read back within this app) — only breaks
+// against the real synth's own byte-for-byte-correct dumps/writes.
 // Returns number of decoded bytes written.
 static uint32_t decode_7to8(const uint8_t * midi, uint32_t midiLen, uint8_t * out, uint32_t outMax) {
     uint32_t outLen = 0;
@@ -76,7 +96,7 @@ static uint32_t decode_7to8(const uint8_t * midi, uint32_t midiLen, uint8_t * ou
         uint8_t msbs = midi[i];
 
         for (int j = 0; j < 7 && outLen < outMax; j++) {
-            out[outLen++] = (uint8_t)(midi[i + 1 + j] | (((msbs >> (6 - j)) & 1) << 7));
+            out[outLen++] = (uint8_t)(midi[i + 1 + j] | (((msbs >> j) & 1) << 7));
         }
     }
 
@@ -84,6 +104,8 @@ static uint32_t decode_7to8(const uint8_t * midi, uint32_t midiLen, uint8_t * ou
 }
 
 // ── 8-to-7 bit encoding ───────────────────────────────────────────────────────
+// See decode_7to8()'s own comment above — bit index == in-group data-byte
+// index, fixed the same day/same reason (was (6-j), mirrored).
 // Returns number of MIDI bytes written (always ceil(dataLen/7)*8).
 static uint32_t encode_8to7(const uint8_t * data, uint32_t dataLen, uint8_t * out, uint32_t outMax) {
     uint32_t outLen = 0;
@@ -93,7 +115,7 @@ static uint32_t encode_8to7(const uint8_t * data, uint32_t dataLen, uint8_t * ou
         uint32_t groupSz = (dataLen - i >= 7) ? 7 : (dataLen - i);
 
         for (uint32_t j = 0; j < groupSz; j++) {
-            msbs |= (uint8_t)(((data[i + j] >> 7) & 1) << (6 - j));
+            msbs |= (uint8_t)(((data[i + j] >> 7) & 1) << j);
         }
 
         out[outLen++] = msbs;
