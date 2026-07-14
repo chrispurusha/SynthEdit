@@ -589,6 +589,10 @@ void do_graphics_loop(void) {
         // patch-and-resend (e.g. Voyager's Headphone Volume) — see
         // hasPendingDumpSend's own comment in panelConfig.h.
         synth_flush_pending_dump_sends();
+        // Sends a Korg-style Parameter Change that was deferred because a
+        // name-sweep request was in flight at the time — see
+        // synth_flush_pending_param_send()'s own comment (synthComms.h).
+        synth_flush_pending_param_send();
         // Advances an in-progress Backup > Bank (Individual Files)… sweep
         // (next preset request, or a per-preset timeout) — see
         // synth_backup_flush_bank_to_folder()'s own comment (synthBackup.h).
@@ -597,6 +601,11 @@ void do_graphics_loop(void) {
         // Bank name sweep — see synth_backup_flush_korg_name_sweep()'s own
         // comment (synthBackup.h).
         synth_backup_flush_korg_name_sweep();
+        // Silently starts a Korg-style (Z1) name sweep shortly after
+        // connecting, so it's already partly (or fully) cached by the time
+        // the user clicks Load/Store Patch from Bank — see
+        // synth_backup_flush_background_prefetch()'s own comment (synthBackup.h).
+        synth_backup_flush_background_prefetch();
         // Advances an in-progress Restore > Bank (Individual Files)… sweep
         // (paced sends, no reply to wait for) — see
         // synth_backup_flush_restore_folder()'s own comment (synthBackup.h).

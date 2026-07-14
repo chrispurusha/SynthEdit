@@ -116,11 +116,37 @@ void synth_backup_flush_bank_to_folder(void);
 // Per-frame poll for an in-progress Korg-style name sweep (Z1: 2 banks x
 // 128 programs) — the Korg counterpart to synth_backup_flush_bank_to_folder()
 // above, kept fully separate (see that sweep's own header comment in
-// synthBackup.c for why). Advances once a reply lands or
-// BACKUP_BATCH_TIMEOUT_MS passes with none. A no-op unless a Korg name
-// sweep is actually active. Call once per frame from the render loop,
-// alongside synth_backup_flush_bank_to_folder(). Added 2026-07-14.
+// synthBackup.c for why). Paced (KORG_SWEEP_PACING_MS, synthBackup.c), not
+// as-fast-as-possible — the picker no longer waits on this sweep at all
+// (see korg_sweep_show_picker()'s own comment), so there's no reason to
+// hurry. A no-op unless a Korg name sweep is actually active. Call once per
+// frame from the render loop, alongside synth_backup_flush_bank_to_folder().
+// Added 2026-07-14.
 void synth_backup_flush_korg_name_sweep(void);
+
+// True only while a single Korg sweep request is awaiting its reply/timeout
+// (NOT during the slower paced gap between requests) — see this function's
+// own comment in synthBackup.c. synthComms.c's synth_set_panel_dial_value()
+// checks this to defer an outgoing Parameter Change rather than sending it
+// into the same narrow window a sweep reply is expected in (2026-07-14
+// owner report of spurious "(no response)" entries traced to exactly this
+// collision). Always false on a Moog-style device (no Korg sweep concept
+// there at all). Added 2026-07-14.
+bool synth_backup_korg_request_in_flight(void);
+
+// Per-frame poll that silently STARTS a Korg name sweep (see above) once
+// the connected device has stayed eligible for a moment — pre-fetches
+// program names in the background so a later explicit "Load/Store Patch
+// from Bank…" click finds the picker already partly (or fully) populated
+// instead of all "---". NOT gated on user inactivity — an earlier version
+// was, but that meant a normal pause between dial tweaks fired the sweep
+// mid-session; see this function's own comment in synthBackup.c for why
+// that was dropped in favour of always-slow pacing instead. Korg-style
+// only, one-shot per connection (gKorgNameCacheValid latches true on
+// completion), a no-op whenever any other backup/sweep/restore operation
+// is already in flight. Call once per frame from the render loop, alongside
+// the other flush functions. Added 2026-07-14.
+void synth_backup_flush_background_prefetch(void);
 
 // Called from synthComms.c's dump handlers (handle_moog_panel_dump(),
 // handle_curr_prog_dump(), handle_moog_single_preset_dump(),

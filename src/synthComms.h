@@ -60,6 +60,15 @@ void synth_decode_moog_name(const uint8_t * payload, uint32_t payloadLen, int32_
 // decode as either expected function ID, or is too short.
 void synth_decode_korg_name(const uint8_t * data, uint32_t length, char * outName, size_t outNameSize);
 
+// Same input (a captured Program Data Dump/Current Program Dump reply) as
+// synth_decode_korg_name() above, but extracts the Category value's display
+// name instead — fully generic, see this function's own comment
+// (synthComms.c) for how it finds "the category dial" without any
+// Z1-specific code. A no-op (outCategory left untouched — caller should
+// default it to "" first) if the connected device has no dial named
+// "category" in its own <device>.txt, or if data doesn't decode.
+void synth_decode_korg_category(const uint8_t * data, uint32_t length, char * outCategory, size_t outCategorySize);
+
 // Dispatch an incoming synth SysEx message (full message including F0 header)
 void synth_handle_message(const uint8_t * data, uint32_t length);
 
@@ -79,6 +88,15 @@ void synth_flush_pending_cc(void);
 // for CC_DEBOUNCE_MS — see hasPendingDumpSend's own comment in panelConfig.h.
 // Call once per frame from the render loop, alongside synth_flush_pending_cc().
 void synth_flush_pending_dump_sends(void);
+
+// Sends a Korg-style Parameter Change that synth_set_panel_dial_value()
+// deferred because synth_backup_korg_request_in_flight() (synthBackup.h)
+// was true at the time (2026-07-14 mutual-exclusion fix — see
+// gPendingParamDial's own comment in synthComms.c) the moment that window
+// clears. A no-op if nothing is pending, or if a sweep request is STILL in
+// flight (keeps waiting). Call once per frame from the render loop,
+// alongside synth_flush_pending_cc().
+void synth_flush_pending_param_send(void);
 
 // Request the currently loaded program from the synth
 void synth_request_current_program(void);

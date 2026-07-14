@@ -650,9 +650,15 @@ static void handle_prog_dump(const uint8_t * data, uint32_t length) {
     LOG_DEBUG("Received Program Data Dump (len=%u)\n", (unsigned)length);
 }
 
-void synth_decode_korg_name(const uint8_t * data, uint32_t length, char * outName, size_t outNameSize) {
-    if ((outNameSize == 0) || !is_synth_sysex(data, length)) {
-        return;
+// Shared plumbing for synth_decode_korg_name()/synth_decode_korg_category()
+// below — both need the same funcId-dependent header skip and 7-to-8 decode
+// of a captured Program Data Dump (0x4C) or Current Program Dump (0x40)
+// reply before extracting anything from it. Returns false (decoded/
+// *outDecodedLen left untouched) for anything that isn't recognisably one
+// of those two replies.
+static bool korg_decode_prog_dump(const uint8_t * data, uint32_t length, uint8_t * decoded, uint32_t decodedCap, uint32_t * outDecodedLen) {
+    if (!is_synth_sysex(data, length)) {
+        return false;
     }
     tPanelConfig *  cfg        = synth_panel_config();
     uint32_t        funcPos    = 3 + cfg->manufacturerIdLen;
@@ -668,24 +674,37 @@ void synth_decode_korg_name(const uint8_t * data, uint32_t length, char * outNam
     } else if (funcId == SYNTH_FUNC_PROG_DUMP) {
         extra = 3;
     } else {
-        return;
+        return false;
     }
     uint32_t        skip       = funcPos + 1 + extra;
 
     if (length < skip + 1) {
-        return;
+        return false;
     }
     const uint8_t * payload    = data + skip;
     uint32_t        payloadLen = length - skip - 1; // exclude trailing F7
 
-    static uint8_t  decoded[4096];
-    uint32_t        decodedLen = decode_7to8(payload, payloadLen, decoded, sizeof(decoded));
-    uint32_t        nameLen    = (decodedLen >= cfg->progNameLen) ? cfg->progNameLen : decodedLen;
+    *outDecodedLen = decode_7to8(payload, payloadLen, decoded, decodedCap);
+    return true;
+}
+
+void synth_decode_korg_name(const uint8_t * data, uint32_t length, char * outName, size_t outNameSize) {
+    if (outNameSize == 0) {
+        return;
+    }
+    tPanelConfig * cfg        = synth_panel_config();
+    static uint8_t decoded[4096];
+    uint32_t       decodedLen = 0;
+
+    if (!korg_decode_prog_dump(data, length, decoded, sizeof(decoded), &decodedLen)) {
+        return;
+    }
+    uint32_t       nameLen    = (decodedLen >= cfg->progNameLen) ? cfg->progNameLen : decodedLen;
 
     if (nameLen >= outNameSize) {
         nameLen = (uint32_t)(outNameSize - 1);
     }
-    uint32_t        i;
+    uint32_t       i;
 
     for (i = 0; i < nameLen; i++) {
         char c = (char)decoded[i];
@@ -693,6 +712,44 @@ void synth_decode_korg_name(const uint8_t * data, uint32_t length, char * outNam
     }
 
     outName[i] = '\0';
+}
+
+// Extracts just the Category value's display name from a captured Program
+// Data Dump reply — the picker counterpart to synth_decode_korg_name()
+// above, used so Load/Store Patch from Bank can show category alongside
+// each program's name (2026-07-14 user request). Fully generic, same
+// "nothing device-specific lives here" reasoning as extract_prog_info()'s
+// own comment above: looks up whichever dial the connected device's own
+// <device>.txt names "category" (find_panel_dial_anywhere(), panelConfig.h
+// — Z1's z1.txt has one, `dial category label="Category" ...`) and reads
+// ITS dumpOffset/dumpShift/dumpMask/names — a device with no such dial (or
+// a Moog-style one, which never reaches this function at all) just leaves
+// outCategory untouched. Caller should default it to "" first.
+void synth_decode_korg_category(const uint8_t * data, uint32_t length, char * outCategory, size_t outCategorySize) {
+    if (outCategorySize == 0) {
+        return;
+    }
+    tPanelDial *   dial       = find_panel_dial_anywhere(synth_panel_config(), "category");
+
+    if (!dial || (dial->dumpOffset < 0)) {
+        return;
+    }
+    static uint8_t decoded[4096];
+    uint32_t       decodedLen = 0;
+
+    if (!korg_decode_prog_dump(data, length, decoded, sizeof(decoded), &decodedLen)) {
+        return;
+    }
+
+    if (decodedLen <= (uint32_t)dial->dumpOffset) {
+        return;
+    }
+    uint32_t       raw        = (decoded[dial->dumpOffset] >> dial->dumpShift) & dial->dumpMask;
+
+    if (raw < dial->nameCount) {
+        strncpy(outCategory, dial->names[raw], outCategorySize - 1);
+        outCategory[outCategorySize - 1] = '\0';
+    }
 }
 
 // Format: F0 <mfrId(1)> <productId> <deviceId> <mode> <payload...> F7 — see
@@ -1458,6 +1515,31 @@ void synth_handle_message(const uint8_t * data, uint32_t length) {
     gReDraw = true;
 }
 
+// Holds at most ONE deferred outgoing Parameter Change — a single slot, not
+// per-dial, is enough because only one dial can ever be under an active
+// GUI drag at a time (mouseHandle.c's own gDraggedDial is a single
+// pointer). Set only when synth_backup_korg_request_in_flight() (synthBackup.h)
+// is true at send time — the mutual-exclusion fix for 2026-07-14's owner
+// report ("seeing some items saying 'No Response', likely due to me
+// tweaking a dial"): rather than sending a Parameter Change into the same
+// narrow window a Korg name-sweep reply is expected in, hold it here and
+// let synth_flush_pending_param_send() below send it the moment that
+// window clears. NULL means "nothing pending" — the overwhelmingly common
+// case (no sweep running, or its slow paced gap between requests, not the
+// brief in-flight window), where synth_set_panel_dial_value() below still
+// sends immediately with zero added latency, exactly as before this
+// existed.
+static tPanelDial * gPendingParamDial  = NULL;
+static uint32_t     gPendingParamValue = 0;
+
+void synth_flush_pending_param_send(void) {
+    if (!gPendingParamDial || synth_backup_korg_request_in_flight()) {
+        return;
+    }
+    synth_send_parameter_change((uint8_t)gPendingParamDial->paramGroup, (uint16_t)gPendingParamDial->paramId, (uint8_t)gPendingParamValue);
+    gPendingParamDial = NULL;
+}
+
 void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
     if (!dial) {
         return;
@@ -1568,6 +1650,10 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
         dial->hasPendingDumpSend  = true;
         dial->pendingDumpRawValue = rawValue;
         dial->pendingDumpSinceMs  = monotonic_ms();
+    } else if (synth_backup_korg_request_in_flight()) {
+        // Defer — see gPendingParamDial's own comment above.
+        gPendingParamDial  = dial;
+        gPendingParamValue = storageValue;
     } else {
         synth_send_parameter_change((uint8_t)dial->paramGroup, (uint16_t)dial->paramId, (uint8_t)storageValue);
     }

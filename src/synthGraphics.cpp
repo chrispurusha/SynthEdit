@@ -591,6 +591,54 @@ void synth_init_graphics(void) {
 // whatever's underneath, same as G2-Edit's own version; the bulk sweeps
 // themselves already refuse to start a second overlapping one, so there's
 // nothing unsafe about a stray click elsewhere while this is showing.
+// Small, non-blocking status-row indicator for a name sweep (Korg-style
+// Load/Store Patch from/to Bank's 256-request sweep, or the equivalent Moog
+// batch name sweep) — unlike synth_render_backup_progress() below (a
+// blocking, screen-dimming modal, appropriate for a real bank export/
+// restore where the user has explicitly asked to wait), a name sweep can
+// now also be started silently in the background while the user keeps
+// working (synth_backup_flush_background_prefetch(), synthBackup.c) — a
+// modal would defeat the entire point. 2026-07-14 user request ("We don't
+// necessarily need the live picker at this point... percentage on status
+// bar please") also covers the EXPLICIT click case: the native picker now
+// opens immediately regardless of sweep progress (korg_sweep_show_picker(),
+// synthBackup.c — showing "---" for anything not yet swept), so this row is
+// purely informational background-fill progress, not something blocking
+// the picker the way the old modal (still used by Bank export/Restore
+// below) used to.
+static void synth_render_sweep_status_row(void) {
+    uint32_t current     = 0;
+    uint32_t total       = 0;
+    uint32_t actionCount = 0;
+
+    if (  !synth_backup_get_export_progress(&current, &total, &actionCount)
+       || !synth_backup_export_progress_is_name_sweep()) {
+        return;
+    }
+    double   renderW     = get_render_width() / gGlobalGuiScale;
+    double   renderH     = get_render_height() / gGlobalGuiScale;
+    double   margin      = 10.0;
+    double   textH       = 13.0;
+    double   barW        = 160.0;
+    double   barH        = 6.0;
+    unsigned pct         = (total > 0) ? (unsigned)(((uint64_t)current * 100) / total) : 0;
+    char     lineBuf[80];
+
+    snprintf(lineBuf, sizeof(lineBuf), "Fetching preset names... %u%% (%u of %u, %u found)",
+             pct, (unsigned)current, (unsigned)total, (unsigned)actionCount);
+
+    double   textY       = renderH - margin - textH;
+    double   barY        = textY - 4.0 - barH;
+
+    set_rgb_colour((tRgb)RGB_GREY_2);
+    render_rectangle(mainArea, {{margin, barY}, {barW, barH}});
+    set_rgb_colour((tRgb)RGB_GREEN_ON);
+    render_rectangle(mainArea, {{margin, barY}, {barW * ((double)pct / 100.0), barH}});
+
+    set_rgb_colour((tRgb)RGB_GREY_7);
+    render_text(mainArea, {{margin, textY}, {renderW - (margin * 2.0), textH}}, lineBuf);
+}
+
 static void synth_render_backup_progress(void) {
     uint32_t     current     = 0;
     uint32_t     total       = 0;
@@ -600,8 +648,9 @@ static void synth_render_backup_progress(void) {
 
     if (synth_backup_get_export_progress(&current, &total, &actionCount)) {
         if (synth_backup_export_progress_is_name_sweep()) {
-            title = "Fetching Preset Names";
-            verb  = "found";
+            // Handled by synth_render_sweep_status_row() instead — see that
+            // function's own comment. Added 2026-07-14.
+            return;
         } else {
             title = "Backing Up Bank";
             verb  = "written";
@@ -1256,6 +1305,9 @@ void synth_render(tRectangle area) {
     // Drawn last so it paints over everything else this function just laid
     // out — a no-op unless a bulk Backup/Restore sweep is actually running.
     synth_render_backup_progress();
+    // Same "drawn last" reasoning — a no-op unless a name sweep (background
+    // prefetch or explicit Load/Store click) is actually running.
+    synth_render_sweep_status_row();
 }
 
 #ifdef __cplusplus

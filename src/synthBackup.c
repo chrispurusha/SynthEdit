@@ -570,23 +570,71 @@ void synth_backup_note_preset_name(uint32_t presetNumber, const char * name) {
 // Keeping this fully isolated means the working, hardware-confirmed Moog
 // mechanisms above are completely unaffected. Added 2026-07-14.
 #define KORG_SWEEP_PRESET_COUNT    256 // 2 banks x 128 — index i is bank (i/128, 0=A/1=B), program ((i%128)+1)
+#define KORG_SWEEP_LABEL_LEN       64  // wider than the shared NAME_SWEEP_LABEL_LEN below — this one also carries the Category suffix (synth_decode_korg_category())
+// Deliberately slow — this sweep no longer has anything to hurry for (the
+// picker opens immediately regardless of progress, see
+// korg_sweep_show_picker()'s own comment below), so it trickles one request
+// every KORG_SWEEP_PACING_MS rather than firing as fast as replies come
+// back, staying out of the way of whatever MIDI traffic normal interactive
+// use (dial drags, etc.) is already generating. 256 requests x 600ms ≈ 2.5
+// minutes to fully populate — fine for a background fill nobody's waiting
+// on. Added 2026-07-14 (previously the sweep ran flat-out and only started
+// after 5s of detected mouse/keyboard inactivity — dropped that gate
+// entirely, see synth_backup_flush_background_prefetch()'s own comment for
+// why "wait for inactivity" didn't actually behave like one).
+#define KORG_SWEEP_PACING_MS    600.0
 
-static bool         gKorgSweepActive         = false;
-static uint32_t     gKorgSweepIndex          = 0;  // 0-based, 0..(KORG_SWEEP_PRESET_COUNT-1)
-static double       gKorgSweepRequestSinceMs = 0.0;
-static uint32_t     gKorgSweepRepliedCount   = 0;
-static uint32_t     gKorgSweepMissingCount   = 0;
-static bool         gKorgNameCacheValid      = false;
-static char         gKorgSweepLabels[KORG_SWEEP_PRESET_COUNT][NAME_SWEEP_LABEL_LEN];
+// How many times a timed-out request gets resent before its slot is
+// finally marked "(no response)" — defence in depth alongside the mutual-
+// exclusion fix below (synth_backup_korg_request_in_flight()): a real
+// "(no response)" was traced 2026-07-14 (owner report) to dial-tweak
+// traffic colliding with an in-flight sweep request, which that fix
+// targets directly, but a genuine one-off miss (packet loss, a slow
+// reply for some other reason) is still possible — worth one or two
+// retries before giving up rather than none.
+#define KORG_SWEEP_MAX_RETRIES    2
+
+static bool     gKorgSweepActive         = false;
+static uint32_t gKorgSweepIndex          = 0;       // 0-based, 0..(KORG_SWEEP_PRESET_COUNT-1)
+static uint32_t gKorgSweepRetryCount     = 0;       // resets to 0 whenever gKorgSweepIndex genuinely advances — see KORG_SWEEP_MAX_RETRIES above
+static double   gKorgSweepRequestSinceMs = 0.0;
+// >0.0 while paced-waiting for the next request to go out (see
+// KORG_SWEEP_PACING_MS) — no request is in flight during this wait, so
+// synth_backup_flush_korg_name_sweep()'s reply/timeout checks don't apply
+// until it elapses. 0.0 means "not waiting" (either a request IS currently
+// in flight, tracked by gKorgSweepRequestSinceMs above, or the sweep isn't
+// active at all) — this is exactly what synth_backup_korg_request_in_flight()
+// below reports.
+static double   gKorgSweepNextRequestMs  = 0.0;
+static uint32_t gKorgSweepRepliedCount   = 0;
+static uint32_t gKorgSweepMissingCount   = 0;
+static bool     gKorgNameCacheValid      = false;
+static char     gKorgSweepLabels[KORG_SWEEP_PRESET_COUNT][KORG_SWEEP_LABEL_LEN];
+
+// True only for the narrow window between sending a sweep request and
+// either its reply arriving or its timeout firing — NOT true during the
+// slow paced gap between requests (see gKorgSweepNextRequestMs's own
+// comment just above). Exposed so synthComms.c's synth_set_panel_dial_value()
+// can defer an outgoing Parameter Change while this is true (2026-07-14
+// owner report: "seeing some items saying 'No Response', likely due to me
+// tweaking a dial" — mutual exclusion between dial/param traffic and an
+// in-flight single-patch dump read, exactly as requested) rather than
+// sending it right into the collision window. Deliberately does NOT cover
+// the whole sweep's lifetime — that would add real (if small) latency to
+// EVERY dial tweak for the ~2.5 minutes the background sweep runs, when
+// only the brief per-request round trip (well under 100ms in practice,
+// same figure BACKUP_BATCH_TIMEOUT_MS's own comment already relies on)
+// actually needs it.
+bool synth_backup_korg_request_in_flight(void) {
+    return gKorgSweepActive && (gKorgSweepNextRequestMs == 0.0);
+}
 
 // CoreMIDI-thread-copies/main-thread-decodes handoff — same reasoning and
 // shape as gBackupBatchReplyReady/Data/Len above (name decoding isn't safe
 // to do off the main thread; see that block's own comment).
-static _Atomic bool gKorgSweepReplyReady     = false;
-static uint8_t *    gKorgSweepReplyData      = NULL;
-static uint32_t     gKorgSweepReplyLen       = 0;
-
-static void korg_sweep_show_picker(void);
+static _Atomic bool gKorgSweepReplyReady = false;
+static uint8_t *    gKorgSweepReplyData  = NULL;
+static uint32_t     gKorgSweepReplyLen   = 0;
 
 static void korg_sweep_request_current(void) {
     uint8_t  bank = (uint8_t)(gKorgSweepIndex / 128);
@@ -597,45 +645,46 @@ static void korg_sweep_request_current(void) {
     gKorgSweepRequestSinceMs = backup_monotonic_ms();
 }
 
-// Advances to the next (bank, program), or finishes the sweep and shows the
-// picker once every slot has either replied or timed out — the Korg
+// Advances to the next (bank, program), or finishes the sweep — the Korg
 // counterpart to backup_batch_advance() above, called only from the main/
-// render thread (synth_backup_flush_korg_name_sweep() below).
+// render thread (synth_backup_flush_korg_name_sweep() below). Never opens
+// the picker itself (unlike the Moog counterpart below) — see
+// korg_sweep_show_picker()'s own comment for why that's now a fully
+// separate concern from sweep progress.
 static void korg_sweep_advance(void) {
-    gReDraw = true;
+    gReDraw                 = true;
     gKorgSweepIndex++;
+    gKorgSweepRetryCount    = 0; // fresh slot, fresh retry budget — see KORG_SWEEP_MAX_RETRIES's own comment
 
     if (gKorgSweepIndex >= KORG_SWEEP_PRESET_COUNT) {
         gKorgSweepActive    = false;
         LOG_DEBUG("Korg name sweep finished — %u replied, %u missing\n",
                   (unsigned)gKorgSweepRepliedCount, (unsigned)gKorgSweepMissingCount);
         gKorgNameCacheValid = true; // even a slot that timed out keeps its "(no response)" label — good enough to skip re-sweeping, same acceptance as gNameCacheValid's own comment above
-        korg_sweep_show_picker();
-        // The sweep leaves gDevice.progName/the live dials showing whatever
-        // the LAST swept program's data decoded to (handle_prog_dump()
-        // doesn't touch them, but a Load/Store the picker triggers might
-        // send further messages before this settles) — re-requesting the
-        // live state restores it, same reasoning name_sweep_show_picker()'s
-        // own completion step already has for Moog.
-        synth_request_state_dump();
         return;
     }
-    korg_sweep_request_current();
+    // Paced, not immediate — the actual send happens on a later
+    // synth_backup_flush_korg_name_sweep() tick once this elapses.
+    gKorgSweepNextRequestMs = backup_monotonic_ms() + KORG_SWEEP_PACING_MS;
 }
 
-// Decodes just the name from a captured Program Data Dump reply into
-// gKorgSweepLabels[gKorgSweepIndex] as "A1: Name" / "B1: Name" (or
-// "A1: (unnamed)") — the Korg counterpart to name_sweep_capture_name()
-// above. Uses synth_decode_korg_name() directly (not gDevice.progName) so
-// this doesn't disturb whatever the live edit buffer's own name is
-// currently showing on-screen while the sweep runs.
+// Decodes the name AND category from a captured Program Data Dump reply
+// into gKorgSweepLabels[gKorgSweepIndex] as "A1: Name — Category" (or just
+// "A1: Name" on a device with no category dial, or "A1: (unnamed)") — the
+// Korg counterpart to name_sweep_capture_name() above. Uses
+// synth_decode_korg_name()/synth_decode_korg_category() directly (not
+// gDevice.progName) so this doesn't disturb whatever the live edit
+// buffer's own name is currently showing on-screen while the sweep runs.
 static void korg_sweep_capture_reply(const uint8_t * data, uint32_t length) {
     uint8_t  bank  = (uint8_t)(gKorgSweepIndex / 128);
     uint32_t prog  = (gKorgSweepIndex % 128) + 1;
     char     name[sizeof(gDevice.progName)];
+    char     category[32];
 
-    name[0] = '\0';
+    name[0]     = '\0';
+    category[0] = '\0';
     synth_decode_korg_name(data, length, name, sizeof(name));
+    synth_decode_korg_category(data, length, category, sizeof(category));
 
     for (char * p = name; *p != '\0'; p++) {
         if (*p == '\n') {
@@ -645,10 +694,12 @@ static void korg_sweep_capture_reply(const uint8_t * data, uint32_t length) {
 
     char *   label = gKorgSweepLabels[gKorgSweepIndex];
 
-    if (name[0] != '\0') {
-        snprintf(label, NAME_SWEEP_LABEL_LEN, "%c%u: %s", bank ? 'B' : 'A', (unsigned)prog, name);
+    if (name[0] == '\0') {
+        snprintf(label, KORG_SWEEP_LABEL_LEN, "%c%u: (unnamed)", bank ? 'B' : 'A', (unsigned)prog);
+    } else if (category[0] != '\0') {
+        snprintf(label, KORG_SWEEP_LABEL_LEN, "%c%u: %s \xe2\x80\x94 %s", bank ? 'B' : 'A', (unsigned)prog, name, category);
     } else {
-        snprintf(label, NAME_SWEEP_LABEL_LEN, "%c%u: (unnamed)", bank ? 'B' : 'A', (unsigned)prog);
+        snprintf(label, KORG_SWEEP_LABEL_LEN, "%c%u: %s", bank ? 'B' : 'A', (unsigned)prog, name);
     }
     gKorgSweepRepliedCount++;
 }
@@ -659,6 +710,17 @@ static void korg_sweep_capture_reply(const uint8_t * data, uint32_t length) {
 // actually active. Call once per frame from the render loop.
 void synth_backup_flush_korg_name_sweep(void) {
     if (!gKorgSweepActive) {
+        return;
+    }
+
+    // Paced gap between requests (see KORG_SWEEP_PACING_MS) — nothing is in
+    // flight yet, so skip the reply/timeout checks below until it elapses.
+    if (gKorgSweepNextRequestMs > 0.0) {
+        if (backup_monotonic_ms() < gKorgSweepNextRequestMs) {
+            return;
+        }
+        gKorgSweepNextRequestMs = 0.0;
+        korg_sweep_request_current();
         return;
     }
 
@@ -679,29 +741,66 @@ void synth_backup_flush_korg_name_sweep(void) {
         uint8_t  bank = (uint8_t)(gKorgSweepIndex / 128);
         uint32_t prog = (gKorgSweepIndex % 128) + 1;
 
-        LOG_DEBUG("Korg name sweep: %c%u timed out after %.0fms\n",
-                  bank ? 'B' : 'A', (unsigned)prog, BACKUP_BATCH_TIMEOUT_MS);
-        snprintf(gKorgSweepLabels[gKorgSweepIndex], NAME_SWEEP_LABEL_LEN,
+        // Retry the SAME slot a couple of times before giving up on it — see
+        // KORG_SWEEP_MAX_RETRIES's own comment. gKorgSweepIndex deliberately
+        // doesn't advance here; korg_sweep_request_current() just re-sends
+        // for the current one with a fresh timestamp.
+        if (gKorgSweepRetryCount < KORG_SWEEP_MAX_RETRIES) {
+            gKorgSweepRetryCount++;
+            LOG_DEBUG("Korg name sweep: %c%u timed out after %.0fms, retrying (%u/%u)\n",
+                      bank ? 'B' : 'A', (unsigned)prog, BACKUP_BATCH_TIMEOUT_MS,
+                      (unsigned)gKorgSweepRetryCount, (unsigned)KORG_SWEEP_MAX_RETRIES);
+            korg_sweep_request_current();
+            return;
+        }
+        LOG_DEBUG("Korg name sweep: %c%u timed out after %u attempt(s)\n",
+                  bank ? 'B' : 'A', (unsigned)prog, (unsigned)(KORG_SWEEP_MAX_RETRIES + 1));
+        snprintf(gKorgSweepLabels[gKorgSweepIndex], KORG_SWEEP_LABEL_LEN,
                  "%c%u: (no response)", bank ? 'B' : 'A', (unsigned)prog);
         gKorgSweepMissingCount++;
         korg_sweep_advance();
     }
 }
 
+// Starts (or restarts, on a fresh connection) the Korg name sweep — called
+// either by synth_backup_flush_background_prefetch() below (silently, soon
+// after connecting) or synth_backup_start_name_sweep() (an explicit Load/
+// Store click that found no sweep running yet). Every label starts as
+// "A1: ---" so korg_sweep_show_picker() has something sane to show for
+// whatever hasn't been swept yet, whichever way the picker was opened.
 static void korg_sweep_start(void) {
-    gKorgSweepActive       = true;
-    gKorgSweepIndex        = 0;
-    gKorgSweepRepliedCount = 0;
-    gKorgSweepMissingCount = 0;
-    korg_sweep_request_current();
-    LOG_DEBUG("Load/Store: starting a %u-program Korg name sweep (2 banks x 128)\n", (unsigned)KORG_SWEEP_PRESET_COUNT);
+    gKorgSweepActive        = true;
+    gKorgSweepIndex         = 0;
+    gKorgSweepRetryCount    = 0;
+    gKorgSweepRepliedCount  = 0;
+    gKorgSweepMissingCount  = 0;
+    gKorgSweepNextRequestMs = 0.0;
+
+    for (uint32_t i = 0; i < KORG_SWEEP_PRESET_COUNT; i++) {
+        uint8_t  bank = (uint8_t)(i / 128);
+        uint32_t prog = (i % 128) + 1;
+
+        snprintf(gKorgSweepLabels[i], KORG_SWEEP_LABEL_LEN, "%c%u: ---", bank ? 'B' : 'A', (unsigned)prog);
+    }
+
+    korg_sweep_request_current(); // first request goes out right away; every one after this is paced (korg_sweep_advance())
+    LOG_DEBUG("Load/Store: starting a %u-program Korg name sweep (2 banks x 128), paced %.0fms/request\n",
+              (unsigned)KORG_SWEEP_PRESET_COUNT, KORG_SWEEP_PACING_MS);
 }
 
-// Shows the "A1: Name" / "B1: Name" picker once korg_sweep_advance()'s own
-// completion branch finishes, and acts on whatever the user chose — the
-// Korg counterpart to name_sweep_show_picker() below (kept fully separate
-// rather than parameterizing that one, same isolation reasoning as the rest
-// of this block).
+// Shows the "A1: Name — Category" picker and acts on whatever the user
+// chose — the Korg counterpart to name_sweep_show_picker() below (kept
+// fully separate rather than parameterizing that one, same isolation
+// reasoning as the rest of this block). Opens IMMEDIATELY regardless of
+// sweep progress — 2026-07-14 user request ("allow the picker, with '---'
+// unpopulated names before the full set is gleaned") — showing real names
+// for whatever korg_sweep_capture_reply() has filled in so far and "---"
+// (from korg_sweep_start()'s own initialisation) for anything not reached
+// yet. The sweep itself (if still running) simply pauses while this native
+// modal blocks the main thread — see synth_backup_flush_korg_name_sweep(),
+// only ever driven from the same per-frame render-loop call this modal
+// blocks — and resumes filling in the rest once the user dismisses it,
+// whether they chose an entry or cancelled.
 static void korg_sweep_show_picker(void) {
     const char * labelPtrs[KORG_SWEEP_PRESET_COUNT];
 
@@ -754,22 +853,29 @@ void synth_backup_start_name_sweep(tNameSweepPurpose purpose) {
     // Korg-style (Z1): fully separate sweep/picker — see this whole
     // block's own header comment for why. Added 2026-07-14.
     if (!synth_panel_config()->moogStyleDump) {
-        if (gKorgSweepActive) {
-            LOG_ERROR("Load/Store: a name sweep is already in progress\n");
-            return;
-        }
-
-        if (gBackupExpect != eBackupExpectNone) {
+        // Blocks a genuinely CONFLICTING operation (a Moog fetch,
+        // Bank-to-Folder export — Restore Folder isn't checked here, it's
+        // Moog-only and already refuses to start at all on a Korg-style
+        // device, see synth_backup_restore_folder()'s own guard below) but
+        // deliberately NOT this sweep's own eBackupExpectKorgProgram — the
+        // picker below opens even while a background sweep is mid-flight,
+        // so seeing that flag set here is completely normal, not a
+        // conflict.
+        if (  gBackupBatchActive
+           || ((gBackupExpect != eBackupExpectNone) && (gBackupExpect != eBackupExpectKorgProgram))) {
             LOG_ERROR("Load/Store: another backup operation is already in progress\n");
             return;
         }
 
-        if (gKorgNameCacheValid) {
-            LOG_DEBUG("Load/Store: using cached Korg program names (purpose=%d)\n", (int)purpose);
-            korg_sweep_show_picker();
-            return;
+        if (!gKorgSweepActive && !gKorgNameCacheValid) {
+            // Nothing running yet (e.g. clicked in the first moment after
+            // connecting, before synth_backup_flush_background_prefetch()'s
+            // own settle delay elapsed) — start it now so labels begin
+            // filling in, but don't wait: the picker opens right below
+            // regardless.
+            korg_sweep_start();
         }
-        korg_sweep_start();
+        korg_sweep_show_picker();
         return;
     }
 
@@ -1701,4 +1807,73 @@ bool synth_backup_get_restore_progress(uint32_t * outCurrent, uint32_t * outTota
     *outTotal       = gRestoreFolderCount;
     *outActionCount = gRestoreFolderSentCount;
     return true;
+}
+
+// How long a Korg-style connection has to stay eligible (connected, no
+// cache yet, nothing else in flight) before the background name-prefetch
+// sweep silently starts. NOT an inactivity timer — an earlier version of
+// this gated on mouse/keyboard idle time (mouse_idle_ms(), mouseHandle.c),
+// but that meant a completely normal few-second pause between dial tweaks
+// triggered a sweep mid-session (2026-07-14 user report: "when I start
+// tweaking dials, names are being polled, so it's not really an
+// inactivity mechanism as-is"). Dropped that entirely: the sweep is now
+// always paced slowly enough (KORG_SWEEP_PACING_MS above) to stay out of
+// the way of normal interactive use regardless of when it runs, so there's
+// no need to wait for genuine inactivity at all — this settle delay just
+// lets connect-time traffic (the initial state dump, etc.) clear first.
+#define BACKGROUND_PREFETCH_SETTLE_MS    2000.0
+
+static double gBackgroundPrefetchEligibleSinceMs = 0.0;
+
+// Silently starts the Korg name sweep once the connected device has stayed
+// eligible for a moment (see BACKGROUND_PREFETCH_SETTLE_MS above), so by
+// the time the user actually clicks "Load/Store Patch from Bank…" some (or
+// all, if they took a while to get there) of the picker is already
+// populated instead of showing "---" everywhere. Korg-style (Z1) only —
+// Voyager already had its OWN idle-poll mechanism built and then fully
+// reverted (see project_voyager_restore_mechanism / project_voyager_
+// extlevel_and_precision memory notes) because ANY unsolicited dump
+// request kicks the Voyager's front panel out of whatever menu it's
+// showing; this sweep uses a completely different request (Program Data
+// Dump Request, not a live Panel Dump) and only ever runs on Korg-style
+// devices, but the same category of risk applies in principle — watch the
+// Z1's own front-panel display the first time this fires. One-shot in
+// practice: gKorgNameCacheValid latches true on completion (see
+// korg_sweep_advance()) and this codebase has no reconnect/disconnect hook
+// that clears it back to false — same pre-existing limitation the Moog
+// gNameCacheValid already has (only Restore Bank explicitly invalidates
+// it, see synth_backup_restore_bank_chosen()'s own comment above), not
+// something newly introduced here. Call once per frame from the render
+// loop, alongside the other flush functions.
+void synth_backup_flush_background_prefetch(void) {
+    if (!gDevice.connected || synth_panel_config()->moogStyleDump) {
+        gBackgroundPrefetchEligibleSinceMs = 0.0;
+        return;
+    }
+
+    if (gKorgNameCacheValid || gKorgSweepActive) {
+        return;
+    }
+
+    // Mirrors synth_backup_start_name_sweep()'s own "nothing else in
+    // flight" guard — a background prefetch must never contend with an
+    // explicit user action already using the same reply-capture state.
+    // Deliberately does NOT exclude eBackupExpectKorgProgram — that's this
+    // very sweep's own in-flight request once it's running, not a conflict.
+    if (  gBackupBatchActive || gRestoreFolderActive
+       || ((gBackupExpect != eBackupExpectNone) && (gBackupExpect != eBackupExpectKorgProgram))) {
+        gBackgroundPrefetchEligibleSinceMs = 0.0; // reset — start counting again once whatever's running finishes
+        return;
+    }
+
+    if (gBackgroundPrefetchEligibleSinceMs == 0.0) {
+        gBackgroundPrefetchEligibleSinceMs = backup_monotonic_ms();
+        return;
+    }
+
+    if ((backup_monotonic_ms() - gBackgroundPrefetchEligibleSinceMs) < BACKGROUND_PREFETCH_SETTLE_MS) {
+        return;
+    }
+    LOG_DEBUG("Load/Store: starting background Korg name prefetch\n");
+    korg_sweep_start();
 }
