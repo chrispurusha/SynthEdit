@@ -289,6 +289,10 @@ static MIDIEndpointRef find_dest_for_source(MIDIEndpointRef src) {
     return dest;
 }
 
+// Declared below (its own comment there covers what it does) — needed here
+// too now that process_identity_replies() can also fall back to it.
+static MIDIEndpointRef find_destination_by_name(const char * substr);
+
 // ── Process buffered identity replies (MIDI thread only) ──────────────────────
 // Scans the reply buffer collected since the last scan, selects the first synth
 // and calls synth_on_connected().  All CoreMIDI lookups happen here — no races.
@@ -323,7 +327,25 @@ static void process_identity_replies(void) {
             continue;
         }
         MIDIEndpointRef src  = gIdReplies[i].src;
-        MIDIEndpointRef dest = find_dest_for_source(src);
+        // find_dest_for_source() assumes send and receive share one physical
+        // interface (same entity, or at least matching display names) —
+        // true for most single-cable setups but not for a real one this
+        // owner runs: send out one interface (e.g. an Elektron TM-1) while
+        // the synth's own MIDI OUT comes back through an entirely different,
+        // unrelated-by-name box (e.g. a Cirklon) sitting in the return path.
+        // There, find_dest_for_source(src) has nothing to match (the reply's
+        // source and the real send destination aren't the same or even
+        // similarly-named device) and returns 0, so the app would log
+        // "no matching destination" and never finish connecting even though
+        // the synth genuinely just answered. cfg->midiPortName — already
+        // used the same way by connect_without_identity() below for devices
+        // with no identity reply at all — lets the file pin the send
+        // destination explicitly for exactly this case; only reached for a
+        // device that actually sets "midiPort <name>", so a normal
+        // single-cable setup (empty midiPortName) is unaffected and still
+        // goes through the name/entity inference below. Found 2026-07-14.
+        MIDIEndpointRef dest = (cfg->midiPortName[0] != '\0') ? find_destination_by_name(cfg->midiPortName)
+                                                               : find_dest_for_source(src);
 
         if (dest == 0) {
             LOG_ERROR("Synth found but no matching destination for src=0x%08X\n", (unsigned)src);

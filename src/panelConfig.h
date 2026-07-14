@@ -502,7 +502,24 @@ typedef struct {
     // midiComms.c matches it case-insensitively against each destination's
     // display name. Empty (the default) falls back to the first destination
     // found, same as before this existed.
-    char midiPortName[64];                    // only meaningful when !supportsIdentity
+    //
+    // Also honoured for an identity-capable device (process_identity_replies(),
+    // midiComms.c), where it solves a related but different problem: the
+    // normal path there (find_dest_for_source()) infers the send destination
+    // from whichever source the identity REPLY came back on, assuming both
+    // directions share one physical interface. That breaks for a real setup
+    // this app's owner runs — sending out one interface (e.g. an Elektron
+    // TM-1) while the synth's own MIDI OUT returns through an entirely
+    // different, unrelated-by-name box (e.g. a Cirklon) — where nothing
+    // about the reply's source resembles the actual send port's name/entity,
+    // so inference finds no match at all and the app never finishes
+    // connecting. Setting midiPortName pins the send side explicitly
+    // regardless of which source the identity/CC/SysEx traffic actually
+    // arrives on (that side was already source-agnostic where it matters —
+    // dispatch_sysex() has no source filter, and gMidiSource just tracks
+    // whichever source the identity reply came back on for the CC/PC gate).
+    // Found 2026-07-14.
+    char midiPortName[64];
 
     // Optional SysEx sent right after connecting (see connect_without_identity()
     // in midiComms.c) — asks the device to report its own current state instead
