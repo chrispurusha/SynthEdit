@@ -119,13 +119,55 @@ void midi_arm_state_dump_debounce(void) {
 // support (LOG_ERROR("SysEx buffer overflow...") below).
 #define SYSEX_BUF_SIZE    65536
 static uint8_t         gSysExBuf[SYSEX_BUF_SIZE];
-static uint32_t        gSysExLen   = 0;
-static MIDIEndpointRef gSysExSrc   = 0;
+static uint32_t        gSysExLen = 0;
+static MIDIEndpointRef gSysExSrc = 0;
 
-// ── Non-SysEx message state (running status) ──────────────────────────────────
-static uint8_t         gMsgStatus  = 0;
-static uint8_t         gMsgData[2];
-static uint8_t         gMsgDataLen = 0;
+// ── Non-SysEx message state (running status), per source ──────────────────────
+// Channel Voice messages (Note On/Off, CC, Program Change, ...) reassemble
+// from running status the same way SysEx does above, but unlike SysEx this
+// app routinely has MULTIPLE sources connected at once —
+// connect_all_midi_sources() (below) wires up every visible MIDI source to
+// this same callback, and sharing one merged interface across several real
+// synths is a tested, real configuration here (see midi_scan_devices()'s own
+// comment: 4 real synths on one Elektron TM-1). A single shared
+// status/data/dataLen used to mean a Note On (or any other channel message)
+// from ANY connected source — not necessarily the device actually being
+// talked to — could silently splice into whatever running-status stream
+// another source was mid-way through, misparsing its next message. Found
+// 2026-07-14 investigating a related report; each entry here is only a few
+// bytes, so giving every source its own costs nothing.
+#define MAX_MIDI_PARSE_SOURCES    16
+
+typedef struct {
+    MIDIEndpointRef src;
+    uint8_t         msgStatus;
+    uint8_t         msgData[2];
+    uint8_t         msgDataLen;
+} tMidiChannelParseState;
+
+static tMidiChannelParseState gChannelParseState[MAX_MIDI_PARSE_SOURCES] = {0};
+static uint32_t               gChannelParseStateCount                    = 0;
+
+// Finds (or allocates) src's own running-status slot. Falls back to the LAST
+// slot rather than NULL if the table's ever actually full — sharing state
+// with whatever already occupies that slot (same failure mode this whole
+// mechanism exists to avoid, just narrowed to two sources instead of all of
+// them) is a far smaller blast radius than a crash or a silently dropped
+// message, and 16 simultaneously active sources is already well beyond
+// anything this app's been run against.
+static tMidiChannelParseState * channel_parse_state_for(MIDIEndpointRef src) {
+    for (uint32_t i = 0; i < gChannelParseStateCount; i++) {
+        if (gChannelParseState[i].src == src) {
+            return &gChannelParseState[i];
+        }
+    }
+
+    if (gChannelParseStateCount < MAX_MIDI_PARSE_SOURCES) {
+        gChannelParseState[gChannelParseStateCount].src = src;
+        return &gChannelParseState[gChannelParseStateCount++];
+    }
+    return &gChannelParseState[MAX_MIDI_PARSE_SOURCES - 1];
+}
 
 // ── Internal send ─────────────────────────────────────────────────────────────
 
@@ -595,11 +637,25 @@ static void midi_read_cb(const MIDIPacketList * pktList, void * readProcRefCon, 
             uint8_t byte = pkt->data[b];
 
             if (byte == MIDI_SYSEX_START) {
-                gSysExBuf[0] = byte;
-                gSysExLen    = 1;
-                gSysExSrc    = src;
+                if ((gSysExLen > 0) && (src != gSysExSrc)) {
+                    // A second source started its own SysEx while a capture
+                    // from a DIFFERENT source is already in flight — there's
+                    // only one capture buffer (this app only ever needs to
+                    // talk to one target device at a time), so drop the
+                    // newcomer rather than clobbering whichever capture
+                    // already has a head start.
+                    LOG_DEBUG("SysEx start from a second source (src=0x%08X) ignored — already capturing from 0x%08X\n",
+                              (unsigned)src, (unsigned)gSysExSrc);
+                } else {
+                    gSysExBuf[0] = byte;
+                    gSysExLen    = 1;
+                    gSysExSrc    = src;
+                }
             } else if (byte == MIDI_SYSEX_END) {
-                if (gSysExLen > 0) {
+                // Only the source that opened this capture can close it — an
+                // F7 from anyone else is either a stray terminator or
+                // belongs to a start this app already dropped just above.
+                if ((gSysExLen > 0) && (src == gSysExSrc)) {
                     if (gSysExLen < SYSEX_BUF_SIZE) {
                         gSysExBuf[gSysExLen++] = byte;
                     }
@@ -607,51 +663,75 @@ static void midi_read_cb(const MIDIPacketList * pktList, void * readProcRefCon, 
                     gSysExLen = 0;
                 }
             } else if (byte >= 0xF8) {
-                // Realtime — ignore
+                // Realtime — ignore. Spec-legal to interleave mid-SysEx from
+                // ANY source, so this deliberately never touches gSysExLen.
             } else if (byte >= 0x80) {
-                if (gSysExLen > 0) {
+                if ((gSysExLen > 0) && (src == gSysExSrc)) {
+                    // The device actually being captured from broke off its
+                    // own SysEx early — a real abort, not cross-source noise
+                    // from some other connected source's own traffic (e.g. a
+                    // MIDI keyboard sharing the same interface sending a
+                    // Note On mid-transmission — connect_all_midi_sources()
+                    // below wires up every visible source to this same
+                    // callback, and running several real synths off one
+                    // shared interface is a tested configuration here, not a
+                    // hypothetical one). Found 2026-07-14: this branch used
+                    // to fire for a status byte from ANY source, so an
+                    // unrelated device's Note On could silently drop
+                    // whatever Bank/Panel dump was mid-capture from the
+                    // device actually being talked to.
                     LOG_DEBUG("SysEx aborted by status 0x%02X\n", byte);
                     gSysExLen = 0;
                 }
-                gMsgStatus  = byte;
-                gMsgDataLen = 0;
+                tMidiChannelParseState * state = channel_parse_state_for(src);
+                state->msgStatus  = byte;
+                state->msgDataLen = 0;
             } else {
-                if (gSysExLen > 0) {
+                if ((gSysExLen > 0) && (src == gSysExSrc)) {
                     if (gSysExLen < SYSEX_BUF_SIZE) {
                         gSysExBuf[gSysExLen++] = byte;
                     } else {
                         LOG_ERROR("SysEx buffer overflow, discarding\n");
                         gSysExLen = 0;
                     }
-                } else if (gMsgStatus != 0) {
-                    if (gMsgDataLen < 2) {
-                        gMsgData[gMsgDataLen++] = byte;
-                    }
+                } else if (gSysExLen == 0) {
+                    tMidiChannelParseState * state = channel_parse_state_for(src);
 
-                    // CC is a 3-byte message (status + 2 data bytes)
-                    if (((gMsgStatus & 0xF0) == 0xB0) && (gMsgDataLen == 2)) {
-                        // gMidiSource == 0 means "accept from any source" —
-                        // set by connect_without_identity() for a device with
-                        // no identity reply to correlate a specific one from.
-                        if (gDevice.connected && ((gMidiSource == 0) || (src == gMidiSource))) {
-                            dispatch_cc((uint8_t)(gMsgStatus & 0x0F), gMsgData[0], gMsgData[1]);
+                    if (state->msgStatus != 0) {
+                        if (state->msgDataLen < 2) {
+                            state->msgData[state->msgDataLen++] = byte;
                         }
-                        gMsgDataLen = 0;    // ready for running status
-                    }
 
-                    // Program Change is a 2-byte message (status + 1 data
-                    // byte) — unlike CC above, only one data byte ever
-                    // arrives, so dispatch as soon as it does rather than
-                    // waiting for gMsgDataLen == 2 (a second byte here would
-                    // already be the next running-status message's first
-                    // data byte, not part of this one).
-                    if (((gMsgStatus & 0xF0) == 0xC0) && (gMsgDataLen == 1)) {
-                        if (gDevice.connected && ((gMidiSource == 0) || (src == gMidiSource))) {
-                            dispatch_program_change((uint8_t)(gMsgStatus & 0x0F), gMsgData[0]);
+                        // CC is a 3-byte message (status + 2 data bytes)
+                        if (((state->msgStatus & 0xF0) == 0xB0) && (state->msgDataLen == 2)) {
+                            // gMidiSource == 0 means "accept from any source" —
+                            // set by connect_without_identity() for a device with
+                            // no identity reply to correlate a specific one from.
+                            if (gDevice.connected && ((gMidiSource == 0) || (src == gMidiSource))) {
+                                dispatch_cc((uint8_t)(state->msgStatus & 0x0F), state->msgData[0], state->msgData[1]);
+                            }
+                            state->msgDataLen = 0;    // ready for running status
                         }
-                        gMsgDataLen = 0;
+
+                        // Program Change is a 2-byte message (status + 1 data
+                        // byte) — unlike CC above, only one data byte ever
+                        // arrives, so dispatch as soon as it does rather than
+                        // waiting for msgDataLen == 2 (a second byte here would
+                        // already be the next running-status message's first
+                        // data byte, not part of this one).
+                        if (((state->msgStatus & 0xF0) == 0xC0) && (state->msgDataLen == 1)) {
+                            if (gDevice.connected && ((gMidiSource == 0) || (src == gMidiSource))) {
+                                dispatch_program_change((uint8_t)(state->msgStatus & 0x0F), state->msgData[0]);
+                            }
+                            state->msgDataLen = 0;
+                        }
                     }
                 }
+                // else: a plain data byte from a source OTHER than whoever's
+                // SysEx capture is currently in flight — genuinely stray
+                // (no legal interpretation without that source's own
+                // preceding status byte), same as msgStatus==0 already
+                // silently dropped before this per-source split existed.
             }
         }
 
