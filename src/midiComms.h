@@ -28,7 +28,13 @@ extern "C" {
 #endif
 
 int start_midi_thread(void);
-int midi_scan_devices(void);
+
+// Requests a fresh connection attempt from any thread — the Device-switch
+// menu, the Scan Devices menu action, and the sleep/wake notification
+// handler all use this instead of touching gDevice/gMidiSource/gMidiDest or
+// the (now file-local) scan/connect logic directly, which used to race
+// unsynchronized against the MIDI thread's own ownership of that state.
+void midi_request_reconnect(void);
 
 // Returns false (and logs why) if the message couldn't be sent — e.g. too
 // large for the internal packet-list buffer (SYSEX_BUF_SIZE, midiComms.c —

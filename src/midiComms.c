@@ -50,6 +50,22 @@ static _Atomic uint32_t gIdReplyCount           = 0;
 // Notification from notify thread; polled by the MIDI thread.
 static _Atomic bool     gRescanNeeded           = false;
 
+// Set by midi_request_reconnect() (any thread — UI menu actions, sleep/wake
+// notifications, the Device-switch menu) and consumed only by midi_thread()
+// itself. gDevice/gMidiSource/gMidiDest/gIdReplyCount and the connect/scan
+// logic are documented above (gIdReplies' own comment) as MIDI-thread-only —
+// a caller on another thread must never touch midi_scan_devices() or
+// gDevice.connected directly, only flag that a reconnect is wanted and let
+// the MIDI thread tear down/rebuild its own connection state. Found
+// 2026-07-14: synth_switch_device_config() (synthGraphics.cpp) and two
+// call sites here (scanDevices:/sleep-wake, misc.mm) used to call
+// midi_scan_devices() straight from the main thread, racing unsynchronized
+// against this same state from the MIDI thread's own loop — the visible
+// symptom was a device switch sometimes leaving gDevice.connected stuck
+// true with a stale/zeroed gMidiDest, silently dropping every send until
+// the app was restarted (see midi_send_to()'s dest==0 short-circuit above).
+static _Atomic bool     gReconnectRequested     = false;
+
 // ── State dump request debounce ─────────────────────────────────────────────
 // A Program Change followed immediately by a state dump request works for a
 // single, isolated patch change (dispatch_program_change() below already did
@@ -645,7 +661,7 @@ static void midi_read_cb(const MIDIPacketList * pktList, void * readProcRefCon, 
 
 // ── Device scanning ───────────────────────────────────────────────────────────
 
-int midi_scan_devices(void) {
+static int midi_scan_devices(void) {
     static const uint8_t idReq[]   = {
         MIDI_SYSEX_START,
         MIDI_NON_REALTIME,
@@ -718,6 +734,16 @@ int midi_scan_devices(void) {
     return EXIT_FAILURE;
 }
 
+// ── Reconnect request (any thread) ──────────────────────────────────────────
+// See gReconnectRequested's own comment above — the only thread-safe way for
+// callers outside midiComms.c (Device-switch menu, Scan Devices menu, sleep/
+// wake notification) to ask for a fresh connection attempt. The actual
+// teardown/rescan still happens entirely on the MIDI thread.
+
+void midi_request_reconnect(void) {
+    atomic_store(&gReconnectRequested, true);
+}
+
 // ── Public send ───────────────────────────────────────────────────────────────
 
 void midi_send_identity_request(void) {
@@ -788,6 +814,15 @@ static void * midi_thread(void * arg) {
     }
 
     while (!gQuitAll) {
+        if (atomic_exchange(&gReconnectRequested, false)) {
+            // Only this thread ever writes gDevice.connected/gMidiSource/
+            // gMidiDest (see gReconnectRequested's own comment above) — drop
+            // the current connection here, on the MIDI thread, so the branch
+            // below picks it straight back up this same iteration instead of
+            // a caller elsewhere touching that state directly.
+            gDevice.connected = false;
+        }
+
         if (!gDevice.connected) {
             gRescanNeeded = false;
 

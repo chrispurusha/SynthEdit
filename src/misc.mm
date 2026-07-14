@@ -245,7 +245,7 @@ static int32_t choose_preset_number(const char * title, const char * message) {
 @implementation SynthMenuTarget
 
 - (void)scanDevices:(id)sender {
-    midi_scan_devices();
+    midi_request_reconnect();
     wake_glfw();
 }
 
@@ -570,6 +570,6 @@ void register_sleep_wake_notifications(void) {
      object:nil
      queue:nil
      usingBlock:^(NSNotification * note) {
-         midi_scan_devices();
+         midi_request_reconnect();
      }];
 }

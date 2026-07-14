@@ -461,7 +461,17 @@ static void synth_reload_panel_config(void) {
     if (!load_panel_config(path, &gSynthPanelConfig)) {
         LOG_ERROR("Synth: couldn't load '%s' — dials will not render\n", path);
     }
-    gReDraw = true;
+    // A page name carried over from whichever device was loaded before
+    // generally won't exist in the new config's sections (different device,
+    // different page set) — synth_current_page_sections() then matches
+    // nothing and every dial silently vanishes while the page tabs and
+    // patch name (which don't filter by page) keep rendering normally, only
+    // fixing itself once the user clicks a tab and picks a page that
+    // actually exists. Clearing it here lets render_page_tabs()'s existing
+    // "default to the first page seen" fallback pick a valid one for
+    // whatever config was just loaded, the same as a fresh app launch.
+    gCurrentPage[0] = '\0';
+    gReDraw         = true;
 }
 
 // Scans gLayoutsDir for every <device>.txt it contains; a single match is
@@ -560,11 +570,12 @@ void synth_switch_device_config(const char * filename) {
     // Whatever was connected under the PREVIOUS config's SysEx identity
     // means nothing once a different device's protocol is loaded — don't
     // leave the UI showing a stale "connected" state while the fresh scan
-    // below runs. synth_on_connected() (synthComms.c) does the matching
+    // runs. synth_on_connected() (synthComms.c) does the matching
     // dial-state reset already, once/if a real identity reply for the
-    // NEWLY loaded device actually arrives.
-    gDevice.connected                            = false;
-    midi_scan_devices();
+    // NEWLY loaded device actually arrives. gDevice.connected itself is
+    // MIDI-thread-owned (see gReconnectRequested's comment, midiComms.c) —
+    // this just flags the request; the MIDI thread clears it and rescans.
+    midi_request_reconnect();
     gReDraw                                      = true;
 }
 
