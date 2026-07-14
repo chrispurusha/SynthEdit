@@ -471,6 +471,21 @@ static void synth_reload_panel_config(void) {
     // "default to the first page seen" fallback pick a valid one for
     // whatever config was just loaded, the same as a fresh app launch.
     gCurrentPage[0] = '\0';
+
+    // Best first guess for a Moog-style device's SysEx Device ID (see the
+    // tSynthDevice field comment, types.h) — the byte the newly-loaded
+    // config's own stateRequestSysEx was written with. synth_on_connected()
+    // (synthComms.c) deliberately does NOT reset this on every reconnect —
+    // only here, where the config itself just changed, does a previously
+    // learned value stop being trustworthy (it may describe a completely
+    // different physical unit now). moog_learn_device_id() overwrites this
+    // the moment any real dump from whatever's now connected proves
+    // otherwise; meaningless (but harmless) for a device that isn't
+    // moogStyleDump, or one whose stateRequestSysEx is too short to carry a
+    // Device ID byte at all.
+    if (gSynthPanelConfig.stateRequestSysExLen > 3) {
+        gDevice.moogDeviceId = gSynthPanelConfig.stateRequestSysEx[3];
+    }
     gReDraw         = true;
 }
 

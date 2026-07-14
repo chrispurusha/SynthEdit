@@ -95,6 +95,27 @@ typedef struct {
     // Reset to -1 on every fresh connect (synth_on_connected()): a value
     // learned from a previous session/device isn't trustworthy for a new one.
     int32_t currentProgram;
+    // Moog-style protocol's own SysEx "Device ID" byte (0-127) — see
+    // moogStyleDump in panelConfig.h. Distinct from `id` above (the MIDI
+    // CHANNEL): the Voyager's front panel exposes Device ID and MIDI Channel
+    // as two separate settings, and a dump REQUEST addressed to the wrong
+    // Device ID is silently ignored by the hardware regardless of channel.
+    // Seeded from the device's own <device>.txt (stateRequestSysEx's own
+    // deviceId byte, at a fixed offset — see moog_learn_device_id()'s own
+    // comment, synthComms.c) as a first guess matching the factory default,
+    // then kept in sync with reality by moog_learn_device_id() on every
+    // accepted incoming Moog SysEx message, the same way an independently-
+    // developed reference implementation for this exact hardware
+    // (moogvoyagereditor.pistolinstruments.com's midi.js) already does — its
+    // own comment there names the exact failure this avoids: a request built
+    // with a stale/wrong Device ID is silently ignored by the synth, which
+    // just looks like "Fetch" doing nothing. Meaningless (left at whatever
+    // the config seeded) for a device that doesn't set moogStyleDump — only
+    // this dump-request SysEx format has a Device ID byte at all; the
+    // Minitaur, for instance, dumps state as plain CC traffic instead (see
+    // minitaur.txt's own stateRequestSysEx comment) and never reaches
+    // moog_learn_device_id() in the first place.
+    uint8_t moogDeviceId;
 } tSynthDevice;
 
 // Inline-editable program name field state (click the name to start, type,

@@ -261,17 +261,22 @@ static bool gNameCacheValid = false;
 // printable ASCII 0x20-0x7E ever reaches here — '/' is the one member of
 // that range the filesystem itself rejects).
 //
-// out must be at least sizeof(gDevice.progName) bytes; writes "" if
-// gDevice.progName is empty.
-static void backup_sanitize_name_for_file(char * out, size_t outSize) {
+// out must be at least as big as `name`'s own buffer; writes "" if name is
+// NULL/empty. Takes the name explicitly (not just gDevice.progName) since
+// the Korg export sweep (korg_sweep_write_capture_file() below) needs to
+// sanitize a SPECIFIC preset's own decoded name — handle_prog_dump() never
+// touches gDevice.progName at all (see korg_sweep_capture_reply()'s own
+// comment for why), so that global has nothing useful to read during a Korg
+// sweep the way it does for Moog's own bank-to-folder export.
+static void backup_sanitize_name_for_file(const char * name, char * out, size_t outSize) {
     out[0] = '\0';
 
-    if (gDevice.progName[0] == '\0') {
+    if ((name == NULL) || (name[0] == '\0')) {
         return;
     }
     char * o = out;
 
-    for (const char * p = gDevice.progName; (*p != '\0') && (o < out + outSize - 1); p++) {
+    for (const char * p = name; (*p != '\0') && (o < out + outSize - 1); p++) {
         if (*p == '\n') {
             if ((o == out) || (*(o - 1) != ' ')) {
                 *o++ = ' ';
@@ -284,6 +289,31 @@ static void backup_sanitize_name_for_file(char * out, size_t outSize) {
     }
 
     *o     = '\0';
+}
+
+// Builds "<folder>/Patches-<DeviceName>.txt" — shared by every Backup >
+// Bank (Individual Files)… writer and Restore > Bank (Individual Files)…
+// reader, Moog and Korg alike. Device-specific rather than a flat
+// "Patches.txt" so backing up a SECOND device into a folder that already
+// holds a first device's export doesn't silently truncate that first
+// device's own index — found 2026-07-14 (owner report): the actual .syx
+// filenames already don't collide across device families (Moog's "001
+// Name.syx" vs Korg's "A001 Name.syx"), but a single hardcoded index
+// filename meant the SECOND backup's own fopen(..., "w") destroyed the
+// FIRST one's index outright, orphaning its files — still physically on
+// disk, but with nothing left that could find them again. Reuses
+// backup_sanitize_name_for_file() above for the same '/'-is-a-path-
+// separator reasoning that already applies to a preset name landing in a
+// filename. Does NOT disambiguate two physical units of the SAME model
+// (e.g. two Voyagers) backed into one folder — there's no per-unit ID in
+// either protocol to key on, so that case still needs separate folders,
+// same as it always has.
+static void backup_index_file_path(char * outPath, size_t outPathSize, const char * folder) {
+    const char * deviceName = synth_panel_config()->deviceName;
+    char         sanitized[64];
+
+    backup_sanitize_name_for_file((deviceName[0] != '\0') ? deviceName : "Device", sanitized, sizeof(sanitized));
+    snprintf(outPath, outPathSize, "%s/Patches-%s.txt", folder, (sanitized[0] != '\0') ? sanitized : "Device");
 }
 
 void synth_backup_current_patch(void) {
@@ -382,7 +412,7 @@ static double backup_monotonic_ms(void) {
 static void backup_batch_append_index_line(uint32_t presetNumber, const char * name) {
     char   indexPath[1280];
 
-    snprintf(indexPath, sizeof(indexPath), "%s/Patches.txt", gBackupBatchFolder);
+    backup_index_file_path(indexPath, sizeof(indexPath), gBackupBatchFolder);
     FILE * f = fopen(indexPath, "a");
 
     if (f != NULL) {
@@ -577,7 +607,7 @@ static void backup_batch_write_capture(const uint8_t * data, uint32_t length) {
     }
     char   nameForFile[sizeof(gDevice.progName)];
 
-    backup_sanitize_name_for_file(nameForFile, sizeof(nameForFile));
+    backup_sanitize_name_for_file(gDevice.progName, nameForFile, sizeof(nameForFile));
 
     char   filePath[1280];
 
@@ -620,7 +650,7 @@ static void backup_batch_folder_chosen(const char * path) {
     // apart from one of these) — backup_batch_append_index_line() (below)
     // only ever appends after this, never touches the header itself.
     char   indexPath[1280];
-    snprintf(indexPath, sizeof(indexPath), "%s/Patches.txt", gBackupBatchFolder);
+    backup_index_file_path(indexPath, sizeof(indexPath), gBackupBatchFolder);
     FILE * f = fopen(indexPath, "w");
 
     if (f != NULL) {
@@ -644,28 +674,10 @@ static void backup_batch_folder_chosen(const char * path) {
               (unsigned)BACKUP_BATCH_PRESET_COUNT, gBackupBatchFolder);
 }
 
-void synth_backup_bank_to_folder(void) {
-    if (!gDevice.connected) {
-        LOG_ERROR("Backup: no device connected\n");
-        return;
-    }
-
-    if (!synth_panel_config()->moogStyleDump) {
-        LOG_ERROR("Backup: bank-to-folder export only supports Moog-style devices so far\n");
-        return;
-    }
-
-    if (gBackupBatchActive) {
-        LOG_ERROR("Backup: a bank-to-folder export is already in progress\n");
-        return;
-    }
-
-    if (gBackupExpect != eBackupExpectNone) {
-        LOG_ERROR("Backup: another backup operation is already in progress\n");
-        return;
-    }
-    open_folder_choose_dialogue_async(backup_batch_folder_chosen, "Choose Backup Folder", get_last_backup_folder(synth_current_device_config()));
-}
+// synth_backup_bank_to_folder() itself lives further down, after the Korg
+// name-sweep block (needs gKorgSweepActive/korg_batch_folder_chosen(), both
+// declared there) — its own comment there explains why, mirroring
+// name_sweep_show_picker()'s own forward-declaration precedent above.
 
 void synth_backup_note_preset_name(uint32_t presetNumber, const char * name) {
     name_cache_set_label(presetNumber, name, NULL); // no category on hand at this call site — see synth_backup_note_preset_name()'s own comment (synthBackup.h)
@@ -684,10 +696,26 @@ void synth_backup_note_preset_name(uint32_t presetNumber, const char * name) {
 // mechanisms above are completely unaffected. Added 2026-07-14.
 #define KORG_SWEEP_PRESET_COUNT    256 // 2 banks x 128 — index i is bank (i/128, 0=A/1=B), program ((i%128)+1)
 
-static bool     gKorgSweepActive         = false;
-static uint32_t gKorgSweepIndex          = 0;       // 0-based, 0..(KORG_SWEEP_PRESET_COUNT-1)
-static uint32_t gKorgSweepRetryCount     = 0;       // resets to 0 whenever gKorgSweepIndex genuinely advances — see NAME_SWEEP_MAX_RETRIES above
-static double   gKorgSweepRequestSinceMs = 0.0;
+// Same duality as tBackupBatchMode (Moog, above) — reusing this SAME sweep
+// for Backup > Bank (Individual Files)… on a Korg-style device rather than
+// building a third parallel mechanism just to write files instead of
+// decoding names. eKorgSweepModeExportFiles branches korg_sweep_capture_reply()
+// below into ALSO writing the just-captured reply to its own file (still
+// decoding the name either way — needed for the filename itself, and it's
+// a free bonus for gKorgSweepLabels/the Load-Store picker afterwards).
+// Added 2026-07-14.
+typedef enum {
+    eKorgSweepModeNameSweep = 0,
+    eKorgSweepModeExportFiles,
+} tKorgSweepMode;
+
+static tKorgSweepMode gKorgSweepMode                 = eKorgSweepModeNameSweep;
+static char           gKorgSweepFolder[1024]         = {0}; // only meaningful while gKorgSweepMode == eKorgSweepModeExportFiles
+
+static bool           gKorgSweepActive               = false;
+static uint32_t       gKorgSweepIndex                = 0; // 0-based, 0..(KORG_SWEEP_PRESET_COUNT-1)
+static uint32_t       gKorgSweepRetryCount           = 0; // resets to 0 whenever gKorgSweepIndex genuinely advances — see NAME_SWEEP_MAX_RETRIES above
+static double         gKorgSweepRequestSinceMs       = 0.0;
 // >0.0 while paced-waiting for the next request to go out (see
 // NAME_SWEEP_PACING_MS) — no request is in flight during this wait, so
 // synth_backup_flush_korg_name_sweep()'s reply/timeout checks don't apply
@@ -695,11 +723,29 @@ static double   gKorgSweepRequestSinceMs = 0.0;
 // in flight, tracked by gKorgSweepRequestSinceMs above, or the sweep isn't
 // active at all) — this is exactly what synth_backup_sweep_request_in_flight()
 // below reports.
-static double   gKorgSweepNextRequestMs  = 0.0;
-static uint32_t gKorgSweepRepliedCount   = 0;
-static uint32_t gKorgSweepMissingCount   = 0;
-static bool     gKorgNameCacheValid      = false;
-static char     gKorgSweepLabels[KORG_SWEEP_PRESET_COUNT][NAME_SWEEP_LABEL_LEN];
+static double         gKorgSweepNextRequestMs        = 0.0;
+static uint32_t       gKorgSweepRepliedCount         = 0;
+static uint32_t       gKorgSweepMissingCount         = 0;
+static bool           gKorgNameCacheValid            = false;
+static char           gKorgSweepLabels[KORG_SWEEP_PRESET_COUNT][NAME_SWEEP_LABEL_LEN];
+
+// State for the Korg restore-folder mechanism (Restore > Bank (Individual
+// Files), in reverse) — declared here, alongside the rest of the Korg
+// sweep's own state, rather than down next to that mechanism's own
+// functions (which is where the equivalent Moog state lives, right above
+// its own functions) purely so synth_backup_start_name_sweep()'s Korg
+// guard above can reference gKorgRestoreFolderActive without a forward-
+// declaration; the functions using the rest of this block still live down
+// with the Moog restore-folder mechanism's own counterpart, see that
+// section's own header comment.
+static bool           gKorgRestoreFolderActive       = false;
+static char           gKorgRestoreFolderFolder[1024] = {0};
+static uint32_t       gKorgRestoreFolderEntries[KORG_SWEEP_PRESET_COUNT]; // sweep-style indices (0..255, bank*128+prog-1), in Patches.txt order, filtered to ones a matching file was actually found for
+static uint32_t       gKorgRestoreFolderCount        = 0;
+static uint32_t       gKorgRestoreFolderIndex        = 0;
+static double         gKorgRestoreFolderNextSendMs   = 0.0;
+static uint32_t       gKorgRestoreFolderSentCount    = 0;
+static uint32_t       gKorgRestoreFolderMissingCount = 0;
 
 // True only for the narrow window between sending a sweep request and
 // either its reply arriving or its timeout firing — NOT true during the
@@ -754,15 +800,27 @@ static void korg_sweep_request_current(void) {
 // korg_sweep_show_picker()'s own comment for why that's now a fully
 // separate concern from sweep progress.
 static void korg_sweep_advance(void) {
-    gReDraw                 = true;
+    gReDraw              = true;
     gKorgSweepIndex++;
-    gKorgSweepRetryCount    = 0; // fresh slot, fresh retry budget — see NAME_SWEEP_MAX_RETRIES's own comment
+    gKorgSweepRetryCount = 0;    // fresh slot, fresh retry budget — see NAME_SWEEP_MAX_RETRIES's own comment
 
     if (gKorgSweepIndex >= KORG_SWEEP_PRESET_COUNT) {
         gKorgSweepActive    = false;
-        LOG_DEBUG("Korg name sweep finished — %u replied, %u missing\n",
-                  (unsigned)gKorgSweepRepliedCount, (unsigned)gKorgSweepMissingCount);
-        gKorgNameCacheValid = true; // even a slot that timed out keeps its "(no response)" label — good enough to skip re-sweeping, same acceptance as gNameCacheValid's own comment above
+
+        if (gKorgSweepMode == eKorgSweepModeExportFiles) {
+            LOG_DEBUG("Backup: Korg bank-to-folder export finished — %u captured, %u missing, folder %s\n",
+                      (unsigned)gKorgSweepRepliedCount, (unsigned)gKorgSweepMissingCount, gKorgSweepFolder);
+        } else {
+            LOG_DEBUG("Korg name sweep finished — %u replied, %u missing\n",
+                      (unsigned)gKorgSweepRepliedCount, (unsigned)gKorgSweepMissingCount);
+        }
+        // Even a slot that timed out keeps its "(no response)" label — good
+        // enough to skip re-sweeping, same acceptance as gNameCacheValid's
+        // own comment above. True either way: an export sweep decodes every
+        // name/category exactly like a name-only one (korg_sweep_capture_reply()'s
+        // own comment), so it's a free, valid cache-populating side effect,
+        // not something only a "real" name sweep should set.
+        gKorgNameCacheValid = true;
         return;
     }
     // Paced, not immediate — the actual send happens on a later
@@ -770,16 +828,119 @@ static void korg_sweep_advance(void) {
     gKorgSweepNextRequestMs = backup_monotonic_ms() + NAME_SWEEP_PACING_MS;
 }
 
-// Decodes the name AND category from a captured Program Data Dump reply
-// into gKorgSweepLabels[gKorgSweepIndex] as "A1: Name — Category" (or just
-// "A1: Name" on a device with no category dial, or "A1: (unnamed)") — the
+// Appends one line to <folder>/Patches.txt in the Korg sweep's own "A001  Name"
+// format (bank letter + 3-digit zero-padded program, TWO spaces, then name)
+// — the Korg counterpart to backup_batch_append_index_line() above (Moog).
+// Reopened per call rather than held open across the whole sweep, same "a
+// crash or force quit mid-export still leaves what's captured so far intact
+// and readable" reasoning as that function's own comment.
+static void korg_sweep_append_index_line(uint8_t bank, uint32_t prog, const char * name) {
+    char   indexPath[1280];
+
+    backup_index_file_path(indexPath, sizeof(indexPath), gKorgSweepFolder);
+    FILE * f = fopen(indexPath, "a");
+
+    if (f != NULL) {
+        fprintf(f, "%c%03u  %s\n", bank ? 'B' : 'A', (unsigned)prog, name);
+        fclose(f);
+    } else {
+        LOG_ERROR("Backup: couldn't append to %s\n", indexPath);
+    }
+}
+
+// Writes a just-captured Program Data Dump reply to its own file — the Korg
+// counterpart to backup_batch_write_capture() above (Moog). Called only
+// when gKorgSweepMode == eKorgSweepModeExportFiles, from
+// korg_sweep_capture_reply() below (which has already decoded `name`, so
+// this doesn't need its own separate decode step). Owns Replied/Missing
+// counting for this reply itself — the caller does NOT also increment
+// those for export mode, only for the name-sweep-only path.
+static void korg_sweep_write_capture_file(uint8_t bank, uint32_t prog, const char * name, const uint8_t * data, uint32_t length) {
+    char   nameForFile[sizeof(gDevice.progName)];
+
+    backup_sanitize_name_for_file(name, nameForFile, sizeof(nameForFile));
+
+    char   filePath[1280];
+
+    if (nameForFile[0] != '\0') {
+        snprintf(filePath, sizeof(filePath), "%s/%c%03u %s.syx", gKorgSweepFolder, bank ? 'B' : 'A', (unsigned)prog, nameForFile);
+    } else {
+        snprintf(filePath, sizeof(filePath), "%s/%c%03u.syx", gKorgSweepFolder, bank ? 'B' : 'A', (unsigned)prog);
+    }
+    FILE * f = fopen(filePath, "wb");
+
+    if (f != NULL) {
+        fwrite(data, 1, length, f);
+        fclose(f);
+        gKorgSweepRepliedCount++;
+        korg_sweep_append_index_line(bank, prog, nameForFile[0] != '\0' ? nameForFile : "(unnamed)");
+    } else {
+        LOG_ERROR("Backup: couldn't open %s for writing\n", filePath);
+        gKorgSweepMissingCount++;
+        korg_sweep_append_index_line(bank, prog, "(write failed)");
+    }
+}
+
+// Writes gKorgSweepLabels[(bank?128:0)+(prog-1)] as "A1: Name — Category"
+// (or just "A1: Name" on a device with no category dial, or "A1: (unnamed)")
+// — the Korg counterpart to name_cache_set_label() above (Moog). Shared by
+// korg_sweep_capture_reply() below (a sweep in progress) and
+// korg_restore_patch_file_chosen() further down (keeping the cache accurate
+// after a Restore write, without needing a full re-sweep — same "no extra
+// guard needed, a no-op-safe write either way" reasoning as
+// name_cache_update_from_preset_dump()'s own comment).
+static void korg_sweep_set_label(uint8_t bank, uint32_t prog, const char * name, const char * category) {
+    if ((prog < 1) || (prog > 128)) {
+        return;
+    }
+    char * label = gKorgSweepLabels[(bank ? 128 : 0) + (prog - 1)];
+
+    if ((name == NULL) || (name[0] == '\0')) {
+        snprintf(label, NAME_SWEEP_LABEL_LEN, "%c%u: (unnamed)", bank ? 'B' : 'A', (unsigned)prog);
+    } else if ((category != NULL) && (category[0] != '\0')) {
+        snprintf(label, NAME_SWEEP_LABEL_LEN, "%c%u: %s \xe2\x80\x94 %s", bank ? 'B' : 'A', (unsigned)prog, name, category);
+    } else {
+        snprintf(label, NAME_SWEEP_LABEL_LEN, "%c%u: %s", bank ? 'B' : 'A', (unsigned)prog, name);
+    }
+}
+
+// Decodes name+category from an arbitrary Program Data Dump buffer (not
+// necessarily gKorgSweepIndex's own — a Restore write, e.g.) and updates
+// its label via korg_sweep_set_label() above. Shared by
+// korg_restore_patch_file_chosen() and synth_backup_flush_korg_restore_folder()
+// further down, both of which need this exact "decode this one buffer,
+// touch the cache for this one slot" step outside the sweep itself.
+static void korg_name_cache_update_from_dump(uint8_t bank, uint32_t prog, const uint8_t * data, uint32_t length) {
+    char name[sizeof(gDevice.progName)];
+    char category[32];
+
+    name[0]     = '\0';
+    category[0] = '\0';
+    synth_decode_korg_name(data, length, name, sizeof(name));
+    synth_decode_korg_category(data, length, category, sizeof(category));
+
+    for (char * p = name; *p != '\0'; p++) {
+        if (*p == '\n') {
+            *p = ' ';
+        }
+    }
+
+    korg_sweep_set_label(bank, prog, name, category);
+}
+
+// Decodes the name AND category from a captured Program Data Dump reply and
+// updates its gKorgSweepLabels entry via korg_sweep_set_label() above — the
 // Korg counterpart to name_sweep_capture_name() above. Uses
 // synth_decode_korg_name()/synth_decode_korg_category() directly (not
 // gDevice.progName) so this doesn't disturb whatever the live edit
 // buffer's own name is currently showing on-screen while the sweep runs.
+// Also drives the Backup > Bank (Individual Files)… write when
+// gKorgSweepMode == eKorgSweepModeExportFiles — the name/category decode
+// above is needed either way (for the label AND the export filename), so
+// there's no separate "export capture" entry point; this is it for both.
 static void korg_sweep_capture_reply(const uint8_t * data, uint32_t length) {
-    uint8_t  bank  = (uint8_t)(gKorgSweepIndex / 128);
-    uint32_t prog  = (gKorgSweepIndex % 128) + 1;
+    uint8_t  bank = (uint8_t)(gKorgSweepIndex / 128);
+    uint32_t prog = (gKorgSweepIndex % 128) + 1;
     char     name[sizeof(gDevice.progName)];
     char     category[32];
 
@@ -794,16 +955,13 @@ static void korg_sweep_capture_reply(const uint8_t * data, uint32_t length) {
         }
     }
 
-    char *   label = gKorgSweepLabels[gKorgSweepIndex];
+    korg_sweep_set_label(bank, prog, name, category);
 
-    if (name[0] == '\0') {
-        snprintf(label, NAME_SWEEP_LABEL_LEN, "%c%u: (unnamed)", bank ? 'B' : 'A', (unsigned)prog);
-    } else if (category[0] != '\0') {
-        snprintf(label, NAME_SWEEP_LABEL_LEN, "%c%u: %s \xe2\x80\x94 %s", bank ? 'B' : 'A', (unsigned)prog, name, category);
+    if (gKorgSweepMode == eKorgSweepModeExportFiles) {
+        korg_sweep_write_capture_file(bank, prog, name, data, length); // owns its own Replied/Missing counting
     } else {
-        snprintf(label, NAME_SWEEP_LABEL_LEN, "%c%u: %s", bank ? 'B' : 'A', (unsigned)prog, name);
+        gKorgSweepRepliedCount++;
     }
-    gKorgSweepRepliedCount++;
 }
 
 // Per-frame poll — the Korg counterpart to synth_backup_flush_bank_to_folder()
@@ -871,6 +1029,7 @@ void synth_backup_flush_korg_name_sweep(void) {
 // "A1: ---" so korg_sweep_show_picker() has something sane to show for
 // whatever hasn't been swept yet, whichever way the picker was opened.
 static void korg_sweep_start(void) {
+    gKorgSweepMode          = eKorgSweepModeNameSweep; // always the name-only entry point — korg_batch_folder_chosen() below sets up export mode itself, without going through here
     gKorgSweepActive        = true;
     gKorgSweepIndex         = 0;
     gKorgSweepRetryCount    = 0;
@@ -888,6 +1047,96 @@ static void korg_sweep_start(void) {
     korg_sweep_request_current(); // first request goes out right away; every one after this is paced (korg_sweep_advance())
     LOG_DEBUG("Load/Store: starting a %u-program Korg name sweep (2 banks x 128), paced %.0fms/request\n",
               (unsigned)KORG_SWEEP_PRESET_COUNT, NAME_SWEEP_PACING_MS);
+}
+
+// Runs on the main thread once the user has chosen (or cancelled) a backup
+// folder — the Korg counterpart to backup_batch_folder_chosen() above
+// (Moog). Deliberately does NOT call korg_sweep_start() (that's always the
+// plain name-only entry point — see its own comment) — sets up the SAME
+// underlying gKorgSweep* state directly, in export mode, mirroring
+// backup_batch_folder_chosen()'s own inline setup rather than sharing a
+// helper neither side really needs.
+static void korg_batch_folder_chosen(const char * path) {
+    if (path == NULL) {
+        LOG_DEBUG("Backup: Korg bank-to-folder export cancelled\n");
+        return;
+    }
+    strncpy(gKorgSweepFolder, path, sizeof(gKorgSweepFolder) - 1);
+    gKorgSweepFolder[sizeof(gKorgSweepFolder) - 1] = '\0';
+    set_last_backup_folder(synth_current_device_config(), gKorgSweepFolder);
+
+    // Fresh index file each run — see backup_batch_folder_chosen()'s own
+    // identical comment for why (truncates any previous export into the
+    // same folder rather than appending onto stale content).
+    char   indexPath[1280];
+    backup_index_file_path(indexPath, sizeof(indexPath), gKorgSweepFolder);
+    FILE * f = fopen(indexPath, "w");
+
+    if (f != NULL) {
+        const char * deviceName = synth_panel_config()->deviceName;
+        time_t       now        = time(NULL);
+        char         timestamp[32];
+
+        strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M", localtime(&now));
+        fprintf(f, "%s Bank Backup — %s\n", (deviceName[0] != '\0') ? deviceName : "Patch", timestamp);
+        fprintf(f, "%u programs requested from device (2 banks x 128)\n\n", (unsigned)KORG_SWEEP_PRESET_COUNT);
+        fclose(f);
+    }
+    gKorgSweepMode                                 = eKorgSweepModeExportFiles;
+    gKorgSweepActive                               = true;
+    gKorgSweepIndex                                = 0;
+    gKorgSweepRetryCount                           = 0;
+    gKorgSweepRepliedCount                         = 0;
+    gKorgSweepMissingCount                         = 0;
+    gKorgSweepNextRequestMs                        = 0.0;
+
+    for (uint32_t i = 0; i < KORG_SWEEP_PRESET_COUNT; i++) {
+        uint8_t  bank = (uint8_t)(i / 128);
+        uint32_t prog = (i % 128) + 1;
+
+        snprintf(gKorgSweepLabels[i], NAME_SWEEP_LABEL_LEN, "%c%u: ---", bank ? 'B' : 'A', (unsigned)prog);
+    }
+
+    korg_sweep_request_current();
+    LOG_DEBUG("Backup: starting Korg bank-to-folder export of %u programs to %s\n",
+              (unsigned)KORG_SWEEP_PRESET_COUNT, gKorgSweepFolder);
+}
+
+void synth_backup_bank_to_folder(void) {
+    if (!gDevice.connected) {
+        LOG_ERROR("Backup: no device connected\n");
+        return;
+    }
+
+    // Korg-style (Z1): fully separate sweep/folder-chosen path — see the
+    // Korg name-sweep block's own header comment for why this reuses that
+    // SAME sweep mechanism (in export mode) rather than gBackupBatch* below,
+    // which is built entirely around Voyager's own Single Preset Dump
+    // request/reply shape and a fixed 128-slot bank. Added 2026-07-14.
+    if (!synth_panel_config()->moogStyleDump) {
+        if (gKorgSweepActive) {
+            LOG_ERROR("Backup: a Korg sweep is already in progress\n");
+            return;
+        }
+
+        if (gBackupExpect != eBackupExpectNone) {
+            LOG_ERROR("Backup: another backup operation is already in progress\n");
+            return;
+        }
+        open_folder_choose_dialogue_async(korg_batch_folder_chosen, "Choose Backup Folder", get_last_backup_folder(synth_current_device_config()));
+        return;
+    }
+
+    if (gBackupBatchActive) {
+        LOG_ERROR("Backup: a bank-to-folder export is already in progress\n");
+        return;
+    }
+
+    if (gBackupExpect != eBackupExpectNone) {
+        LOG_ERROR("Backup: another backup operation is already in progress\n");
+        return;
+    }
+    open_folder_choose_dialogue_async(backup_batch_folder_chosen, "Choose Backup Folder", get_last_backup_folder(synth_current_device_config()));
 }
 
 // Shows the "A1: Name — Category" picker and acts on whatever the user
@@ -963,15 +1212,19 @@ void synth_backup_start_name_sweep(tNameSweepPurpose purpose) {
     // Korg-style (Z1): fully separate sweep/picker — see this whole
     // block's own header comment for why. Added 2026-07-14.
     if (!synth_panel_config()->moogStyleDump) {
-        // Blocks a genuinely CONFLICTING operation (a Moog fetch,
-        // Bank-to-Folder export — Restore Folder isn't checked here, it's
-        // Moog-only and already refuses to start at all on a Korg-style
-        // device, see synth_backup_restore_folder()'s own guard below) but
-        // deliberately NOT this sweep's own eBackupExpectKorgProgram — the
-        // picker below opens even while a background sweep is mid-flight,
-        // so seeing that flag set here is completely normal, not a
-        // conflict.
-        if (  gBackupBatchActive
+        // Blocks a genuinely CONFLICTING operation — a Korg restore-folder
+        // sweep (gKorgRestoreFolderActive) or this SAME gKorgSweep*
+        // mechanism actually mid-EXPORT (writing files, not just decoding
+        // names for the cache) — but deliberately NOT a plain name sweep
+        // (gKorgSweepActive with gKorgSweepMode still eKorgSweepModeNameSweep)
+        // or this sweep's own eBackupExpectKorgProgram: the picker below
+        // opens even while a background NAME sweep is mid-flight, so seeing
+        // either of those here is completely normal, not a conflict.
+        // gBackupBatchActive (Moog) can't actually be true on a Korg-style
+        // device at all — every Moog entry point already refuses to start
+        // on one — kept here anyway as defence in depth.
+        if (  gBackupBatchActive || gKorgRestoreFolderActive
+           || (gKorgSweepActive && (gKorgSweepMode == eKorgSweepModeExportFiles))
            || ((gBackupExpect != eBackupExpectNone) && (gBackupExpect != eBackupExpectKorgProgram))) {
             LOG_ERROR("Load/Store: another backup operation is already in progress\n");
             return;
@@ -1323,7 +1576,7 @@ void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExp
     } else {
         char nameForFile[sizeof(gDevice.progName)];
 
-        backup_sanitize_name_for_file(nameForFile, sizeof(nameForFile));
+        backup_sanitize_name_for_file(gDevice.progName, nameForFile, sizeof(nameForFile));
 
         if (nameForFile[0] != '\0') {
             snprintf(defaultName, sizeof(defaultName), "%s.syx", nameForFile);
@@ -1422,6 +1675,58 @@ static bool restore_validate_moog_dump(const uint8_t * data, uint32_t length, ui
                  what);
         LOG_ERROR("Restore: %s is mode 0x%02X, expected 0x%02X\n", what, (unsigned)data[4], (unsigned)expectedMode);
         return false;
+    }
+    return true;
+}
+
+// Korg-style counterpart to restore_validate_moog_dump() above — validates
+// a raw F0...F7 SysEx capture as a genuine Program Data Dump (func 0x4C) for
+// the connected device (mfrId/familyId/channel-nibble all checked, same
+// header shape korg_decode_prog_dump() in synthComms.c already reads for
+// the exact same message type). Re-implemented independently here rather
+// than exposing that static function, same reasoning
+// restore_validate_moog_dump() already gives for its own Moog equivalent.
+// outBank/outProg (if non-NULL) receive the dump's own embedded destination
+// address on success — a Program Data Dump carries its own bank/program in
+// the header (unlike a Moog Panel Dump), so there's nothing to separately
+// track the way gBackupPresetNum is for the Moog "Backup > Patch by
+// Number" flow.
+static bool restore_validate_korg_dump(const uint8_t * data, uint32_t length, char * reason, size_t reasonSize,
+                                       uint8_t * outBank, uint32_t * outProg) {
+    tPanelConfig * cfg     = synth_panel_config();
+
+    if (cfg->moogStyleDump) {
+        snprintf(reason, reasonSize, "The connected device isn't Korg-style — this Restore action doesn't support it.");
+        LOG_ERROR("Restore: connected device isn't Korg-style\n");
+        return false;
+    }
+    uint32_t       n       = cfg->manufacturerIdLen;
+    uint32_t       funcPos = 3 + n; // F0 + mfrId(n) + (0x30|channel) + familyId, THEN func — see is_synth_sysex()'s own comment (synthComms.c)
+
+    if ((length < funcPos + 4) || (data[0] != MIDI_SYSEX_START) || (data[length - 1] != MIDI_SYSEX_END)) {
+        snprintf(reason, reasonSize, "This file doesn't look like a raw SysEx capture (%u bytes) — was it saved by this app's own Backup, unmodified?", (unsigned)length);
+        LOG_ERROR("Restore: Patch by Number dump doesn't look like a raw SysEx capture (%u bytes)\n", (unsigned)length);
+        return false;
+    }
+
+    if ((memcmp(&data[1], cfg->manufacturerId, n) != 0) || ((data[n + 1] & 0xF0) != 0x30) || (data[n + 2] != cfg->familyId)) {
+        snprintf(reason, reasonSize, "This file isn't a dump for the connected device (manufacturer/family ID mismatch).");
+        LOG_ERROR("Restore: Patch by Number dump isn't for the connected device (mfrId/familyId mismatch)\n");
+        return false;
+    }
+
+    if (data[funcPos] != SYNTH_FUNC_PROG_DUMP) {
+        snprintf(reason, reasonSize, "This file is a func 0x%02X message, not a Program Data Dump — pick a file saved with Backup > Bank (Individual Files).", (unsigned)data[funcPos]);
+        LOG_ERROR("Restore: Patch by Number dump func 0x%02X, expected 0x%02X\n", (unsigned)data[funcPos], (unsigned)SYNTH_FUNC_PROG_DUMP);
+        return false;
+    }
+
+    if (outBank != NULL) {
+        *outBank = data[funcPos + 1] & 0x01;
+    }
+
+    if (outProg != NULL) {
+        *outProg = (uint32_t)data[funcPos + 2] + 1;
     }
     return true;
 }
@@ -1658,12 +1963,76 @@ static void restore_patch_file_chosen(const char * path) {
     free(data);
 }
 
+// Korg-style counterpart to restore_patch_file_chosen() above (Moog). See
+// restore_validate_korg_dump()'s own comment for the header/address this
+// reads — sending an addressed Program Data Dump straight to the device is
+// UNCONFIRMED against real Z1 hardware as a way to write a specific bank/
+// program (contrast synth_send_korg_program_write_request(), synthComms.h,
+// the one Korg write mechanism that IS confirmed — committing the live
+// edit buffer, not arbitrary addressed data). Standard convention across
+// Korg's own product line for a message carrying its own destination
+// address, and structurally consistent with how this app already reads the
+// SAME message shape back (korg_decode_prog_dump(), synthComms.c) — but
+// worth a real test with a low-stakes preset before trusting it the way
+// the Moog mechanism (independently hardware-confirmed 2026-07-11) is
+// trusted.
+static void korg_restore_patch_file_chosen(const char * path) {
+    if (path == NULL) {
+        LOG_DEBUG("Restore: patch restore cancelled\n");
+        return;
+    }
+    uint32_t  length = 0;
+    uint8_t * data   = restore_read_file(path, &length);
+
+    if (data == NULL) {
+        return;
+    }
+    char      reason[192];
+    uint8_t   bank   = 0;
+    uint32_t  prog   = 0;
+
+    if (!restore_validate_korg_dump(data, length, reason, sizeof(reason), &bank, &prog)) {
+        show_info_dialogue("Restore Patch Failed", reason);
+        free(data);
+        return;
+    }
+    char      message[192];
+
+    snprintf(message, sizeof(message),
+             "This will overwrite Bank %c, Program %u on the connected device with the contents of this file. This cannot be undone.",
+             bank ? 'B' : 'A', (unsigned)prog);
+
+    if (show_confirm_dialogue("Restore Patch", message)) {
+        if (midi_send(data, length)) {
+            LOG_DEBUG("Restore: sent %u byte Program Data Dump from %s (overwrote Bank %c, Program %u)\n",
+                      (unsigned)length, path, bank ? 'B' : 'A', (unsigned)prog);
+            // Keeps the Korg name cache (gKorgNameCacheValid) accurate for
+            // this slot without needing a full re-sweep — see
+            // korg_name_cache_update_from_dump()'s own comment.
+            korg_name_cache_update_from_dump(bank, prog, data, length);
+            snprintf(message, sizeof(message), "Sent — Bank %c, Program %u should now match this file.", bank ? 'B' : 'A', (unsigned)prog);
+            show_info_dialogue("Restore Patch", message);
+        } else {
+            LOG_ERROR("Restore: failed to send %u byte Program Data Dump from %s\n", (unsigned)length, path);
+            show_info_dialogue("Restore Patch Failed", "The message couldn't be sent — see the debug log for the exact MIDI error.");
+        }
+    } else {
+        LOG_DEBUG("Restore: patch restore cancelled at confirmation\n");
+    }
+    free(data);
+}
+
 void synth_backup_restore_patch(void) {
     if (!gDevice.connected) {
         LOG_ERROR("Restore: no device connected\n");
         return;
     }
-    open_file_read_dialogue_async(restore_patch_file_chosen);
+
+    if (synth_panel_config()->moogStyleDump) {
+        open_file_read_dialogue_async(restore_patch_file_chosen);
+    } else {
+        open_file_read_dialogue_async(korg_restore_patch_file_chosen);
+    }
 }
 
 // Runs on the main thread once the user has chosen (or cancelled) a whole-
@@ -1757,7 +2126,7 @@ static uint32_t gRestoreFolderMissingCount = 0;
 static uint32_t restore_folder_parse_index(const char * folder, uint32_t * outNumbers, uint32_t maxCount) {
     char     indexPath[1280];
 
-    snprintf(indexPath, sizeof(indexPath), "%s/Patches.txt", folder);
+    backup_index_file_path(indexPath, sizeof(indexPath), folder);
     FILE *   f     = fopen(indexPath, "r");
 
     if (f == NULL) {
@@ -1824,7 +2193,7 @@ static void restore_folder_chosen(const char * path) {
 
     if (indexCount == 0) {
         show_info_dialogue("Restore Folder Failed",
-                           "No Patches.txt index found in this folder (or it has no entries) — pick a folder created by Backup > Bank (Individual Files).");
+                           "No index for the connected device found in this folder (or it has no entries) — pick a folder created by Backup > Bank (Individual Files) for this same device.");
         return;
     }
     // Resolve each listed preset number to an actual file in the folder —
@@ -1842,7 +2211,7 @@ static void restore_folder_chosen(const char * path) {
     }
 
     if (gRestoreFolderCount == 0) {
-        show_info_dialogue("Restore Folder Failed", "Patches.txt lists presets, but none of their files could be found in this folder.");
+        show_info_dialogue("Restore Folder Failed", "The index lists presets, but none of their files could be found in this folder.");
         return;
     }
     strncpy(gRestoreFolderFolder, path, sizeof(gRestoreFolderFolder) - 1);
@@ -1866,23 +2235,10 @@ static void restore_folder_chosen(const char * path) {
     LOG_DEBUG("Restore: starting folder restore of %u preset(s) from %s\n", (unsigned)gRestoreFolderCount, path);
 }
 
-void synth_backup_restore_folder(void) {
-    if (!gDevice.connected) {
-        LOG_ERROR("Restore: no device connected\n");
-        return;
-    }
-
-    if (!synth_panel_config()->moogStyleDump) {
-        LOG_ERROR("Restore: folder restore only supports Moog-style devices so far\n");
-        return;
-    }
-
-    if (gRestoreFolderActive || gBackupBatchActive || (gBackupExpect != eBackupExpectNone)) {
-        LOG_ERROR("Restore: another backup/restore operation is already in progress\n");
-        return;
-    }
-    open_folder_choose_dialogue_async(restore_folder_chosen, "Choose Folder to Restore From", get_last_backup_folder(synth_current_device_config()));
-}
+// synth_backup_restore_folder() itself lives further down, after the Korg
+// restore-folder block (needs gKorgRestoreFolderActive/korg_restore_folder_chosen(),
+// both declared there) — same forward-reference reasoning as
+// synth_backup_bank_to_folder()'s own comment above.
 
 void synth_backup_flush_restore_folder(void) {
     if (!gRestoreFolderActive) {
@@ -1953,6 +2309,219 @@ void synth_backup_flush_restore_folder(void) {
     gRestoreFolderNextSendMs = backup_monotonic_ms() + RESTORE_FOLDER_SEND_PACING_MS;
 }
 
+// ── Korg restore-folder (Restore > Bank (Individual Files), in reverse) ────
+// The Korg counterpart to the Moog restore-folder mechanism above — fully
+// separate state (declared up near the rest of the Korg sweep's own state,
+// not here, so synth_backup_start_name_sweep()'s Korg guard further up can
+// reference it too — see gKorgRestoreFolderActive's own comment there),
+// same reasoning as the rest of this file's Korg/Moog split (a fixed
+// 128-slot single bank vs 256 across 2 banks, a different filename/index
+// format). Same threading model too: a restore SEND has no reply to wait
+// for, so this lives entirely on the main/render thread, driven once per
+// frame by synth_backup_flush_korg_restore_folder() below.
+
+// Parses <folder>/Patches.txt for the ordered list of (bank, program) slots
+// it records (korg_sweep_append_index_line()'s own "A001  Name\n"/"B045  Name\n"
+// format — bank letter, 3-digit zero-padded program, TWO spaces) — the Korg
+// counterpart to restore_folder_parse_index() above (Moog). Ignores the
+// recorded name text, just the leading address. Returns how many were
+// found (capped at maxCount), as sweep-style indices (0..255, matching
+// gKorgSweepLabels' own indexing).
+static uint32_t korg_restore_folder_parse_index(const char * folder, uint32_t * outIndices, uint32_t maxCount) {
+    char     indexPath[1280];
+
+    backup_index_file_path(indexPath, sizeof(indexPath), folder);
+    FILE *   f     = fopen(indexPath, "r");
+
+    if (f == NULL) {
+        return 0;
+    }
+    uint32_t count = 0;
+    char     line[512];
+
+    while ((count < maxCount) && (fgets(line, sizeof(line), f) != NULL)) {
+        if (  ((line[0] == 'A') || (line[0] == 'B'))
+           && isdigit((unsigned char)line[1]) && isdigit((unsigned char)line[2]) && isdigit((unsigned char)line[3])
+           && (line[4] == ' ') && (line[5] == ' ')) {
+            uint8_t  bank = (line[0] == 'B') ? 1 : 0;
+            uint32_t prog = (uint32_t)((line[1] - '0') * 100 + (line[2] - '0') * 10 + (line[3] - '0'));
+
+            if ((prog >= 1) && (prog <= 128)) {
+                outIndices[count++] = (bank ? 128 : 0) + (prog - 1);
+            }
+        }
+    }
+    fclose(f);
+    return count;
+}
+
+// Finds the file in `folder` whose name starts with the exact "A001"/"B045"
+// style prefix (matching korg_sweep_write_capture_file()'s own naming) —
+// the Korg counterpart to restore_folder_find_file() above (Moog).
+// Deliberately NOT reconstructed from Patches.txt's own recorded name text,
+// same "a renamed file still gets found" reasoning as that function's own
+// comment. Writes the full path into outPath. Returns false if no matching
+// file was found.
+static bool korg_restore_folder_find_file(const char * folder, uint32_t index, char * outPath, size_t outPathSize) {
+    DIR *           dp    = opendir(folder);
+
+    if (dp == NULL) {
+        return false;
+    }
+    uint8_t         bank  = (uint8_t)(index / 128);
+    uint32_t        prog  = (index % 128) + 1;
+    char            prefix[5];
+
+    snprintf(prefix, sizeof(prefix), "%c%03u", bank ? 'B' : 'A', prog);
+    bool            found = false;
+    struct dirent * entry;
+
+    while ((entry = readdir(dp)) != NULL) {
+        if (  (strlen(entry->d_name) >= 5) && (strncmp(entry->d_name, prefix, 4) == 0)
+           && ((entry->d_name[4] == ' ') || (entry->d_name[4] == '.'))) {
+            snprintf(outPath, outPathSize, "%s/%s", folder, entry->d_name);
+            found = true;
+            break;
+        }
+    }
+    closedir(dp);
+    return found;
+}
+
+// Runs on the main thread once the user has chosen (or cancelled) a folder
+// to restore from — the Korg counterpart to restore_folder_chosen() above
+// (Moog). See synth_backup_restore_folder() below.
+static void korg_restore_folder_chosen(const char * path) {
+    if (path == NULL) {
+        LOG_DEBUG("Restore: folder restore cancelled\n");
+        return;
+    }
+    uint32_t indices[KORG_SWEEP_PRESET_COUNT];
+    uint32_t indexCount = korg_restore_folder_parse_index(path, indices, KORG_SWEEP_PRESET_COUNT);
+
+    if (indexCount == 0) {
+        show_info_dialogue("Restore Folder Failed",
+                           "No index for the connected device found in this folder (or it has no entries) — pick a folder created by Backup > Bank (Individual Files) for this same device.");
+        return;
+    }
+    gKorgRestoreFolderCount                                        = 0;
+
+    for (uint32_t i = 0; i < indexCount; i++) {
+        char filePath[1280];
+
+        if (korg_restore_folder_find_file(path, indices[i], filePath, sizeof(filePath))) {
+            gKorgRestoreFolderEntries[gKorgRestoreFolderCount++] = indices[i];
+        }
+    }
+
+    if (gKorgRestoreFolderCount == 0) {
+        show_info_dialogue("Restore Folder Failed", "The index lists programs, but none of their files could be found in this folder.");
+        return;
+    }
+    strncpy(gKorgRestoreFolderFolder, path, sizeof(gKorgRestoreFolderFolder) - 1);
+    gKorgRestoreFolderFolder[sizeof(gKorgRestoreFolderFolder) - 1] = '\0';
+
+    char message[256];
+
+    snprintf(message, sizeof(message),
+             "This will restore %u program(s) found in this folder, overwriting their exact matching slots on the connected device. This cannot be undone.",
+             (unsigned)gKorgRestoreFolderCount);
+
+    if (!show_confirm_dialogue("Restore Folder", message)) {
+        LOG_DEBUG("Restore: folder restore cancelled at confirmation\n");
+        return;
+    }
+    gKorgRestoreFolderIndex                                        = 0;
+    gKorgRestoreFolderSentCount                                    = 0;
+    gKorgRestoreFolderMissingCount                                 = indexCount - gKorgRestoreFolderCount; // entries listed but never found on disk
+    gKorgRestoreFolderActive                                       = true;
+    gKorgRestoreFolderNextSendMs                                   = backup_monotonic_ms();                // send the first one on the very next flush tick
+    LOG_DEBUG("Restore: starting Korg folder restore of %u program(s) from %s\n", (unsigned)gKorgRestoreFolderCount, path);
+}
+
+void synth_backup_restore_folder(void) {
+    if (!gDevice.connected) {
+        LOG_ERROR("Restore: no device connected\n");
+        return;
+    }
+
+    // Korg-style (Z1): fully separate folder-chosen/flush path — see this
+    // whole block's own header comment for why. Added 2026-07-14.
+    if (!synth_panel_config()->moogStyleDump) {
+        if (gKorgRestoreFolderActive || (gBackupExpect != eBackupExpectNone)) {
+            LOG_ERROR("Restore: another backup/restore operation is already in progress\n");
+            return;
+        }
+        open_folder_choose_dialogue_async(korg_restore_folder_chosen, "Choose Folder to Restore From", get_last_backup_folder(synth_current_device_config()));
+        return;
+    }
+
+    if (gRestoreFolderActive || gBackupBatchActive || (gBackupExpect != eBackupExpectNone)) {
+        LOG_ERROR("Restore: another backup/restore operation is already in progress\n");
+        return;
+    }
+    open_folder_choose_dialogue_async(restore_folder_chosen, "Choose Folder to Restore From", get_last_backup_folder(synth_current_device_config()));
+}
+
+// Per-frame poll — the Korg counterpart to synth_backup_flush_restore_folder()
+// above (Moog). A no-op unless a Korg folder restore is actually active.
+// Call once per frame from the render loop. Unlike that function's own
+// end-of-sweep synth_request_state_dump() call, this doesn't need one —
+// handle_prog_dump() never touches gDevice.progName/the live dials in the
+// first place (see korg_sweep_show_picker()'s own comment above), so
+// there's nothing stale to refresh once the sweep's done.
+void synth_backup_flush_korg_restore_folder(void) {
+    if (!gKorgRestoreFolderActive) {
+        return;
+    }
+
+    if (backup_monotonic_ms() < gKorgRestoreFolderNextSendMs) {
+        return; // still pacing since the last send
+    }
+    gReDraw = true;
+    uint32_t index = gKorgRestoreFolderEntries[gKorgRestoreFolderIndex];
+    uint8_t  bank  = (uint8_t)(index / 128);
+    uint32_t prog  = (index % 128) + 1;
+    char     filePath[1280];
+
+    if (korg_restore_folder_find_file(gKorgRestoreFolderFolder, index, filePath, sizeof(filePath))) {
+        uint32_t  length = 0;
+        uint8_t * data   = restore_read_file(filePath, &length);
+
+        if (data != NULL) {
+            char reason[192];
+
+            if (restore_validate_korg_dump(data, length, reason, sizeof(reason), NULL, NULL) && midi_send(data, length)) {
+                gKorgRestoreFolderSentCount++;
+                korg_name_cache_update_from_dump(bank, prog, data, length);
+                LOG_DEBUG("Restore: sent Bank %c, Program %u from %s (%u/%u)\n", bank ? 'B' : 'A', (unsigned)prog, filePath,
+                          (unsigned)(gKorgRestoreFolderIndex + 1), (unsigned)gKorgRestoreFolderCount);
+            } else {
+                gKorgRestoreFolderMissingCount++;
+                LOG_ERROR("Restore: failed to send Bank %c, Program %u from %s (%s)\n", bank ? 'B' : 'A', (unsigned)prog, filePath, reason);
+            }
+            free(data);
+        } else {
+            gKorgRestoreFolderMissingCount++;
+        }
+    } else {
+        gKorgRestoreFolderMissingCount++; // file listed a moment ago at korg_restore_folder_chosen() time but gone now — race with something else touching the folder mid-sweep
+    }
+    gKorgRestoreFolderIndex++;
+
+    if (gKorgRestoreFolderIndex >= gKorgRestoreFolderCount) {
+        gKorgRestoreFolderActive = false;
+        char summary[192];
+        snprintf(summary, sizeof(summary), "Restored %u program(s), %u missing/failed.",
+                 (unsigned)gKorgRestoreFolderSentCount, (unsigned)gKorgRestoreFolderMissingCount);
+        show_info_dialogue("Restore Folder", summary);
+        LOG_DEBUG("Restore: Korg folder restore finished — %u sent, %u missing/failed\n",
+                  (unsigned)gKorgRestoreFolderSentCount, (unsigned)gKorgRestoreFolderMissingCount);
+        return;
+    }
+    gKorgRestoreFolderNextSendMs = backup_monotonic_ms() + RESTORE_FOLDER_SEND_PACING_MS;
+}
+
 bool synth_backup_get_export_progress(uint32_t * outCurrent, uint32_t * outTotal, uint32_t * outActionCount) {
     // Korg name sweep checked first — a fully separate state machine (see
     // its own header comment above) that shares this same progress-overlay
@@ -1975,10 +2544,30 @@ bool synth_backup_get_export_progress(uint32_t * outCurrent, uint32_t * outTotal
 }
 
 bool synth_backup_export_progress_is_name_sweep(void) {
-    return gKorgSweepActive || (gBackupBatchActive && (gBackupBatchMode == eBatchModeNameSweep));
+    // gKorgSweepActive alone isn't enough any more — that same flag also
+    // covers a real Backup > Bank (Individual Files) export now (export
+    // mode reuses this exact sweep, see its own header comment), which
+    // deserves the blocking progress modal same as the Moog export path
+    // below, not the quiet background-fill status row a plain name sweep
+    // gets. Found while adding Korg export mode, 2026-07-14 — before this
+    // fix, an in-progress Korg bank export would have been misreported as
+    // a name sweep here.
+    return (gKorgSweepActive && (gKorgSweepMode == eKorgSweepModeNameSweep))
+           || (gBackupBatchActive && (gBackupBatchMode == eBatchModeNameSweep));
 }
 
 bool synth_backup_get_restore_progress(uint32_t * outCurrent, uint32_t * outTotal, uint32_t * outActionCount) {
+    // Korg restore-folder checked first — a fully separate state machine
+    // (see its own header comment above) that shares this same progress-
+    // overlay reporting function purely for UI reuse, same pattern
+    // synth_backup_get_export_progress() already uses for the Korg sweep.
+    if (gKorgRestoreFolderActive) {
+        *outCurrent     = gKorgRestoreFolderIndex + 1; // 0-based index -> 1-based "Nth of M"
+        *outTotal       = gKorgRestoreFolderCount;
+        *outActionCount = gKorgRestoreFolderSentCount;
+        return true;
+    }
+
     if (!gRestoreFolderActive) {
         return false;
     }
@@ -2051,7 +2640,7 @@ void synth_backup_flush_background_prefetch(void) {
     // request once it's running (already excluded above via
     // gBackupBatchActive/gKorgSweepActive being false at this point), not a
     // conflict from something else.
-    bool blocked = gRestoreFolderActive
+    bool blocked = (moog ? gRestoreFolderActive : gKorgRestoreFolderActive)
                    || (moog ? (gBackupExpect != eBackupExpectNone)
                            : ((gBackupExpect != eBackupExpectNone) && (gBackupExpect != eBackupExpectKorgProgram)));
 

@@ -611,6 +611,9 @@ void do_graphics_loop(void) {
         // (paced sends, no reply to wait for) — see
         // synth_backup_flush_restore_folder()'s own comment (synthBackup.h).
         synth_backup_flush_restore_folder();
+        // Korg-style (Z1) counterpart to the above — see
+        // synth_backup_flush_korg_restore_folder()'s own comment (synthBackup.h).
+        synth_backup_flush_korg_restore_folder();
         // Finishes an in-progress "Store Patch to Bank…" fetch once its
         // fresh Panel Dump reply has landed — see
         // synth_backup_flush_store()'s own comment (synthBackup.h).

@@ -338,6 +338,17 @@ static int32_t choose_preset_number(const char * title, const char * message) {
         BOOL         isActive = current && [(NSString *)[item representedObject] isEqualToString:[NSString stringWithUTF8String:current]];
 
         [item setState:isActive ? NSControlStateValueOn : NSControlStateValueOff];
+    } else if ((action == @selector(backupBank:)) || (action == @selector(restoreBank:))) {
+        // "Bank…" (a single opaque whole-bank blob, Voyager's own All
+        // Presets Dump) has no equivalent on a Korg-style device — there's
+        // no confirmed single-message "dump everything" command for it
+        // (owner's own call, 2026-07-14: "you could remove the bank backup
+        // for non-Voyager devices" — greyed out here rather than actually
+        // removed from the menu, since that's the standard Cocoa way to say
+        // "not applicable right now" without having to rebuild the menu on
+        // every device switch). "Bank (Individual Files)…" is unaffected —
+        // that one now works for both device families.
+        return synth_panel_config()->moogStyleDump;
     }
     return YES;
 }

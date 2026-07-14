@@ -99,9 +99,15 @@ void synth_backup_bank(void);
 // Fire-and-forget (opens the folder picker and returns) — the sweep itself
 // is driven by synth_backup_flush_bank_to_folder() below, called once per
 // frame from the render loop, plus synth_backup_capture_dump() advancing it
-// on each reply. A no-op if no device is connected, the connected device
-// isn't Moog-style, or another backup operation (of any kind) is already in
-// progress.
+// on each reply. A no-op if no device is connected, or another backup
+// operation (of any kind) is already in progress.
+//
+// Korg-style (Z1): dispatches to a fully separate mechanism reusing the
+// Load/Store picker's own 256-program (2 banks x 128) sweep in an export
+// mode, rather than this one (built entirely around Voyager's own Single
+// Preset Dump request/reply shape and a fixed 128-slot bank) — see
+// synthBackup.c's own Korg name-sweep section header comment. Added
+// 2026-07-14.
 void synth_backup_bank_to_folder(void);
 
 // Per-frame poll for an in-progress synth_backup_bank_to_folder() sweep —
@@ -215,13 +221,16 @@ void synth_backup_restore_bank(void);
 // one preset at a time (Single Preset Dump can only address one preset per
 // send — same constraint as the export itself, see
 // synth_backup_bank_to_folder()'s own comment above). Driven by the
-// chosen folder's own Patches.txt index (which preset numbers it lists, in
-// order) rather than just scanning for numbered files — a listed number
+// chosen folder's own Patches.txt index (which presets/programs it lists,
+// in order) rather than just scanning for numbered files — a listed one
 // with no matching file in the folder is skipped and counted as missing.
-// Shows a confirmation naming how many presets will be overwritten before
-// sending anything, then a summary once finished. A no-op if no device is
-// connected, it isn't Moog-style, or another backup/restore operation is
-// already in progress.
+// Shows a confirmation naming how many will be overwritten before sending
+// anything, then a summary once finished. Moog-style and Korg-style each
+// use their own fully separate mechanism/file format under the hood (see
+// synthBackup.c's own Korg restore-folder section — 2 banks x 128 vs a
+// single 128-slot bank) but share this one entry point, dispatching on the
+// connected device's own moogStyleDump. A no-op if no device is connected,
+// or another backup/restore operation is already in progress.
 void synth_backup_restore_folder(void);
 
 // Per-frame poll for an in-progress synth_backup_restore_folder() sweep —
@@ -232,7 +241,17 @@ void synth_backup_restore_folder(void);
 // reply to wait for, so the whole sweep lives on the main/render thread
 // this is called from. A no-op if no sweep is in progress. Call once per
 // frame from the render loop, alongside synth_backup_flush_bank_to_folder().
+// Moog-style devices only — see synth_backup_flush_korg_restore_folder()
+// below for the Korg-style counterpart, called alongside this one.
 void synth_backup_flush_restore_folder(void);
+
+// Korg-style counterpart to synth_backup_flush_restore_folder() above —
+// same "paced sends, no CoreMIDI thread involved" shape, over the fully
+// separate gKorgRestoreFolder* state (synthBackup.c) a Korg-style device's
+// own synth_backup_restore_folder() branch sets up. A no-op unless a Korg
+// folder restore is actually active. Call once per frame from the render
+// loop, alongside synth_backup_flush_restore_folder().
+void synth_backup_flush_korg_restore_folder(void);
 
 // ── Load/Store (explicit bank-location transfer, G2-Edit naming) ────────────
 // G2-Edit's File menu has "Load Patch from Bank…" (device → edit buffer, by

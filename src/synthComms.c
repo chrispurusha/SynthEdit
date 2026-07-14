@@ -65,6 +65,35 @@ static bool is_moog_sysex(const uint8_t * data, uint32_t length) {
            && (data[2] == cfg->productId);
 }
 
+// Keeps gDevice.moogDeviceId (its own comment, types.h) in sync with
+// whatever Device ID the connected unit is ACTUALLY using, learned from its
+// own traffic rather than trusted once from the config file. Called on
+// every message synth_handle_message() already confirmed via is_moog_sysex()
+// (mfrId+productId matched — data[3] is guaranteed present by that check's
+// own length >= 5), regardless of which mode it turns out to be, same as
+// the reference implementation's own onSysex handler checks EVERY incoming
+// message before its own mode-specific branching.
+static void moog_learn_device_id(const uint8_t * data) {
+    if (data[3] != gDevice.moogDeviceId) {
+        LOG_DEBUG("Moog device ID learned from traffic: 0x%02X (was 0x%02X) — future requests will use it\n",
+                  (unsigned)data[3], (unsigned)gDevice.moogDeviceId);
+        gDevice.moogDeviceId = data[3];
+    }
+}
+
+// Overwrites the Device ID byte (fixed offset 3 — see is_moog_sysex()'s own
+// header-shape comment) of a Moog dump-request message built from the
+// config's stateRequestSysEx template with the currently-learned
+// gDevice.moogDeviceId, so every outgoing request stays addressed to
+// whatever the hardware is ACTUALLY using even if that's since diverged
+// from the static byte the file was written with (moog_learn_device_id()
+// above is what keeps it current). msg must be at least 4 bytes — every
+// caller already validated stateRequestSysExLen (or its own copy of the
+// same template) well past that.
+static void moog_apply_device_id(uint8_t * msg) {
+    msg[3] = gDevice.moogDeviceId;
+}
+
 // ── 7-to-8 bit decoding ───────────────────────────────────────────────────────
 // Korg packs 7 data bytes into 8 MIDI bytes.
 // Byte 0 of each group holds the MSBs — bit0 = MSB of data byte 7n+0 (the
@@ -870,6 +899,19 @@ void synth_decode_korg_name(const uint8_t * data, uint32_t length, char * outNam
     }
 
     outName[i] = '\0';
+
+    // The Z1's name field is fixed-width (cfg->progNameLen), space-padded
+    // for anything shorter than that — trim the trailing padding the same
+    // way synth_decode_moog_name() above already does for Voyager's own
+    // fixed-width field. Left untrimmed before, this padding was invisible
+    // in the Load/Store picker's dropdown labels (trailing spaces in a menu
+    // item don't show) but became visible the moment a name started
+    // landing in a saved FILENAME too (korg_sweep_write_capture_file(),
+    // synthBackup.c) — found 2026-07-14 (owner: trailing whitespace before
+    // ".syx" in exported filenames).
+    while ((i > 0) && (outName[i - 1] == ' ')) {
+        outName[--i] = '\0';
+    }
 }
 
 // Extracts just the Category value's display name from a captured Program
@@ -1226,6 +1268,15 @@ void synth_on_connected(void) {
     LOG_DEBUG("Synth connected (channel byte 0x%02X)\n", SYNTH_SYSEX_CHANNEL_BYTE(gDevice.id));
     memset(gDevice.progName, 0, sizeof(gDevice.progName));
     gDevice.currentProgram = -1; // unknown until an actual Program Change is seen — see the tSynthDevice field comment in types.h
+    // gDevice.moogDeviceId is DELIBERATELY not reset here — unlike
+    // currentProgram above, a value already learned from real traffic
+    // (moog_learn_device_id()) is still trustworthy after a mere reconnect
+    // to the SAME device (a MIDI dropout/replug doesn't change what Device
+    // ID the hardware's front panel is set to); throwing it away here would
+    // just make every request guess wrong again until another dump happens
+    // to arrive. It's seeded from the config's own default once, when the
+    // config itself first loads (synth_reload_panel_config(), synthGraphics.cpp)
+    // — the point that actually means "this might be a different device now".
 
     // Reset every dial, in every section, to its own display-space default
     // (0) — apply_dial_wire_value() already knows how to turn that into the
@@ -1270,7 +1321,19 @@ void synth_request_state_dump(void) {
     tPanelConfig * cfg = synth_panel_config();
 
     if (cfg->stateRequestSysExLen > 0) {
-        midi_send(cfg->stateRequestSysEx, cfg->stateRequestSysExLen);
+        if (cfg->moogStyleDump && (cfg->stateRequestSysExLen > 3)) {
+            // A local copy, not a send-in-place — cfg->stateRequestSysEx
+            // itself stays whatever the file was written with; only the
+            // outgoing byte reflects what's actually been learned (see
+            // moog_apply_device_id()'s own comment).
+            uint8_t msg[sizeof(cfg->stateRequestSysEx)];
+
+            memcpy(msg, cfg->stateRequestSysEx, cfg->stateRequestSysExLen);
+            moog_apply_device_id(msg);
+            midi_send(msg, cfg->stateRequestSysExLen);
+        } else {
+            midi_send(cfg->stateRequestSysEx, cfg->stateRequestSysExLen);
+        }
         LOG_DEBUG("Re-sent device state request (%u bytes)\n", (unsigned)cfg->stateRequestSysExLen);
     } else {
         synth_request_current_program();
@@ -1300,6 +1363,7 @@ void synth_request_single_preset_dump(uint32_t presetNumber) {
     uint32_t       prefixLen = cfg->stateRequestSysExLen - 1; // everything up to (not including) the trailing F7
 
     memcpy(msg, cfg->stateRequestSysEx, prefixLen);
+    moog_apply_device_id(msg);
     msg[prefixLen - 1] = 0x06;                        // mode byte: Single Preset Dump REQUEST
     msg[prefixLen]     = (uint8_t)(presetNumber - 1); // 0-based on the wire — see the header comment
     msg[prefixLen + 1] = MIDI_SYSEX_END;
@@ -1329,6 +1393,7 @@ void synth_request_all_presets_dump(void) {
     uint32_t       prefixLen = cfg->stateRequestSysExLen - 1; // everything up to (not including) the trailing F7
 
     memcpy(msg, cfg->stateRequestSysEx, prefixLen);
+    moog_apply_device_id(msg);
     msg[prefixLen - 1] = 0x04; // mode byte: All Presets Dump REQUEST
     msg[prefixLen]     = MIDI_SYSEX_END;
     midi_send(msg, prefixLen + 1);
@@ -1659,6 +1724,7 @@ void synth_handle_message(const uint8_t * data, uint32_t length) {
             LOG_DEBUG("Ignoring non-target SysEx (len=%u)\n", (unsigned)length);
             return;
         }
+        moog_learn_device_id(data);
         uint8_t mode = data[4];
 
         if (mode == 0x02) {
