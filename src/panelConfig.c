@@ -279,6 +279,8 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
             dial->asDial = (strtoul(val, NULL, 0) != 0);
         } else if (strcmp(key, "asMenu") == 0) {
             dial->asMenu = (strtoul(val, NULL, 0) != 0);
+        } else if (strcmp(key, "wireSigned") == 0) {
+            dial->wireSigned = (strtoul(val, NULL, 0) != 0);
         } else if (strcmp(key, "linkedMaxDial") == 0) {
             strncpy(dial->linkedMaxDialId, val, sizeof(dial->linkedMaxDialId) - 1);
         } else if (strcmp(key, "linkedMinDial") == 0) {

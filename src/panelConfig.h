@@ -200,6 +200,31 @@ typedef struct {
     uint32_t paramGroup;        // SysEx parameter group
     uint32_t paramId;           // SysEx parameter ID
 
+    // "wireSigned=1" — true if a live Parameter Change (group=/param=) value
+    // for THIS dial is genuine 14-bit two's-complement signed on the wire,
+    // NOT the plain unsigned-count-plus-displayOffset scheme dialDisplaySigned's
+    // own comment describes (and which the Z1's Filter/EG/Amp/LFO "Int"
+    // family, -99..+99, was confirmed to use via SET+SYNC+compare). Found
+    // 2026-07-14 on real hardware for PB Int+/PB Int- (param 163/164):
+    // turning the real dial to a genuine "-2 semitones" state sent
+    // value=16382 (16384-2, i.e. -2 in 14-bit two's complement) — decoding
+    // that as a plain unsigned count and clamping into [0, max-1] pinned the
+    // dial at its max, not anywhere near the correct value. A genuine
+    // positive value (+2 semitones -> value=2) passes through unchanged
+    // either way, which is why this can look fine until something actually
+    // goes negative. When true: handle_parameter_change() sign-extends the
+    // incoming 14-bit value (subtract 16384 if >= 8192) before adding
+    // displayOffset and handing off to apply_dial_wire_value(), and
+    // synth_set_panel_dial_value()'s outgoing send does the inverse (subtract
+    // displayOffset, re-encode as 14-bit two's complement if negative) —
+    // see encode_signed_param_wire_value(), synthComms.c. Default false:
+    // every dial that doesn't set this keeps exactly today's unsigned
+    // behaviour. NOT yet verified for any OTHER "-N~+N" dial in z1.txt
+    // (Semi Tone/Fine Tune/Frequency Offset were added "by analogy" the same
+    // day as PB Int and might have the identical bug — untested) — only
+    // enable this where it's actually been hardware-confirmed.
+    bool wireSigned;
+
     // Kronos-style Parameter Change addressing (func 0x43) — an entirely
     // different, richer scheme from paramGroup/paramId above (Z1's own 2-
     // field group/paramId): TYP/SOC/SUB/PID/IDX, per KRONOS_MIDI_SysEx.txt

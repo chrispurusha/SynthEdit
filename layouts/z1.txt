@@ -130,6 +130,34 @@ dial category label="Category" max=18 group=1 param=17 dumpOffset=16 dumpMask=0x
 # None of this has been independently round-tripped against real hardware
 # the way the Int family was (SET + SYNC + compare) — treat as high-
 # confidence by analogy, not independently hardware-confirmed.
+#
+# CORRECTION 2026-07-14 — PB Int+/- specifically does NOT use the
+# unsigned-raw-plus-displayOffset scheme above; the live Parameter Change
+# wire value is genuine 14-bit two's-complement signed. Owner tested on
+# real hardware: a real "+2 semitones" state sent value=2 (fine either way),
+# but a real "-2 semitones" state sent value=16382 (16384-2) — decoded as a
+# plain unsigned count, that clamped the dial to its max instead of showing
+# -2. Fixed via the new `wireSigned=1` dial attribute (see its own comment,
+# panelConfig.h) — sign-extends on receive, re-encodes two's complement on
+# send; display=signed/displayOffset=60 above are UNCHANGED and still do the
+# same display-time subtraction, wireSigned only changes how the wire value
+# itself is interpreted. This casts doubt on whether Semi Tone/Fine Tune/
+# Frequency Offset below have the identical bug — they were added "by
+# analogy" the same day as PB Int and haven't been individually
+# hardware-tested since; worth checking if reported as wrong. The dump-side
+# decode (dumpOffset=145/146 above) is UNCHANGED and NOT covered by this fix
+# — "Sync from synth" may still show these wrong until the dump encoding is
+# separately verified (it's a different wire format from live Parameter
+# Change, may or may not share the same signed encoding).
+#
+# UPDATE 2026-07-14, same day: dump-side confirmed and fixed too — a real
+# Program Dump capture (owner's own hardware, PB Int- at "-2 semitones")
+# showed raw dump byte 0xFE (254), i.e. plain 8-BIT two's complement
+# (256-2=254) — a NARROWER, DIFFERENT encoding from the live path's 14-bit
+# scheme, confirming these really are two independent wire formats each
+# needing their own conversion (see decode_signed_dump_byte() vs decode_
+# signed_param_wire_value(), synthComms.c). "Sync from synth" now decodes
+# these two dials correctly too.
 page       oscillators
 section    oscCommon
 dialSize   40
@@ -137,8 +165,8 @@ spacing    50
 
 color common 0.9 0.7 0.3
 
-dial pbIntPlus   label="PB Int+"   color=common max=85  display=signed displayOffset=60 group=1 param=163 dumpOffset=145
-dial pbIntMinus  label="PB Int-"   color=common max=85  display=signed displayOffset=60 group=1 param=164 dumpOffset=146
+dial pbIntPlus   label="PB Int+"   color=common max=85  display=signed displayOffset=60 wireSigned=1 group=1 param=163 dumpOffset=145
+dial pbIntMinus  label="PB Int-"   color=common max=85  display=signed displayOffset=60 wireSigned=1 group=1 param=164 dumpOffset=146
 dial pbStepPlus  label="PB Step+"  color=common max=16  display=raw group=1 param=165 dumpOffset=147 dumpMask=0x0F
 dial pbStepMinus label="PB Step-"  color=common max=16  display=raw group=1 param=166 dumpOffset=147 dumpShift=4 dumpMask=0x0F
 dial portSW      label="Porta"     color=common max=2   names=OFF,ON          group=1 param=169 dumpOffset=150 dumpMask=0x01 asMenu=1

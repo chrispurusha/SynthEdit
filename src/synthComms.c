@@ -183,7 +183,7 @@ static uint32_t read_korg_bitpacked_field(const uint8_t * decoded, uint32_t deco
         if (byteIdx >= decodedLen) {
             break;
         }
-        uint32_t bit        = (decoded[byteIdx] >> column) & 1;
+        uint32_t bit       = (decoded[byteIdx] >> column) & 1;
         value |= bit << k;
     }
 
@@ -265,6 +265,50 @@ static void apply_dial_wire_value(tPanelDial * dial, uint32_t rawValue, uint32_t
     }
 }
 
+// See wireSigned's own comment, panelConfig.h — decodes a live Parameter
+// Change's raw 14-bit wire value for a dial whose real-world value can go
+// negative, where the Z1 transmits a genuine two's-complement signed number
+// (not the plain unsigned-count-plus-displayOffset scheme every other signed
+// dial uses). Confirmed 2026-07-14 on real hardware: PB Int- at a real "-2
+// semitones" state sent wire value 16382 (16384-2). Returns the value
+// pre-added with dial->displayOffset, ready to hand straight to
+// apply_dial_wire_value() the same way an ordinary unsigned raw value would
+// be — re-biasing here means dial->value/get_panel_dial_value()/
+// dialDisplaySigned's own subtraction all keep working completely unchanged.
+static uint32_t decode_signed_param_wire_value(tPanelDial * dial, uint16_t wireValue) {
+    int32_t signedValue = (wireValue >= 8192) ? ((int32_t)wireValue - 16384) : (int32_t)wireValue;
+
+    return (uint32_t)(signedValue + dial->displayOffset);
+}
+
+// Inverse of decode_signed_param_wire_value() above — turns dial->value
+// (already re-biased by +displayOffset, per get_panel_dial_value()'s own
+// -storageOffset-only convention) back into the true signed quantity, then
+// re-encodes it as 14-bit two's complement if negative for the outgoing
+// Parameter Change. A positive/zero value passes through unchanged, matching
+// the confirmed PB Int+ case (+2 semitones -> wire value 2).
+static uint16_t encode_signed_param_wire_value(tPanelDial * dial, uint32_t storageValue) {
+    int32_t signedValue = (int32_t)storageValue - dial->displayOffset;
+
+    return (uint16_t)((signedValue < 0) ? (signedValue + 16384) : signedValue);
+}
+
+// Dump-side counterpart to decode_signed_param_wire_value() above — a
+// DIFFERENT, NARROWER encoding, confirmed 2026-07-14 via a real Program Dump
+// capture: PB Int- at a real "-2 semitones" state dumped as raw byte 0xFE
+// (254), i.e. plain 8-bit two's complement (256-2=254), not the live path's
+// 14-bit scheme (16384-2=16382) — a Program Dump is a genuinely different
+// wire format from a live Parameter Change, so there was no reason to expect
+// them to share a bit width, and they don't. Only meaningful for a
+// wireSigned dial using the plain single-byte dumpOffset/dumpMask path
+// (dumpBitWidth==0) — every wireSigned dial so far (PB Int+/-) is exactly
+// that shape.
+static uint32_t decode_signed_dump_byte(tPanelDial * dial, uint32_t rawByte) {
+    int32_t signedValue = (rawByte >= 128) ? ((int32_t)rawByte - 256) : (int32_t)rawByte;
+
+    return (uint32_t)(signedValue + dial->displayOffset);
+}
+
 // ── Program info extraction ───────────────────────────────────────────────────
 // Everything about what a decoded program dump contains — name length, every
 // other field's byte offset/bit-packing/native scaling — comes from the
@@ -318,6 +362,15 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
                 uint32_t raw = (dial->dumpBitWidth > 0)
                               ? read_korg_bitpacked_field(decoded, decodedLen, dial->dumpOffset, dial->dumpBitOffset, dial->dumpBitWidth)
                               : (decoded[dial->dumpOffset] >> dial->dumpShift) & dial->dumpMask;
+
+                if (dial->wireSigned) {
+                    // See decode_signed_dump_byte()'s own comment above — a
+                    // Program Dump byte for one of these dials is 8-bit two's
+                    // complement, a narrower encoding than the live Parameter
+                    // Change path's 14-bit scheme (decode_signed_param_wire_
+                    // value(), used in handle_parameter_change() instead).
+                    raw = decode_signed_dump_byte(dial, raw);
+                }
                 // dumpNativeMax falls back to nativeMax exactly like
                 // extract_moog_panel_info()'s own identical fallback already
                 // does (synthComms.c, below) — added here 2026-07-13, a real
@@ -1294,7 +1347,9 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
             // scaling), instead of the correctly scaled ~78 matching what
             // the CC and dump paths both already show for that same
             // native value.
-            apply_dial_wire_value(dial, value, (dial->dumpNativeMax != 0) ? dial->dumpNativeMax : dial->nativeMax);
+            uint32_t rawForDial = dial->wireSigned ? decode_signed_param_wire_value(dial, value) : value;
+
+            apply_dial_wire_value(dial, rawForDial, (dial->dumpNativeMax != 0) ? dial->dumpNativeMax : dial->nativeMax);
             LOG_DEBUG("Param %u (%s) = %u\n", (unsigned)paramId, dial->label, (unsigned)value);
         }
     }
@@ -2091,7 +2146,11 @@ void synth_flush_pending_param_send(void) {
     }
 
     if (gPendingParamDial) {
-        synth_send_parameter_change((uint8_t)gPendingParamDial->paramGroup, (uint16_t)gPendingParamDial->paramId, (uint8_t)gPendingParamValue);
+        uint16_t wireValue = gPendingParamDial->wireSigned
+                            ? encode_signed_param_wire_value(gPendingParamDial, gPendingParamValue)
+                            : (uint16_t)gPendingParamValue;
+
+        synth_send_parameter_change((uint8_t)gPendingParamDial->paramGroup, (uint16_t)gPendingParamDial->paramId, wireValue);
         gPendingParamDial = NULL;
     }
 }
@@ -2241,7 +2300,9 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
         gPendingParamDial  = dial;
         gPendingParamValue = storageValue;
     } else {
-        synth_send_parameter_change((uint8_t)dial->paramGroup, (uint16_t)dial->paramId, (uint8_t)storageValue);
+        uint16_t wireValue = dial->wireSigned ? encode_signed_param_wire_value(dial, storageValue) : (uint16_t)storageValue;
+
+        synth_send_parameter_change((uint8_t)dial->paramGroup, (uint16_t)dial->paramId, wireValue);
     }
     gReDraw = true;
 }
