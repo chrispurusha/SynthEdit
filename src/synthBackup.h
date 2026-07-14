@@ -208,10 +208,10 @@ void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExp
 // bulk whole-bank operations only) — these were previously split across
 // separate Backup/Restore menu entries.
 
-// Triggered by "File > Open Edit Buffer File…" (was "Open Panel File…") —
+// Triggered by "File > Open File…" (was "Open Panel File…") —
 // loads a previously-saved dump into the live edit buffer, same as
 // physically turning every knob to match. Accepts EITHER a genuine Panel
-// Dump (Moog's own term, mode 0x02 — "Save Edit Buffer to File…") or a
+// Dump (Moog's own term, mode 0x02 — "Save Patch to File…") or a
 // Single Preset Dump (mode 0x03 — "Save Patch by Number to File…" or a
 // Bank (Individual Files) export), converting the latter to the former
 // first (synthBackup.c) — added 2026-07-11 so any backed-up patch can be

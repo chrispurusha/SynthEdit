@@ -467,7 +467,7 @@ void setup_main_menu(void) {
     // this menu just points at them from their G2-Edit-matching location.
     NSMenuItem * fileMI                 = [[NSMenuItem alloc] init];
     NSMenu *     fileMenu               = [[NSMenu alloc] initWithTitle:@"File"];
-    NSMenuItem * openEditBufferItem     = [[NSMenuItem alloc] initWithTitle:@"Open Edit Buffer File…"
+    NSMenuItem * openEditBufferItem     = [[NSMenuItem alloc] initWithTitle:@"Open File…"
                                            action:@selector(restoreEditBuffer:)
                                            keyEquivalent:@"o"];
     [openEditBufferItem setTarget:target];
@@ -486,7 +486,7 @@ void setup_main_menu(void) {
     [loadPatchItem setTarget:target];
     [fileMenu addItem:loadPatchItem];
     [fileMenu addItem:[NSMenuItem separatorItem]];
-    NSMenuItem * saveEditBufferItem     = [[NSMenuItem alloc] initWithTitle:@"Save Edit Buffer to File…"
+    NSMenuItem * saveEditBufferItem     = [[NSMenuItem alloc] initWithTitle:@"Save Patch to File…"
                                            action:@selector(backupCurrentPatch:)
                                            keyEquivalent:@"s"];
     [saveEditBufferItem setTarget:target];

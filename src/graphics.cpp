@@ -525,7 +525,7 @@ static void backdoor_dispatch(const char * cmd, const char * arg, GLFWwindow * w
     } else if (strcmp(cmd, "RESTOREEDITBUFFER") == 0) {
         // Testing-only command, added 2026-07-14 to verify the new Korg-
         // style "Restore Edit Buffer" mechanism (synthBackup.c) directly,
-        // bypassing "File > Open Edit Buffer File…"'s own NSOpenPanel —
+        // bypassing "File > Open File…"'s own NSOpenPanel —
         // same "a native modal has no headless way to click through it"
         // reasoning KORGSELECT above already gives. Safe to test
         // unattended for the same reason KORGSELECT is — see synth_

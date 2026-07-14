@@ -1523,7 +1523,7 @@ void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExp
     gBackupExpect = eBackupExpectNone;
 
     if ((kind == eBackupExpectLive) && (gStoreArmedPresetNumber != 0)) {
-        // A "Store Patch to Bank…" fetch, not a "Save Edit Buffer to File…" one —
+        // A "Store Patch to Bank…" fetch, not a "Save Patch to File…" one —
         // see gStoreArmedPresetNumber's own comment above for why this check
         // comes before anything file-related. Same CoreMIDI-thread-copies/
         // main-thread-processes handoff as the bank-to-folder batch export
@@ -1626,7 +1626,7 @@ void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExp
 
     // Bank has no single current-patch name to reflect (it's 128 of them at
     // once) — handled on its own, before touching gDevice.progName at all.
-    // Preset and Live ("Save Edit Buffer to File…", added 2026-07-11 at the
+    // Preset and Live ("Save Patch to File…", added 2026-07-11 at the
     // owner's request — "should default to a name reflecting the patch
     // name") both just want gDevice.progName if extract_moog_name()
     // (synthComms.c) managed to decode one, falling back to a kind-specific
@@ -1817,7 +1817,7 @@ static bool restore_validate_korg_dump(const uint8_t * data, uint32_t length, ch
 // Converts a captured Single Preset Dump (mode 0x03 — "Patch by Number" or
 // a Bank (Individual Files) export) into an equivalent Panel Dump (mode
 // 0x02), so any backed-up patch can be loaded into the live edit buffer
-// via "Open Edit Buffer File…" too, not just restored-by-overwrite via
+// via "Open File…" too, not just restored-by-overwrite via
 // "Restore > Patch by Number…" — added 2026-07-11, owner's own request
 // ("we should be able to use backup patches to load to panel").
 //
@@ -2036,7 +2036,7 @@ static void restore_edit_buffer_korg_file(const uint8_t * data, uint32_t length,
 // Runs on the main thread once the user has chosen (or cancelled) a file to
 // load into the live edit buffer — see synth_backup_restore_edit_buffer() below.
 // Accepts EITHER a genuine Panel Dump (mode 0x02, "Backup > Current Panel"
-// / "Save Edit Buffer to File…") or a Single Preset Dump (mode 0x03, "Backup >
+// / "Save Patch to File…") or a Single Preset Dump (mode 0x03, "Backup >
 // Patch by Number" or a Bank (Individual Files) export) — the latter is
 // converted via convert_preset_dump_to_panel_dump() above before sending.
 // Korg-style devices (Z1) branch off to restore_edit_buffer_korg_file() above
