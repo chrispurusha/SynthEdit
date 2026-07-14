@@ -920,8 +920,16 @@ static void korg_sweep_show_picker(void) {
                 : "Choose a program to store the current panel to:";
     int32_t      chosen       = show_device_choice_dialogue(title, message, labelPtrs, KORG_SWEEP_PRESET_COUNT, defaultIndex);
 
-    synth_request_state_dump();
-
+    // No synth_request_state_dump() here (removed 2026-07-14) — handle_prog_dump()
+    // never touches gDevice.progName/the live dials in the first place (see
+    // its own comment, synthComms.c), so there's nothing to restore on
+    // cancel; on Load, synth_change_program() (called via
+    // synth_korg_select_program(), the tail of synth_load_patch_from_bank()'s
+    // Korg branch) already arms its own debounced state-dump refresh, so an
+    // immediate extra request here was pure duplicate traffic — and, worse,
+    // one that could land right as a background sweep's own request/reply
+    // was in flight (owner report: one observed "patch select failing"
+    // while a sweep was running).
     if (chosen < 0) {
         LOG_DEBUG("Load/Store: picker cancelled\n");
         return;
@@ -1052,12 +1060,18 @@ static void name_sweep_show_picker(void) {
                 : "Choose a preset to store the current panel to:";
     int32_t      chosen       = show_device_choice_dialogue(title, message, labelPtrs, BACKUP_BATCH_PRESET_COUNT, defaultIndex);
 
-    // The sweep leaves gDevice.progName showing the LAST swept preset's
-    // stored name (handle_moog_single_preset_dump() only touches that) —
-    // refresh it back to the live edit buffer's own name/dial state, same
-    // reasoning the export-mode completion path already has.
-    synth_request_state_dump();
-
+    // No synth_request_state_dump() here (removed 2026-07-14) — the sweep
+    // no longer leaves gDevice.progName showing the last-swept preset's
+    // name at all (handle_moog_single_preset_dump() now skips that write
+    // during name-sweep mode specifically, see its own comment in
+    // synthComms.c), so there's nothing to restore on cancel; on Load,
+    // synth_change_program() (the tail of synth_load_patch_from_bank()'s
+    // Moog branch) already arms its own debounced state-dump refresh, and
+    // Store already fetches its own fresh dump as part of capturing what to
+    // write — so an immediate extra request here was pure duplicate
+    // traffic, and, worse, one that could land right as a background
+    // sweep's own request/reply was in flight (owner report: one observed
+    // "patch select failing" while a sweep was running).
     if (chosen < 0) {
         LOG_DEBUG("Load/Store: picker cancelled\n");
         return;

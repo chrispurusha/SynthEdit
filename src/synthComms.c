@@ -479,19 +479,31 @@ void synth_decode_moog_name(const uint8_t * payload, uint32_t payloadLen, int32_
 }
 
 // Extracts just the Category value's display name from a captured Moog-style
-// dump (Panel Dump OR Single Preset Dump — both share the same continuous
-// bit-packed payload shape, skip=1 byte for F0 either way, unlike Korg's
-// funcId-dependent header) — the Moog counterpart to synth_decode_korg_category()
-// (synthComms.h), and the other half of what makes the Load/Store Patch
-// from Bank picker's category column generic across both device families
-// (2026-07-14). Same find_panel_dial_by_label() lookup as the Korg version
-// (matches label="Category" regardless of the dial's own id — Voyager's is
-// `soundCategory`, not `category`) but reads it via read_bitpacked_field()
-// (dumpOffset/dumpBitOffset/dumpBitWidth[2]/dumpInvert), the same bit-packed
-// shape extract_moog_panel_info() above already uses for every other dial.
-// outCategory left untouched (caller should default it to "" first) if this
-// device has no such dial, or the decoded value is out of range of that
-// dial's own names= list.
+// SINGLE PRESET DUMP (mode 0x03) reply — the Moog counterpart to
+// synth_decode_korg_category() (synthComms.h), and the other half of what
+// makes the Load/Store Patch from Bank picker's category column generic
+// across both device families (2026-07-14). Same find_panel_dial_by_label()
+// lookup as the Korg version (matches label="Category" regardless of the
+// dial's own id — Voyager's is `soundCategory`, not `category`) but reads
+// it via read_bitpacked_field() (dumpOffset/dumpBitOffset/dumpBitWidth[2]/
+// dumpInvert), the same bit-packed shape extract_moog_panel_info() above
+// already uses for every other dial — with ONE crucial difference: every
+// dumpOffset in a Moog-style device's own <device>.txt is calibrated
+// against a PANEL DUMP (mode 0x02) capture (see panelNameOffset's own
+// comment in voyager.txt), but this function is only ever called with a
+// SINGLE PRESET DUMP (mode 0x03) reply (name_cache_update_from_preset_dump(),
+// synthBackup.c — never a live Panel Dump). 0x03's own header has one extra
+// byte 0x02's doesn't, shifting every field after it by however many bytes
+// presetNameOffset and panelNameOffset differ by (Voyager: 101-100=1) — the
+// SAME shift for every field, not just the name, since both formats share
+// one continuous payload from that point on. An earlier version of this
+// function skipped this shift entirely (wrongly assumed both dump formats
+// were byte-identical) and decoded every preset's category as "Not
+// Assigned" (index 0) on real Voyager hardware — found 2026-07-14, owner
+// report: "Category on Voyager picker is showing not assigned for
+// everything." outCategory left untouched (caller should default it to ""
+// first) if this device has no such dial, or the decoded value is out of
+// range of that dial's own names= list.
 void synth_decode_moog_category(const uint8_t * data, uint32_t length, char * outCategory, size_t outCategorySize) {
     if (outCategorySize == 0) {
         return;
@@ -505,13 +517,19 @@ void synth_decode_moog_category(const uint8_t * data, uint32_t length, char * ou
     if (length < 2) {
         return;
     }
+    tPanelConfig *  cfg        = synth_panel_config();
+    // See this function's own header comment — 0.0 (no shift) if either
+    // offset isn't configured on this device, rather than a nonsense
+    // negative-vs-unset arithmetic result.
+    int32_t         shift      = ((cfg->presetNameOffset >= 0) && (cfg->panelNameOffset >= 0))
+                                ? (cfg->presetNameOffset - cfg->panelNameOffset) : 0;
     const uint8_t * payload    = data + 1;    // skip F0, matches every other Moog dump handler
     uint32_t        payloadLen = length - 2;  // exclude leading skip + trailing F7
-    uint32_t        raw        = read_bitpacked_field(payload, payloadLen, dial->dumpOffset, dial->dumpBitOffset, dial->dumpBitWidth);
+    uint32_t        raw        = read_bitpacked_field(payload, payloadLen, dial->dumpOffset + shift, dial->dumpBitOffset, dial->dumpBitWidth);
     uint32_t        totalWidth = dial->dumpBitWidth;
 
     if (dial->dumpBitWidth2 > 0) {
-        uint32_t chunk2 = read_bitpacked_field(payload, payloadLen, dial->dumpOffset2, dial->dumpBitOffset2, dial->dumpBitWidth2);
+        uint32_t chunk2 = read_bitpacked_field(payload, payloadLen, dial->dumpOffset2 + shift, dial->dumpBitOffset2, dial->dumpBitWidth2);
         raw        |= chunk2 << dial->dumpBitWidth;
         totalWidth += dial->dumpBitWidth2;
     }
@@ -974,60 +992,68 @@ static void handle_moog_panel_dump(const uint8_t * data, uint32_t length) {
 // opaque blob rather than decoding it into gDevice/the dials, so there's no
 // dumpOffset table to feed it through the way handle_moog_panel_dump() does.
 static void handle_moog_single_preset_dump(const uint8_t * data, uint32_t length) {
-    const uint32_t  skip       = 1; // F0 only — see handle_moog_panel_dump()'s comment on why
+    const uint32_t  skip            = 1; // F0 only — see handle_moog_panel_dump()'s comment on why
 
     if (length < skip + 1) {
         LOG_ERROR("Moog single preset dump too short (%u)\n", (unsigned)length);
         return;
     }
-    const uint8_t * payload    = data + skip;
-    uint32_t        payloadLen = length - skip - 1; // exclude trailing F7
-    tPanelConfig *  cfg        = synth_panel_config();
-    char            name[sizeof(gDevice.progName)];
+    const uint8_t * payload         = data + skip;
+    uint32_t        payloadLen      = length - skip - 1; // exclude trailing F7
+    tPanelConfig *  cfg             = synth_panel_config();
 
-    name[0] = '\0';
-    synth_decode_moog_name(payload, payloadLen, cfg->presetNameOffset, cfg->presetNameBitOffset, cfg->presetNameLen, cfg->nameLineWidth, name, sizeof(name));
+    // Computed FIRST so the decode below can be skipped entirely, not just
+    // its downstream writes — during a name sweep, name_sweep_capture_name()
+    // (synthBackup.c, called moments later on the main thread once
+    // gBackupBatchReplyReady is processed) decodes this exact same reply's
+    // name AND category independently anyway, so decoding it here too was
+    // pure waste with nothing left to use the result for (both consumers
+    // below are already gated on this same flag). A first pass at this fix
+    // only skipped the WRITES and left this decode call unconditional —
+    // 2026-07-14 owner observation, watching the debug log directly: "Names
+    // are still being decoded twice."
+    bool            nameSweepActive = synth_backup_export_progress_is_name_sweep();
 
-    // Only reflect this onto the live on-screen display OUTSIDE name-sweep
-    // mode. Bank-to-folder EXPORT mode still needs it — backup_batch_write_
-    // capture()'s own per-file naming reads gDevice.progName right after
-    // this handler runs — and so does a genuine standalone Backup > Patch
-    // by Number fetch. But the Load/Store Patch from/to Bank name sweep
-    // must NOT: it already decodes into its own separate cache
-    // (name_cache_update_from_preset_dump(), synthBackup.c) without ever
-    // touching gDevice.progName, and letting this write through too
-    // flickered the live displayed program name through every OTHER
-    // preset's name for the whole ~1.3-2.5 minute sweep (2026-07-14 owner
-    // report: "Voyager is displaying names as they come in, not the panel
-    // name") — masked before today by the sweep running fast behind a
-    // full-screen blocking modal that hid the panel name display entirely;
-    // today's slower, sometimes-background sweep exposed it. Same "don't
-    // disturb the live display" reasoning handle_prog_dump() already
-    // follows for Korg, just narrower here since export mode genuinely
-    // needs the old behaviour. synth_backup_export_progress_is_name_sweep()
-    // (synthBackup.h) is exactly "Korg sweep active, OR Moog batch active
-    // AND specifically in name-sweep mode" — false during export mode.
-    if (!synth_backup_export_progress_is_name_sweep()) {
+    if (!nameSweepActive) {
+        char name[sizeof(gDevice.progName)];
+
+        name[0]                                        = '\0';
+        synth_decode_moog_name(payload, payloadLen, cfg->presetNameOffset, cfg->presetNameBitOffset, cfg->presetNameLen, cfg->nameLineWidth, name, sizeof(name));
+
+        // Reflects this onto the live on-screen display — Bank-to-folder
+        // EXPORT mode needs it (backup_batch_write_capture()'s own per-file
+        // naming reads gDevice.progName right after this handler runs), and
+        // so does a genuine standalone Backup > Patch by Number fetch,
+        // which is everything this branch now covers (name-sweep mode is
+        // excluded above). Not done at all during a name sweep — it
+        // already decodes into its own separate cache without ever
+        // touching gDevice.progName, and letting this write through too
+        // used to flicker the live displayed program name through every
+        // OTHER preset's name for the whole ~1.3-2.5 minute sweep
+        // (2026-07-14 owner report: "Voyager is displaying names as they
+        // come in, not the panel name") — masked before today by the sweep
+        // running fast behind a full-screen blocking modal that hid the
+        // panel name display entirely; today's slower, sometimes-
+        // background sweep exposed it. Same "don't disturb the live
+        // display" reasoning handle_prog_dump() already follows for Korg.
         strncpy(gDevice.progName, name, sizeof(gDevice.progName) - 1);
         gDevice.progName[sizeof(gDevice.progName) - 1] = '\0';
-    }
 
-    // Keeps the Load/Store Patch to Bank name cache (synthBackup.c) accurate
-    // for this ONE slot regardless of why this reply arrived — Backup >
-    // Patch by Number, the name sweep itself, or anything else that ever
-    // requests a Single Preset Dump. 2026-07-11 owner observation: "the gap
-    // will be closed if we have to read the patch in question from the
-    // synth for any reason." The preset number is the same header byte
-    // restore_patch_file_chosen()/synth_load_patch_from_bank() already use
-    // (data[5], 0-based on the wire) — guarded by the length check above,
-    // which already requires at least 2 bytes; a genuinely truncated reply
-    // shorter than 6 bytes couldn't have decoded a real name above either,
-    // so this only ever fires with a real preset number in hand. Passes the
-    // freshly-decoded `name`, NOT gDevice.progName — during a name sweep the
-    // latter is deliberately left untouched now (see above), so it would be
-    // stale here, not this reply's own preset name.
-    if (length > 5) {
-        synth_backup_note_preset_name((uint32_t)data[5] + 1, name);
+        // Keeps the Load/Store Patch to Bank name cache (synthBackup.c)
+        // accurate for this ONE slot regardless of why this reply arrived
+        // — Backup > Patch by Number, or anything else that ever requests
+        // a Single Preset Dump outside of a sweep. 2026-07-11 owner
+        // observation: "the gap will be closed if we have to read the
+        // patch in question from the synth for any reason." The preset
+        // number is the same header byte restore_patch_file_chosen()/
+        // synth_load_patch_from_bank() already use (data[5], 0-based on
+        // the wire) — guarded by the length check above, which already
+        // requires at least 2 bytes; a genuinely truncated reply shorter
+        // than 6 bytes couldn't have decoded a real name above either, so
+        // this only ever fires with a real preset number in hand.
+        if (length > 5) {
+            synth_backup_note_preset_name((uint32_t)data[5] + 1, name);
+        }
     }
     synth_backup_capture_dump(data, length, eBackupExpectPreset); // no-op unless a by-number Backup is pending — see synthBackup.c; after the name decode so a by-number backup's default filename can use it
 }
