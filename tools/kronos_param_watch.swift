@@ -60,6 +60,8 @@ let inPortStatus = MIDIInputPortCreateWithBlock(client, "in" as CFString, &inPor
         for b in bytes {
             if b == 0xF0 {
                 assembling = [b]
+            } else if b >= 0xF8 {
+                // System Real-Time — spec-legal mid-SysEx, must not be appended (see kronos_dump_diff.py's notes)
             } else if !assembling.isEmpty {
                 assembling.append(b)
                 if b == 0xF7 {

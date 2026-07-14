@@ -63,6 +63,14 @@ let inPortStatus = MIDIInputPortCreateWithBlock(client, "in" as CFString, &inPor
             for b in bytes {
                 if b == 0xF0 {
                     assembling = [b]
+                } else if b >= 0xF8 {
+                    // System Real-Time (Clock/Start/Stop/...) — spec-legal to
+                    // interleave mid-SysEx from a device with its clock
+                    // running; must NOT be appended to the message being
+                    // assembled (found 2026-07-14: an interleaved 0xF8 Timing
+                    // Clock byte was silently corrupting captures by exactly
+                    // one byte, cascading a false diff through the whole
+                    // decoded payload — see kronos_dump_diff.py's own notes).
                 } else if !assembling.isEmpty {
                     assembling.append(b)
                     if b == 0xF7 {

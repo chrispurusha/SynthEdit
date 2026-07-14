@@ -297,19 +297,29 @@ typedef struct {
     uint32_t dumpMask;           // mask applied after shifting (default 0xFF = whole byte)
 
     // Alternative to dumpShift/dumpMask above for a dump format where a
-    // value's bits are packed continuously across MULTIPLE bytes at 7 usable
-    // bits each (Moog's Panel/Preset Dump SysEx — see moogStyleDump in
-    // tPanelConfig below), rather than living inside one byte. dumpBitWidth=0
-    // (the default) means "not this kind of field" — use dumpShift/dumpMask
-    // on the single dumpOffset byte instead, unchanged from before this
-    // existed. When dumpBitWidth > 0: dumpOffset is still this field's first
-    // relevant byte, and dumpBitOffset (0-6) is which of that byte's 7 usable
-    // bits holds the field's LEAST significant bit — confirmed empirically
-    // against real Voyager hardware (set Filter Cutoff/Resonance to known CC
-    // values, requested a Panel Dump, decoded bit-for-bit) that a field's
-    // bits then continue in strict ascending significance through the
-    // 7-bit-per-byte stream (byte's bit 6 done -> next byte's bit 0), with
-    // no padding except where a genuinely separate field's bits interleave.
+    // value's bits are packed continuously across MULTIPLE bytes, rather than
+    // living inside one byte. dumpBitWidth=0 (the default) means "not this
+    // kind of field" — use dumpShift/dumpMask on the single dumpOffset byte
+    // instead, unchanged from before this existed. When dumpBitWidth > 0:
+    // dumpOffset is still this field's first relevant byte, and dumpBitOffset
+    // is which bit of that byte holds the field's LEAST significant bit, with
+    // the remaining bits continuing in strict ascending significance into
+    // subsequent bytes.
+    //
+    // TWO DIFFERENT STRIDES share these same three fields, depending which
+    // extraction function a device ends up in (moogStyleDump in tPanelConfig
+    // decides which):
+    //   - Moog (extract_moog_panel_info(), read_bitpacked_field()): the RAW
+    //     wire bytes, 7 usable bits each (dumpBitOffset 0-6) — confirmed
+    //     2026-07-08 against real Voyager hardware (Filter Cutoff/Resonance,
+    //     before/after Panel Dump captures).
+    //   - Korg-style (extract_prog_info()): bytes already decoded from the
+    //     wire's 7-in-8 packing (decode_7to8()), so a normal 8 usable bits
+    //     each (dumpBitOffset 0-7) — confirmed 2026-07-14 against real Kronos
+    //     hardware (AL-1 Filter A/B Cutoff, before/after Current Object Dump
+    //     captures via tools/kronos_dump_diff.py) — same continuous-bitstream
+    //     shape as Moog's, just one stride wider since there's no leftover
+    //     wire-encoding bit to skip once decoded.
     uint32_t dumpBitOffset;
     uint32_t dumpBitWidth;
 

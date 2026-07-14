@@ -162,6 +162,34 @@ static uint32_t encode_8to7(const uint8_t * data, uint32_t dataLen, uint8_t * ou
     return outLen;
 }
 
+// Reads a value packed continuously across one or more ALREADY-DECODED bytes
+// (regular 8-bit bytes, post decode_7to8() — NOT the raw 7-bit-per-byte wire
+// stream read_bitpacked_field() below reads for Moog) — see dumpBitOffset/
+// dumpBitWidth's own comment, panelConfig.h, for why this needs its own
+// function rather than reusing that one with a different stride. Confirmed
+// 2026-07-14 against real Kronos hardware: set AL-1 Filter A/B Cutoff to
+// known values via synth_send_kronos_parameter_change(), captured a Current
+// Object Dump before/after (tools/kronos_dump_diff.py), decoded bit-for-bit.
+static uint32_t read_korg_bitpacked_field(const uint8_t * decoded, uint32_t decodedLen,
+                                          int32_t byteOffset, uint32_t bitOffset, uint32_t bitWidth) {
+    uint32_t value       = 0;
+    uint32_t globalStart = ((uint32_t)byteOffset * 8) + bitOffset;
+
+    for (uint32_t k = 0; k < bitWidth; k++) {
+        uint32_t globalBit = globalStart + k;
+        uint32_t byteIdx   = globalBit / 8;
+        uint32_t column    = globalBit % 8;
+
+        if (byteIdx >= decodedLen) {
+            break;
+        }
+        uint32_t bit        = (decoded[byteIdx] >> column) & 1;
+        value |= bit << k;
+    }
+
+    return value;
+}
+
 // ── Build outgoing synth SysEx header ───────────────────────────────────────────
 static uint32_t build_header(uint8_t * buf, uint8_t funcId) {
     tPanelConfig * cfg = synth_panel_config();
@@ -279,7 +307,17 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
             tPanelDial * dial = &dumpSection->dials[d];
 
             if ((dial->dumpOffset >= 0) && (decodedLen > (uint32_t)dial->dumpOffset)) {
-                uint32_t raw = (decoded[dial->dumpOffset] >> dial->dumpShift) & dial->dumpMask;
+                // dumpBitWidth > 0 means this field spans multiple bytes —
+                // Kronos's AL-1 Filter A/B Cutoff (kronos.txt) are the first
+                // dials to need this on the Korg-style path; see
+                // read_korg_bitpacked_field()'s own comment above for why it
+                // reads an 8-bit-per-byte stride here rather than
+                // read_bitpacked_field()'s 7-bit-per-byte Moog stride. Every
+                // dial that leaves dumpBitWidth at its 0 default (every Z1
+                // dial, and any single-byte Kronos field) is unaffected.
+                uint32_t raw = (dial->dumpBitWidth > 0)
+                              ? read_korg_bitpacked_field(decoded, decodedLen, dial->dumpOffset, dial->dumpBitOffset, dial->dumpBitWidth)
+                              : (decoded[dial->dumpOffset] >> dial->dumpShift) & dial->dumpMask;
                 // dumpNativeMax falls back to nativeMax exactly like
                 // extract_moog_panel_info()'s own identical fallback already
                 // does (synthComms.c, below) — added here 2026-07-13, a real
@@ -1920,23 +1958,15 @@ static void handle_kronos_message(const uint8_t * data, uint32_t length, uint8_t
         LOG_DEBUG("Kronos Program dump too short after decode (decodedLen=%u)\n", (unsigned)decodedLen);
         return;
     }
-    char            name[25];
-    uint32_t        i;
-
-    for (i = 0; i < 24; i++) {
-        char c = (char)decoded[i];
-        name[i] = ((c >= 0x20) && (c <= 0x7E)) ? c : ' ';
-    }
-
-    name[24]                                       = '\0';
-
-    while ((i > 0) && (name[i - 1] == ' ')) {
-        name[--i] = '\0';
-    }
-    strncpy(gDevice.progName, name, sizeof(gDevice.progName) - 1);
-    gDevice.progName[sizeof(gDevice.progName) - 1] = '\0';
-    LOG_DEBUG("Kronos Program dump decoded: name=\"%s\" version=%u decodedLen=%u\n",
-              gDevice.progName, (unsigned)version, (unsigned)decodedLen);
+    // Reuses the SAME generic scanner z1.txt's own dump decode already goes
+    // through (extract_prog_info() above) — handles the name (progNameLen,
+    // kronos.txt) AND every dial with a dumpOffset (the AL-1 Filter A/B
+    // Cutoff dials, via read_korg_bitpacked_field() above) in one pass, no
+    // per-parameter knowledge here. Replaces an earlier hand-rolled name-only
+    // extraction (2026-07-14) that predated any dial having a dumpOffset to
+    // scan for.
+    extract_prog_info(decoded, decodedLen);
+    LOG_DEBUG("Kronos Current Object Dump decoded: version=%u decodedLen=%u\n", (unsigned)version, (unsigned)decodedLen);
 }
 
 void synth_handle_message(const uint8_t * data, uint32_t length) {

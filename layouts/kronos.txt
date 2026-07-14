@@ -1,40 +1,29 @@
 # kronos.txt — Korg Kronos device descriptor. First pass only: identity +
-# a Filters page covering the 4 dedicated front-panel "Realtime Knobs"
-# (Filter Cutoff, Filter Resonance, Filter EG Intensity, EG Release Time)
-# — owner's own explicit scope ("doesn't have to be everything... perhaps
-# just filters", 2026-07-14). The Kronos's own architecture (Combi/Program/
-# Sequencer modes, multiple Timbres/Tracks per Combi, banked Programs/
-# Combinations/Set Lists, EXi/HD-1/AL-1/CX-3/... synthesis engines) is
-# vastly larger than Z1's — this file deliberately does NOT attempt a
-# Program Dump/Parameter Change protocol the way z1.txt does. Everything
-# below is plain real-time CC, wired the same way Voyager's own Filter
-# Cutoff/Resonance dials are (cc=<n>), just with no dumpOffset counterpart
-# at all — no dump/state-request protocol implemented for this device yet,
-# so a dial shows 0 until either touched on the real front panel or its CC
-# arrives some other way (identityQuery below still gets a connection, just
-# not a synced starting value).
+# live "Sync from synth" + AL-1 Filter A/B Cutoff, both EXi slots, all via
+# SysEx Parameter Change — owner's own explicit scope ("doesn't have to be
+# everything... perhaps just filters", 2026-07-14). The Kronos's own
+# architecture (Combi/Program/Sequencer modes, multiple Timbres/Tracks per
+# Combi, banked Programs/Combinations/Set Lists, EXi/HD-1/AL-1/CX-3/...
+# synthesis engines) is vastly larger than Z1's — this file deliberately
+# does NOT attempt a Program Dump protocol the way z1.txt does, but DOES
+# use the same generic Parameter Change addressing (typ=/soc=/sub=/pid=/
+# idx=, this device's own SysEx analogue of z1.txt's group=/param=).
 #
-# CC source: TWO independent official Korg documents, cross-confirmed —
-# KRONOS/KRONOS X MIDI IMPLEMENTATION (26 March 2012), "1-1 CHANNEL
-# MESSAGES" table (Sound Controller 1-10 assignments), AND the Kronos
-# Owner's Manual's own "Real-Time Knob functions" table (p.43): "Knob 1,
-# MIDI CC 74, Filter Cutoff Frequency" / "Knob 2, CC 71, Filter Resonance"
-# / "Knob 3, CC 79, Filter EG Intensity" / "Knob 4, CC 72, EG Release Time"
-# — literally the front panel's own labeled "Filter" knob row, not an
-# inferred mapping.
-#
-# NOT yet independently confirmed against real Kronos hardware traffic —
-# worth flagging given this exact codebase's own history: Voyager's
-# analogous "Sound Controller cc=74/71" guess for Filter Cutoff/Resonance
-# (the SAME generic MIDI convention these Kronos CCs also happen to match)
-# turned out to be completely wrong on real Voyager hardware — wrong CC
-# numbers AND wrong shape (plain CC vs a 14-bit MSB/LSB pair) — see
-# voyager.txt's own cutoff/res comment for the full story. The Kronos case
-# starts from stronger evidence than that did (a device-specific,
-# cross-confirmed manufacturer table, not a guess applied to an unrelated
-# device), but treat these four CCs as documented-not-hardware-confirmed
-# until actually tested against a real unit — turn each knob from 0 and
-# watch the debug log, same verification Voyager's own dials eventually got.
+# NO CC DIALS — deliberate, not just untried. An earlier version of this
+# file had a "Filters" page using the front-panel "Realtime Knobs" CCs
+# (CC 74/71/79/72, from the MIDI Implementation doc's own table). Owner's
+# call 2026-07-14: "I don't think we should be dealing with cc on the
+# korgs, for the same reason we have problems on the Z1. Sysex for editing
+# is much more reliable." — z1.txt itself already follows this (grep it:
+# not one dial uses cc=, every single one is group=/param=), so this file
+# now matches that same house rule instead of being the one exception.
+# Removed rather than converted 1:1: the Realtime Knobs are an
+# engine-agnostic modulation-routing layer (same CC regardless of which of
+# the 8 EXi engines/HD-1 is loaded), so there's no single equivalent
+# SysEx address the way there is for a specific engine's own parameter
+# (below) — building that out per-engine is a real scope increase, not
+# something to default into. If real-time-knob-style generic control is
+# wanted later, that's a separate ask, not a fallback default.
 #
 # Identity: standard Universal Identity Reply, confirmed ANSWERED (unlike
 # Voyager/Minitaur, which never reply at all) — see "2-4-1 ... DEVICE
@@ -44,11 +33,12 @@
 # DEVICE INQUIRY REPLY byte table) — 0x05 below is the 61-key, per the
 # owner's own hardware.
 device          Korg Kronos
-description     First pass: Filters page (CC) + live "Sync from synth" + AL-1 Cutoff (SysEx Parameter Change, EXi1 confirmed working on real hardware 2026-07-14)
+description     First pass: live "Sync from synth" + AL-1 Filter A/B Cutoff (both EXi slots, SysEx Parameter Change) — no CC dials, by design (see header)
 manufacturerId  0x42
 familyId        0x68
 memberId        0x05
-scrollDial      filterCutoff
+scrollDial      al1FilterCutoff
+progNameLen     24
 
 # Kronos does NOT speak Z1's own Program Data Dump Request/Program Write
 # Request protocol (func 0x1C/0x11) — it has its own, completely different
@@ -63,28 +53,19 @@ scrollDial      filterCutoff
 # first time. See supportsKorgProgramDump's own comment, panelConfig.h.
 supportsKorgProgramDump no
 
-# ── Filter section (Filters page) ────────────────────────────────────────────
-page       filters
-section    filter
-dialSize   50
-spacing    60
-
-color filter 0.3 0.6 0.85
-
-dial filterCutoff      label="Cutoff"    color=filter max=128 cc=74
-dial filterResonance   label="Resonance" color=filter max=128 cc=71
-dial filterEgIntensity label="EG Amount" color=filter max=128 cc=79
-dial egRelease         label="EG Release" color=filter max=128 cc=72
-
-# ── AL-1 test section (Filters page) ─────────────────────────────────────────
+# ── AL-1 filter section ──────────────────────────────────────────────────────
 # Parameter Change (SysEx), not CC — CONFIRMED WORKING against real hardware
 # 2026-07-14 (owner: "Cutoff is working for the first synth slot and The
-# Sublime Mariner patch") — turning al1FilterCutoff below audibly changed
-# the live sound. Only means anything while an AL-1-engine EXi Program is
+# Sublime Mariner patch"; both slots and both filters subsequently confirmed
+# too) — turning these dials audibly changes the live sound, AND the app now
+# decodes the Kronos's own outgoing Parameter Change (func 0x43) when a
+# physical front-panel/object-editor control is turned, so these dials track
+# real hardware live in both directions (handle_kronos_parameter_change(),
+# synthComms.c). Only means anything while an AL-1-engine EXi Program is
 # actually loaded in the targeted slot; meaningless (inert, or hitting an
 # unrelated parameter) for any other engine's programs.
 #
-# Targets "[Filter A] Cutoff" in AL-1's own "Analog 4-Pole Filter"
+# Filter A targets "[Filter A] Cutoff" in AL-1's own "Analog 4-Pole Filter"
 # component: SOC=20 (component number — see the "Analog 4-Pole Filter
 # (comp 20, sub 0)" table, SysExParams/VoiceModels/AL-1.txt), SUB=0, PID=4
 # (the component's own param index for Cutoff), IDX=0, range 0..99 per that
@@ -117,21 +98,51 @@ dial egRelease         label="EG Release" color=filter max=128 cc=72
 # top of this file). Source for Filter B: live hardware capture only, see
 # above.
 #
-# "page filters" repeated here (not just "section") — a bare "section" line
-# only RENAMES whichever section the most recent "page" line created; it's
-# "page" itself that actually starts a new one (config->sections[]) — see
-# panelConfig.c's own "page"/"section" keyword handling. Missing this the
-# first time round merged this section's dials into the Filter section
-# above instead of creating a separate one, found immediately via the
-# backdoor DUMP command before this ever reached real hardware.
+# dumpOffset/dumpBitOffset/dumpBitWidth (added 2026-07-14): populates these
+# dials from a Current Object Dump on connect/sync, not just from a live
+# knob turn — owner: "we're not yet pulling the initial values from the
+# patch sysex." Turned out Parameter Change writes (above) genuinely DO NOT
+# show up in the same Current Object Dump reply (empirically confirmed:
+# set Filter A to 5 via SysEx, re-requested the dump, byte-for-byte
+# IDENTICAL to before — Parameter Change and Object Dump read from the same
+# edit buffer per KRONOS_MIDI_SysEx.txt's own func 74 description, so this
+# was surprising and worth double-checking rather than assuming a stale
+# doc), so this was reverse-engineered via a bit-for-bit hardware diff
+# instead of trusted from the doc alone.
+#
+# The reference doc's own Prog_EXi.txt table gives OFS/bit-range values
+# RELATIVE to the start of each EXi slot's algorithm-specific block, not
+# absolute offsets into the whole Program dump — e.g. "[Filter A] Cutoff"
+# is documented at relative OFS 426, bits 7~5 continuing into 427 bits
+# 3~0 (a 7-bit field, 0..99). The absolute base offset for each slot's
+# algorithm-specific block was found in Prog_EXi_Common.txt (NOT
+# Prog_EXi.txt) as the placeholder range immediately before the other
+# slot's own "Common" section starts: EXi1's algorithm-specific block is
+# OFS 2908-3908 (right before "EXi2 Common" at 3909), EXi2's is 3960-4959
+# (right after "EXi2 Common" ends, matching the file's own "EXi Program
+# Size: 4960 byte" header) — so absolute = 2908+relativeOFS for EXi1,
+# 3960+relativeOFS for EXi2. Filter A Cutoff (rel 426) -> abs 3334 (EXi1) /
+# 4386 (EXi2); Filter B Cutoff (rel 466) -> abs 3374 (EXi1) / 4426 (EXi2).
+#
+# The bit-packing itself is a continuous LSB-first bitstream spanning byte
+# boundaries — same shape as Voyager's own dumpBitOffset/dumpBitWidth
+# fields, just 8 usable bits per (already-decoded) byte instead of Moog's
+# 7 — see read_korg_bitpacked_field()'s own comment, synthComms.c. All
+# four offsets above were individually confirmed against real Kronos
+# hardware (set 0 and a second distinct value via Parameter Change, diffed
+# two Current Object Dump captures with tools/kronos_dump_diff.py, decoded
+# with the same formula, got back the exact values sent) — not assumed
+# from the doc's relative-offset arithmetic alone, given the doc's own
+# "edit buffer" description turned out to need the empirical double-check
+# above once already.
 page       filters
-section al1Test
+section    al1
 dialSize   50
 spacing    60
 
 color al1 0.85 0.4 0.3
 
-dial al1FilterCutoff  label="AL-1 Filter A Cutoff (EXi1)" color=al1 max=100 typ=11 soc=20 sub=0 pid=4  idx=0
-dial al1FilterCutoff2 label="AL-1 Filter A Cutoff (EXi2)" color=al1 max=100 typ=12 soc=20 sub=0 pid=4  idx=0
-dial al1FilterBCutoff  label="AL-1 Filter B Cutoff (EXi1)" color=al1 max=100 typ=11 soc=20 sub=0 pid=49 idx=0
-dial al1FilterBCutoff2 label="AL-1 Filter B Cutoff (EXi2)" color=al1 max=100 typ=12 soc=20 sub=0 pid=49 idx=0
+dial al1FilterCutoff   label="AL-1 Filter A Cutoff (EXi1)" color=al1 max=100 typ=11 soc=20 sub=0 pid=4  idx=0 dumpOffset=3334 dumpBitOffset=5 dumpBitWidth=7
+dial al1FilterCutoff2  label="AL-1 Filter A Cutoff (EXi2)" color=al1 max=100 typ=12 soc=20 sub=0 pid=4  idx=0 dumpOffset=4386 dumpBitOffset=5 dumpBitWidth=7
+dial al1FilterBCutoff  label="AL-1 Filter B Cutoff (EXi1)" color=al1 max=100 typ=11 soc=20 sub=0 pid=49 idx=0 dumpOffset=3374 dumpBitOffset=4 dumpBitWidth=7
+dial al1FilterBCutoff2 label="AL-1 Filter B Cutoff (EXi2)" color=al1 max=100 typ=12 soc=20 sub=0 pid=49 idx=0 dumpOffset=4426 dumpBitOffset=4 dumpBitWidth=7
