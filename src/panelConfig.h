@@ -199,6 +199,26 @@ typedef struct {
     int32_t  displayOffset;     // dialDisplaySigned only — shown_value = display_value - displayOffset; see that enum value's own comment above. Unrelated to storageOffset: never touches the wire.
     uint32_t paramGroup;        // SysEx parameter group
     uint32_t paramId;           // SysEx parameter ID
+
+    // Kronos-style Parameter Change addressing (func 0x43) — an entirely
+    // different, richer scheme from paramGroup/paramId above (Z1's own 2-
+    // field group/paramId): TYP/SOC/SUB/PID/IDX, per KRONOS_MIDI_SysEx.txt
+    // ("Most of the instrument's parameters... can be edited with this
+    // kind of message"). Set via the file's own "typ=/soc=/sub=/pid=/idx="
+    // dial attributes (kronos.txt) — see synth_send_kronos_parameter_change()'s
+    // own comment, synthComms.c, including how far this got confirmed
+    // against real hardware as of 2026-07-14 (sent successfully, effect
+    // unconfirmed — this dial exists so the owner can test it directly on
+    // the real front panel rather than guessing at it blind). hasKronosParam
+    // distinguishes "these are all legitimately 0" from "not a Kronos-param
+    // dial at all" — unlike paramId==0 (never a real Z1 value), TYP/SOC/
+    // SUB/PID/IDX genuinely can all be 0 for a real parameter.
+    bool     hasKronosParam;
+    uint32_t kronosTyp;
+    uint32_t kronosSoc;
+    uint32_t kronosSub;
+    uint32_t kronosPid;
+    uint32_t kronosIdx;
     uint32_t ccNumber;          // MIDI CC number; 0 = not CC-controlled (send SysEx param change instead)
     // MIDI's own 14-bit CC convention: controller N (0-31) carries the coarse/
     // MSB half, N+32 the fine/LSB half — combined value = (msb<<7)|lsb, giving
@@ -561,7 +581,7 @@ typedef struct {
     // unaffected; kronos.txt sets "supportsKorgProgramDump no" to opt out
     // of the whole Z1-shaped sweep/backup/restore/Load-Store mechanism
     // until (if ever) Kronos gets its own, correctly-shaped equivalent.
-    bool    supportsKorgProgramDump;
+    bool supportsKorgProgramDump;
 
     // Where a name field lives in each of the two Moog-style dump replies
     // (moogStyleDump devices only — see extract_moog_name() in

@@ -230,6 +230,17 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
             dial->paramGroup = (uint32_t)strtoul(val, NULL, 0);
         } else if (strcmp(key, "param") == 0) {
             dial->paramId = (uint32_t)strtoul(val, NULL, 0);
+        } else if (strcmp(key, "typ") == 0) {
+            dial->kronosTyp      = (uint32_t)strtoul(val, NULL, 0);
+            dial->hasKronosParam = true; // typ= is the one attribute of the five that marks this a Kronos-param dial at all — see hasKronosParam's own comment, panelConfig.h
+        } else if (strcmp(key, "soc") == 0) {
+            dial->kronosSoc = (uint32_t)strtoul(val, NULL, 0);
+        } else if (strcmp(key, "sub") == 0) {
+            dial->kronosSub = (uint32_t)strtoul(val, NULL, 0);
+        } else if (strcmp(key, "pid") == 0) {
+            dial->kronosPid = (uint32_t)strtoul(val, NULL, 0);
+        } else if (strcmp(key, "idx") == 0) {
+            dial->kronosIdx = (uint32_t)strtoul(val, NULL, 0);
         } else if (strcmp(key, "cc") == 0) {
             dial->ccNumber = (uint32_t)strtoul(val, NULL, 0);
         } else if (strcmp(key, "ccLsb") == 0) {

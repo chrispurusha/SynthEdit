@@ -1356,6 +1356,47 @@ static void synth_request_kronos_current_object_dump(uint8_t obj) {
     LOG_DEBUG("Sent Kronos Current Object Dump Request (obj=0x%02X)\n", (unsigned)obj);
 }
 
+// Kronos-style only: sends a Parameter Change (integer, func 0x43) per
+// KRONOS_MIDI_SysEx.txt — "F0 42 3g 68 43 TYP SOC SUB PID IDX valueH
+// valueM valueL F7". TYP/SOC/SUB/PID/IDX identify the parameter (a dial's
+// own typ=/soc=/sub=/pid=/idx= attributes, kronos.txt — see
+// hasKronosParam's own comment, panelConfig.h, for why this is a
+// completely separate 5-field scheme from Z1's own 2-field group/paramId,
+// not an extension of synth_send_parameter_change() below). value is a
+// 21-bit 2's complement integer (*4 in the doc), split into three 7-bit
+// groups the same way.
+//
+// UNCONFIRMED whether this actually changes the target parameter on real
+// hardware: sent successfully (no MIDI send error, correct byte shape) to
+// AL-1's own "[Filter A] Cutoff" (TYP=11 SOC=20 SUB=0 PID=4 IDX=0) against
+// a live Kronos 2026-07-14 with the CURRENTLY LOADED patch ("The Sublime
+// Mariner", bank U-AA slot 1 at the time — Algorithm Type 2 = AL-1, per
+// Prog_EXi.txt's own section numbering, KORG's official SysEx
+// Documentation 2.1 download) — neither an audible change nor a re-read-
+// back of the same dump offset confirmed it took effect, and no error
+// Reply (func 0x24) came back either, so whether the write itself failed
+// or the verification method was wrong is still open. This dial exists so
+// it can be tested directly against the real front panel instead of
+// guessed at blind — see kronos.txt's own Cutoff dial comment.
+static void synth_send_kronos_parameter_change(uint32_t typ, uint32_t soc, uint32_t sub, uint32_t pid, uint32_t idx, int32_t value) {
+    uint8_t  msg[14];
+    uint32_t pos = build_header(msg, 0x43);
+    uint32_t v21 = (uint32_t)value & 0x1FFFFF; // 21-bit 2's complement — see *4 in KRONOS_MIDI_SysEx.txt
+
+    msg[pos++] = (uint8_t)(typ & 0x7F);
+    msg[pos++] = (uint8_t)(soc & 0x7F);
+    msg[pos++] = (uint8_t)(sub & 0x7F);
+    msg[pos++] = (uint8_t)(pid & 0x7F);
+    msg[pos++] = (uint8_t)(idx & 0x7F);
+    msg[pos++] = (uint8_t)((v21 >> 14) & 0x7F); // valueH: bit14-20
+    msg[pos++] = (uint8_t)((v21 >> 7) & 0x7F);  // valueM: bit7-13
+    msg[pos++] = (uint8_t)(v21 & 0x7F);         // valueL: bit0-6
+    msg[pos++] = MIDI_SYSEX_END;
+    midi_send(msg, pos);
+    LOG_DEBUG("Sent Kronos Parameter Change: TYP=%u SOC=%u SUB=%u PID=%u IDX=%u value=%d\n",
+              (unsigned)typ, (unsigned)soc, (unsigned)sub, (unsigned)pid, (unsigned)idx, (int)value);
+}
+
 void synth_request_state_dump(void) {
     tPanelConfig * cfg = synth_panel_config();
 
@@ -1805,14 +1846,14 @@ static void handle_kronos_message(const uint8_t * data, uint32_t length, uint8_t
     // (same offset synth_handle_message() below already computed funcId
     // from: data[3 + manufacturerIdLen] is the func byte, so headerLen —
     // "how many bytes before obj" — is one past that).
-    uint32_t headerLen = 4 + synth_panel_config()->manufacturerIdLen;
+    uint32_t        headerLen  = 4 + synth_panel_config()->manufacturerIdLen;
 
     if (length < headerLen + 2 + 1) { // +2 (obj, version) +1 (trailing F7)
         LOG_DEBUG("Kronos Current Object Dump too short (len=%u)\n", (unsigned)length);
         return;
     }
-    uint8_t         obj     = data[headerLen];
-    uint8_t         version = data[headerLen + 1];
+    uint8_t         obj        = data[headerLen];
+    uint8_t         version    = data[headerLen + 1];
 
     if (obj != 0x00) {
         LOG_DEBUG("Kronos Current Object Dump: obj=0x%02X (not Program), ignoring for now\n", (unsigned)obj);
@@ -1827,14 +1868,15 @@ static void handle_kronos_message(const uint8_t * data, uint32_t length, uint8_t
         LOG_DEBUG("Kronos Program dump too short after decode (decodedLen=%u)\n", (unsigned)decodedLen);
         return;
     }
-    char     name[25];
-    uint32_t i;
+    char            name[25];
+    uint32_t        i;
 
     for (i = 0; i < 24; i++) {
         char c = (char)decoded[i];
         name[i] = ((c >= 0x20) && (c <= 0x7E)) ? c : ' ';
     }
-    name[24] = '\0';
+
+    name[24]                                       = '\0';
 
     while ((i > 0) && (name[i - 1] == ' ')) {
         name[--i] = '\0';
@@ -2099,6 +2141,19 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
         dial->hasPendingDumpSend  = true;
         dial->pendingDumpRawValue = rawValue;
         dial->pendingDumpSinceMs  = monotonic_ms();
+    } else if (dial->hasKronosParam) {
+        // Kronos's own Parameter Change (func 0x43) — an entirely
+        // different wire shape from Z1's own synth_send_parameter_change()
+        // below (5 address fields, a 21-bit value, not group/paramId's 2
+        // fields + 14-bit value) — see synth_send_kronos_parameter_change()'s
+        // own comment for what's confirmed and what isn't yet. No
+        // sweep-in-flight defer needed here the way the Z1 branch below
+        // has — synth_backup_sweep_request_in_flight() can never be true
+        // for a Kronos-style device in the first place (its whole
+        // gKorgSweep* mechanism is gated off by supportsKorgProgramDump,
+        // see that field's own comment).
+        synth_send_kronos_parameter_change(dial->kronosTyp, dial->kronosSoc, dial->kronosSub,
+                                           dial->kronosPid, dial->kronosIdx, (int32_t)storageValue);
     } else if (synth_backup_sweep_request_in_flight()) {
         // Defer — see gPendingParamDial's own comment above.
         gPendingParamDial  = dial;

@@ -75,3 +75,45 @@ dial filterCutoff      label="Cutoff"    color=filter max=128 cc=74
 dial filterResonance   label="Resonance" color=filter max=128 cc=71
 dial filterEgIntensity label="EG Amount" color=filter max=128 cc=79
 dial egRelease         label="EG Release" color=filter max=128 cc=72
+
+# ── AL-1 test section (Filters page) ─────────────────────────────────────────
+# EXPERIMENTAL — Parameter Change (SysEx), not CC, so it only means anything
+# while an AL-1-engine EXi Program is actually loaded in EXi slot 1. Targets
+# "[Filter A] Cutoff" in AL-1's own "Analog 4-Pole Filter" component: TYP=11
+# (EXi slot 1 — 12 would be slot 2), SOC=20 (component number — see the
+# "Analog 4-Pole Filter (comp 20, sub 0)" table, SysExParams/VoiceModels/AL-1.txt),
+# SUB=0, PID=4 (the component's own param index for Cutoff), IDX=0. Range
+# 0..99 per that same table. Source: Prog_EXi.txt (KORG's official "SysEx
+# Documentation 2.1" download, KRONOS_MIDI_SysEx.txt's own companion files —
+# a separate, much larger reference from the compact MIDI Implementation
+# chart at the top of this file).
+#
+# Added 2026-07-14 to test directly against a real front panel rather than
+# guess blind: sent successfully (correct byte shape, no MIDI error) against
+# a live Kronos with "The Sublime Mariner" loaded (bank U-AA, slot 1 at the
+# time — confirmed Algorithm Type 2 = AL-1 by both content — every U-AA
+# sample so far is layered AL-1/other engines — and Prog_EXi.txt's own
+# section numbering, "2:AL-1, Number Of Param. = 609"), but neither an
+# audible change nor a re-read-back of the same dump offset (Current Object
+# Dump Request, func 0x74) confirmed the write actually took — no error
+# Reply (func 0x24) came back either, so it's genuinely unknown yet whether
+# the write itself failed or the verification method used was wrong. Turn
+# this dial while watching/listening to the real unit to find out — if
+# nothing happens, load an AL-1 patch into EXi slot 1 first (this dial is
+# meaningless for any other engine's programs).
+#
+# "page filters" repeated here (not just "section") — a bare "section" line
+# only RENAMES whichever section the most recent "page" line created; it's
+# "page" itself that actually starts a new one (config->sections[]) — see
+# panelConfig.c's own "page"/"section" keyword handling. Missing this the
+# first time round merged this section's dials into the Filter section
+# above instead of creating a separate one, found immediately via the
+# backdoor DUMP command before this ever reached real hardware.
+page       filters
+section al1Test
+dialSize   50
+spacing    60
+
+color al1 0.85 0.4 0.3
+
+dial al1FilterCutoff label="AL-1 Cutoff (EXi1)" color=al1 max=100 typ=11 soc=20 sub=0 pid=4 idx=0

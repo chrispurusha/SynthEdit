@@ -2620,7 +2620,7 @@ void synth_backup_flush_background_prefetch(void) {
         gBackgroundPrefetchEligibleSinceMs = 0.0;
         return;
     }
-    bool moog    = synth_panel_config()->moogStyleDump;
+    bool moog = synth_panel_config()->moogStyleDump;
 
     // A Korg-style device that doesn't speak Z1's specific Program Data
     // Dump Request protocol (supportsKorgProgramDump == false — Kronos,
