@@ -1857,20 +1857,31 @@ void synth_backup_flush_store(void) {
 // the owner's own "wouldn't store to Z1 flash yet" caution (2026-07-14).
 // Paced with CFRunLoopRunInMode (not usleep — restore_panel_file_chosen()
 // below runs on the main thread's own CFRunLoop, dispatched via open_file_
-// read_dialogue_async()'s NSOpenPanel completion handler, so a blocking
-// sleep would stall event processing for no reason; same reasoning
-// midi_connect_all()'s own identity-request pacing already follows,
-// midiComms.c) between sends — NOT yet verified against real hardware how
-// much margin the Z1's own SysEx receiver needs for a burst this size
-// (~150-250 messages depending on the device); chosen conservatively,
-// tighten if a full restore proves reliable at a faster pace or lengthen if
-// any values land wrong/missing. Only handles the plain single-byte dumpOffset/
-// dumpShift/dumpMask model (no Z1 dial uses dumpBitWidth — that's Kronos-only
-// so far, and Kronos itself never reaches this function since
-// restore_validate_korg_dump() below requires a genuine func 0x4C Program
-// Data Dump, which Kronos doesn't speak).
-#define RESTORE_PANEL_PACE_SECONDS    0.01
-
+// read_dialogue_async()'s NSOpenPanel completion handler.
+//
+// REWRITTEN 2026-07-14 (same day as the first version): a real-hardware
+// test of the original approach — replaying every dial as its own live
+// Parameter Change message — sounded "like an init patch, every time".
+// Owner asked the right question: "We're sending 119 parameter change
+// messages, rather than a holistic patch sysex... should we not be sending
+// the sysex?" Checked the Z1 MIDI Implementation doc's own func 0x40/0x4C
+// descriptions: func 0x40 (CURRENT PROGRAM DATA DUMP) carries NO bank/
+// program address at all — sending it TO the device loads the payload
+// straight into the LIVE EDIT BUFFER, the Z1's own direct equivalent of a
+// Moog-style Panel Dump. Func 0x4C (PROGRAM DATA DUMP, what a backup file
+// actually contains) DOES carry a bank/program address, so sending THAT
+// verbatim targets a specific STORED slot instead — not what "load to edit
+// buffer" wants at all, and not what the original 119-message approach did
+// either, which is why it needed reverse-engineering every dial's own
+// address in the first place. Sending 0x40 needs none of that: no per-dial
+// knowledge, no pacing, no sweep-collision risk, and critically, it never
+// goes through the individual Parameter Change write path at all — which
+// sidesteps an ALREADY-KNOWN real Z1 hardware bug (see feedback memory
+// project_z1_int_positive_write_clamp) where a live Parameter Change write
+// of a positive value in the "-99..+99 Int" family silently clamps to 0.
+// Most of z1.txt's dials are exactly that family, which is almost
+// certainly why the old approach reliably produced a near-init-sounding
+// result: every positive envelope level/mod amount/etc. got clamped away.
 static void restore_panel_korg_file(const uint8_t * data, uint32_t length, const char * path, char * reason, size_t reasonSize) {
     if (!restore_validate_korg_dump(data, length, reason, reasonSize, NULL, NULL)) {
         show_info_dialogue("Restore Panel Failed", reason);
@@ -1891,79 +1902,52 @@ static void restore_panel_korg_file(const uint8_t * data, uint32_t length, const
         show_info_dialogue("Restore Panel Failed", reason);
         return;
     }
-    uint32_t       sent       = 0;
+    // Re-slice the file's own RAW (still 7-bit-packed, NOT the decode_7to8()
+    // result above — that's only needed for the local GUI update below)
+    // payload bytes straight out of the func 0x4C message — same header
+    // arithmetic restore_validate_korg_dump() above and korg_decode_prog_
+    // dump() (synthComms.c) both already use: F0 + mfrId(n) + channel +
+    // familyId + func (funcPos+1 bytes) + Unit/Bank + ProgramNo + a fixed
+    // 00 byte (3 more) is where func 0x4C's own data starts. No decode/
+    // re-encode needed at all — func 0x40's payload is bit-for-bit
+    // identical to func 0x4C's, only the header differs.
+    uint32_t       n          = cfg->manufacturerIdLen;
+    uint32_t       funcPos    = 3 + n;
+    uint32_t       rawStart   = funcPos + 4;
+    uint32_t       rawLen     = length - rawStart - 1;   // exclude trailing F7
 
-    // Pause the background Korg name-sweep for the duration of the send
-    // burst below — a real-hardware test found the sound/setup genuinely
-    // wrong after restoring WHILE the sweep was mid-flight (owner: "I did
-    // the load whilst fetching preset names, so there's a chance that
-    // mechanisms might have clashed"). Exactly the same class of collision
-    // synth_set_panel_dial_value()'s own synth_backup_sweep_request_in_
-    // flight() check already guards against for a single dial drag — this
-    // bulk send never went through that gate (it calls synth_send_
-    // parameter_change() directly), so it never got that protection either.
-    // Deliberately NOT resumed at the end: the sweep's own existing
-    // auto-start logic (synth_backup_flush_background_prefetch()) picks it
-    // back up on its own next idle trigger, restarting cleanly from
-    // scratch — forcing an immediate resume here would just risk the exact
-    // same collision again on the very next frame.
+    // Pause the background Korg name-sweep around the send — cheap
+    // insurance against the exact collision class synth_set_panel_dial_
+    // value()'s own synth_backup_sweep_request_in_flight() check already
+    // guards a single dial drag against, even though this is now one
+    // message instead of a 119-message burst so the risk window is far
+    // smaller than it was. Deliberately not resumed — the sweep's own
+    // existing auto-start logic picks it back up on its own next idle
+    // trigger.
     gKorgSweepActive = false;
 
-    // Program name first (params 1..progNameLen) — same group=/paramId=
-    // convention the Korg-style branch of the app's own "type a new name"
-    // feature already uses (synthComms.c), just replaying decoded bytes
-    // instead of a freshly-typed string.
-    for (uint32_t c = 0; c < cfg->progNameLen; c++) {
-        synth_send_parameter_change(SYNTH_PARAM_GROUP_PROG, (uint16_t)(c + 1), (uint16_t)decoded[c]);
-        sent++;
-        CFRunLoopRunInMode(kCFRunLoopDefaultMode, RESTORE_PANEL_PACE_SECONDS, false);
-    }
-
-    // Every other dial with both live (param=) and dump (dumpOffset=)
-    // wiring — no per-parameter knowledge here, same "walk every section,
-    // hidden or not" philosophy extract_prog_info() (synthComms.c) already
-    // follows for the RECEIVE direction; this is its send-direction mirror.
-    for (uint32_t s = 0; s < cfg->sectionCount; s++) {
-        tPanelSection * section = &cfg->sections[s];
-
-        for (uint32_t d = 0; d < section->dialCount; d++) {
-            tPanelDial * dial      = &section->dials[d];
-
-            if ((dial->paramId == 0) || (dial->dumpOffset < 0) || (decodedLen <= (uint32_t)dial->dumpOffset)) {
-                continue;
-            }
-            uint32_t     raw       = (decoded[dial->dumpOffset] >> dial->dumpShift) & dial->dumpMask;
-            uint16_t     wireValue = synth_korg_dump_raw_to_param_wire_value(dial, raw);
-
-            synth_send_parameter_change((uint8_t)dial->paramGroup, (uint16_t)dial->paramId, wireValue);
-            sent++;
-            CFRunLoopRunInMode(kCFRunLoopDefaultMode, RESTORE_PANEL_PACE_SECONDS, false);
-        }
-    }
+    synth_send_korg_current_program_dump(data + rawStart, rawLen);
 
     // Update the LOCAL GUI/dial state from the exact same decoded buffer
-    // just replayed to the device, instead of leaving it stale until (or
+    // just sent to the device, instead of leaving it stale until (or
     // unless) a later Sync from synth happens to refresh it — a real
-    // hardware test found the GUI simply didn't change at all after a
-    // restore, only the wire sends happened. Reuses the identical apply
-    // logic a genuine incoming dump reply already goes through.
+    // hardware test of the original approach found the GUI simply didn't
+    // change at all after a restore.
     synth_apply_korg_prog_dump_locally(decoded, decodedLen);
-    gReDraw = true;
+    gReDraw          = true;
 
     // Belt-and-suspenders: also request a fresh dump from the device itself
-    // once the burst is done, so any message that genuinely didn't land
-    // (dropped, corrupted, real hardware couldn't keep up with the pacing)
-    // gets caught and corrected by the SAME mechanism "Sync from synth"
-    // already relies on, rather than trusting the local apply above alone
-    // to be the last word on what the device actually ended up with.
+    // once sent, so if anything genuinely didn't land (dropped, real
+    // hardware rejected it — func 0x40 replies with a DATA LOAD ERROR in
+    // that case, not currently surfaced to the user) it gets caught by the
+    // SAME mechanism "Sync from synth" already relies on, rather than
+    // trusting the local apply above alone to be the last word on what the
+    // device actually ended up with.
     if (!synth_dump_patch_in_flight()) {
         synth_request_state_dump();
     }
-    char message[128];
-
-    snprintf(message, sizeof(message), "Sent %u Parameter Change message(s) — the connected device's live edit buffer should now match this file.", (unsigned)sent);
-    LOG_DEBUG("Restore: Korg-style panel restore from %s sent %u Parameter Change message(s)\n", path, (unsigned)sent);
-    show_info_dialogue("Restore Panel", message);
+    LOG_DEBUG("Restore: Korg-style panel restore from %s sent as one Current Program Data Dump (%u byte payload)\n", path, (unsigned)rawLen);
+    show_info_dialogue("Restore Panel", "Sent — the connected device's live edit buffer should now match this file.");
 }
 
 // Runs on the main thread once the user has chosen (or cancelled) a file to

@@ -309,24 +309,6 @@ static uint32_t decode_signed_dump_byte(tPanelDial * dial, uint32_t rawByte) {
     return (uint32_t)(signedValue + dial->displayOffset);
 }
 
-// Public helper for synthBackup.c's Korg-style "Restore Panel" — converts a
-// dial's raw DUMP byte (8-bit two's complement if wireSigned, plain otherwise
-// — see decode_signed_dump_byte() above) straight into the wire value a live
-// Parameter Change needs to reproduce that same value (14-bit two's
-// complement if wireSigned — see encode_signed_param_wire_value() above),
-// without the caller needing to know either encoding exists. Every non-
-// wireSigned dial passes rawDumpValue straight through unchanged, matching
-// handle_parameter_change()'s own "dump-native units == param-change-wire
-// units" comment for the ordinary case.
-uint16_t synth_korg_dump_raw_to_param_wire_value(tPanelDial * dial, uint32_t rawDumpValue) {
-    if (!dial->wireSigned) {
-        return (uint16_t)rawDumpValue;
-    }
-    uint32_t storageEquivalent = decode_signed_dump_byte(dial, rawDumpValue);
-
-    return encode_signed_param_wire_value(dial, storageEquivalent);
-}
-
 // ── Program info extraction ───────────────────────────────────────────────────
 // Everything about what a decoded program dump contains — name length, every
 // other field's byte offset/bit-packing/native scaling — comes from the
@@ -976,13 +958,14 @@ static bool korg_decode_prog_dump(const uint8_t * data, uint32_t length, uint8_t
 // bytes of the unpacked payload) for implausible control characters, same
 // tolerance as the Moog version.
 // Public wrapper around the static korg_decode_prog_dump() above — needed by
-// synthBackup.c's Korg-style "Restore Panel" (load a Program Data Dump file
-// into the live edit buffer via individual Parameter Change messages, since
-// Z1 has no single "load this whole dump" SysEx the way Moog-style devices
-// do — see synth_korg_dump_raw_to_param_wire_value() below for the other
-// half of what that needs). Thin pass-through, same reasoning synth_decode_
-// korg_name()/synth_decode_korg_category() already follow for exposing this
-// shared decode step without exposing korg_decode_prog_dump() itself.
+// synthBackup.c's Korg-style "Restore Panel", to update the LOCAL GUI/dial
+// state from a restored file (see synth_apply_korg_prog_dump_locally()
+// below) — the actual wire send now goes out as one whole Current Program
+// Data Dump (func 0x40, synth_send_korg_current_program_dump()) rather than
+// needing this decode for individual Parameter Change values. Thin pass-
+// through, same reasoning synth_decode_korg_name()/synth_decode_korg_
+// category() already follow for exposing this shared decode step without
+// exposing korg_decode_prog_dump() itself.
 bool synth_decode_korg_prog_dump(const uint8_t * data, uint32_t length, uint8_t * decoded, uint32_t decodedCap, uint32_t * outDecodedLen) {
     return korg_decode_prog_dump(data, length, decoded, decodedCap, outDecodedLen);
 }
@@ -1814,6 +1797,43 @@ void synth_send_parameter_change(uint8_t group, uint16_t paramId, uint16_t value
     msg[pos++] = (uint8_t)((value >> 7) & 0x7F);
     msg[pos++] = MIDI_SYSEX_END;
     midi_send(msg, pos);
+}
+
+// Sends a CURRENT PROGRAM DATA DUMP (func 0x40) — loads rawPayload (the
+// SAME still-7-bit-packed bytes a Program Data Dump file's own payload
+// already contains, no decode/re-encode needed, just a straight copy) into
+// the connected device's LIVE EDIT BUFFER in one message, the Z1's own
+// direct equivalent of a Moog-style device's Panel Dump. Unlike func 0x4C
+// (PROGRAM DATA DUMP, what synth_request_korg_program_dump() reads and what
+// gets saved to a backup file), func 0x40 carries NO bank/program address —
+// per the Z1 MIDI Implementation doc's own func 0x40/0x4C descriptions,
+// that's what makes 0x40 target "whatever's currently live" instead of a
+// specific stored slot. Added 2026-07-14 replacing an earlier, much more
+// fragile approach (replaying every dial as 119 separate Parameter Change
+// messages) that a real-hardware test found produced a near-init-sounding
+// patch every time — almost certainly because most of those dials fall in
+// the Z1's own "-99..+99 Int" family, which has an ALREADY-KNOWN real
+// hardware bug where a live Parameter Change write of a positive value
+// silently clamps to 0 (see feedback memory). A whole-buffer load like this
+// never goes through that per-parameter write path at all, so it can't hit
+// that bug. Device replies with DATA LOAD COMPLETED (func 0x23) or DATA
+// LOAD ERROR (func 0x24) — not currently decoded/surfaced to the user,
+// same as every other fire-and-forget send in this file.
+void synth_send_korg_current_program_dump(const uint8_t * rawPayload, uint32_t rawPayloadLen) {
+    static uint8_t msg[2048];
+    uint32_t       pos = build_header(msg, SYNTH_FUNC_CURR_PROG_DUMP);
+
+    msg[pos++] = 0x01; // fixed sub-byte func 0x40's own wire format always carries — see handle_curr_prog_dump()'s own comment above
+
+    if (rawPayloadLen > sizeof(msg) - pos - 1) {
+        LOG_ERROR("Current Program Data Dump payload too large (%u bytes) — not sending\n", (unsigned)rawPayloadLen);
+        return;
+    }
+    memcpy(msg + pos, rawPayload, rawPayloadLen);
+    pos       += rawPayloadLen;
+    msg[pos++] = MIDI_SYSEX_END;
+    midi_send(msg, pos);
+    LOG_DEBUG("Sent Current Program Data Dump (func 0x40), %u byte payload — loads live edit buffer only\n", (unsigned)rawPayloadLen);
 }
 
 // Real detented switch bounce (confirmed 2026-07-08, Voyager's LFO Sync)

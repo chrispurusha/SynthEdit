@@ -107,17 +107,14 @@ void synth_decode_korg_category(const uint8_t * data, uint32_t length, char * ou
 // data doesn't decode as either expected function ID.
 bool synth_decode_korg_prog_dump(const uint8_t * data, uint32_t length, uint8_t * decoded, uint32_t decodedCap, uint32_t * outDecodedLen);
 
-// Converts a dial's raw DUMP-decoded byte (from synth_decode_korg_prog_dump()
-// above) into the wire value a live Parameter Change needs to reproduce that
-// same value on the connected device — handles the wireSigned dial family's
-// own dump-vs-live encoding difference (see wireSigned's own comment,
-// panelConfig.h) transparently; every other dial passes through unchanged.
-// For synthBackup.c's Korg-style "Restore Panel": Z1 has no single "load
-// this whole dump" SysEx the way a Moog-style device does, so restoring a
-// captured Program Data Dump into the live edit buffer means replaying every
-// dial's own value as an individual Parameter Change — this is the
-// conversion each one needs on the way out.
-uint16_t synth_korg_dump_raw_to_param_wire_value(tPanelDial * dial, uint32_t rawDumpValue);
+// Sends a CURRENT PROGRAM DATA DUMP (func 0x40) — loads rawPayload (still
+// 7-bit-packed, straight from a captured file's own func 0x4C payload, no
+// decode/re-encode needed) into the connected device's LIVE EDIT BUFFER in
+// one message. The Z1's own direct equivalent of a Moog-style device's
+// Panel Dump — see this function's own comment, synthComms.c, for why func
+// 0x40 (no bank/program address) does this while func 0x4C (has one)
+// targets a specific stored slot instead.
+void synth_send_korg_current_program_dump(const uint8_t * rawPayload, uint32_t rawPayloadLen);
 
 // Applies a decoded Program Data Dump buffer (synth_decode_korg_prog_dump()
 // above) to the LOCAL app state — name and every dial with a dumpOffset —
