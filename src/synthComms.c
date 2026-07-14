@@ -1366,18 +1366,19 @@ static void synth_request_kronos_current_object_dump(uint8_t obj) {
 // 21-bit 2's complement integer (*4 in the doc), split into three 7-bit
 // groups the same way.
 //
-// UNCONFIRMED whether this actually changes the target parameter on real
-// hardware: sent successfully (no MIDI send error, correct byte shape) to
-// AL-1's own "[Filter A] Cutoff" (TYP=11 SOC=20 SUB=0 PID=4 IDX=0) against
-// a live Kronos 2026-07-14 with the CURRENTLY LOADED patch ("The Sublime
-// Mariner", bank U-AA slot 1 at the time — Algorithm Type 2 = AL-1, per
-// Prog_EXi.txt's own section numbering, KORG's official SysEx
-// Documentation 2.1 download) — neither an audible change nor a re-read-
-// back of the same dump offset confirmed it took effect, and no error
-// Reply (func 0x24) came back either, so whether the write itself failed
-// or the verification method was wrong is still open. This dial exists so
-// it can be tested directly against the real front panel instead of
-// guessed at blind — see kronos.txt's own Cutoff dial comment.
+// CONFIRMED against real hardware 2026-07-14: turning kronos.txt's own
+// al1FilterCutoff dial (TYP=11 SOC=20 SUB=0 PID=4 IDX=0, AL-1's "[Filter A]
+// Cutoff") audibly changed a live Kronos's sound (owner: "Cutoff is
+// working for the first synth slot and The Sublime Mariner patch") — a
+// genuine round-trip validation of the address scheme, the 21-bit value
+// encoding, and build_header() reuse for func 0x43. An earlier attempt to
+// self-verify this same send by re-reading the dump and decoding a
+// hand-computed bit offset showed no change and no error Reply either,
+// which in hindsight was almost certainly that ad-hoc bit-offset math
+// being wrong, not the write failing — worth remembering if a future dump-
+// offset-based read-back check for some OTHER Kronos parameter also
+// appears not to be taking effect: verify on the real front panel before
+// concluding the SEND side is broken.
 static void synth_send_kronos_parameter_change(uint32_t typ, uint32_t soc, uint32_t sub, uint32_t pid, uint32_t idx, int32_t value) {
     uint8_t  msg[14];
     uint32_t pos = build_header(msg, 0x43);

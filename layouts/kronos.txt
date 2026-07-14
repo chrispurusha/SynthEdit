@@ -44,7 +44,7 @@
 # DEVICE INQUIRY REPLY byte table) — 0x05 below is the 61-key, per the
 # owner's own hardware.
 device          Korg Kronos
-description     First pass: Filters page + live "Sync from synth" (Program name via Current Object Dump) — CC-confirmed from official docs, dump protocol hardware-confirmed 2026-07-14
+description     First pass: Filters page (CC) + live "Sync from synth" + AL-1 Cutoff (SysEx Parameter Change, EXi1 confirmed working on real hardware 2026-07-14)
 manufacturerId  0x42
 familyId        0x68
 memberId        0x05
@@ -77,30 +77,45 @@ dial filterEgIntensity label="EG Amount" color=filter max=128 cc=79
 dial egRelease         label="EG Release" color=filter max=128 cc=72
 
 # ── AL-1 test section (Filters page) ─────────────────────────────────────────
-# EXPERIMENTAL — Parameter Change (SysEx), not CC, so it only means anything
-# while an AL-1-engine EXi Program is actually loaded in EXi slot 1. Targets
-# "[Filter A] Cutoff" in AL-1's own "Analog 4-Pole Filter" component: TYP=11
-# (EXi slot 1 — 12 would be slot 2), SOC=20 (component number — see the
-# "Analog 4-Pole Filter (comp 20, sub 0)" table, SysExParams/VoiceModels/AL-1.txt),
-# SUB=0, PID=4 (the component's own param index for Cutoff), IDX=0. Range
-# 0..99 per that same table. Source: Prog_EXi.txt (KORG's official "SysEx
-# Documentation 2.1" download, KRONOS_MIDI_SysEx.txt's own companion files —
-# a separate, much larger reference from the compact MIDI Implementation
-# chart at the top of this file).
+# Parameter Change (SysEx), not CC — CONFIRMED WORKING against real hardware
+# 2026-07-14 (owner: "Cutoff is working for the first synth slot and The
+# Sublime Mariner patch") — turning al1FilterCutoff below audibly changed
+# the live sound. Only means anything while an AL-1-engine EXi Program is
+# actually loaded in the targeted slot; meaningless (inert, or hitting an
+# unrelated parameter) for any other engine's programs.
 #
-# Added 2026-07-14 to test directly against a real front panel rather than
-# guess blind: sent successfully (correct byte shape, no MIDI error) against
-# a live Kronos with "The Sublime Mariner" loaded (bank U-AA, slot 1 at the
-# time — confirmed Algorithm Type 2 = AL-1 by both content — every U-AA
-# sample so far is layered AL-1/other engines — and Prog_EXi.txt's own
-# section numbering, "2:AL-1, Number Of Param. = 609"), but neither an
-# audible change nor a re-read-back of the same dump offset (Current Object
-# Dump Request, func 0x74) confirmed the write actually took — no error
-# Reply (func 0x24) came back either, so it's genuinely unknown yet whether
-# the write itself failed or the verification method used was wrong. Turn
-# this dial while watching/listening to the real unit to find out — if
-# nothing happens, load an AL-1 patch into EXi slot 1 first (this dial is
-# meaningless for any other engine's programs).
+# Targets "[Filter A] Cutoff" in AL-1's own "Analog 4-Pole Filter"
+# component: SOC=20 (component number — see the "Analog 4-Pole Filter
+# (comp 20, sub 0)" table, SysExParams/VoiceModels/AL-1.txt), SUB=0, PID=4
+# (the component's own param index for Cutoff), IDX=0, range 0..99 per that
+# same table. TYP selects which of the Kronos's two layerable EXi engine
+# slots a Program can use — 11 for slot 1, 12 for slot 2 (confirmed by the
+# consistent "11/12" pairing throughout Prog_EXi.txt's own TYP column,
+# e.g. every "[LFO1]"/"[Filter]"/etc. entry lists both together) — a
+# Program can layer two independent EXi instances (see e.g. "J.Lorber
+# MarkV EP w/Pad" from the earlier U-AA sampling: EXi1=EP-1, EXi2=MOD-7),
+# so both need their own dial to reach either one. Both EXi1 and EXi2
+# confirmed independently on real hardware 2026-07-14.
+#
+# Filter B Cutoff (PID=49, same SOC/SUB/IDX pattern as Filter A) was
+# discovered by PASSIVE CAPTURE, not the doc: AL-1 has two independent
+# filters (A and B); turning the real front-panel knobs on each in turn
+# (owner's own order: "exi1 filter A, then exi1 filter B, then exi2 filter
+# A, then exi2 filter B") showed the Kronos itself echoing live Parameter
+# Change SysEx (func 0x43) — captured with tools/kronos_monitor (passive
+# MIDI listener, no send). PID=4 matched our existing Filter A wiring
+# exactly, confirming the addressing scheme is right; PID=49 was new and
+# is Filter B, not Resonance as first guessed from the (since-lost) doc
+# reference — trust the hardware capture over an unconfirmed doc reading,
+# same principle as the self-check-vs-hardware lesson from the Filter A
+# work. Not yet cross-checked against the doc (the downloaded "SysEx
+# Documentation 2.1" reference is no longer on disk this session).
+#
+# Source for Filter A: Prog_EXi.txt (KORG's official "SysEx Documentation
+# 2.1" download, KRONOS_MIDI_SysEx.txt's own companion files — a separate,
+# much larger reference from the compact MIDI Implementation chart at the
+# top of this file). Source for Filter B: live hardware capture only, see
+# above.
 #
 # "page filters" repeated here (not just "section") — a bare "section" line
 # only RENAMES whichever section the most recent "page" line created; it's
@@ -116,4 +131,7 @@ spacing    60
 
 color al1 0.85 0.4 0.3
 
-dial al1FilterCutoff label="AL-1 Cutoff (EXi1)" color=al1 max=100 typ=11 soc=20 sub=0 pid=4 idx=0
+dial al1FilterCutoff  label="AL-1 Filter A Cutoff (EXi1)" color=al1 max=100 typ=11 soc=20 sub=0 pid=4  idx=0
+dial al1FilterCutoff2 label="AL-1 Filter A Cutoff (EXi2)" color=al1 max=100 typ=12 soc=20 sub=0 pid=4  idx=0
+dial al1FilterBCutoff  label="AL-1 Filter B Cutoff (EXi1)" color=al1 max=100 typ=11 soc=20 sub=0 pid=49 idx=0
+dial al1FilterBCutoff2 label="AL-1 Filter B Cutoff (EXi2)" color=al1 max=100 typ=12 soc=20 sub=0 pid=49 idx=0
