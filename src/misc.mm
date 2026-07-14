@@ -203,6 +203,26 @@ void prompt_choose_layouts_folder(void) {
     do_choose_layouts_folder();
 }
 
+// Completion for "Choose Backup Folder…" (SynthMenuTarget's chooseBackupFolder:
+// below) — just records the choice via set_last_backup_folder() (fileDialogue.h)
+// for the CURRENTLY loaded device config, same per-device key every actual
+// Backup/Restore action's own folder picker already reads/writes
+// (get_last_backup_folder()/set_last_backup_folder(), synthBackup.c). Added
+// 2026-07-14 so the default can be set/changed on its own, without needing
+// to run an actual Backup/Restore action just to reach the picker — no
+// security-scoped bookmark needed here, same reasoning as
+// kLastBackupFolderKeyBase's own comment (fileDialogue.mm): a plain path
+// survives relaunch fine for something only ever used to seed a picker's
+// own starting folder, not something this app reads from unattended.
+static void backup_folder_chosen(const char * path) {
+    if (path == NULL) {
+        LOG_DEBUG("Choose Backup Folder: cancelled\n");
+        return;
+    }
+    set_last_backup_folder(synth_current_device_config(), path);
+    LOG_DEBUG("Choose Backup Folder: set to %s (for %s)\n", path, synth_current_device_config());
+}
+
 // Shared by Backup Patch by Number / Load Patch from Bank / Store Patch to
 // Bank — all three just need "pick one of 1-128" (a base Voyager with no
 // VX-… memory expansion, same range synth_request_single_preset_dump()
@@ -229,6 +249,7 @@ static int32_t choose_preset_number(const char * title, const char * message) {
 - (void)setDialModeVertical:(id)sender;
 - (void)setDialModeHorizontal:(id)sender;
 - (void)chooseLayoutsFolder:(id)sender;
+- (void)chooseBackupFolder:(id)sender;
 - (void)backupCurrentPatch:(id)sender;
 - (void)backupPatchByNumber:(id)sender;
 - (void)loadPatchFromBank:(id)sender;
@@ -307,6 +328,11 @@ static int32_t choose_preset_number(const char * title, const char * message) {
 
 - (void)chooseLayoutsFolder:(id)sender {
     do_choose_layouts_folder();
+}
+
+- (void)chooseBackupFolder:(id)sender {
+    open_folder_choose_dialogue_async(backup_folder_chosen, "Choose Backup Folder",
+                                      get_last_backup_folder(synth_current_device_config()));
 }
 
 - (void)setDialModeRotary:(id)sender {
@@ -499,6 +525,20 @@ void setup_main_menu(void) {
     // a stored-preset/bank action like the rest of this menu.
     NSMenuItem * backupMI          = [[NSMenuItem alloc] init];
     NSMenu *     backupMenu        = [[NSMenu alloc] initWithTitle:@"Backup"];
+    // Sets/changes the per-device default folder (get_last_backup_folder()/
+    // set_last_backup_folder(), fileDialogue.mm) on its own — every actual
+    // Backup/Restore action below already opens its own folder/file picker
+    // seeded from this same default, so this exists purely so that default
+    // can be set/changed without needing to run one of those actions just
+    // to reach a picker. Shared with the Restore menu below (same
+    // per-device value both directions read/write) rather than duplicated
+    // there too.
+    NSMenuItem * chooseBackupItem  = [[NSMenuItem alloc] initWithTitle:@"Choose Backup Folder…"
+                                      action:@selector(chooseBackupFolder:)
+                                      keyEquivalent:@""];
+    [chooseBackupItem setTarget:target];
+    [backupMenu addItem:chooseBackupItem];
+    [backupMenu addItem:[NSMenuItem separatorItem]];
     NSMenuItem * numberItem        = [[NSMenuItem alloc] initWithTitle:@"Patch by Number…"
                                       action:@selector(backupPatchByNumber:)
                                       keyEquivalent:@""];
@@ -538,6 +578,16 @@ void setup_main_menu(void) {
     // place (loads the live edit buffer only).
     NSMenuItem * restoreMI         = [[NSMenuItem alloc] init];
     NSMenu *     restoreMenu       = [[NSMenu alloc] initWithTitle:@"Restore"];
+    // Same "Choose Backup Folder…" action as the Backup menu's own copy
+    // above — one shared per-device default both directions read/write, so
+    // it's offered from whichever menu the user happens to be in rather
+    // than only the Backup side.
+    NSMenuItem * chooseRestoreItem = [[NSMenuItem alloc] initWithTitle:@"Choose Backup Folder…"
+                                      action:@selector(chooseBackupFolder:)
+                                      keyEquivalent:@""];
+    [chooseRestoreItem setTarget:target];
+    [restoreMenu addItem:chooseRestoreItem];
+    [restoreMenu addItem:[NSMenuItem separatorItem]];
     NSMenuItem * restorePatchItem  = [[NSMenuItem alloc] initWithTitle:@"Patch by Number…"
                                       action:@selector(restorePatch:)
                                       keyEquivalent:@""];
