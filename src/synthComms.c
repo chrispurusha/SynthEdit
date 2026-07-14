@@ -1836,6 +1836,41 @@ void synth_send_korg_current_program_dump(const uint8_t * rawPayload, uint32_t r
     LOG_DEBUG("Sent Current Program Data Dump (func 0x40), %u byte payload — loads live edit buffer only\n", (unsigned)rawPayloadLen);
 }
 
+// Sends a PROGRAM DATA DUMP (func 0x4C) addressed to a SPECIFIC bank/program
+// — unlike synth_send_korg_current_program_dump() above (func 0x40, no
+// address, live edit buffer only), this writes DIRECTLY to a stored slot,
+// bypassing the edit buffer entirely — the send-direction mirror of how
+// synth_request_korg_program_dump() already READS a specific stored slot
+// (both func 0x1C-request/0x4C-reply and this share the same Unit/Bank/
+// ProgramNo addressing). Owner's own framing (2026-07-14): "We can already
+// save from a flash slot to a file... this would be the reverse." rawPayload
+// is the SAME still-7-bit-packed bytes a captured file's own payload
+// already contains — no decode/re-encode needed, only the header address
+// changes. Per the Z1 MIDI Implementation doc, Unit=00 (Prog, i.e. a single
+// program, not a whole Bank/All dump) is the only mode this function builds
+// — bank/program dumps are a different, larger operation this app doesn't
+// need. UNCONFIRMED against real Z1 hardware as of this writing — see
+// korg_restore_patch_to_bank_file_chosen()'s own comment, synthBackup.c.
+void synth_send_korg_program_data_dump(uint8_t bank, uint32_t progNumber, const uint8_t * rawPayload, uint32_t rawPayloadLen) {
+    static uint8_t msg[2048];
+    uint32_t       pos = build_header(msg, SYNTH_FUNC_PROG_DUMP);
+
+    msg[pos++] = (uint8_t)(bank ? 0x01 : 0x00);      // Unit=00 (Prog) | Bank(0:A/1:B)
+    msg[pos++] = (uint8_t)((progNumber - 1) & 0x7F); // 0-based on the wire, same convention synth_request_korg_program_dump() already uses
+    msg[pos++] = 0x00;                               // fixed sub-byte func 0x4C's own wire format always carries
+
+    if (rawPayloadLen > sizeof(msg) - pos - 1) {
+        LOG_ERROR("Program Data Dump payload too large (%u bytes) — not sending\n", (unsigned)rawPayloadLen);
+        return;
+    }
+    memcpy(msg + pos, rawPayload, rawPayloadLen);
+    pos       += rawPayloadLen;
+    msg[pos++] = MIDI_SYSEX_END;
+    midi_send(msg, pos);
+    LOG_DEBUG("Sent Program Data Dump (func 0x4C), bank=%c program=%u, %u byte payload — writes a stored slot directly\n",
+              bank ? 'B' : 'A', (unsigned)progNumber, (unsigned)rawPayloadLen);
+}
+
 // Real detented switch bounce (confirmed 2026-07-08, Voyager's LFO Sync)
 // stays within this window between transitional messages, while a genuinely
 // separate switch flip is always seconds apart — see hasPendingCc's own

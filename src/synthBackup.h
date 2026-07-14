@@ -226,6 +226,30 @@ void synth_backup_restore_panel_from_path(const char * path);
 // connected device.
 void synth_backup_restore_patch(void);
 
+// Triggered by "Restore > Patch to Selected Bank Slot…" — Korg-style (Z1)
+// only, a no-op with a logged error otherwise. Like synth_backup_restore_
+// patch() above, loads a file and writes it DIRECTLY to a stored slot
+// (bypassing the live edit buffer entirely) — but instead of always
+// targeting the file's own embedded bank/program, shows the same named-slot
+// picker Store Patch to Bank uses so the owner can pick ANY destination.
+// The direct send-direction mirror of "Backup > Patch by Number" (which
+// already reads a specific stored slot straight to a file, no edit buffer
+// involved) — owner's own framing, 2026-07-14: "We can already save from a
+// flash slot to a file... this would be the reverse." Confirms before
+// sending (overwrites stored memory with no undo). UNCONFIRMED against real
+// Z1 hardware as of this writing.
+void synth_backup_restore_patch_to_bank(void);
+
+// Test-only entry point for a backdoor RESTOREPATCHTOBANK command
+// (graphics.cpp) — same reasoning synth_backup_restore_panel_from_path()
+// above already gives: the real menu action shows TWO native modals (a file
+// picker, then a named-slot picker) neither of which has a headless way to
+// click through. UNLIKE that one, this DOES write to a stored slot if run
+// against real hardware — deliberately skips the confirmation dialog too,
+// so this must only ever be exercised against something that can't actually
+// lose data (tools/z1_emulator.swift, never a real connected device).
+void synth_backup_restore_patch_to_bank_from_path(const char * path, uint8_t bank, uint32_t prog);
+
 // Triggered by "Backup > Restore > Bank…" — loads a previously-saved whole-
 // bank dump (synth_backup_bank()'s own output) and sends it back verbatim,
 // OVERWRITING ALL 128 presets in the current bank at once. Shows a loud

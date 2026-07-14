@@ -116,6 +116,13 @@ bool synth_decode_korg_prog_dump(const uint8_t * data, uint32_t length, uint8_t 
 // targets a specific stored slot instead.
 void synth_send_korg_current_program_dump(const uint8_t * rawPayload, uint32_t rawPayloadLen);
 
+// Sends a PROGRAM DATA DUMP (func 0x4C) addressed to a specific bank/program
+// — writes DIRECTLY to that stored slot, bypassing the live edit buffer
+// entirely (contrast synth_send_korg_current_program_dump() above). See
+// this function's own comment, synthComms.c, for the full picture —
+// UNCONFIRMED against real Z1 hardware as of this writing.
+void synth_send_korg_program_data_dump(uint8_t bank, uint32_t progNumber, const uint8_t * rawPayload, uint32_t rawPayloadLen);
+
 // Applies a decoded Program Data Dump buffer (synth_decode_korg_prog_dump()
 // above) to the LOCAL app state — name and every dial with a dumpOffset —
 // the exact same way a genuine incoming dump reply already would. For

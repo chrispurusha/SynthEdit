@@ -536,6 +536,26 @@ static void backdoor_dispatch(const char * cmd, const char * arg, GLFWwindow * w
         }
         synth_backup_restore_panel_from_path(arg);
         backdoor_write_result("OK\n");
+    } else if (strcmp(cmd, "RESTOREPATCHTOBANK") == 0) {
+        // Testing-only command, added 2026-07-14 — same reasoning
+        // RESTOREPANEL above gives, but for the NEW "Restore Patch to
+        // Selected Bank Slot" mechanism, which has TWO native modals (file
+        // picker, then a named-slot picker) plus a confirmation, none
+        // scriptable headlessly. UNLIKE RESTOREPANEL, this DOES write to a
+        // stored slot — only ever exercise this against tools/
+        // z1_emulator.swift, never a real connected device (see synth_
+        // backup_restore_patch_to_bank_from_path()'s own comment,
+        // synthBackup.h).
+        uint32_t bank          = 0;
+        uint32_t prog          = 0;
+        char     filePath[512] = {0};
+
+        if (sscanf(arg, "%511s %u %u", filePath, &bank, &prog) != 3) {
+            backdoor_write_result("ERROR: expected 'RESTOREPATCHTOBANK <path> <bank 0|1> <prog 1-128>'\n");
+            return;
+        }
+        synth_backup_restore_patch_to_bank_from_path(filePath, (uint8_t)bank, prog);
+        backdoor_write_result("OK\n");
     } else {
         char msg[128];
 

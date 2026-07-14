@@ -314,6 +314,10 @@ static int32_t choose_preset_number(const char * title, const char * message) {
     synth_backup_restore_patch();
 }
 
+- (void)restorePatchToBank:(id)sender {
+    synth_backup_restore_patch_to_bank();
+}
+
 - (void)restoreBank:(id)sender {
     synth_backup_restore_bank();
 }
@@ -424,11 +428,11 @@ void setup_main_menu(void) {
     // synth_backup_current_patch()/synth_backup_restore_panel() are
     // declared/documented, synthBackup.h — this menu just points at them
     // from a different, more familiar location).
-    NSMenuItem * fileMI            = [[NSMenuItem alloc] init];
-    NSMenu *     fileMenu          = [[NSMenu alloc] initWithTitle:@"File"];
-    NSMenuItem * openPanelItem     = [[NSMenuItem alloc] initWithTitle:@"Open Panel File…"
-                                      action:@selector(restorePanel:)
-                                      keyEquivalent:@"o"];
+    NSMenuItem * fileMI                 = [[NSMenuItem alloc] init];
+    NSMenu *     fileMenu               = [[NSMenu alloc] initWithTitle:@"File"];
+    NSMenuItem * openPanelItem          = [[NSMenuItem alloc] initWithTitle:@"Open Panel File…"
+                                           action:@selector(restorePanel:)
+                                           keyEquivalent:@"o"];
     [openPanelItem setTarget:target];
     [fileMenu addItem:openPanelItem];
     // "Load Patch from Bank…" — G2-Edit naming/placement (misc.mm there:
@@ -438,14 +442,14 @@ void setup_main_menu(void) {
     // Restore > Patch by Number (also a disk file, and overwrites a STORED
     // slot rather than loading into the live buffer) — this one talks
     // directly to the connected device by preset number, no file involved.
-    NSMenuItem * loadPatchItem     = [[NSMenuItem alloc] initWithTitle:@"Load Patch from Bank…"
-                                      action:@selector(loadPatchFromBank:)
-                                      keyEquivalent:@""];
+    NSMenuItem * loadPatchItem          = [[NSMenuItem alloc] initWithTitle:@"Load Patch from Bank…"
+                                           action:@selector(loadPatchFromBank:)
+                                           keyEquivalent:@""];
     [loadPatchItem setTarget:target];
     [fileMenu addItem:loadPatchItem];
-    NSMenuItem * savePanelItem     = [[NSMenuItem alloc] initWithTitle:@"Save Panel to File…"
-                                      action:@selector(backupCurrentPatch:)
-                                      keyEquivalent:@"s"];
+    NSMenuItem * savePanelItem          = [[NSMenuItem alloc] initWithTitle:@"Save Panel to File…"
+                                           action:@selector(backupCurrentPatch:)
+                                           keyEquivalent:@"s"];
     [savePanelItem setTarget:target];
     [fileMenu addItem:savePanelItem];
     // "Store Patch to Bank…" — G2-Edit naming/placement (misc.mm there:
@@ -453,19 +457,19 @@ void setup_main_menu(void) {
     // edit buffer), same owner request as Load above. Distinct from Save (a
     // disk file) — this commits the current live panel directly to a
     // chosen stored location on the connected device.
-    NSMenuItem * storePatchItem    = [[NSMenuItem alloc] initWithTitle:@"Store Patch to Bank…"
-                                      action:@selector(storePatchToBank:)
-                                      keyEquivalent:@""];
+    NSMenuItem * storePatchItem         = [[NSMenuItem alloc] initWithTitle:@"Store Patch to Bank…"
+                                           action:@selector(storePatchToBank:)
+                                           keyEquivalent:@""];
     [storePatchItem setTarget:target];
     [fileMenu addItem:storePatchItem];
     [fileMI setSubmenu:fileMenu];
     [menuBar insertItem:fileMI atIndex:1];
 
-    NSMenuItem * devMI             = [[NSMenuItem alloc] init];
-    NSMenu *     devMenu           = [[NSMenu alloc] initWithTitle:@"Device"];
-    NSMenuItem * scanItem          = [[NSMenuItem alloc] initWithTitle:@"Scan Devices"
-                                      action:@selector(scanDevices:)
-                                      keyEquivalent:@"r"];
+    NSMenuItem * devMI                  = [[NSMenuItem alloc] init];
+    NSMenu *     devMenu                = [[NSMenu alloc] initWithTitle:@"Device"];
+    NSMenuItem * scanItem               = [[NSMenuItem alloc] initWithTitle:@"Scan Devices"
+                                           action:@selector(scanDevices:)
+                                           keyEquivalent:@"r"];
     [scanItem setTarget:target];
     [devMenu addItem:scanItem];
     // Item 1 (a separator) plus everything rebuild_devices_menu() adds from
@@ -481,35 +485,35 @@ void setup_main_menu(void) {
     [devMI setSubmenu:devMenu];
     [menuBar insertItem:devMI atIndex:2];
 
-    NSMenuItem * ctrlMI            = [[NSMenuItem alloc] init];
-    NSMenu *     ctrlMenu          = [[NSMenu alloc] initWithTitle:@"Controls"];
+    NSMenuItem * ctrlMI                 = [[NSMenuItem alloc] init];
+    NSMenu *     ctrlMenu               = [[NSMenu alloc] initWithTitle:@"Controls"];
 
-    NSMenuItem * rotaryItem        = [[NSMenuItem alloc] initWithTitle:@"Rotary"
-                                      action:@selector(setDialModeRotary:)
-                                      keyEquivalent:@""];
+    NSMenuItem * rotaryItem             = [[NSMenuItem alloc] initWithTitle:@"Rotary"
+                                           action:@selector(setDialModeRotary:)
+                                           keyEquivalent:@""];
     [rotaryItem setTarget:target];
     [ctrlMenu addItem:rotaryItem];
 
-    NSMenuItem * vertItem          = [[NSMenuItem alloc] initWithTitle:@"Vertical"
-                                      action:@selector(setDialModeVertical:)
-                                      keyEquivalent:@""];
+    NSMenuItem * vertItem               = [[NSMenuItem alloc] initWithTitle:@"Vertical"
+                                           action:@selector(setDialModeVertical:)
+                                           keyEquivalent:@""];
     [vertItem setTarget:target];
     [ctrlMenu addItem:vertItem];
 
-    NSMenuItem * horizItem         = [[NSMenuItem alloc] initWithTitle:@"Horizontal"
-                                      action:@selector(setDialModeHorizontal:)
-                                      keyEquivalent:@""];
+    NSMenuItem * horizItem              = [[NSMenuItem alloc] initWithTitle:@"Horizontal"
+                                           action:@selector(setDialModeHorizontal:)
+                                           keyEquivalent:@""];
     [horizItem setTarget:target];
     [ctrlMenu addItem:horizItem];
 
     [ctrlMI setSubmenu:ctrlMenu];
     [menuBar insertItem:ctrlMI atIndex:3];
 
-    NSMenuItem * layoutsMI         = [[NSMenuItem alloc] init];
-    NSMenu *     layoutsMenu       = [[NSMenu alloc] initWithTitle:@"Layouts"];
-    NSMenuItem * chooseItem        = [[NSMenuItem alloc] initWithTitle:@"Choose Layouts Folder…"
-                                      action:@selector(chooseLayoutsFolder:)
-                                      keyEquivalent:@""];
+    NSMenuItem * layoutsMI              = [[NSMenuItem alloc] init];
+    NSMenu *     layoutsMenu            = [[NSMenu alloc] initWithTitle:@"Layouts"];
+    NSMenuItem * chooseItem             = [[NSMenuItem alloc] initWithTitle:@"Choose Layouts Folder…"
+                                           action:@selector(chooseLayoutsFolder:)
+                                           keyEquivalent:@""];
     [chooseItem setTarget:target];
     [layoutsMenu addItem:chooseItem];
     [layoutsMI setSubmenu:layoutsMenu];
@@ -523,8 +527,8 @@ void setup_main_menu(void) {
     // Backup/Restore top-level menu pair too, followed here. Current Panel
     // (Edit Buffer) moved out to the File menu above, same day — it isn't
     // a stored-preset/bank action like the rest of this menu.
-    NSMenuItem * backupMI          = [[NSMenuItem alloc] init];
-    NSMenu *     backupMenu        = [[NSMenu alloc] initWithTitle:@"Backup"];
+    NSMenuItem * backupMI               = [[NSMenuItem alloc] init];
+    NSMenu *     backupMenu             = [[NSMenu alloc] initWithTitle:@"Backup"];
     // Sets/changes the per-device default folder (get_last_backup_folder()/
     // set_last_backup_folder(), fileDialogue.mm) on its own — every actual
     // Backup/Restore action below already opens its own folder/file picker
@@ -533,33 +537,33 @@ void setup_main_menu(void) {
     // to reach a picker. Shared with the Restore menu below (same
     // per-device value both directions read/write) rather than duplicated
     // there too.
-    NSMenuItem * chooseBackupItem  = [[NSMenuItem alloc] initWithTitle:@"Choose Backup Folder…"
-                                      action:@selector(chooseBackupFolder:)
-                                      keyEquivalent:@""];
+    NSMenuItem * chooseBackupItem       = [[NSMenuItem alloc] initWithTitle:@"Choose Backup Folder…"
+                                           action:@selector(chooseBackupFolder:)
+                                           keyEquivalent:@""];
     [chooseBackupItem setTarget:target];
     [backupMenu addItem:chooseBackupItem];
     [backupMenu addItem:[NSMenuItem separatorItem]];
-    NSMenuItem * numberItem        = [[NSMenuItem alloc] initWithTitle:@"Patch by Number…"
-                                      action:@selector(backupPatchByNumber:)
-                                      keyEquivalent:@""];
+    NSMenuItem * numberItem             = [[NSMenuItem alloc] initWithTitle:@"Patch by Number…"
+                                           action:@selector(backupPatchByNumber:)
+                                           keyEquivalent:@""];
     [numberItem setTarget:target];
     [backupMenu addItem:numberItem];
     // Whatever bank the connected unit's front panel currently has selected
     // — see synth_backup_bank()'s own comment (synthBackup.h) for why this
     // can't yet target a specific bank on an expanded (more-than-128-preset)
     // unit.
-    NSMenuItem * bankItem          = [[NSMenuItem alloc] initWithTitle:@"Bank…"
-                                      action:@selector(backupBank:)
-                                      keyEquivalent:@""];
+    NSMenuItem * bankItem               = [[NSMenuItem alloc] initWithTitle:@"Bank…"
+                                           action:@selector(backupBank:)
+                                           keyEquivalent:@""];
     [bankItem setTarget:target];
     [backupMenu addItem:bankItem];
     // Requests every preset one at a time and saves each as its own file —
     // see synth_backup_bank_to_folder()'s own comment (synthBackup.h) for
     // why this needs a separate action from "Bank…" above (that one saves
     // the whole bank as a single opaque blob).
-    NSMenuItem * bankFolderItem    = [[NSMenuItem alloc] initWithTitle:@"Bank (Individual Files)…"
-                                      action:@selector(backupBankToFolder:)
-                                      keyEquivalent:@""];
+    NSMenuItem * bankFolderItem         = [[NSMenuItem alloc] initWithTitle:@"Bank (Individual Files)…"
+                                           action:@selector(backupBankToFolder:)
+                                           keyEquivalent:@""];
     [bankFolderItem setTarget:target];
     [backupMenu addItem:bankFolderItem];
 
@@ -576,34 +580,43 @@ void setup_main_menu(void) {
     // own Current Panel — it isn't a stored-preset/bank action like the
     // rest of this menu, and has no overwrite risk to confirm in the first
     // place (loads the live edit buffer only).
-    NSMenuItem * restoreMI         = [[NSMenuItem alloc] init];
-    NSMenu *     restoreMenu       = [[NSMenu alloc] initWithTitle:@"Restore"];
+    NSMenuItem * restoreMI              = [[NSMenuItem alloc] init];
+    NSMenu *     restoreMenu            = [[NSMenu alloc] initWithTitle:@"Restore"];
     // Same "Choose Backup Folder…" action as the Backup menu's own copy
     // above — one shared per-device default both directions read/write, so
     // it's offered from whichever menu the user happens to be in rather
     // than only the Backup side.
-    NSMenuItem * chooseRestoreItem = [[NSMenuItem alloc] initWithTitle:@"Choose Backup Folder…"
-                                      action:@selector(chooseBackupFolder:)
-                                      keyEquivalent:@""];
+    NSMenuItem * chooseRestoreItem      = [[NSMenuItem alloc] initWithTitle:@"Choose Backup Folder…"
+                                           action:@selector(chooseBackupFolder:)
+                                           keyEquivalent:@""];
     [chooseRestoreItem setTarget:target];
     [restoreMenu addItem:chooseRestoreItem];
     [restoreMenu addItem:[NSMenuItem separatorItem]];
-    NSMenuItem * restorePatchItem  = [[NSMenuItem alloc] initWithTitle:@"Patch by Number…"
-                                      action:@selector(restorePatch:)
-                                      keyEquivalent:@""];
+    NSMenuItem * restorePatchItem       = [[NSMenuItem alloc] initWithTitle:@"Patch by Number…"
+                                           action:@selector(restorePatch:)
+                                           keyEquivalent:@""];
     [restorePatchItem setTarget:target];
     [restoreMenu addItem:restorePatchItem];
-    NSMenuItem * restoreBankItem   = [[NSMenuItem alloc] initWithTitle:@"Bank…"
-                                      action:@selector(restoreBank:)
-                                      keyEquivalent:@""];
+    // Korg-style (Z1) only — writes a file directly to a slot the owner
+    // picks, rather than the file's own embedded slot (Patch by Number
+    // above). See synth_backup_restore_patch_to_bank()'s own comment,
+    // synthBackup.h.
+    NSMenuItem * restorePatchToBankItem = [[NSMenuItem alloc] initWithTitle:@"Patch to Selected Bank Slot…"
+                                           action:@selector(restorePatchToBank:)
+                                           keyEquivalent:@""];
+    [restorePatchToBankItem setTarget:target];
+    [restoreMenu addItem:restorePatchToBankItem];
+    NSMenuItem * restoreBankItem        = [[NSMenuItem alloc] initWithTitle:@"Bank…"
+                                           action:@selector(restoreBank:)
+                                           keyEquivalent:@""];
     [restoreBankItem setTarget:target];
     [restoreMenu addItem:restoreBankItem];
     // Restores an entire Backup > Bank (Individual Files) export, one
     // preset at a time, driven by that folder's own Patches.txt index —
     // see synth_backup_restore_folder()'s own comment (synthBackup.h).
-    NSMenuItem * restoreFolderItem = [[NSMenuItem alloc] initWithTitle:@"Bank (Individual Files)…"
-                                      action:@selector(restoreFolder:)
-                                      keyEquivalent:@""];
+    NSMenuItem * restoreFolderItem      = [[NSMenuItem alloc] initWithTitle:@"Bank (Individual Files)…"
+                                           action:@selector(restoreFolder:)
+                                           keyEquivalent:@""];
     [restoreFolderItem setTarget:target];
     [restoreMenu addItem:restoreFolderItem];
     [restoreMI setSubmenu:restoreMenu];

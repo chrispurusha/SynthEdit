@@ -184,13 +184,26 @@ static tNameSweepPurpose gNameSweepPurpose          = eNameSweepPurposeLoad;
 // it trickles one request every NAME_SWEEP_PACING_MS rather than firing as
 // fast as replies come back, staying out of the way of whatever MIDI
 // traffic normal interactive use (dial drags, etc.) is already generating.
-// 128-256 requests x 600ms ≈ 1.3-2.5 minutes to fully populate — fine for
+// 128-256 requests x 500ms ≈ 1.1-2.1 minutes to fully populate — fine for
 // a background fill nobody's waiting on. Deliberately NOT applied to the
 // Moog bank-to-folder EXPORT mode — that's a foreground action with its
 // own progress modal the user is actively watching complete, not a quiet
 // background fill; pacing it would just make a real backup take longer
-// for no benefit.
-#define NAME_SWEEP_PACING_MS    600.0
+// for no benefit. (Korg's own foreground export, eKorgSweepModeExportFiles,
+// DOES still share this pacing rather than getting the same fast-path
+// treatment — an existing asymmetry with the Moog export, not something
+// this change addresses.)
+//
+// Lowered 600ms -> 500ms 2026-07-14, owner's own request ("We could
+// probably read the banks a little faster") after confirming a real Z1
+// restore's apparent data problem was actually just a too-soon read-back
+// racing the device's own flash-write settling (see [[project_z1_restore_folder_pacing]])
+// — a READ (this constant) has no equivalent flash-commit wait on the
+// device side, just formulate-and-send-a-reply, so it never carried the
+// same risk the restore-side pacing did. Still a guess, not hardware-
+// measured — tighten further or back off based on how this actually
+// behaves.
+#define NAME_SWEEP_PACING_MS    500.0
 
 // How many times a timed-out request gets resent before its slot is
 // finally marked missing/"(no response)" — shared by both name-sweep
@@ -2154,6 +2167,133 @@ void synth_backup_restore_patch(void) {
     }
 }
 
+// Runs on the main thread once the user has chosen (or cancelled) a Program
+// Data Dump file to load into a SLOT THEY CHOOSE — see synth_backup_
+// restore_patch_to_bank() below. Unlike korg_restore_patch_file_chosen()
+// above (restores to the file's OWN embedded bank/program), this shows the
+// same named-slot picker Store Patch to Bank uses and re-addresses the
+// message to whatever the owner picks. Owner's own framing (2026-07-14):
+// "We can already save from a flash slot to a file... this would be the
+// reverse" — and correctly pushed back on an earlier, more roundabout
+// edit-buffer-then-Store-Patch two-step plan in favour of this direct
+// file-to-slot send, which is exactly what korg_restore_patch_file_chosen()
+// already does, just always to the file's own address instead of a chosen
+// one. Writes DIRECTLY to the chosen stored slot, bypassing the live edit
+// buffer entirely (synth_send_korg_program_data_dump(), synthComms.c).
+// UNCONFIRMED against real Z1 hardware — same caveat korg_restore_patch_
+// file_chosen() above already carries (never independently tested, unlike
+// the Moog restore-to-slot mechanism).
+// Shared by korg_restore_patch_to_bank_file_chosen() (after the picker+
+// confirm below) and synth_backup_restore_patch_to_bank_from_path() (the
+// backdoor test entry point, synthBackup.h) — re-slices the file's own RAW
+// (still 7-bit-packed) payload bytes and re-addresses them to bank/prog.
+static void korg_restore_patch_to_bank_send(const uint8_t * data, uint32_t length, uint8_t bank, uint32_t prog) {
+    tPanelConfig * cfg      = synth_panel_config();
+    uint32_t       n        = cfg->manufacturerIdLen;
+    uint32_t       funcPos  = 3 + n;
+    uint32_t       rawStart = funcPos + 4;
+    uint32_t       rawLen   = length - rawStart - 1;
+
+    synth_send_korg_program_data_dump(bank, prog, data + rawStart, rawLen);
+    // Name/category decode reads the PAYLOAD only, unaffected by which
+    // bank/program was in the header — passing the file's own original
+    // data here (not a reconstructed message) is correct, since bank/prog
+    // are supplied explicitly as the CACHE slot to update.
+    korg_name_cache_update_from_dump(bank, prog, data, length);
+}
+
+static void korg_restore_patch_to_bank_file_chosen(const char * path) {
+    if (path == NULL) {
+        LOG_DEBUG("Restore: patch-to-bank restore cancelled\n");
+        return;
+    }
+    uint32_t     length = 0;
+    uint8_t *    data   = restore_read_file(path, &length);
+
+    if (data == NULL) {
+        return;
+    }
+    char         reason[192];
+
+    if (!restore_validate_korg_dump(data, length, reason, sizeof(reason), NULL, NULL)) {
+        show_info_dialogue("Restore Patch Failed", reason);
+        free(data);
+        return;
+    }
+    // Same named-slot picker Store Patch to Bank uses (korg_sweep_show_
+    // picker() above) — opens immediately with whatever names are already
+    // known ("---" for the rest), same "don't block on a full sweep" UX.
+    const char * labelPtrs[KORG_SWEEP_PRESET_COUNT];
+
+    for (uint32_t i = 0; i < KORG_SWEEP_PRESET_COUNT; i++) {
+        labelPtrs[i] = gKorgSweepLabels[i];
+    }
+
+    int32_t      chosen = show_device_choice_dialogue("Restore Patch to Bank", "Choose a destination to load this file into:", labelPtrs, KORG_SWEEP_PRESET_COUNT, 0);
+
+    if (chosen < 0) {
+        LOG_DEBUG("Restore: patch-to-bank picker cancelled\n");
+        free(data);
+        return;
+    }
+    uint8_t      bank   = (uint8_t)((uint32_t)chosen / 128);
+    uint32_t     prog   = ((uint32_t)chosen % 128) + 1;
+    char         message[192];
+
+    snprintf(message, sizeof(message),
+             "This will overwrite Bank %c, Program %u on the connected device with the contents of this file. This cannot be undone.",
+             bank ? 'B' : 'A', (unsigned)prog);
+
+    if (show_confirm_dialogue("Restore Patch to Bank", message)) {
+        korg_restore_patch_to_bank_send(data, length, bank, prog);
+        snprintf(message, sizeof(message), "Sent — Bank %c, Program %u should now match this file.", bank ? 'B' : 'A', (unsigned)prog);
+        show_info_dialogue("Restore Patch to Bank", message);
+    } else {
+        LOG_DEBUG("Restore: patch-to-bank restore cancelled at confirmation\n");
+    }
+    free(data);
+}
+
+void synth_backup_restore_patch_to_bank(void) {
+    if (!gDevice.connected) {
+        LOG_ERROR("Restore: no device connected\n");
+        return;
+    }
+
+    if (synth_panel_config()->moogStyleDump) {
+        LOG_ERROR("Restore Patch to Bank: connected device isn't Korg-style — this action doesn't support it yet\n");
+        return;
+    }
+    open_file_read_dialogue_async(korg_restore_patch_to_bank_file_chosen);
+}
+
+void synth_backup_restore_patch_to_bank_from_path(const char * path, uint8_t bank, uint32_t prog) {
+    if (!gDevice.connected) {
+        LOG_ERROR("Restore: no device connected\n");
+        return;
+    }
+
+    if (synth_panel_config()->moogStyleDump) {
+        LOG_ERROR("Restore Patch to Bank: connected device isn't Korg-style — this action doesn't support it yet\n");
+        return;
+    }
+    uint32_t  length = 0;
+    uint8_t * data   = restore_read_file(path, &length);
+
+    if (data == NULL) {
+        return;
+    }
+    char      reason[192];
+
+    if (!restore_validate_korg_dump(data, length, reason, sizeof(reason), NULL, NULL)) {
+        LOG_ERROR("Restore Patch to Bank: %s\n", reason);
+        free(data);
+        return;
+    }
+    korg_restore_patch_to_bank_send(data, length, bank, prog);
+    free(data);
+}
+
 // Runs on the main thread once the user has chosen (or cancelled) a whole-
 // bank dump file to restore — see synth_backup_restore_bank() below.
 static void restore_bank_file_chosen(const char * path) {
@@ -2231,9 +2371,31 @@ static uint32_t gRestoreFolderMissingCount = 0;
 // write each preset to its own storage before the next one arrives (same
 // "won't queue a second reply/request while still busy" real-hardware
 // finding that drives BACKUP_BATCH_TIMEOUT_MS above, applied here to the
-// SEND side instead of the request side). No hardware-measured minimum
-// yet; generous relative to what a single small SysEx send itself takes.
+// SEND side instead of the request side). CONFIRMED on real Voyager
+// hardware at this value 2026-07-12 (both export and restore directions,
+// see [[project_voyager_bank_to_folder_export]]) — don't raise this one
+// without a real reason, it isn't the value that needed fixing.
 #define RESTORE_FOLDER_SEND_PACING_MS    150.0
+
+// Korg-style (Z1) counterpart to RESTORE_FOLDER_SEND_PACING_MS above — was
+// the SAME shared 150ms constant until 2026-07-14, when a real Korg folder
+// restore at that value left some slots blank (owner: "Looks like the bank
+// restore is too fast. Some slots are blank."). Split into its own constant
+// rather than raising the shared one, since Voyager's restore was already
+// independently confirmed working at 150ms and there's no reason to slow
+// that down just because Z1 needs more room. 500ms is a bigger, still-a-
+// guess step in the safe direction, not a verified minimum either: each
+// Korg-style Program Data Dump send here is a genuinely larger message
+// (~650+ bytes, most of a full patch) than the small requests BACKUP_
+// BATCH_TIMEOUT_MS's own 600ms already treats as needing that much margin,
+// and it also has to be physically committed to flash on the device side
+// before the next one arrives — plausibly needs AT LEAST that much room,
+// maybe more. A full 256-slot Z1 restore now takes ~128s instead of ~38s —
+// a real cost, but a blank slot from a too-fast restore is worse than a
+// slower one that actually lands. Retest and tighten (if fully reliable at
+// this value) or lengthen further (if still blank) from here, rather than
+// guessing again from scratch.
+#define KORG_RESTORE_FOLDER_SEND_PACING_MS    500.0
 
 // Parses <folder>/Patches.txt for the ordered list of preset numbers it
 // records (backup_batch_append_index_line() above writes each data line as
@@ -2638,7 +2800,7 @@ void synth_backup_flush_korg_restore_folder(void) {
                   (unsigned)gKorgRestoreFolderSentCount, (unsigned)gKorgRestoreFolderMissingCount);
         return;
     }
-    gKorgRestoreFolderNextSendMs = backup_monotonic_ms() + RESTORE_FOLDER_SEND_PACING_MS;
+    gKorgRestoreFolderNextSendMs = backup_monotonic_ms() + KORG_RESTORE_FOLDER_SEND_PACING_MS;
 }
 
 bool synth_backup_get_export_progress(uint32_t * outCurrent, uint32_t * outTotal, uint32_t * outActionCount) {
