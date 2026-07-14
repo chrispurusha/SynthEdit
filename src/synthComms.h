@@ -45,6 +45,17 @@ void synth_on_connected(void);
 // before this had an output-buffer parameter at all.
 void synth_decode_moog_name(const uint8_t * payload, uint32_t payloadLen, int32_t offset, uint32_t bitOffset, uint32_t len, uint32_t lineWidth, char * outName, size_t outNameSize);
 
+// Extracts just the Category value's display name from a captured Moog-style
+// dump (Panel Dump or Single Preset Dump — full message, F0/F7 framing
+// included). The Moog counterpart to synth_decode_korg_category() below —
+// see that function's own comment for how the lookup works generically
+// across device families (find_panel_dial_by_label(), panelConfig.h) even
+// though the Voyager's own category dial has a different id (soundCategory)
+// than the Z1's (category). A no-op (outCategory left untouched — caller
+// should default it to "" first) if the connected device has no dial
+// labelled "Category", or if data is too short.
+void synth_decode_moog_category(const uint8_t * data, uint32_t length, char * outCategory, size_t outCategorySize);
+
 // Korg-style equivalent of synth_decode_moog_name() above — decodes JUST
 // the program name from a raw CURRENT PROGRAM DATA DUMP (func 0x40) or
 // PROGRAM DATA DUMP (func 0x4C) reply, the WHOLE message including F0/F7
@@ -62,11 +73,13 @@ void synth_decode_korg_name(const uint8_t * data, uint32_t length, char * outNam
 
 // Same input (a captured Program Data Dump/Current Program Dump reply) as
 // synth_decode_korg_name() above, but extracts the Category value's display
-// name instead — fully generic, see this function's own comment
-// (synthComms.c) for how it finds "the category dial" without any
-// Z1-specific code. A no-op (outCategory left untouched — caller should
-// default it to "" first) if the connected device has no dial named
-// "category" in its own <device>.txt, or if data doesn't decode.
+// name instead — fully generic (find_panel_dial_by_label(), panelConfig.h),
+// see this function's own comment (synthComms.c) for how it finds "the
+// category dial" without any Z1-specific code, and
+// synth_decode_moog_category() above for the Voyager/Moog-style
+// counterpart. A no-op (outCategory left untouched — caller should default
+// it to "" first) if the connected device has no dial labelled "Category"
+// in its own <device>.txt, or if data doesn't decode.
 void synth_decode_korg_category(const uint8_t * data, uint32_t length, char * outCategory, size_t outCategorySize);
 
 // Dispatch an incoming synth SysEx message (full message including F0 header)
@@ -89,13 +102,14 @@ void synth_flush_pending_cc(void);
 // Call once per frame from the render loop, alongside synth_flush_pending_cc().
 void synth_flush_pending_dump_sends(void);
 
-// Sends a Korg-style Parameter Change that synth_set_panel_dial_value()
-// deferred because synth_backup_korg_request_in_flight() (synthBackup.h)
-// was true at the time (2026-07-14 mutual-exclusion fix — see
-// gPendingParamDial's own comment in synthComms.c) the moment that window
-// clears. A no-op if nothing is pending, or if a sweep request is STILL in
-// flight (keeps waiting). Call once per frame from the render loop,
-// alongside synth_flush_pending_cc().
+// Sends any CC or Korg-style Parameter Change that synth_set_panel_dial_value()
+// deferred because synth_backup_sweep_request_in_flight() (synthBackup.h)
+// was true at the time (2026-07-14 mutual-exclusion fix, generalized the
+// same day to cover Voyager's CC-mapped dials too — see gPendingCcDial/
+// gPendingCcPairDial/gPendingParamDial's own comment in synthComms.c) the
+// moment that window clears. A no-op if nothing is pending, or if a sweep
+// request is STILL in flight (keeps waiting). Call once per frame from the
+// render loop, alongside synth_flush_pending_cc().
 void synth_flush_pending_param_send(void);
 
 // Request the currently loaded program from the synth

@@ -124,28 +124,33 @@ void synth_backup_flush_bank_to_folder(void);
 // Added 2026-07-14.
 void synth_backup_flush_korg_name_sweep(void);
 
-// True only while a single Korg sweep request is awaiting its reply/timeout
-// (NOT during the slower paced gap between requests) — see this function's
-// own comment in synthBackup.c. synthComms.c's synth_set_panel_dial_value()
-// checks this to defer an outgoing Parameter Change rather than sending it
-// into the same narrow window a sweep reply is expected in (2026-07-14
-// owner report of spurious "(no response)" entries traced to exactly this
-// collision). Always false on a Moog-style device (no Korg sweep concept
-// there at all). Added 2026-07-14.
-bool synth_backup_korg_request_in_flight(void);
+// True only while a single name-sweep request (Korg OR Moog, whichever the
+// connected device uses) is awaiting its reply/timeout — NOT during the
+// slower paced gap between requests, and NOT during a Moog bank-to-folder
+// EXPORT (out of scope, see this function's own comment in synthBackup.c
+// for why). synthComms.c's synth_set_panel_dial_value() checks this to
+// defer an outgoing CC or Parameter Change rather than sending it into the
+// same narrow window a sweep reply is expected in (2026-07-14 owner report
+// of spurious "(no response)" entries traced to exactly this collision on
+// the Z1, then generalized to also cover Voyager: "these should be common
+// mechanisms with Voyager and any other device").
+bool synth_backup_sweep_request_in_flight(void);
 
-// Per-frame poll that silently STARTS a Korg name sweep (see above) once
-// the connected device has stayed eligible for a moment — pre-fetches
-// program names in the background so a later explicit "Load/Store Patch
-// from Bank…" click finds the picker already partly (or fully) populated
-// instead of all "---". NOT gated on user inactivity — an earlier version
-// was, but that meant a normal pause between dial tweaks fired the sweep
-// mid-session; see this function's own comment in synthBackup.c for why
-// that was dropped in favour of always-slow pacing instead. Korg-style
-// only, one-shot per connection (gKorgNameCacheValid latches true on
-// completion), a no-op whenever any other backup/sweep/restore operation
-// is already in flight. Call once per frame from the render loop, alongside
-// the other flush functions. Added 2026-07-14.
+// Per-frame poll that silently STARTS a name sweep (Korg or Moog, whichever
+// the connected device uses) once it's stayed eligible for a moment —
+// pre-fetches program names in the background so a later explicit "Load/
+// Store Patch from Bank…" click finds the picker already partly (or fully)
+// populated instead of all "---". NOT gated on user inactivity — an earlier
+// version was, but that meant a normal pause between dial tweaks fired the
+// sweep mid-session; see this function's own comment in synthBackup.c for
+// why that was dropped in favour of always-slow pacing instead. Common to
+// every device family (including Voyager, as of 2026-07-14 — see this
+// function's own comment in synthBackup.c for the known accepted risk that
+// choice carries), one-shot per connection (gNameCacheValid/
+// gKorgNameCacheValid latches true on completion), a no-op whenever any
+// other backup/sweep/restore operation is already in flight. Call once per
+// frame from the render loop, alongside the other flush functions. Added
+// 2026-07-14.
 void synth_backup_flush_background_prefetch(void);
 
 // Called from synthComms.c's dump handlers (handle_moog_panel_dump(),

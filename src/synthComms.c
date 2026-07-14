@@ -478,6 +478,54 @@ void synth_decode_moog_name(const uint8_t * payload, uint32_t payloadLen, int32_
     LOG_DEBUG("Decoded name: \"%s\"\n", outName);
 }
 
+// Extracts just the Category value's display name from a captured Moog-style
+// dump (Panel Dump OR Single Preset Dump — both share the same continuous
+// bit-packed payload shape, skip=1 byte for F0 either way, unlike Korg's
+// funcId-dependent header) — the Moog counterpart to synth_decode_korg_category()
+// (synthComms.h), and the other half of what makes the Load/Store Patch
+// from Bank picker's category column generic across both device families
+// (2026-07-14). Same find_panel_dial_by_label() lookup as the Korg version
+// (matches label="Category" regardless of the dial's own id — Voyager's is
+// `soundCategory`, not `category`) but reads it via read_bitpacked_field()
+// (dumpOffset/dumpBitOffset/dumpBitWidth[2]/dumpInvert), the same bit-packed
+// shape extract_moog_panel_info() above already uses for every other dial.
+// outCategory left untouched (caller should default it to "" first) if this
+// device has no such dial, or the decoded value is out of range of that
+// dial's own names= list.
+void synth_decode_moog_category(const uint8_t * data, uint32_t length, char * outCategory, size_t outCategorySize) {
+    if (outCategorySize == 0) {
+        return;
+    }
+    tPanelDial *    dial       = find_panel_dial_by_label(synth_panel_config(), "Category");
+
+    if (!dial || (dial->dumpBitWidth == 0)) {
+        return;
+    }
+
+    if (length < 2) {
+        return;
+    }
+    const uint8_t * payload    = data + 1;    // skip F0, matches every other Moog dump handler
+    uint32_t        payloadLen = length - 2;  // exclude leading skip + trailing F7
+    uint32_t        raw        = read_bitpacked_field(payload, payloadLen, dial->dumpOffset, dial->dumpBitOffset, dial->dumpBitWidth);
+    uint32_t        totalWidth = dial->dumpBitWidth;
+
+    if (dial->dumpBitWidth2 > 0) {
+        uint32_t chunk2 = read_bitpacked_field(payload, payloadLen, dial->dumpOffset2, dial->dumpBitOffset2, dial->dumpBitWidth2);
+        raw        |= chunk2 << dial->dumpBitWidth;
+        totalWidth += dial->dumpBitWidth2;
+    }
+
+    if (dial->dumpInvert) {
+        raw = (~raw) & ((totalWidth < 32) ? ((1u << totalWidth) - 1) : 0xFFFFFFFFu);
+    }
+
+    if (raw < dial->nameCount) {
+        strncpy(outCategory, dial->names[raw], outCategorySize - 1);
+        outCategory[outCategorySize - 1] = '\0';
+    }
+}
+
 // Same role as extract_prog_info() above, but for Moog's bit-packed dump
 // shape — every dial with dumpBitWidth > 0 gets its value from
 // read_bitpacked_field() instead of the single-byte dumpShift/dumpMask path.
@@ -717,19 +765,22 @@ void synth_decode_korg_name(const uint8_t * data, uint32_t length, char * outNam
 // Extracts just the Category value's display name from a captured Program
 // Data Dump reply — the picker counterpart to synth_decode_korg_name()
 // above, used so Load/Store Patch from Bank can show category alongside
-// each program's name (2026-07-14 user request). Fully generic, same
-// "nothing device-specific lives here" reasoning as extract_prog_info()'s
-// own comment above: looks up whichever dial the connected device's own
-// <device>.txt names "category" (find_panel_dial_anywhere(), panelConfig.h
-// — Z1's z1.txt has one, `dial category label="Category" ...`) and reads
-// ITS dumpOffset/dumpShift/dumpMask/names — a device with no such dial (or
-// a Moog-style one, which never reaches this function at all) just leaves
-// outCategory untouched. Caller should default it to "" first.
+// each program's name (2026-07-14 user request, later made a common
+// mechanism shared with Voyager — see synth_decode_moog_category() below).
+// Fully generic, same "nothing device-specific lives here" reasoning as
+// extract_prog_info()'s own comment above: looks up whichever dial the
+// connected device's own <device>.txt labels "Category"
+// (find_panel_dial_by_label(), panelConfig.h — matches BOTH the Z1's
+// `dial category label="Category" ...` and, via synth_decode_moog_category(),
+// the Voyager's differently-ID'd `dial soundCategory label="Category" ...`)
+// and reads ITS dumpOffset/dumpShift/dumpMask/names — a device with no such
+// dial (or a Moog-style one, which never reaches this function at all) just
+// leaves outCategory untouched. Caller should default it to "" first.
 void synth_decode_korg_category(const uint8_t * data, uint32_t length, char * outCategory, size_t outCategorySize) {
     if (outCategorySize == 0) {
         return;
     }
-    tPanelDial *   dial       = find_panel_dial_anywhere(synth_panel_config(), "category");
+    tPanelDial *   dial       = find_panel_dial_by_label(synth_panel_config(), "Category");
 
     if (!dial || (dial->dumpOffset < 0)) {
         return;
@@ -1515,29 +1566,57 @@ void synth_handle_message(const uint8_t * data, uint32_t length) {
     gReDraw = true;
 }
 
-// Holds at most ONE deferred outgoing Parameter Change — a single slot, not
-// per-dial, is enough because only one dial can ever be under an active
-// GUI drag at a time (mouseHandle.c's own gDraggedDial is a single
-// pointer). Set only when synth_backup_korg_request_in_flight() (synthBackup.h)
-// is true at send time — the mutual-exclusion fix for 2026-07-14's owner
-// report ("seeing some items saying 'No Response', likely due to me
-// tweaking a dial"): rather than sending a Parameter Change into the same
-// narrow window a Korg name-sweep reply is expected in, hold it here and
-// let synth_flush_pending_param_send() below send it the moment that
-// window clears. NULL means "nothing pending" — the overwhelmingly common
-// case (no sweep running, or its slow paced gap between requests, not the
-// brief in-flight window), where synth_set_panel_dial_value() below still
-// sends immediately with zero added latency, exactly as before this
-// existed.
+// Holds at most ONE deferred outgoing send PER WIRE SHAPE (single CC, 14-bit
+// CC pair, Korg Parameter Change) — a single slot each, not per-dial, is
+// enough because only one dial can ever be under an active GUI drag at a
+// time (mouseHandle.c's own gDraggedDial is a single pointer), and a given
+// dial only ever uses exactly one of the three shapes. Set only when
+// synth_backup_sweep_request_in_flight() (synthBackup.h) is true at send
+// time — the mutual-exclusion fix for 2026-07-14's owner report ("seeing
+// some items saying 'No Response', likely due to me tweaking a dial"),
+// generalized the same day to cover Voyager's CC-mapped dials too (owner:
+// "these should be common mechanisms with Voyager and any other device"):
+// rather than sending into the same narrow window a name-sweep reply is
+// expected in, hold it here and let synth_flush_pending_param_send() below
+// send it the moment that window clears. NULL means "nothing pending" —
+// the overwhelmingly common case (no sweep running, or its slow paced gap
+// between requests, not the brief in-flight window), where
+// synth_set_panel_dial_value() below still sends immediately with zero
+// added latency, exactly as before this existed. Only the actual outbound
+// MIDI bytes are deferred — synth_set_panel_dial_value() still updates
+// dial->value/ccMsbLatched/ccLsbLatched/the Moog dump cache immediately
+// either way, so the on-screen dial and internal state never lag; only the
+// wire message does.
+static tPanelDial * gPendingCcDial     = NULL;
+static uint8_t      gPendingCcValue    = 0;
+
+static tPanelDial * gPendingCcPairDial = NULL;
+static uint8_t      gPendingCcPairMsb  = 0;
+static uint8_t      gPendingCcPairLsb  = 0;
+
 static tPanelDial * gPendingParamDial  = NULL;
 static uint32_t     gPendingParamValue = 0;
 
 void synth_flush_pending_param_send(void) {
-    if (!gPendingParamDial || synth_backup_korg_request_in_flight()) {
+    if (synth_backup_sweep_request_in_flight()) {
         return;
     }
-    synth_send_parameter_change((uint8_t)gPendingParamDial->paramGroup, (uint16_t)gPendingParamDial->paramId, (uint8_t)gPendingParamValue);
-    gPendingParamDial = NULL;
+
+    if (gPendingCcDial) {
+        midi_send_cc(gDevice.id, (uint8_t)gPendingCcDial->ccNumber, gPendingCcValue);
+        gPendingCcDial = NULL;
+    }
+
+    if (gPendingCcPairDial) {
+        midi_send_cc(gDevice.id, (uint8_t)gPendingCcPairDial->ccNumber, gPendingCcPairMsb);
+        midi_send_cc(gDevice.id, (uint8_t)gPendingCcPairDial->ccLsbNumber, gPendingCcPairLsb);
+        gPendingCcPairDial = NULL;
+    }
+
+    if (gPendingParamDial) {
+        synth_send_parameter_change((uint8_t)gPendingParamDial->paramGroup, (uint16_t)gPendingParamDial->paramId, (uint8_t)gPendingParamValue);
+        gPendingParamDial = NULL;
+    }
 }
 
 void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
@@ -1599,14 +1678,24 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
     }
 
     if (dial->ccNumber != 0) {
+        bool sweepInFlight = synth_backup_sweep_request_in_flight();
+
         if (dial->ccLsbNumber != 0) {
             // 14-bit CC pair — see the ccLsbNumber comment in panelConfig.h.
             // Keep the latches in sync so a later single-half incoming update
             // recombines against the half we just sent, not a stale one.
             dial->ccMsbLatched = (uint8_t)((storageValue >> 7) & 0x7F);
             dial->ccLsbLatched = (uint8_t)(storageValue & 0x7F);
-            midi_send_cc(gDevice.id, (uint8_t)dial->ccNumber, dial->ccMsbLatched);
-            midi_send_cc(gDevice.id, (uint8_t)dial->ccLsbNumber, dial->ccLsbLatched);
+
+            if (sweepInFlight) {
+                // Defer — see gPendingCcPairDial's own comment above.
+                gPendingCcPairDial = dial;
+                gPendingCcPairMsb  = dial->ccMsbLatched;
+                gPendingCcPairLsb  = dial->ccLsbLatched;
+            } else {
+                midi_send_cc(gDevice.id, (uint8_t)dial->ccNumber, dial->ccMsbLatched);
+                midi_send_cc(gDevice.id, (uint8_t)dial->ccLsbNumber, dial->ccLsbLatched);
+            }
         } else {
             // nativeMax != 0: the hardware expects its own scaled raw byte
             // for this display position (e.g. Glide's Off/On sends 0/127,
@@ -1614,7 +1703,14 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
             // this. Without nativeMax, storageValue already IS that byte
             // (plain continuous CC dial).
             uint8_t wireValue = (dial->nativeMax != 0) ? dial->nativeValue : (uint8_t)storageValue;
-            midi_send_cc(gDevice.id, (uint8_t)dial->ccNumber, wireValue);
+
+            if (sweepInFlight) {
+                // Defer — see gPendingCcDial's own comment above.
+                gPendingCcDial  = dial;
+                gPendingCcValue = wireValue;
+            } else {
+                midi_send_cc(gDevice.id, (uint8_t)dial->ccNumber, wireValue);
+            }
         }
 
         // Mirror this change into the cached Panel Dump too (added
@@ -1650,7 +1746,7 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
         dial->hasPendingDumpSend  = true;
         dial->pendingDumpRawValue = rawValue;
         dial->pendingDumpSinceMs  = monotonic_ms();
-    } else if (synth_backup_korg_request_in_flight()) {
+    } else if (synth_backup_sweep_request_in_flight()) {
         // Defer — see gPendingParamDial's own comment above.
         gPendingParamDial  = dial;
         gPendingParamValue = storageValue;

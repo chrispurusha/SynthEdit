@@ -616,6 +616,20 @@ tPanelDial * find_panel_dial_by_cc(tPanelConfig * config, uint8_t cc) {
     return NULL;
 }
 
+tPanelDial * find_panel_dial_by_label(tPanelConfig * config, const char * label) {
+    for (uint32_t s = 0; s < config->sectionCount; s++) {
+        tPanelSection * section = &config->sections[s];
+
+        for (uint32_t i = 0; i < section->dialCount; i++) {
+            if (strcasecmp(section->dials[i].label, label) == 0) {
+                return &section->dials[i];
+            }
+        }
+    }
+
+    return NULL;
+}
+
 int32_t hit_test_panel_section(tPanelSection * section, tCoord point) {
     for (uint32_t i = 0; i < section->dialCount; i++) {
         if (within_rectangle(point, section->dials[i].rect)) {

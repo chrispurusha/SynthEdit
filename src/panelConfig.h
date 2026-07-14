@@ -677,6 +677,19 @@ tPanelDial * find_panel_dial_by_param(tPanelSection * section, uint32_t group, u
 // no section/group context to narrow the search.
 tPanelDial * find_panel_dial_by_cc(tPanelConfig * config, uint8_t cc);
 
+// Looks up a dial by its display LABEL (case-insensitive), across every
+// section — for generic code that needs to find a dial by what it MEANS
+// rather than by its short internal id, because different device families'
+// own layout files give the same concept different ids: the Z1's Category
+// dial is `id=category`, the Voyager's is `id=soundCategory`, but both set
+// `label="Category"`. Added 2026-07-14 for synth_decode_korg_category()/
+// synth_decode_moog_category() (synthComms.h) so the Load/Store Patch from
+// Bank picker's category column works generically across device families
+// with zero per-device C code, matching this whole file's own "nothing
+// device-specific lives here" philosophy. Returns NULL if no dial's label
+// matches (a device with no category concept at all, say).
+tPanelDial * find_panel_dial_by_label(tPanelConfig * config, const char * label);
+
 #define PANEL_MAX_CANDIDATES    16
 
 // One <device>.txt found by scan_panel_configs() — just enough to present a

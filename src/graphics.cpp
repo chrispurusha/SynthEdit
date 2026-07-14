@@ -601,10 +601,11 @@ void do_graphics_loop(void) {
         // Bank name sweep — see synth_backup_flush_korg_name_sweep()'s own
         // comment (synthBackup.h).
         synth_backup_flush_korg_name_sweep();
-        // Silently starts a Korg-style (Z1) name sweep shortly after
-        // connecting, so it's already partly (or fully) cached by the time
-        // the user clicks Load/Store Patch from Bank — see
-        // synth_backup_flush_background_prefetch()'s own comment (synthBackup.h).
+        // Silently starts a name sweep (Korg or Moog, whichever the
+        // connected device uses) shortly after connecting, so it's already
+        // partly (or fully) cached by the time the user clicks Load/Store
+        // Patch from Bank — see synth_backup_flush_background_prefetch()'s
+        // own comment (synthBackup.h).
         synth_backup_flush_background_prefetch();
         // Advances an in-progress Restore > Bank (Individual Files)… sweep
         // (paced sends, no reply to wait for) — see
