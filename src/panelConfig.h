@@ -545,6 +545,24 @@ typedef struct {
     bool    moogStyleDump;
     uint8_t productId;
 
+    // Every Korg-style device (moogStyleDump == false) used to be assumed
+    // to speak the SAME Z1-shaped protocol this codebase originally built
+    // for: Program Data Dump Request/Reply (func 0x1C/0x4C), swept across
+    // 128 slots for the Load/Store Patch to Bank picker and Backup/Restore
+    // Bank (Individual Files) — see synthBackup.c's own Korg name-sweep
+    // section header comment. True for Z1; NOT true for every "Korg-style"
+    // device in general — found 2026-07-14 connecting a real Kronos (an
+    // entirely different, much richer object-based SysEx protocol, see
+    // KRONOS_MIDI_SysEx.txt) under kronos.txt: the app immediately started
+    // sweeping it with Z1's own Program Data Dump Request, forever, with
+    // zero replies, since Kronos doesn't speak that specific protocol at
+    // all. Defaults to true (set in load_panel_config(), same pattern as
+    // supportsIdentity) so Z1 and any future plain-Korg-shaped device are
+    // unaffected; kronos.txt sets "supportsKorgProgramDump no" to opt out
+    // of the whole Z1-shaped sweep/backup/restore/Load-Store mechanism
+    // until (if ever) Kronos gets its own, correctly-shaped equivalent.
+    bool    supportsKorgProgramDump;
+
     // Where a name field lives in each of the two Moog-style dump replies
     // (moogStyleDump devices only — see extract_moog_name() in
     // synthComms.c). Same continuous 7-bit-per-byte bitstream

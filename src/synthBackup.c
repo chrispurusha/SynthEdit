@@ -2622,6 +2622,16 @@ void synth_backup_flush_background_prefetch(void) {
     }
     bool moog    = synth_panel_config()->moogStyleDump;
 
+    // A Korg-style device that doesn't speak Z1's specific Program Data
+    // Dump Request protocol (supportsKorgProgramDump == false — Kronos,
+    // whose own SysEx protocol is entirely different, see
+    // KRONOS_MIDI_Implementation's own field comment in panelConfig.h) has
+    // nothing this whole sweep mechanism could ever fetch — every request
+    // it would send times out forever. Skip entirely rather than spin.
+    if (!moog && !synth_panel_config()->supportsKorgProgramDump) {
+        return;
+    }
+
     if (moog ? gNameCacheValid : gKorgNameCacheValid) {
         return;
     }

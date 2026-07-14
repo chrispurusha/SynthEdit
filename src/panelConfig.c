@@ -399,6 +399,8 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
         }
     } else if (strcmp(keyword, "dumpFormat") == 0) {
         config->moogStyleDump = (strcmp(tokens[1], "moog") == 0);
+    } else if (strcmp(keyword, "supportsKorgProgramDump") == 0) {
+        config->supportsKorgProgramDump = (strcmp(tokens[1], "no") != 0);
     } else if (strcmp(keyword, "productId") == 0) {
         config->productId = (uint8_t)strtoul(tokens[1], NULL, 0);
     } else if (strcmp(keyword, "list") == 0) {
@@ -492,10 +494,11 @@ bool load_panel_config(const char * path, tPanelConfig * config) {
         return false;
     }
     memset(config, 0, sizeof(*config));
-    config->supportsIdentity = true;  // overridden by an explicit "identityQuery no" line
-    config->panelNameOffset  = -1;    // overridden by an explicit "panelNameOffset" line
-    config->presetNameOffset = -1;    // overridden by an explicit "presetNameOffset" line
-    config->presetBankCount  = 1;     // overridden by an explicit "presetBankCount" line — see its own field comment in panelConfig.h
+    config->supportsIdentity        = true;  // overridden by an explicit "identityQuery no" line
+    config->supportsKorgProgramDump = true;  // overridden by an explicit "supportsKorgProgramDump no" line — see its own field comment in panelConfig.h
+    config->panelNameOffset         = -1;    // overridden by an explicit "panelNameOffset" line
+    config->presetNameOffset        = -1;    // overridden by an explicit "presetNameOffset" line
+    config->presetBankCount         = 1;     // overridden by an explicit "presetBankCount" line — see its own field comment in panelConfig.h
 
     tPanelSection * currentSection = NULL;
     double          pendingGap     = 0.0;

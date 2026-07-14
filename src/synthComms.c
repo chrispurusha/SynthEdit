@@ -1303,7 +1303,20 @@ void synth_on_connected(void) {
     // once real data lands (extract_moog_panel_info()/handle_moog_message()),
     // so deferring to that is enough — nothing was actually relying on this
     // reset being visible.
-    synth_request_current_program();
+    //
+    // synth_request_state_dump(), not synth_request_current_program()
+    // directly (was, until 2026-07-14) — this used to unconditionally send
+    // Z1's own func 0x10 CURR_PROG_DUMP_REQ to EVERY connected device
+    // regardless of type, including ones that don't speak it at all
+    // (Kronos — see supportsKorgProgramDump's own comment, panelConfig.h —
+    // and, harmlessly since it's simply ignored, Moog devices too, ahead of
+    // connect_without_identity()'s own separate correct stateRequestSysEx
+    // send right after). synth_request_state_dump() already has the
+    // correct per-device-family branch (Moog blob w/ device-ID patch, this
+    // Kronos-style dedicated sender, or Z1's own func 0x10 fallback) — this
+    // is the ONE place that needs to pick the right one, everything else
+    // (the "Sync from synth" button) already went through it.
+    synth_request_state_dump();
 }
 
 void synth_request_current_program(void) {
@@ -1317,8 +1330,48 @@ void synth_request_current_program(void) {
     LOG_DEBUG("Sent CURR_PROG_DUMP_REQ\n");
 }
 
+// Kronos-style only (supportsKorgProgramDump == false — see its own field
+// comment, panelConfig.h): sends a "Current Object Dump Request" (func
+// 0x74), requesting the contents of the specified object type's EDIT
+// BUFFER — for obj=0x00 (Program), whatever's currently loaded/playing.
+// Per KRONOS_MIDI_SysEx.txt: "F0 42 3g 68 74 <obj> F7". The reply (func
+// 0x75, Current Object Dump) is handled by handle_kronos_message() below.
+// Uses build_header() (dynamic channel byte, via gDevice.id) rather than a
+// static stateRequestSysEx blob — Kronos's own protocol has no per-message
+// device-ID substitution the way Moog's does, but DOES encode MIDI channel
+// into every header the same way Z1's own synth_request_current_program()
+// above does, which a static blob (sent verbatim, no substitution) can't
+// track if the channel is ever anything other than whatever the file was
+// written for. UNCONFIRMED whether obj values other than 0x00 are
+// meaningful here without first doing a "Set Current Object" (func 0x71)
+// for object types that need one (drum kit/wave seq) — only Program is
+// used by this app so far.
+static void synth_request_kronos_current_object_dump(uint8_t obj) {
+    uint8_t  msg[8];
+    uint32_t pos = build_header(msg, 0x74);
+
+    msg[pos++] = obj;
+    msg[pos++] = MIDI_SYSEX_END;
+    midi_send(msg, pos);
+    LOG_DEBUG("Sent Kronos Current Object Dump Request (obj=0x%02X)\n", (unsigned)obj);
+}
+
 void synth_request_state_dump(void) {
     tPanelConfig * cfg = synth_panel_config();
+
+    if (!cfg->moogStyleDump && !cfg->supportsKorgProgramDump) {
+        // Kronos-style (or any future device sharing this same header
+        // shape but not Z1's specific function-code set): entirely
+        // different protocol from both the Moog stateRequestSysEx blob
+        // below and Z1's own func 0x10 fallback — see
+        // synth_request_kronos_current_object_dump()'s own comment for why
+        // this needs its own dedicated, channel-aware sender instead of
+        // either. Checked before stateRequestSysExLen below so this
+        // intercepts regardless of whether a device happens to declare one
+        // (kronos.txt deliberately doesn't).
+        synth_request_kronos_current_object_dump(0x00); // Program
+        return;
+    }
 
     if (cfg->stateRequestSysExLen > 0) {
         if (cfg->moogStyleDump && (cfg->stateRequestSysExLen > 3)) {
@@ -1509,6 +1562,11 @@ void synth_request_korg_program_dump(uint8_t bank, uint32_t progNumber) {
         return;
     }
 
+    if (!synth_panel_config()->supportsKorgProgramDump) {
+        LOG_ERROR("Request Program Dump: connected device doesn't speak this specific (Z1-shaped) dump protocol\n");
+        return;
+    }
+
     if ((progNumber < 1) || (progNumber > 128)) {
         LOG_ERROR("Request Program Dump: program number %u out of range (1-128)\n", (unsigned)progNumber);
         return;
@@ -1535,6 +1593,11 @@ void synth_send_korg_program_write_request(uint8_t bank, uint32_t progNumber) {
 
     if (synth_panel_config()->moogStyleDump) {
         LOG_ERROR("Program Write Request: connected device isn't Korg-style\n");
+        return;
+    }
+
+    if (!synth_panel_config()->supportsKorgProgramDump) {
+        LOG_ERROR("Program Write Request: connected device doesn't speak this specific (Z1-shaped) dump protocol\n");
         return;
     }
 
@@ -1711,6 +1774,77 @@ void synth_flush_pending_dump_sends(void) {
     }
 }
 
+// Kronos-style dispatch (supportsKorgProgramDump == false — see its own
+// field comment, panelConfig.h) — entirely separate function-code space
+// from Z1's own SYNTH_FUNC_* switch below: Kronos's func codes NUMERICALLY
+// COLLIDE with some of Z1's (e.g. Kronos's 0x24 "Reply" acknowledgement vs
+// Z1's SYNTH_FUNC_DATA_LOAD_ERROR, both 0x24), so this must never share
+// that switch — a real Kronos "Reply" (success or failure of some earlier
+// request) would otherwise get misread as "Data load error" every time.
+//
+// Currently only decodes func 0x75 (Current Object Dump) for obj=0x00
+// (Program), and only as far as the Name field (offset 0-23, common to
+// every Program regardless of engine per Prog_EXi_Common.txt/Prog_HD-1.txt)
+// — enough to prove the request/reply/7-to-8-decode round trip against
+// real hardware (confirmed 2026-07-14: readable names decoded from a live
+// Kronos via the standalone tools/kronos_dump tool before this landed in
+// the app) and show the real current patch name in the existing UI via
+// gDevice.progName, same slot Z1/Moog already populate. Filter/parameter
+// decoding is a deliberately separate, later step — it needs the
+// per-Algorithm-Type (EXi engine — offset 2857, "EXi1 Common Algorithm
+// Type") parameter layout confirmed first, since each of the 8 EXi engines
+// (AL-1/CX-3/EP-1/MOD-7/MS-20EX/PolysixEX/SGX-1/STR-1) has its own
+// completely different one — see kronos.txt's own header comment.
+static void handle_kronos_message(const uint8_t * data, uint32_t length, uint8_t funcId) {
+    if (funcId != 0x75) {
+        LOG_DEBUG("Kronos SysEx unhandled func 0x%02X (len=%u)\n", (unsigned)funcId, (unsigned)length);
+        return;
+    }
+    // F0 <mfrId> 3g <familyId> 75 <obj> <version> <data, 7-bit-packed> F7
+    // — headerLen counts bytes through and including the func byte itself
+    // (same offset synth_handle_message() below already computed funcId
+    // from: data[3 + manufacturerIdLen] is the func byte, so headerLen —
+    // "how many bytes before obj" — is one past that).
+    uint32_t headerLen = 4 + synth_panel_config()->manufacturerIdLen;
+
+    if (length < headerLen + 2 + 1) { // +2 (obj, version) +1 (trailing F7)
+        LOG_DEBUG("Kronos Current Object Dump too short (len=%u)\n", (unsigned)length);
+        return;
+    }
+    uint8_t         obj     = data[headerLen];
+    uint8_t         version = data[headerLen + 1];
+
+    if (obj != 0x00) {
+        LOG_DEBUG("Kronos Current Object Dump: obj=0x%02X (not Program), ignoring for now\n", (unsigned)obj);
+        return;
+    }
+    const uint8_t * payload    = data + headerLen + 2;
+    uint32_t        payloadLen = length - (headerLen + 2) - 1; // exclude trailing F7
+    static uint8_t  decoded[8192];
+    uint32_t        decodedLen = decode_7to8(payload, payloadLen, decoded, sizeof(decoded));
+
+    if (decodedLen < 24) {
+        LOG_DEBUG("Kronos Program dump too short after decode (decodedLen=%u)\n", (unsigned)decodedLen);
+        return;
+    }
+    char     name[25];
+    uint32_t i;
+
+    for (i = 0; i < 24; i++) {
+        char c = (char)decoded[i];
+        name[i] = ((c >= 0x20) && (c <= 0x7E)) ? c : ' ';
+    }
+    name[24] = '\0';
+
+    while ((i > 0) && (name[i - 1] == ' ')) {
+        name[--i] = '\0';
+    }
+    strncpy(gDevice.progName, name, sizeof(gDevice.progName) - 1);
+    gDevice.progName[sizeof(gDevice.progName) - 1] = '\0';
+    LOG_DEBUG("Kronos Program dump decoded: name=\"%s\" version=%u decodedLen=%u\n",
+              gDevice.progName, (unsigned)version, (unsigned)decodedLen);
+}
+
 void synth_handle_message(const uint8_t * data, uint32_t length) {
     if (synth_panel_config()->moogStyleDump) {
         // Entirely separate header shape and dispatch from the Korg-style
@@ -1745,6 +1879,12 @@ void synth_handle_message(const uint8_t * data, uint32_t length) {
         return;
     }
     uint8_t funcId = data[3 + synth_panel_config()->manufacturerIdLen];
+
+    if (!synth_panel_config()->supportsKorgProgramDump) {
+        handle_kronos_message(data, length, funcId);
+        gReDraw = true;
+        return;
+    }
     LOG_DEBUG("Synth SysEx func=0x%02X len=%u\n", (unsigned)funcId, (unsigned)length);
 
     switch (funcId) {

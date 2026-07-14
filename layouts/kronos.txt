@@ -1,0 +1,77 @@
+# kronos.txt — Korg Kronos device descriptor. First pass only: identity +
+# a Filters page covering the 4 dedicated front-panel "Realtime Knobs"
+# (Filter Cutoff, Filter Resonance, Filter EG Intensity, EG Release Time)
+# — owner's own explicit scope ("doesn't have to be everything... perhaps
+# just filters", 2026-07-14). The Kronos's own architecture (Combi/Program/
+# Sequencer modes, multiple Timbres/Tracks per Combi, banked Programs/
+# Combinations/Set Lists, EXi/HD-1/AL-1/CX-3/... synthesis engines) is
+# vastly larger than Z1's — this file deliberately does NOT attempt a
+# Program Dump/Parameter Change protocol the way z1.txt does. Everything
+# below is plain real-time CC, wired the same way Voyager's own Filter
+# Cutoff/Resonance dials are (cc=<n>), just with no dumpOffset counterpart
+# at all — no dump/state-request protocol implemented for this device yet,
+# so a dial shows 0 until either touched on the real front panel or its CC
+# arrives some other way (identityQuery below still gets a connection, just
+# not a synced starting value).
+#
+# CC source: TWO independent official Korg documents, cross-confirmed —
+# KRONOS/KRONOS X MIDI IMPLEMENTATION (26 March 2012), "1-1 CHANNEL
+# MESSAGES" table (Sound Controller 1-10 assignments), AND the Kronos
+# Owner's Manual's own "Real-Time Knob functions" table (p.43): "Knob 1,
+# MIDI CC 74, Filter Cutoff Frequency" / "Knob 2, CC 71, Filter Resonance"
+# / "Knob 3, CC 79, Filter EG Intensity" / "Knob 4, CC 72, EG Release Time"
+# — literally the front panel's own labeled "Filter" knob row, not an
+# inferred mapping.
+#
+# NOT yet independently confirmed against real Kronos hardware traffic —
+# worth flagging given this exact codebase's own history: Voyager's
+# analogous "Sound Controller cc=74/71" guess for Filter Cutoff/Resonance
+# (the SAME generic MIDI convention these Kronos CCs also happen to match)
+# turned out to be completely wrong on real Voyager hardware — wrong CC
+# numbers AND wrong shape (plain CC vs a 14-bit MSB/LSB pair) — see
+# voyager.txt's own cutoff/res comment for the full story. The Kronos case
+# starts from stronger evidence than that did (a device-specific,
+# cross-confirmed manufacturer table, not a guess applied to an unrelated
+# device), but treat these four CCs as documented-not-hardware-confirmed
+# until actually tested against a real unit — turn each knob from 0 and
+# watch the debug log, same verification Voyager's own dials eventually got.
+#
+# Identity: standard Universal Identity Reply, confirmed ANSWERED (unlike
+# Voyager/Minitaur, which never reply at all) — see "2-4-1 ... DEVICE
+# INQUlRY (When received this message, transmit...)" in the MIDI
+# Implementation doc's own SYSTEM EXCLUSIVE section. memberId depends on
+# keybed size: 61-key=0x05, 73-key=0x0E, 88-key=0x17 (per the doc's own
+# DEVICE INQUIRY REPLY byte table) — 0x05 below is the 61-key, per the
+# owner's own hardware.
+device          Korg Kronos
+description     First pass: Filters page + live "Sync from synth" (Program name via Current Object Dump) — CC-confirmed from official docs, dump protocol hardware-confirmed 2026-07-14
+manufacturerId  0x42
+familyId        0x68
+memberId        0x05
+scrollDial      filterCutoff
+
+# Kronos does NOT speak Z1's own Program Data Dump Request/Program Write
+# Request protocol (func 0x1C/0x11) — it has its own, completely different
+# object-based SysEx protocol (Object Dump / Current Object Dump / Set
+# Current Object / Parameter Change, obj+bank+TYP/SOC/SUB/PID/IDX addressing
+# — see KRONOS_MIDI_SysEx.txt, Korg's official "SysEx Documentation 2.1",
+# a SEPARATE download from the compact MIDI Implementation chart). Without
+# this, the app's generic Korg-style background prefetch/Load-Store-picker/
+# Backup-Restore-Bank-(Individual-Files) machinery — all built around Z1's
+# specific protocol — would fire at connect and retry forever with zero
+# replies, exactly as found 2026-07-14 connecting a real Kronos for the
+# first time. See supportsKorgProgramDump's own comment, panelConfig.h.
+supportsKorgProgramDump no
+
+# ── Filter section (Filters page) ────────────────────────────────────────────
+page       filters
+section    filter
+dialSize   50
+spacing    60
+
+color filter 0.3 0.6 0.85
+
+dial filterCutoff      label="Cutoff"    color=filter max=128 cc=74
+dial filterResonance   label="Resonance" color=filter max=128 cc=71
+dial filterEgIntensity label="EG Amount" color=filter max=128 cc=79
+dial egRelease         label="EG Release" color=filter max=128 cc=72
