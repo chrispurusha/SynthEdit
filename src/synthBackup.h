@@ -47,9 +47,17 @@ extern "C" {
 // requested, rather than just "is *a* backup pending at all".
 typedef enum {
     eBackupExpectNone = 0,
-    eBackupExpectLive,   // live edit buffer — Voyager Panel Dump or Korg Current Program Dump
-    eBackupExpectPreset, // a specific stored preset, by number — Voyager Single Preset Dump only
-    eBackupExpectBank,   // every stored preset in one message — Voyager All Presets Dump only
+    eBackupExpectLive,        // live edit buffer — Voyager Panel Dump or Korg Current Program Dump
+    eBackupExpectPreset,      // a specific stored preset, by number — Voyager Single Preset Dump only
+    eBackupExpectBank,        // every stored preset in one message — Voyager All Presets Dump only
+    // A specific stored Program, by bank+number — Korg-style PROGRAM DATA
+    // DUMP (func 0x4C) reply to a PROGRAM DATA DUMP REQUEST (func 0x1C).
+    // Added 2026-07-14 for the Z1 (2 banks x 128 programs) — see
+    // synth_backup_start_name_sweep()'s own comment for how this feeds the
+    // Load/Store picker. Distinct from eBackupExpectPreset (Moog-only,
+    // single implicit bank) since the two protocols' wire shapes and
+    // decode paths are entirely different.
+    eBackupExpectKorgProgram,
 } tBackupExpect;
 
 // Triggered by the "Backup > Current Patch..." menu action (misc.mm). Arms
@@ -104,6 +112,15 @@ void synth_backup_bank_to_folder(void);
 // pending send. A no-op if no sweep is in progress. Call once per frame
 // from the render loop.
 void synth_backup_flush_bank_to_folder(void);
+
+// Per-frame poll for an in-progress Korg-style name sweep (Z1: 2 banks x
+// 128 programs) — the Korg counterpart to synth_backup_flush_bank_to_folder()
+// above, kept fully separate (see that sweep's own header comment in
+// synthBackup.c for why). Advances once a reply lands or
+// BACKUP_BATCH_TIMEOUT_MS passes with none. A no-op unless a Korg name
+// sweep is actually active. Call once per frame from the render loop,
+// alongside synth_backup_flush_bank_to_folder(). Added 2026-07-14.
+void synth_backup_flush_korg_name_sweep(void);
 
 // Called from synthComms.c's dump handlers (handle_moog_panel_dump(),
 // handle_curr_prog_dump(), handle_moog_single_preset_dump(),
@@ -239,29 +256,32 @@ void synth_backup_start_name_sweep(tNameSweepPurpose purpose);
 // sweep has ever run this session.
 void synth_backup_note_preset_name(uint32_t presetNumber, const char * name);
 
-// Triggered by "File > Load Patch from Bank…" — loads a specific STORED
-// preset directly into the live edit buffer, the same effect as physically
-// selecting that preset number on the front panel. Just a Program Change
-// (synthComms.c) — the Voyager's OWN mechanism for "make preset N the
-// current one" — followed by the same debounced state-dump refresh Prev/Next
-// preset navigation already uses (synth_navigate_preset()). No confirmation
-// prompt, matching Prev/Next's own existing behaviour on this exact same
-// underlying action (nothing overwritten, only the live/unsaved edit buffer
-// replaced — same as Sync). presetNumber is 1-based (1-128).
-void synth_load_patch_from_bank(uint32_t presetNumber);
+// "File > Load Patch from Bank…" is now declared in synthComms.h (see
+// synth_load_patch_from_bank() there) — was duplicated here until
+// 2026-07-14, when the Korg-style bank parameter was added; kept the
+// synthComms.h copy since that's where the implementation actually lives
+// (synthComms.c), not here.
 
 // Triggered by "File > Store Patch to Bank…" — commits the CURRENT live
 // panel to a chosen stored preset location, OVERWRITING whatever is there.
-// Shows a confirmation before doing anything. Mechanism: request a FRESH
-// Panel Dump (not a possibly-stale cache) so the exact current edit-buffer
-// state is what gets stored, convert it to Single Preset Dump shape
-// addressed to presetNumber (the inverse of Restore's own preset-dump ->
-// panel-dump conversion, synthBackup.c), and send — the same
-// "SEND PRESET(S)" mechanism Restore > Patch by Number already proved works
-// on real hardware, just sourced from a live fetch instead of a file.
-// presetNumber is 1-based (1-128). A no-op if no device is connected, the
-// number is out of range, or the user cancels the confirmation.
-void synth_store_patch_to_bank(uint32_t presetNumber);
+// Shows a confirmation before doing anything. Mechanism is entirely
+// protocol-dependent (branches on cfg->moogStyleDump):
+//   - Moog-style (Voyager): request a FRESH Panel Dump (not a possibly-
+//     stale cache) so the exact current edit-buffer state is what gets
+//     stored, convert it to Single Preset Dump shape addressed to
+//     presetNumber (the inverse of Restore's own preset-dump -> panel-dump
+//     conversion, synthBackup.c), and send — the same "SEND PRESET(S)"
+//     mechanism Restore > Patch by Number already proved works on real
+//     hardware, just sourced from a live fetch instead of a file.
+//   - Korg-style (Z1): a single PROGRAM WRITE REQUEST (func 0x11,
+//     synth_send_korg_program_write_request(), synthComms.c) — no local
+//     fetch/convert step at all; the device commits whatever's currently
+//     in its OWN live edit buffer. Added 2026-07-14.
+// presetNumber is 1-based (1-128). bank is Korg-style only (0=A, 1=B) —
+// ignored for Moog-style, where presetNumber alone already fully addresses
+// a location. A no-op if no device is connected, the number is out of
+// range, or the user cancels the confirmation.
+void synth_store_patch_to_bank(uint8_t bank, uint32_t presetNumber);
 
 // Per-frame poll for an in-progress synth_store_patch_to_bank() fetch — the
 // fresh Panel Dump reply lands on the CoreMIDI thread

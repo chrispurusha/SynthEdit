@@ -500,6 +500,28 @@ static void backdoor_dispatch(const char * cmd, const char * arg, GLFWwindow * w
         backdoor_write_result(dump);
     } else if (strcmp(cmd, "SCREENSHOT") == 0) {
         backdoor_screenshot(win, arg);
+    } else if (strcmp(cmd, "KORGSELECT") == 0) {
+        // Testing-only command, added 2026-07-14 to verify the new Z1
+        // Load-Patch-from-Bank wire mechanism (Bank Select + Program
+        // Change) directly, bypassing the "Load Patch from Bank…" menu's
+        // own name-sweep + native modal picker — that picker would hang
+        // this backdoor's own poll loop (a blocking NSAlert has no
+        // headless way to click through it). SAFE to test unattended:
+        // selecting a program only changes what's LIVE/playing, same as
+        // choosing a preset on the front panel — nothing stored is
+        // overwritten (contrast KORGWRITE, deliberately NOT exposed here
+        // the same way, since a Program Write Request DOES overwrite a
+        // real stored slot and needs the owner's own explicit go-ahead
+        // each time, not a scriptable backdoor command).
+        uint32_t bank = 0;
+        uint32_t prog = 0;
+
+        if (sscanf(arg, "%u %u", &bank, &prog) != 2) {
+            backdoor_write_result("ERROR: expected 'KORGSELECT <bank 0|1> <prog 1-128>'\n");
+            return;
+        }
+        synth_korg_select_program((uint8_t)bank, prog);
+        backdoor_write_result("OK\n");
     } else {
         char msg[128];
 
@@ -571,6 +593,10 @@ void do_graphics_loop(void) {
         // (next preset request, or a per-preset timeout) — see
         // synth_backup_flush_bank_to_folder()'s own comment (synthBackup.h).
         synth_backup_flush_bank_to_folder();
+        // Advances an in-progress Korg-style (Z1) Load/Store Patch from/to
+        // Bank name sweep — see synth_backup_flush_korg_name_sweep()'s own
+        // comment (synthBackup.h).
+        synth_backup_flush_korg_name_sweep();
         // Advances an in-progress Restore > Bank (Individual Files)… sweep
         // (paced sends, no reply to wait for) — see
         // synth_backup_flush_restore_folder()'s own comment (synthBackup.h).

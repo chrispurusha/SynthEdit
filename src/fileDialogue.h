@@ -55,10 +55,24 @@ void open_folder_choose_dialogue_async(tFileDialogueCallback callback, const cha
 // explicitly, but a single-file Backup save (Current Panel/Patch by
 // Number/Bank) previously had no memory of it at all, so the two scattered
 // across different locations with no obvious connection between them.
+//
+// deviceKey scopes the remembered folder PER CONNECTED DEVICE — added
+// 2026-07-14 once "Device" menu switching (synth_switch_device_config(),
+// synthGraphics.h) made it realistic to back up Z1 and Voyager patches in
+// the same session; a single shared folder meant switching devices could
+// silently point a backup at the WRONG synth's own folder. Callers pass
+// synth_current_device_config() (synthGraphics.h — already included by
+// every synthBackup.c call site) as deviceKey, e.g. "z1.txt"/"voyager.txt"
+// — stable and unique per device file, unlike the human-readable device
+// NAME (which nothing here actually needs to be unique). NULL/empty
+// deviceKey falls back to one unscoped shared key (keeps this usable by
+// any FUTURE caller that doesn't have a device context yet, and is a safe
+// no-op for pre-2026-07-14 saved prefs — they simply become that fallback
+// key's own value on first read, not silently lost).
 // get_last_backup_folder() returns NULL if none has been set yet (first
-// run, or the saved path no longer exists).
-const char * get_last_backup_folder(void);
-void set_last_backup_folder(const char * path);
+// run for that device, or the saved path no longer exists).
+const char * get_last_backup_folder(const char * deviceKey);
+void set_last_backup_folder(const char * deviceKey, const char * path);
 
 // Synchronous (unlike the two above) — blocks until the user responds, using
 // [NSAlert runModal] directly rather than the async dispatch pattern the

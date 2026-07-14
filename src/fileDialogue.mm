@@ -117,18 +117,29 @@ void open_folder_choose_dialogue_async(tFileDialogueCallback callback, const cha
     });
 }
 
-// NSUserDefaults key for get_last_backup_folder()/set_last_backup_folder()
+// NSUserDefaults key BASE for get_last_backup_folder()/set_last_backup_folder()
 // (fileDialogue.h) — plain string, not a security-scoped bookmark like
 // misc.mm's layouts-folder chooser: a backup destination doesn't need
 // access rights restored across launches the way a folder this app reads
 // FROM every startup does — [NSSavePanel setDirectoryURL:] works fine with
 // just a path even after a relaunch (it's the user picking where to write
 // next, not this app reopening something on its own).
-static NSString *const kLastBackupFolderKey = @"lastBackupFolder";
+static NSString *const kLastBackupFolderKeyBase = @"lastBackupFolder";
 
-const char * get_last_backup_folder(void) {
+// Builds the actual per-device NSUserDefaults key — see deviceKey's own
+// comment in fileDialogue.h. NULL/empty deviceKey collapses to the bare
+// base key (pre-2026-07-14 behaviour, and the fallback for any caller with
+// no device context).
+static NSString * backup_folder_key(const char * deviceKey) {
+    if (!deviceKey || (deviceKey[0] == '\0')) {
+        return kLastBackupFolderKeyBase;
+    }
+    return [kLastBackupFolderKeyBase stringByAppendingFormat:@".%s", deviceKey];
+}
+
+const char * get_last_backup_folder(const char * deviceKey) {
     static char buf[1024];
-    NSString *  saved = [[NSUserDefaults standardUserDefaults] stringForKey:kLastBackupFolderKey];
+    NSString *  saved = [[NSUserDefaults standardUserDefaults] stringForKey:backup_folder_key(deviceKey)];
 
     if (!saved) {
         return NULL;
@@ -143,11 +154,11 @@ const char * get_last_backup_folder(void) {
     return buf;
 }
 
-void set_last_backup_folder(const char * path) {
+void set_last_backup_folder(const char * deviceKey, const char * path) {
     if (!path || (path[0] == '\0')) {
         return;
     }
-    [[NSUserDefaults standardUserDefaults] setObject:[NSString stringWithUTF8String:path] forKey:kLastBackupFolderKey];
+    [[NSUserDefaults standardUserDefaults] setObject:[NSString stringWithUTF8String:path] forKey:backup_folder_key(deviceKey)];
 }
 
 int32_t show_device_choice_dialogue(const char * title, const char * message, const char *const * labels, uint32_t count, uint32_t defaultIndex) {

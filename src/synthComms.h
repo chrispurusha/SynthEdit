@@ -45,6 +45,21 @@ void synth_on_connected(void);
 // before this had an output-buffer parameter at all.
 void synth_decode_moog_name(const uint8_t * payload, uint32_t payloadLen, int32_t offset, uint32_t bitOffset, uint32_t len, uint32_t lineWidth, char * outName, size_t outNameSize);
 
+// Korg-style equivalent of synth_decode_moog_name() above — decodes JUST
+// the program name from a raw CURRENT PROGRAM DATA DUMP (func 0x40) or
+// PROGRAM DATA DUMP (func 0x4C) reply, the WHOLE message including F0/F7
+// framing exactly as received off the wire. Handles the 7-to-8 bit
+// unpacking internally and skips whichever function's own extra header
+// bytes automatically (0x40 has one fixed "01" byte; 0x4C has three —
+// Unit/Bank byte, Program No. byte, a fixed "00" byte). Writes into
+// outName (outNameSize-byte caller-supplied buffer, NUL-terminated) rather
+// than gDevice.progName — exposed so synthBackup.c's Korg name sweep can
+// decode OTHER presets' names without touching the live edit buffer's own
+// displayed name, same reasoning synth_decode_moog_name() above already
+// follows for Voyager. A no-op (outName left untouched) if data doesn't
+// decode as either expected function ID, or is too short.
+void synth_decode_korg_name(const uint8_t * data, uint32_t length, char * outName, size_t outNameSize);
+
 // Dispatch an incoming synth SysEx message (full message including F0 header)
 void synth_handle_message(const uint8_t * data, uint32_t length);
 
@@ -145,15 +160,63 @@ void synth_navigate_preset(int32_t delta);
 // Triggered by "File > Load Patch from Bank…" (G2-Edit naming/placement
 // convention, added 2026-07-11 at the owner's request) — loads a SPECIFIC
 // stored preset by number directly into the live edit buffer, the same
-// effect as physically selecting that preset on the front panel. Same
-// underlying mechanism as synth_navigate_preset() above (Program Change +
-// debounced state-dump refresh) but an ABSOLUTE 1-based preset number
-// (1-128) rather than a relative delta — no confirmation prompt, matching
-// Prev/Next's own existing behaviour on this exact same action (nothing
-// stored is overwritten, only the live/unsaved edit buffer replaced, same
-// as Sync). A no-op if no device is connected or presetNumber is out of
-// range.
-void synth_load_patch_from_bank(uint32_t presetNumber);
+// effect as physically selecting that preset on the front panel.
+// presetNumber is an ABSOLUTE 1-based number (1-128) — no confirmation
+// prompt, matching Prev/Next's own existing behaviour on this exact same
+// action (nothing stored is overwritten, only the live/unsaved edit buffer
+// replaced, same as Sync). A no-op if no device is connected or
+// presetNumber is out of range.
+// bank is Korg-style only (0=A, 1=B — see synth_korg_select_program()'s own
+// comment below) — ignored for a Moog-style device (Voyager has no bank
+// concept the app knows how to select; presetNumber alone already fully
+// addresses a location there). Added 2026-07-14 for the Z1 (2 banks x 128
+// programs); every pre-existing Moog-only caller passes bank=0.
+void synth_load_patch_from_bank(uint8_t bank, uint32_t presetNumber);
+
+// Korg-style only: selects Program `progNumber` (1-based, 1-128) in Bank
+// `bank` (0=A, 1=B) as the device's own live/playing program — the actual
+// front-panel-equivalent action ("make this the current program"), NOT the
+// same as requesting its stored data via synth_request_korg_program_dump()
+// below (that only READS a stored slot without changing what's live/
+// playing on the hardware). Sends standard MIDI Bank Select (CC0 MSB=0,
+// CC32 LSB=bank — Z1 only has 2 banks, so the 14-bit Bank Select value
+// never needs anything in the MSB) then a plain Program Change, followed
+// by the same debounced state-dump refresh synth_navigate_preset() already
+// uses (via synth_change_program() — see its own comment, synthComms.c) so
+// the app's own dial state catches up with whatever the device now has
+// loaded. A no-op if no device is connected, the connected device isn't
+// Korg-style, or progNumber is out of range.
+void synth_korg_select_program(uint8_t bank, uint32_t progNumber);
+
+// Korg-style only: sends a PROGRAM DATA DUMP REQUEST (func 0x1C, Unit=00/
+// Prog) for Bank `bank` (0=A, 1=B), Program `progNumber` (1-based, 1-128)
+// — reads that STORED slot's data without changing what's currently live/
+// playing on the device (contrast synth_korg_select_program() above). The
+// reply (func 0x4C, PROGRAM DATA DUMP) is forwarded to
+// synth_backup_capture_dump() under eBackupExpectKorgProgram — a caller
+// arms that expectation (gBackupExpect) BEFORE calling this, same pattern
+// synth_backup_patch_by_number() already uses for
+// synth_request_single_preset_dump(). A no-op if no device is connected,
+// the connected device isn't Korg-style, or progNumber is out of range.
+void synth_request_korg_program_dump(uint8_t bank, uint32_t progNumber);
+
+// Korg-style only: sends a PROGRAM WRITE REQUEST (func 0x11) telling the
+// device to commit whatever is CURRENTLY in its own live edit buffer to
+// Bank `bank` (0=A, 1=B), Program `progNumber` (1-based, 1-128) —
+// OVERWRITING that stored slot. This is the Z1's own native "save current
+// program to a location" mechanism — unlike Voyager (which has no such
+// command and must instead fetch+relabel+resend a whole Preset Dump, see
+// synth_backup_flush_store() in synthBackup.c), no local data fetch or
+// reformatting is needed at all: the device does the actual save
+// internally. The reply is a generic WRITE COMPLETED (func 0x21) or WRITE
+// ERROR (func 0x22) — currently only logged (synth_handle_message()'s own
+// dispatch switch, synthComms.c), not yet surfaced as a UI confirmation
+// (see synth_store_patch_to_bank()'s own comment, synthBackup.h, for why
+// the CALLER already shows a confirmation dialog before this is sent,
+// rather than waiting for this reply to report success/failure). A no-op
+// if no device is connected, the connected device isn't Korg-style, or
+// progNumber is out of range.
+void synth_send_korg_program_write_request(uint8_t bank, uint32_t progNumber);
 
 // Send a parameter change to the synth
 // group: SYNTH_PARAM_GROUP_*; paramId: 1-based ID from spec; value: raw value

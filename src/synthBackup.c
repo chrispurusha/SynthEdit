@@ -240,7 +240,7 @@ void synth_backup_current_patch(void) {
     LOG_DEBUG("Backup: requested a fresh state dump to capture\n");
 }
 
-void synth_store_patch_to_bank(uint32_t presetNumber) {
+void synth_store_patch_to_bank(uint8_t bank, uint32_t presetNumber) {
     if (!gDevice.connected) {
         LOG_ERROR("Store: no device connected\n");
         return;
@@ -252,6 +252,28 @@ void synth_store_patch_to_bank(uint32_t presetNumber) {
     }
     char message[160];
 
+    // Korg-style (Z1): a single PROGRAM WRITE REQUEST (func 0x11) — no
+    // local fetch/convert step at all, so there's no async reply to wait
+    // for before showing a result (see synth_send_korg_program_write_
+    // request()'s own comment, synthComms.h, on why the device's own
+    // WRITE COMPLETED/ERROR reply isn't surfaced here yet). Branches
+    // BEFORE the confirmation dialog's own wording, since the two
+    // protocols address a slot differently (bank+number vs number alone).
+    if (!synth_panel_config()->moogStyleDump) {
+        snprintf(message, sizeof(message),
+                 "This will overwrite Bank %c, Program %u on the connected device with the CURRENT panel. This cannot be undone.",
+                 bank ? 'B' : 'A', (unsigned)presetNumber);
+
+        if (!show_confirm_dialogue("Store Patch to Bank", message)) {
+            LOG_DEBUG("Store: cancelled at confirmation\n");
+            return;
+        }
+        synth_send_korg_program_write_request(bank, presetNumber);
+        snprintf(message, sizeof(message), "Sent — Bank %c, Program %u should now match the current panel.",
+                 bank ? 'B' : 'A', (unsigned)presetNumber);
+        show_info_dialogue("Store Patch to Bank", message);
+        return;
+    }
     snprintf(message, sizeof(message),
              "This will overwrite Preset %u on the connected device with the CURRENT panel. This cannot be undone.",
              (unsigned)presetNumber);
@@ -475,7 +497,7 @@ static void backup_batch_folder_chosen(const char * path) {
     }
     strncpy(gBackupBatchFolder, path, sizeof(gBackupBatchFolder) - 1);
     gBackupBatchFolder[sizeof(gBackupBatchFolder) - 1] = '\0';
-    set_last_backup_folder(gBackupBatchFolder); // so a later single-file Backup save defaults here too — see its own comment (fileDialogue.h)
+    set_last_backup_folder(synth_current_device_config(), gBackupBatchFolder); // so a later single-file Backup save defaults here too — see its own comment (fileDialogue.h)
 
     // Fresh index file each run — truncates any previous one from an
     // earlier export into the same folder rather than appending onto
@@ -529,11 +551,197 @@ void synth_backup_bank_to_folder(void) {
         LOG_ERROR("Backup: another backup operation is already in progress\n");
         return;
     }
-    open_folder_choose_dialogue_async(backup_batch_folder_chosen, "Choose Backup Folder", get_last_backup_folder());
+    open_folder_choose_dialogue_async(backup_batch_folder_chosen, "Choose Backup Folder", get_last_backup_folder(synth_current_device_config()));
 }
 
 void synth_backup_note_preset_name(uint32_t presetNumber, const char * name) {
     name_cache_set_label(presetNumber, name);
+}
+
+// ── Korg-style name sweep (Z1: 2 banks x 128 programs) ───────────────────────
+// Deliberately a SEPARATE, parallel mechanism from the gBackupBatch* state
+// above, not a retrofit of it — that machinery is built entirely around
+// Voyager's own Single Preset Dump request/reply shape
+// (synth_request_single_preset_dump(), BACKUP_BATCH_PRESET_COUNT fixed at a
+// single 128-slot bank) and is ALSO shared with the Moog-only folder
+// export/restore sweeps; bumping BACKUP_BATCH_PRESET_COUNT to 256 to fit a
+// second bank would make every Moog-only sweep spend half its time
+// requesting presets 129-256 that don't exist on a single-bank Voyager.
+// Keeping this fully isolated means the working, hardware-confirmed Moog
+// mechanisms above are completely unaffected. Added 2026-07-14.
+#define KORG_SWEEP_PRESET_COUNT    256 // 2 banks x 128 — index i is bank (i/128, 0=A/1=B), program ((i%128)+1)
+
+static bool         gKorgSweepActive         = false;
+static uint32_t     gKorgSweepIndex          = 0;  // 0-based, 0..(KORG_SWEEP_PRESET_COUNT-1)
+static double       gKorgSweepRequestSinceMs = 0.0;
+static uint32_t     gKorgSweepRepliedCount   = 0;
+static uint32_t     gKorgSweepMissingCount   = 0;
+static bool         gKorgNameCacheValid      = false;
+static char         gKorgSweepLabels[KORG_SWEEP_PRESET_COUNT][NAME_SWEEP_LABEL_LEN];
+
+// CoreMIDI-thread-copies/main-thread-decodes handoff — same reasoning and
+// shape as gBackupBatchReplyReady/Data/Len above (name decoding isn't safe
+// to do off the main thread; see that block's own comment).
+static _Atomic bool gKorgSweepReplyReady     = false;
+static uint8_t *    gKorgSweepReplyData      = NULL;
+static uint32_t     gKorgSweepReplyLen       = 0;
+
+static void korg_sweep_show_picker(void);
+
+static void korg_sweep_request_current(void) {
+    uint8_t  bank = (uint8_t)(gKorgSweepIndex / 128);
+    uint32_t prog = (gKorgSweepIndex % 128) + 1;
+
+    gBackupExpect            = eBackupExpectKorgProgram;
+    synth_request_korg_program_dump(bank, prog);
+    gKorgSweepRequestSinceMs = backup_monotonic_ms();
+}
+
+// Advances to the next (bank, program), or finishes the sweep and shows the
+// picker once every slot has either replied or timed out — the Korg
+// counterpart to backup_batch_advance() above, called only from the main/
+// render thread (synth_backup_flush_korg_name_sweep() below).
+static void korg_sweep_advance(void) {
+    gReDraw = true;
+    gKorgSweepIndex++;
+
+    if (gKorgSweepIndex >= KORG_SWEEP_PRESET_COUNT) {
+        gKorgSweepActive    = false;
+        LOG_DEBUG("Korg name sweep finished — %u replied, %u missing\n",
+                  (unsigned)gKorgSweepRepliedCount, (unsigned)gKorgSweepMissingCount);
+        gKorgNameCacheValid = true; // even a slot that timed out keeps its "(no response)" label — good enough to skip re-sweeping, same acceptance as gNameCacheValid's own comment above
+        korg_sweep_show_picker();
+        // The sweep leaves gDevice.progName/the live dials showing whatever
+        // the LAST swept program's data decoded to (handle_prog_dump()
+        // doesn't touch them, but a Load/Store the picker triggers might
+        // send further messages before this settles) — re-requesting the
+        // live state restores it, same reasoning name_sweep_show_picker()'s
+        // own completion step already has for Moog.
+        synth_request_state_dump();
+        return;
+    }
+    korg_sweep_request_current();
+}
+
+// Decodes just the name from a captured Program Data Dump reply into
+// gKorgSweepLabels[gKorgSweepIndex] as "A1: Name" / "B1: Name" (or
+// "A1: (unnamed)") — the Korg counterpart to name_sweep_capture_name()
+// above. Uses synth_decode_korg_name() directly (not gDevice.progName) so
+// this doesn't disturb whatever the live edit buffer's own name is
+// currently showing on-screen while the sweep runs.
+static void korg_sweep_capture_reply(const uint8_t * data, uint32_t length) {
+    uint8_t  bank  = (uint8_t)(gKorgSweepIndex / 128);
+    uint32_t prog  = (gKorgSweepIndex % 128) + 1;
+    char     name[sizeof(gDevice.progName)];
+
+    name[0] = '\0';
+    synth_decode_korg_name(data, length, name, sizeof(name));
+
+    for (char * p = name; *p != '\0'; p++) {
+        if (*p == '\n') {
+            *p = ' '; // same single-line dropdown constraint name_cache_set_label() already handles for Moog
+        }
+    }
+
+    char *   label = gKorgSweepLabels[gKorgSweepIndex];
+
+    if (name[0] != '\0') {
+        snprintf(label, NAME_SWEEP_LABEL_LEN, "%c%u: %s", bank ? 'B' : 'A', (unsigned)prog, name);
+    } else {
+        snprintf(label, NAME_SWEEP_LABEL_LEN, "%c%u: (unnamed)", bank ? 'B' : 'A', (unsigned)prog);
+    }
+    gKorgSweepRepliedCount++;
+}
+
+// Per-frame poll — the Korg counterpart to synth_backup_flush_bank_to_folder()
+// above, but only ever drives THIS sweep (no folder-export mode to share
+// with, unlike the Moog version). A no-op unless a Korg name sweep is
+// actually active. Call once per frame from the render loop.
+void synth_backup_flush_korg_name_sweep(void) {
+    if (!gKorgSweepActive) {
+        return;
+    }
+
+    if (gKorgSweepReplyReady) {
+        gKorgSweepReplyReady = false;
+        uint8_t * data   = gKorgSweepReplyData;
+        uint32_t  length = gKorgSweepReplyLen;
+
+        gKorgSweepReplyData  = NULL;
+        gKorgSweepReplyLen   = 0;
+        korg_sweep_capture_reply(data, length);
+        free(data);
+        korg_sweep_advance();
+        return;
+    }
+
+    if ((backup_monotonic_ms() - gKorgSweepRequestSinceMs) >= BACKUP_BATCH_TIMEOUT_MS) {
+        uint8_t  bank = (uint8_t)(gKorgSweepIndex / 128);
+        uint32_t prog = (gKorgSweepIndex % 128) + 1;
+
+        LOG_DEBUG("Korg name sweep: %c%u timed out after %.0fms\n",
+                  bank ? 'B' : 'A', (unsigned)prog, BACKUP_BATCH_TIMEOUT_MS);
+        snprintf(gKorgSweepLabels[gKorgSweepIndex], NAME_SWEEP_LABEL_LEN,
+                 "%c%u: (no response)", bank ? 'B' : 'A', (unsigned)prog);
+        gKorgSweepMissingCount++;
+        korg_sweep_advance();
+    }
+}
+
+static void korg_sweep_start(void) {
+    gKorgSweepActive       = true;
+    gKorgSweepIndex        = 0;
+    gKorgSweepRepliedCount = 0;
+    gKorgSweepMissingCount = 0;
+    korg_sweep_request_current();
+    LOG_DEBUG("Load/Store: starting a %u-program Korg name sweep (2 banks x 128)\n", (unsigned)KORG_SWEEP_PRESET_COUNT);
+}
+
+// Shows the "A1: Name" / "B1: Name" picker once korg_sweep_advance()'s own
+// completion branch finishes, and acts on whatever the user chose — the
+// Korg counterpart to name_sweep_show_picker() below (kept fully separate
+// rather than parameterizing that one, same isolation reasoning as the rest
+// of this block).
+static void korg_sweep_show_picker(void) {
+    const char * labelPtrs[KORG_SWEEP_PRESET_COUNT];
+
+    for (uint32_t i = 0; i < KORG_SWEEP_PRESET_COUNT; i++) {
+        labelPtrs[i] = gKorgSweepLabels[i];
+    }
+
+    // Store defaults to the slot the CURRENT panel was originally loaded
+    // from — gDevice.currentProgram is 0-based WITHIN a bank (0-127) and
+    // has no bank information of its own, so this can only default to a
+    // Bank A slot (index == currentProgram) or fall back to the first
+    // entry, same "no equivalent natural default" reasoning as Load
+    // already has below for the Moog picker; not worth a bigger tracking
+    // change just for this cosmetic default.
+    uint32_t     defaultIndex = 0;
+
+    if (  (gNameSweepPurpose == eNameSweepPurposeStore)
+       && (gDevice.currentProgram >= 0) && (gDevice.currentProgram < 128)) {
+        defaultIndex = (uint32_t)gDevice.currentProgram;
+    }
+    const char * title        = (gNameSweepPurpose == eNameSweepPurposeLoad) ? "Load Patch from Bank" : "Store Patch to Bank";
+    const char * message      = (gNameSweepPurpose == eNameSweepPurposeLoad)
+                ? "Choose a program to load into the live panel:"
+                : "Choose a program to store the current panel to:";
+    int32_t      chosen       = show_device_choice_dialogue(title, message, labelPtrs, KORG_SWEEP_PRESET_COUNT, defaultIndex);
+
+    synth_request_state_dump();
+
+    if (chosen < 0) {
+        LOG_DEBUG("Load/Store: picker cancelled\n");
+        return;
+    }
+    uint8_t      bank         = (uint8_t)((uint32_t)chosen / 128);
+    uint32_t     prog         = ((uint32_t)chosen % 128) + 1;
+
+    if (gNameSweepPurpose == eNameSweepPurposeLoad) {
+        synth_load_patch_from_bank(bank, prog);
+    } else {
+        synth_store_patch_to_bank(bank, prog);
+    }
 }
 
 void synth_backup_start_name_sweep(tNameSweepPurpose purpose) {
@@ -541,9 +749,27 @@ void synth_backup_start_name_sweep(tNameSweepPurpose purpose) {
         LOG_ERROR("Load/Store: no device connected\n");
         return;
     }
+    gNameSweepPurpose = purpose;
 
+    // Korg-style (Z1): fully separate sweep/picker — see this whole
+    // block's own header comment for why. Added 2026-07-14.
     if (!synth_panel_config()->moogStyleDump) {
-        LOG_ERROR("Load/Store: name sweep only supports Moog-style devices so far\n");
+        if (gKorgSweepActive) {
+            LOG_ERROR("Load/Store: a name sweep is already in progress\n");
+            return;
+        }
+
+        if (gBackupExpect != eBackupExpectNone) {
+            LOG_ERROR("Load/Store: another backup operation is already in progress\n");
+            return;
+        }
+
+        if (gKorgNameCacheValid) {
+            LOG_DEBUG("Load/Store: using cached Korg program names (purpose=%d)\n", (int)purpose);
+            korg_sweep_show_picker();
+            return;
+        }
+        korg_sweep_start();
         return;
     }
 
@@ -556,7 +782,6 @@ void synth_backup_start_name_sweep(tNameSweepPurpose purpose) {
         LOG_ERROR("Load/Store: another backup operation is already in progress\n");
         return;
     }
-    gNameSweepPurpose          = purpose;
 
     if (gNameCacheValid) {
         // Already have every name from a previous sweep this session, kept
@@ -625,9 +850,9 @@ static void name_sweep_show_picker(void) {
     }
 
     if (gNameSweepPurpose == eNameSweepPurposeLoad) {
-        synth_load_patch_from_bank((uint32_t)(chosen + 1));
+        synth_load_patch_from_bank(0, (uint32_t)(chosen + 1)); // bank ignored for Moog-style — see synth_load_patch_from_bank()'s own comment (synthComms.h)
     } else {
-        synth_store_patch_to_bank((uint32_t)(chosen + 1));
+        synth_store_patch_to_bank(0, (uint32_t)(chosen + 1));  // bank ignored for Moog-style — see synth_store_patch_to_bank()'s own comment (synthBackup.h)
     }
 }
 
@@ -700,7 +925,7 @@ static void backup_save_callback(const char * path) {
                 }
                 memcpy(folder, path, len);
                 folder[len] = '\0';
-                set_last_backup_folder(folder);
+                set_last_backup_folder(synth_current_device_config(), folder);
             }
         } else {
             LOG_ERROR("Backup: couldn't open %s for writing\n", path);
@@ -762,6 +987,29 @@ void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExp
         gBackupBatchReplyReady = true;
         return;
     }
+
+    if ((kind == eBackupExpectKorgProgram) && gKorgSweepActive) {
+        // Korg name sweep in progress — same CoreMIDI-thread-copies/main-
+        // thread-decodes handoff as the Moog bank-to-folder sweep just
+        // above, for the same reason (this runs on the CoreMIDI thread —
+        // see the Korg sweep block's own header comment). No plain
+        // "Backup > Patch by Number" equivalent yet for Korg (see
+        // [[project_z1_load_from_bank_todo]]), so unlike eBackupExpectPreset
+        // above, there's no generic fallthrough needed here if
+        // gKorgSweepActive is false — that would mean a stray/unexpected
+        // reply, safe to just drop.
+        uint8_t * korgCopy = (uint8_t *)malloc(length);
+
+        if (korgCopy == NULL) {
+            LOG_ERROR("Backup: out of memory copying %u byte dump (Korg name sweep)\n", (unsigned)length);
+            return;
+        }
+        memcpy(korgCopy, data, length);
+        gKorgSweepReplyData  = korgCopy;
+        gKorgSweepReplyLen   = length;
+        gKorgSweepReplyReady = true;
+        return;
+    }
     uint8_t *    copy       = (uint8_t *)malloc(length);
 
     if (copy == NULL) {
@@ -802,7 +1050,7 @@ void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExp
         }
     }
     LOG_DEBUG("Backup: captured %u byte dump, opening save dialog\n", (unsigned)length);
-    open_file_write_dialogue_async(backup_save_callback, defaultName, get_last_backup_folder());
+    open_file_write_dialogue_async(backup_save_callback, defaultName, get_last_backup_folder(synth_current_device_config()));
 }
 
 // ── Restore ───────────────────────────────────────────────────────────────────
@@ -1348,7 +1596,7 @@ void synth_backup_restore_folder(void) {
         LOG_ERROR("Restore: another backup/restore operation is already in progress\n");
         return;
     }
-    open_folder_choose_dialogue_async(restore_folder_chosen, "Choose Folder to Restore From", get_last_backup_folder());
+    open_folder_choose_dialogue_async(restore_folder_chosen, "Choose Folder to Restore From", get_last_backup_folder(synth_current_device_config()));
 }
 
 void synth_backup_flush_restore_folder(void) {
@@ -1421,6 +1669,17 @@ void synth_backup_flush_restore_folder(void) {
 }
 
 bool synth_backup_get_export_progress(uint32_t * outCurrent, uint32_t * outTotal, uint32_t * outActionCount) {
+    // Korg name sweep checked first — a fully separate state machine (see
+    // its own header comment above) that shares this same progress-overlay
+    // reporting function purely for UI reuse, not because it shares any
+    // state with gBackupBatchActive below. Added 2026-07-14.
+    if (gKorgSweepActive) {
+        *outCurrent     = gKorgSweepIndex + 1; // 0-based index -> 1-based "Nth of M"
+        *outTotal       = KORG_SWEEP_PRESET_COUNT;
+        *outActionCount = gKorgSweepRepliedCount;
+        return true;
+    }
+
     if (!gBackupBatchActive) {
         return false;
     }
@@ -1431,7 +1690,7 @@ bool synth_backup_get_export_progress(uint32_t * outCurrent, uint32_t * outTotal
 }
 
 bool synth_backup_export_progress_is_name_sweep(void) {
-    return gBackupBatchActive && (gBackupBatchMode == eBatchModeNameSweep);
+    return gKorgSweepActive || (gBackupBatchActive && (gBackupBatchMode == eBatchModeNameSweep));
 }
 
 bool synth_backup_get_restore_progress(uint32_t * outCurrent, uint32_t * outTotal, uint32_t * outActionCount) {

@@ -633,6 +633,68 @@ static void handle_curr_prog_dump(const uint8_t * data, uint32_t length) {
     extract_prog_info(decoded, decodedLen);
 }
 
+// Format: F0 <mfrId> 3g 46 4C ub pp 00 [7-bit encoded data...] F7 — a
+// SPECIFIC stored preset's data (contrast handle_curr_prog_dump() above,
+// always the live edit buffer). Deliberately does NOT call
+// extract_prog_info() — that writes straight into the live dial state,
+// which would silently corrupt the on-screen panel with some OTHER
+// preset's values every time a name-sweep or by-number backup touches this
+// reply. Just forwards the raw bytes to synth_backup_capture_dump() (a
+// no-op unless a Korg program-by-number fetch is actually pending) — any
+// decoding a caller needs happens on ITS OWN copy of these bytes via
+// synth_decode_korg_name() below, same "forward raw bytes, let the backup
+// layer decode what it needs" split handle_moog_single_preset_dump() (and
+// its own eBackupExpectPreset) already uses for Voyager.
+static void handle_prog_dump(const uint8_t * data, uint32_t length) {
+    synth_backup_capture_dump(data, length, eBackupExpectKorgProgram);
+    LOG_DEBUG("Received Program Data Dump (len=%u)\n", (unsigned)length);
+}
+
+void synth_decode_korg_name(const uint8_t * data, uint32_t length, char * outName, size_t outNameSize) {
+    if ((outNameSize == 0) || !is_synth_sysex(data, length)) {
+        return;
+    }
+    tPanelConfig *  cfg        = synth_panel_config();
+    uint32_t        funcPos    = 3 + cfg->manufacturerIdLen;
+    uint8_t         funcId     = data[funcPos];
+    // 0x40's own extra sub-byte ("01") is 1 byte; 0x4C's own header (Unit/
+    // Bank byte, Program No. byte, a fixed "00" byte) is 3 — see
+    // handle_curr_prog_dump()/handle_prog_dump()'s own comments above for
+    // the full wire shapes this mirrors.
+    uint32_t        extra;
+
+    if (funcId == SYNTH_FUNC_CURR_PROG_DUMP) {
+        extra = 1;
+    } else if (funcId == SYNTH_FUNC_PROG_DUMP) {
+        extra = 3;
+    } else {
+        return;
+    }
+    uint32_t        skip       = funcPos + 1 + extra;
+
+    if (length < skip + 1) {
+        return;
+    }
+    const uint8_t * payload    = data + skip;
+    uint32_t        payloadLen = length - skip - 1; // exclude trailing F7
+
+    static uint8_t  decoded[4096];
+    uint32_t        decodedLen = decode_7to8(payload, payloadLen, decoded, sizeof(decoded));
+    uint32_t        nameLen    = (decodedLen >= cfg->progNameLen) ? cfg->progNameLen : decodedLen;
+
+    if (nameLen >= outNameSize) {
+        nameLen = (uint32_t)(outNameSize - 1);
+    }
+    uint32_t        i;
+
+    for (i = 0; i < nameLen; i++) {
+        char c = (char)decoded[i];
+        outName[i] = ((c >= 0x20) && (c <= 0x7F)) ? c : '?';
+    }
+
+    outName[i] = '\0';
+}
+
 // Format: F0 <mfrId(1)> <productId> <deviceId> <mode> <payload...> F7 — see
 // moogStyleDump in panelConfig.h. No 7-to-8 decode needed here (unlike Korg's
 // handle_curr_prog_dump() above) — Moog's payload bytes are already usable
@@ -1070,7 +1132,7 @@ void synth_navigate_preset(int32_t delta) {
     synth_change_program((uint8_t)next);
 }
 
-void synth_load_patch_from_bank(uint32_t presetNumber) {
+void synth_load_patch_from_bank(uint8_t bank, uint32_t presetNumber) {
     if (!gDevice.connected) {
         LOG_ERROR("Load Patch: no device connected\n");
         return;
@@ -1080,7 +1142,100 @@ void synth_load_patch_from_bank(uint32_t presetNumber) {
         LOG_ERROR("Load Patch: preset number %u out of range (1-128)\n", (unsigned)presetNumber);
         return;
     }
-    synth_change_program((uint8_t)(presetNumber - 1));
+
+    // bank is Korg-style only — see this function's own comment in
+    // synthComms.h. A Moog-style device (Voyager) has no bank concept the
+    // app knows how to select, so bank is simply ignored there; every
+    // existing Moog-only caller already passes bank=0.
+    if (synth_panel_config()->moogStyleDump) {
+        synth_change_program((uint8_t)(presetNumber - 1));
+        return;
+    }
+    synth_korg_select_program(bank, presetNumber);
+}
+
+void synth_korg_select_program(uint8_t bank, uint32_t progNumber) {
+    if (!gDevice.connected) {
+        LOG_ERROR("Select Program: no device connected\n");
+        return;
+    }
+
+    if (synth_panel_config()->moogStyleDump) {
+        LOG_ERROR("Select Program: connected device isn't Korg-style\n");
+        return;
+    }
+
+    if ((progNumber < 1) || (progNumber > 128)) {
+        LOG_ERROR("Select Program: program number %u out of range (1-128)\n", (unsigned)progNumber);
+        return;
+    }
+    // Standard MIDI Bank Select — CC0 (MSB) always 0, CC32 (LSB) = bank
+    // (0=A, 1=B). The Z1 only ever needs the LSB half; sending an explicit
+    // MSB=0 first matches the standard two-CC convention rather than
+    // relying on the device defaulting it.
+    midi_send_cc(gDevice.id, 0, 0);
+    midi_send_cc(gDevice.id, 32, bank);
+    synth_change_program((uint8_t)(progNumber - 1));
+}
+
+void synth_request_korg_program_dump(uint8_t bank, uint32_t progNumber) {
+    if (!gDevice.connected) {
+        LOG_ERROR("Request Program Dump: no device connected\n");
+        return;
+    }
+
+    if (synth_panel_config()->moogStyleDump) {
+        LOG_ERROR("Request Program Dump: connected device isn't Korg-style\n");
+        return;
+    }
+
+    if ((progNumber < 1) || (progNumber > 128)) {
+        LOG_ERROR("Request Program Dump: program number %u out of range (1-128)\n", (unsigned)progNumber);
+        return;
+    }
+    // F0 <mfrId> 3g 46 1C ub pp 00 F7 — ub: Unit(00:Prog)/Bank(0:A,1:B) in
+    // the low bit, pp: 0-based program number, per the Z1 MIDI
+    // Implementation doc's own PROGRAM DATA DUMP REQUEST table.
+    uint8_t  msg[16];
+    uint32_t pos = build_header(msg, SYNTH_FUNC_PROG_DUMP_REQ);
+
+    msg[pos++] = (uint8_t)(bank & 0x01); // Unit=00 (Prog) in bits 4-5, Bank in bit 0 — Unit=00 is already all-zero bits, so this reduces to just the bank bit
+    msg[pos++] = (uint8_t)(progNumber - 1);
+    msg[pos++] = 0x00;
+    msg[pos++] = MIDI_SYSEX_END;
+    midi_send(msg, pos);
+    LOG_DEBUG("Sent Program Data Dump Request (bank=%c, program=%u)\n", bank ? 'B' : 'A', (unsigned)progNumber);
+}
+
+void synth_send_korg_program_write_request(uint8_t bank, uint32_t progNumber) {
+    if (!gDevice.connected) {
+        LOG_ERROR("Program Write Request: no device connected\n");
+        return;
+    }
+
+    if (synth_panel_config()->moogStyleDump) {
+        LOG_ERROR("Program Write Request: connected device isn't Korg-style\n");
+        return;
+    }
+
+    if ((progNumber < 1) || (progNumber > 128)) {
+        LOG_ERROR("Program Write Request: program number %u out of range (1-128)\n", (unsigned)progNumber);
+        return;
+    }
+    // F0 <mfrId> 3g 46 11 0b pp F7 — 0b: Destination Program Bank(0:A,1:B),
+    // pp: 0-based destination program number, per the Z1 MIDI
+    // Implementation doc's own PROGRAM WRITE REQUEST table. No payload at
+    // all — the device commits whatever's currently in its OWN live edit
+    // buffer, unlike Voyager's fetch+relabel+resend mechanism (see this
+    // function's own comment in synthComms.h).
+    uint8_t  msg[16];
+    uint32_t pos = build_header(msg, SYNTH_FUNC_PROG_WRITE_REQ);
+
+    msg[pos++] = (uint8_t)(bank & 0x01);
+    msg[pos++] = (uint8_t)(progNumber - 1);
+    msg[pos++] = MIDI_SYSEX_END;
+    midi_send(msg, pos);
+    LOG_DEBUG("Sent Program Write Request (bank=%c, program=%u)\n", bank ? 'B' : 'A', (unsigned)progNumber);
 }
 
 void synth_send_parameter_change(uint8_t group, uint16_t paramId, uint16_t value) {
@@ -1274,6 +1429,9 @@ void synth_handle_message(const uint8_t * data, uint32_t length) {
     switch (funcId) {
         case SYNTH_FUNC_CURR_PROG_DUMP:
             handle_curr_prog_dump(data, length);
+            break;
+        case SYNTH_FUNC_PROG_DUMP:
+            handle_prog_dump(data, length);
             break;
         case SYNTH_FUNC_PARAMETER_CHANGE:
             handle_parameter_change(data, length);
