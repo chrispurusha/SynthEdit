@@ -309,6 +309,24 @@ static uint32_t decode_signed_dump_byte(tPanelDial * dial, uint32_t rawByte) {
     return (uint32_t)(signedValue + dial->displayOffset);
 }
 
+// Public helper for synthBackup.c's Korg-style "Restore Panel" — converts a
+// dial's raw DUMP byte (8-bit two's complement if wireSigned, plain otherwise
+// — see decode_signed_dump_byte() above) straight into the wire value a live
+// Parameter Change needs to reproduce that same value (14-bit two's
+// complement if wireSigned — see encode_signed_param_wire_value() above),
+// without the caller needing to know either encoding exists. Every non-
+// wireSigned dial passes rawDumpValue straight through unchanged, matching
+// handle_parameter_change()'s own "dump-native units == param-change-wire
+// units" comment for the ordinary case.
+uint16_t synth_korg_dump_raw_to_param_wire_value(tPanelDial * dial, uint32_t rawDumpValue) {
+    if (!dial->wireSigned) {
+        return (uint16_t)rawDumpValue;
+    }
+    uint32_t storageEquivalent = decode_signed_dump_byte(dial, rawDumpValue);
+
+    return encode_signed_param_wire_value(dial, storageEquivalent);
+}
+
 // ── Program info extraction ───────────────────────────────────────────────────
 // Everything about what a decoded program dump contains — name length, every
 // other field's byte offset/bit-packing/native scaling — comes from the
@@ -393,6 +411,22 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
     }
 
     LOG_DEBUG("Synth prog: \"%s\" — %u dial(s) updated from dump\n", gDevice.progName, (unsigned)updated);
+}
+
+// Public wrapper around the static extract_prog_info() above — for
+// synthBackup.c's Korg-style "Restore Panel" (restore_panel_korg_file()),
+// so the local GUI/dial state gets updated from the SAME decoded buffer
+// being replayed to the real device as live Parameter Change messages,
+// instead of depending on a round trip through real hardware to find out
+// what actually landed. Added 2026-07-14 after a real-hardware test found
+// the GUI didn't change at all after a restore (only the wire sends
+// happened, nothing updated dial->value locally) — this fixes that by
+// reusing the exact same apply logic a genuine incoming dump already goes
+// through, guaranteeing local state and "what a fresh Sync from synth would
+// show" can never disagree just because two different code paths did
+// almost-but-not-quite the same thing.
+void synth_apply_korg_prog_dump_locally(const uint8_t * decoded, uint32_t decodedLen) {
+    extract_prog_info(decoded, decodedLen);
 }
 
 // ── Moog-style bit-packed dump extraction ─────────────────────────────────────
@@ -941,6 +975,18 @@ static bool korg_decode_prog_dump(const uint8_t * data, uint32_t length, uint8_t
 // IDs; otherwise checks the decoded name field (the first progNameLen
 // bytes of the unpacked payload) for implausible control characters, same
 // tolerance as the Moog version.
+// Public wrapper around the static korg_decode_prog_dump() above — needed by
+// synthBackup.c's Korg-style "Restore Panel" (load a Program Data Dump file
+// into the live edit buffer via individual Parameter Change messages, since
+// Z1 has no single "load this whole dump" SysEx the way Moog-style devices
+// do — see synth_korg_dump_raw_to_param_wire_value() below for the other
+// half of what that needs). Thin pass-through, same reasoning synth_decode_
+// korg_name()/synth_decode_korg_category() already follow for exposing this
+// shared decode step without exposing korg_decode_prog_dump() itself.
+bool synth_decode_korg_prog_dump(const uint8_t * data, uint32_t length, uint8_t * decoded, uint32_t decodedCap, uint32_t * outDecodedLen) {
+    return korg_decode_prog_dump(data, length, decoded, decodedCap, outDecodedLen);
+}
+
 bool synth_korg_program_dump_intact(const uint8_t * data, uint32_t length) {
     tPanelConfig * cfg        = synth_panel_config();
     static uint8_t decoded[4096];

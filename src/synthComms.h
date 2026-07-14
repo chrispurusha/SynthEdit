@@ -98,6 +98,35 @@ void synth_decode_korg_name(const uint8_t * data, uint32_t length, char * outNam
 // in its own <device>.txt, or if data doesn't decode.
 void synth_decode_korg_category(const uint8_t * data, uint32_t length, char * outCategory, size_t outCategorySize);
 
+// Full decode of a Program Data Dump/Current Program Dump reply into a plain
+// byte buffer (decoded from its 7-to-8 wire packing, header stripped) —
+// exposes the same decode step synth_decode_korg_name()/synth_decode_korg_
+// category() above already share internally, for a caller (synthBackup.c's
+// Korg-style "Restore Panel") that needs every dial's own value, not just
+// the name or category. Returns false (decoded/*outDecodedLen untouched) if
+// data doesn't decode as either expected function ID.
+bool synth_decode_korg_prog_dump(const uint8_t * data, uint32_t length, uint8_t * decoded, uint32_t decodedCap, uint32_t * outDecodedLen);
+
+// Converts a dial's raw DUMP-decoded byte (from synth_decode_korg_prog_dump()
+// above) into the wire value a live Parameter Change needs to reproduce that
+// same value on the connected device — handles the wireSigned dial family's
+// own dump-vs-live encoding difference (see wireSigned's own comment,
+// panelConfig.h) transparently; every other dial passes through unchanged.
+// For synthBackup.c's Korg-style "Restore Panel": Z1 has no single "load
+// this whole dump" SysEx the way a Moog-style device does, so restoring a
+// captured Program Data Dump into the live edit buffer means replaying every
+// dial's own value as an individual Parameter Change — this is the
+// conversion each one needs on the way out.
+uint16_t synth_korg_dump_raw_to_param_wire_value(tPanelDial * dial, uint32_t rawDumpValue);
+
+// Applies a decoded Program Data Dump buffer (synth_decode_korg_prog_dump()
+// above) to the LOCAL app state — name and every dial with a dumpOffset —
+// the exact same way a genuine incoming dump reply already would. For
+// synthBackup.c's Korg-style "Restore Panel": updates what the GUI shows to
+// match a restored file immediately, rather than only sending wire messages
+// and hoping a later dump request reflects them.
+void synth_apply_korg_prog_dump_locally(const uint8_t * decoded, uint32_t decodedLen);
+
 // Dispatch an incoming synth SysEx message (full message including F0 header)
 void synth_handle_message(const uint8_t * data, uint32_t length);
 

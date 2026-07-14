@@ -183,8 +183,8 @@ void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExp
 // before doing anything with it, and — for the two that overwrite stored
 // memory — show an explicit confirmation naming exactly what will be
 // overwritten before sending. Each is a no-op (logs and returns) if no
-// device is connected or it isn't Moog-style — none of this has a
-// Korg-style equivalent yet.
+// device is connected or it isn't Moog-style — most of this has no
+// Korg-style equivalent yet (Restore Panel below is the first exception).
 
 // Triggered by "File > Open Panel File…" — loads a previously-saved dump
 // into the live edit buffer, same as physically turning every knob to
@@ -196,7 +196,26 @@ void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExp
 // ones saved specifically as a Panel Dump. Does NOT touch any stored
 // preset either way. No confirmation prompt (nothing to lose — the live
 // buffer is exactly what Sync/preset navigation already overwrite freely).
+// Korg-style devices (Z1) branch internally to a different mechanism —
+// replaying every dial's own value as an individual live Parameter Change,
+// since there's no Korg equivalent of a Moog Panel Dump to just forward —
+// see restore_panel_korg_file()'s own comment, synthBackup.c. Added
+// 2026-07-14, untested against real Z1 hardware yet.
 void synth_backup_restore_panel(void);
+
+// Test-only entry point for the backdoor RESTOREPANEL command
+// (graphics.cpp) — calls the exact same file-load-and-send logic
+// synth_backup_restore_panel() above triggers via its NSOpenPanel, just
+// with a path supplied directly instead of through a native modal file
+// picker (which has no headless way to click through, the same reason
+// KORGSELECT exists for Load-from-Bank). Added 2026-07-14 specifically to
+// test the new Korg-style Restore Panel mechanism above without real Z1
+// hardware connected (see tools/z1_emulator.swift). Safe to leave
+// reachable unattended for the same reason KORGSELECT is: loading a file
+// into the live edit buffer only touches what's currently playing, never
+// anything stored (contrast a hypothetical "write this to a bank slot"
+// command, which this deliberately is not).
+void synth_backup_restore_panel_from_path(const char * path);
 
 // Triggered by "Backup > Restore > Patch by Number…" — loads a previously-
 // saved Single Preset Dump and sends it back verbatim, OVERWRITING the

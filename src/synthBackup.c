@@ -1848,12 +1848,133 @@ void synth_backup_flush_store(void) {
     free(converted);
 }
 
+// Korg-style counterpart to the Moog branch below — Z1 (and any other
+// Korg-style device) has no single "load this whole dump" SysEx the way a
+// Moog-style device's own Panel Dump does; the closest equivalent is
+// replaying every dial's own value as an individual live Parameter Change
+// (group=/param=), which only ever touches the live edit buffer, never
+// flash — this deliberately never sends a PROGRAM WRITE REQUEST, matching
+// the owner's own "wouldn't store to Z1 flash yet" caution (2026-07-14).
+// Paced with CFRunLoopRunInMode (not usleep — restore_panel_file_chosen()
+// below runs on the main thread's own CFRunLoop, dispatched via open_file_
+// read_dialogue_async()'s NSOpenPanel completion handler, so a blocking
+// sleep would stall event processing for no reason; same reasoning
+// midi_connect_all()'s own identity-request pacing already follows,
+// midiComms.c) between sends — NOT yet verified against real hardware how
+// much margin the Z1's own SysEx receiver needs for a burst this size
+// (~150-250 messages depending on the device); chosen conservatively,
+// tighten if a full restore proves reliable at a faster pace or lengthen if
+// any values land wrong/missing. Only handles the plain single-byte dumpOffset/
+// dumpShift/dumpMask model (no Z1 dial uses dumpBitWidth — that's Kronos-only
+// so far, and Kronos itself never reaches this function since
+// restore_validate_korg_dump() below requires a genuine func 0x4C Program
+// Data Dump, which Kronos doesn't speak).
+#define RESTORE_PANEL_PACE_SECONDS    0.01
+
+static void restore_panel_korg_file(const uint8_t * data, uint32_t length, const char * path, char * reason, size_t reasonSize) {
+    if (!restore_validate_korg_dump(data, length, reason, reasonSize, NULL, NULL)) {
+        show_info_dialogue("Restore Panel Failed", reason);
+        return;
+    }
+    static uint8_t decoded[4096];
+    uint32_t       decodedLen = 0;
+
+    if (!synth_decode_korg_prog_dump(data, length, decoded, sizeof(decoded), &decodedLen)) {
+        snprintf(reason, reasonSize, "Couldn't decode this file's Program Data Dump payload.");
+        show_info_dialogue("Restore Panel Failed", reason);
+        return;
+    }
+    tPanelConfig * cfg        = synth_panel_config();
+
+    if (decodedLen < cfg->progNameLen) {
+        snprintf(reason, reasonSize, "This file's decoded payload (%u bytes) is too short for this device's own program name field.", (unsigned)decodedLen);
+        show_info_dialogue("Restore Panel Failed", reason);
+        return;
+    }
+    uint32_t       sent       = 0;
+
+    // Pause the background Korg name-sweep for the duration of the send
+    // burst below — a real-hardware test found the sound/setup genuinely
+    // wrong after restoring WHILE the sweep was mid-flight (owner: "I did
+    // the load whilst fetching preset names, so there's a chance that
+    // mechanisms might have clashed"). Exactly the same class of collision
+    // synth_set_panel_dial_value()'s own synth_backup_sweep_request_in_
+    // flight() check already guards against for a single dial drag — this
+    // bulk send never went through that gate (it calls synth_send_
+    // parameter_change() directly), so it never got that protection either.
+    // Deliberately NOT resumed at the end: the sweep's own existing
+    // auto-start logic (synth_backup_flush_background_prefetch()) picks it
+    // back up on its own next idle trigger, restarting cleanly from
+    // scratch — forcing an immediate resume here would just risk the exact
+    // same collision again on the very next frame.
+    gKorgSweepActive = false;
+
+    // Program name first (params 1..progNameLen) — same group=/paramId=
+    // convention the Korg-style branch of the app's own "type a new name"
+    // feature already uses (synthComms.c), just replaying decoded bytes
+    // instead of a freshly-typed string.
+    for (uint32_t c = 0; c < cfg->progNameLen; c++) {
+        synth_send_parameter_change(SYNTH_PARAM_GROUP_PROG, (uint16_t)(c + 1), (uint16_t)decoded[c]);
+        sent++;
+        CFRunLoopRunInMode(kCFRunLoopDefaultMode, RESTORE_PANEL_PACE_SECONDS, false);
+    }
+
+    // Every other dial with both live (param=) and dump (dumpOffset=)
+    // wiring — no per-parameter knowledge here, same "walk every section,
+    // hidden or not" philosophy extract_prog_info() (synthComms.c) already
+    // follows for the RECEIVE direction; this is its send-direction mirror.
+    for (uint32_t s = 0; s < cfg->sectionCount; s++) {
+        tPanelSection * section = &cfg->sections[s];
+
+        for (uint32_t d = 0; d < section->dialCount; d++) {
+            tPanelDial * dial      = &section->dials[d];
+
+            if ((dial->paramId == 0) || (dial->dumpOffset < 0) || (decodedLen <= (uint32_t)dial->dumpOffset)) {
+                continue;
+            }
+            uint32_t     raw       = (decoded[dial->dumpOffset] >> dial->dumpShift) & dial->dumpMask;
+            uint16_t     wireValue = synth_korg_dump_raw_to_param_wire_value(dial, raw);
+
+            synth_send_parameter_change((uint8_t)dial->paramGroup, (uint16_t)dial->paramId, wireValue);
+            sent++;
+            CFRunLoopRunInMode(kCFRunLoopDefaultMode, RESTORE_PANEL_PACE_SECONDS, false);
+        }
+    }
+
+    // Update the LOCAL GUI/dial state from the exact same decoded buffer
+    // just replayed to the device, instead of leaving it stale until (or
+    // unless) a later Sync from synth happens to refresh it — a real
+    // hardware test found the GUI simply didn't change at all after a
+    // restore, only the wire sends happened. Reuses the identical apply
+    // logic a genuine incoming dump reply already goes through.
+    synth_apply_korg_prog_dump_locally(decoded, decodedLen);
+    gReDraw = true;
+
+    // Belt-and-suspenders: also request a fresh dump from the device itself
+    // once the burst is done, so any message that genuinely didn't land
+    // (dropped, corrupted, real hardware couldn't keep up with the pacing)
+    // gets caught and corrected by the SAME mechanism "Sync from synth"
+    // already relies on, rather than trusting the local apply above alone
+    // to be the last word on what the device actually ended up with.
+    if (!synth_dump_patch_in_flight()) {
+        synth_request_state_dump();
+    }
+    char message[128];
+
+    snprintf(message, sizeof(message), "Sent %u Parameter Change message(s) — the connected device's live edit buffer should now match this file.", (unsigned)sent);
+    LOG_DEBUG("Restore: Korg-style panel restore from %s sent %u Parameter Change message(s)\n", path, (unsigned)sent);
+    show_info_dialogue("Restore Panel", message);
+}
+
 // Runs on the main thread once the user has chosen (or cancelled) a file to
 // load into the live edit buffer — see synth_backup_restore_panel() below.
 // Accepts EITHER a genuine Panel Dump (mode 0x02, "Backup > Current Panel"
 // / "Save Panel to File…") or a Single Preset Dump (mode 0x03, "Backup >
 // Patch by Number" or a Bank (Individual Files) export) — the latter is
 // converted via convert_preset_dump_to_panel_dump() above before sending.
+// Korg-style devices (Z1) branch off to restore_panel_korg_file() above
+// instead — an entirely different mechanism (see its own comment) since
+// there's no Korg equivalent of a Moog Panel Dump to just forward as-is.
 static void restore_panel_file_chosen(const char * path) {
     if (path == NULL) {
         LOG_DEBUG("Restore: panel restore cancelled\n");
@@ -1866,6 +1987,12 @@ static void restore_panel_file_chosen(const char * path) {
         return;
     }
     char      reason[192];
+
+    if (!synth_panel_config()->moogStyleDump) {
+        restore_panel_korg_file(data, length, path, reason, sizeof(reason));
+        free(data);
+        return;
+    }
 
     // A raw Single Preset Dump (mode 0x03) is converted to a Panel Dump
     // (mode 0x02) shape BEFORE the mode-0x02 validation below, so both file
@@ -1906,6 +2033,14 @@ void synth_backup_restore_panel(void) {
         return;
     }
     open_file_read_dialogue_async(restore_panel_file_chosen);
+}
+
+void synth_backup_restore_panel_from_path(const char * path) {
+    if (!gDevice.connected) {
+        LOG_ERROR("Restore: no device connected\n");
+        return;
+    }
+    restore_panel_file_chosen(path);
 }
 
 // Runs on the main thread once the user has chosen (or cancelled) a Single
