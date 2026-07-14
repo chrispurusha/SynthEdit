@@ -983,8 +983,34 @@ static void handle_moog_single_preset_dump(const uint8_t * data, uint32_t length
     const uint8_t * payload    = data + skip;
     uint32_t        payloadLen = length - skip - 1; // exclude trailing F7
     tPanelConfig *  cfg        = synth_panel_config();
+    char            name[sizeof(gDevice.progName)];
 
-    synth_decode_moog_name(payload, payloadLen, cfg->presetNameOffset, cfg->presetNameBitOffset, cfg->presetNameLen, cfg->nameLineWidth, gDevice.progName, sizeof(gDevice.progName));
+    name[0] = '\0';
+    synth_decode_moog_name(payload, payloadLen, cfg->presetNameOffset, cfg->presetNameBitOffset, cfg->presetNameLen, cfg->nameLineWidth, name, sizeof(name));
+
+    // Only reflect this onto the live on-screen display OUTSIDE name-sweep
+    // mode. Bank-to-folder EXPORT mode still needs it — backup_batch_write_
+    // capture()'s own per-file naming reads gDevice.progName right after
+    // this handler runs — and so does a genuine standalone Backup > Patch
+    // by Number fetch. But the Load/Store Patch from/to Bank name sweep
+    // must NOT: it already decodes into its own separate cache
+    // (name_cache_update_from_preset_dump(), synthBackup.c) without ever
+    // touching gDevice.progName, and letting this write through too
+    // flickered the live displayed program name through every OTHER
+    // preset's name for the whole ~1.3-2.5 minute sweep (2026-07-14 owner
+    // report: "Voyager is displaying names as they come in, not the panel
+    // name") — masked before today by the sweep running fast behind a
+    // full-screen blocking modal that hid the panel name display entirely;
+    // today's slower, sometimes-background sweep exposed it. Same "don't
+    // disturb the live display" reasoning handle_prog_dump() already
+    // follows for Korg, just narrower here since export mode genuinely
+    // needs the old behaviour. synth_backup_export_progress_is_name_sweep()
+    // (synthBackup.h) is exactly "Korg sweep active, OR Moog batch active
+    // AND specifically in name-sweep mode" — false during export mode.
+    if (!synth_backup_export_progress_is_name_sweep()) {
+        strncpy(gDevice.progName, name, sizeof(gDevice.progName) - 1);
+        gDevice.progName[sizeof(gDevice.progName) - 1] = '\0';
+    }
 
     // Keeps the Load/Store Patch to Bank name cache (synthBackup.c) accurate
     // for this ONE slot regardless of why this reply arrived — Backup >
@@ -996,9 +1022,12 @@ static void handle_moog_single_preset_dump(const uint8_t * data, uint32_t length
     // (data[5], 0-based on the wire) — guarded by the length check above,
     // which already requires at least 2 bytes; a genuinely truncated reply
     // shorter than 6 bytes couldn't have decoded a real name above either,
-    // so this only ever fires with a real preset number in hand.
+    // so this only ever fires with a real preset number in hand. Passes the
+    // freshly-decoded `name`, NOT gDevice.progName — during a name sweep the
+    // latter is deliberately left untouched now (see above), so it would be
+    // stale here, not this reply's own preset name.
     if (length > 5) {
-        synth_backup_note_preset_name((uint32_t)data[5] + 1, gDevice.progName);
+        synth_backup_note_preset_name((uint32_t)data[5] + 1, name);
     }
     synth_backup_capture_dump(data, length, eBackupExpectPreset); // no-op unless a by-number Backup is pending — see synthBackup.c; after the name decode so a by-number backup's default filename can use it
 }
