@@ -1,6 +1,6 @@
 // Minimal Z1 identity emulator + traffic logger, for testing SynthEdit's Z1
 // support without real hardware connected — built 2026-07-14 to test the new
-// Korg-style "Restore Panel" (loading a Program Data Dump .syx file into the
+// Korg-style "Restore Edit Buffer" (loading a Program Data Dump .syx file into the
 // live edit buffer via individual Parameter Change messages, since Z1 has no
 // single "load this dump" SysEx the way a Moog-style device does).
 //
@@ -89,6 +89,51 @@ func decodeSigned14(_ v: Int) -> Int {
     return v >= 8192 ? v - 16384 : v
 }
 
+// Inverse of decode7to8 above — packs 8-bit bytes into a MIDI-safe 7-bit
+// stream (groups of up to 7 data bytes, each preceded by one byte holding
+// their stripped MSBs), same grouping synth_decode_korg_name()'s own
+// decode_7to8() (synthComms.c) expects on the way back in. Added 2026-07-14
+// to synthesize a fake Program Data Dump reply — needed to test the new
+// "Save Patch by Number to File" (Z1) round trip end to end, since without
+// this the emulator could only ever log requests, never answer them.
+func encode8to7(_ data: [UInt8]) -> [UInt8] {
+    var out: [UInt8] = []
+    var i = 0
+    while i < data.count {
+        let chunk = data[i..<min(i + 7, data.count)]
+        var msbs: UInt8 = 0
+        for (j, b) in chunk.enumerated() {
+            if (b & 0x80) != 0 { msbs |= (1 << j) }
+        }
+        out.append(msbs)
+        for b in chunk { out.append(b & 0x7F) }
+        i += 7
+    }
+    return out
+}
+
+// Builds a synthetic PROGRAM DATA DUMP reply (func 0x4C) for a Program Data
+// Dump Request (func 0x1C) — F0 42 3<ch> 46 4C <ub> <pp> 00 <7-bit payload> F7,
+// per handle_prog_dump()/korg_decode_prog_dump()'s own comments (synthComms.c).
+// Payload here is just a printable name (progNameLen=16, per layouts/z1.txt)
+// padded to 16 chars, plus a little filler — real Z1 payloads are much
+// bigger, but nothing downstream of synth_backup_capture_dump() needs more
+// than the name for this test.
+func sendProgramDumpReply(bank: UInt8, prog: UInt8) {
+    let label = "A\(String(format: "%03d", Int(prog) + 1))"
+    var name = "Test \(label)"
+    if name.count > 16 { name = String(name.prefix(16)) }
+    while name.count < 16 { name += " " }
+    var payload = Array(name.utf8)
+    payload += [UInt8](repeating: 0, count: 8) // small filler, unused by the test
+    let encoded = encode8to7(payload)
+    var msg: [UInt8] = [0xF0, 0x42, 0x30, 0x46, 0x4C, bank & 0x01, prog & 0x7F, 0x00]
+    msg += encoded
+    msg.append(0xF7)
+    send(msg)
+    print("-> Program Data Dump reply (bank=\(bank == 0 ? "A" : "B") prog=\(Int(prog) + 1) name=\"\(name)\"): \(msg.map { String(format: "%02X", $0) }.joined(separator: " "))")
+}
+
 func handleSysex(_ msg: [UInt8]) {
     let hex = msg.map { String(format: "%02X", $0) }.joined(separator: " ")
 
@@ -125,6 +170,15 @@ func handleSysex(_ msg: [UInt8]) {
             extra = "  [\(label): raw14=\(value) -> signed=\(signed14) -> display=\(signed14 + 60)]"
         }
         print("<- Parameter Change: group=\(group) param=\(paramId) value=\(value)\(extra)   raw: \(hex)")
+    } else if funcId == 0x1C, msg.count >= 9 {
+        // Program Data Dump Request: F0 42 3g 46 1C ub pp 00 F7 — answer
+        // with a synthetic reply (see sendProgramDumpReply() above) so the
+        // app's own capture-and-save path can be exercised end to end,
+        // not just the outgoing request.
+        let bank = msg[5] & 0x01
+        let prog = msg[6]
+        print("<- Program Data Dump Request (bank=\(bank == 0 ? "A" : "B") prog=\(Int(prog) + 1))   raw: \(hex)")
+        sendProgramDumpReply(bank: bank, prog: prog)
     } else {
         print("<- func=0x\(String(format: "%02X", funcId)) len=\(msg.count)   raw: \(hex)")
     }

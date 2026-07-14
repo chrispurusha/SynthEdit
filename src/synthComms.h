@@ -102,7 +102,7 @@ void synth_decode_korg_category(const uint8_t * data, uint32_t length, char * ou
 // byte buffer (decoded from its 7-to-8 wire packing, header stripped) —
 // exposes the same decode step synth_decode_korg_name()/synth_decode_korg_
 // category() above already share internally, for a caller (synthBackup.c's
-// Korg-style "Restore Panel") that needs every dial's own value, not just
+// Korg-style "Restore Edit Buffer") that needs every dial's own value, not just
 // the name or category. Returns false (decoded/*outDecodedLen untouched) if
 // data doesn't decode as either expected function ID.
 bool synth_decode_korg_prog_dump(const uint8_t * data, uint32_t length, uint8_t * decoded, uint32_t decodedCap, uint32_t * outDecodedLen);
@@ -126,7 +126,7 @@ void synth_send_korg_program_data_dump(uint8_t bank, uint32_t progNumber, const 
 // Applies a decoded Program Data Dump buffer (synth_decode_korg_prog_dump()
 // above) to the LOCAL app state — name and every dial with a dumpOffset —
 // the exact same way a genuine incoming dump reply already would. For
-// synthBackup.c's Korg-style "Restore Panel": updates what the GUI shows to
+// synthBackup.c's Korg-style "Restore Edit Buffer": updates what the GUI shows to
 // match a restored file immediately, rather than only sending wire messages
 // and hoping a later dump request reflects them.
 void synth_apply_korg_prog_dump_locally(const uint8_t * decoded, uint32_t decodedLen);

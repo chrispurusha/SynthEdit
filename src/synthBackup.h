@@ -42,7 +42,7 @@ extern "C" {
 #endif
 
 // Which reply synth_backup_capture_dump() is currently waiting for — lets it
-// tell an unrelated dump (e.g. a stray live-panel reply arriving while a
+// tell an unrelated dump (e.g. a stray live-edit-buffer reply arriving while a
 // by-number capture is pending) apart from the one that was actually
 // requested, rather than just "is *a* backup pending at all".
 typedef enum {
@@ -67,13 +67,30 @@ typedef enum {
 // reply. A no-op (logs and returns) if no device is connected.
 void synth_backup_current_patch(void);
 
-// Triggered by the "Backup > Patch by Number..." menu action (misc.mm).
-// presetNumber is 1-based (1-128 on a base Voyager with no memory
-// expansion — see synth_request_single_preset_dump() in synthComms.c for
-// the wire format and its caveats). Same fire-and-forget shape as
-// synth_backup_current_patch() above; a no-op if no device is connected or
-// it isn't Moog-style (this request has no Korg-style equivalent yet).
+// Triggered by "File > Save Patch by Number to File…" (was "Backup >
+// Patch by Number..."), Moog branch. presetNumber is 1-based (1-128 on a
+// base Voyager with no memory expansion — see synth_request_single_preset_
+// dump() in synthComms.c for the wire format and its caveats). Same fire-
+// and-forget shape as synth_backup_current_patch() above; a no-op if no
+// device is connected.
 void synth_backup_patch_by_number(uint32_t presetNumber);
+
+// Korg-style (Z1) counterpart to synth_backup_patch_by_number() above —
+// added 2026-07-14, filling a gap the code itself used to flag ("No plain
+// 'Backup > Patch by Number' equivalent yet for Korg"). Needs bank as well
+// as program (Z1 has 2 banks, unlike a base Voyager's single implicit
+// bank), so it's a genuinely separate function rather than an optional
+// parameter on the Moog one. Arms gBackupExpect = eBackupExpectKorgProgram
+// (the SAME expect-kind the Load/Store Patch to Bank name-sweep already
+// uses, just outside a sweep this time — synth_backup_capture_dump()'s own
+// eBackupExpectKorgProgram branch only special-cases behaviour while
+// gKorgSweepActive; a standalone request like this one falls through to
+// the ordinary capture-and-save-dialog path) and calls the existing
+// synth_request_korg_program_dump(bank, prog) (synthComms.c) — no new wire
+// mechanism needed, just a new way to reach the one that already existed
+// for the sweep/export machinery. prog is 1-based (1-128); bank is 0=A,
+// 1=B. A no-op if no device is connected.
+void synth_backup_patch_by_number_korg(uint8_t bank, uint32_t prog);
 
 // Triggered by the "Backup > Bank..." menu action (misc.mm) — every stored
 // preset in one file (see synth_request_all_presets_dump() in synthComms.c
@@ -173,81 +190,92 @@ void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExp
 // ── Restore ───────────────────────────────────────────────────────────────────
 // CONFIRMED against real hardware 2026-07-11: sending a captured dump back
 // to the device is the whole mechanism — no separate "store" SysEx exists.
-// A Panel Dump only ever loads the live edit buffer (no overwrite risk,
-// proven earlier — see [[project_voyager_dial_menu_send]] in the
-// assistant's own memory notes). A Single Preset Dump OVERWRITES the exact
-// stored slot its own embedded preset-number byte names — verified via a
-// safe modify-then-restore round trip on a real Voyager (see
-// [[project_voyager_restore_mechanism]]). All three functions below open a
-// file picker, validate the file actually is the expected dump type/device
-// before doing anything with it, and — for the two that overwrite stored
+// A Panel Dump (Moog's own SysEx term) only ever loads the live edit buffer
+// (no overwrite risk, proven earlier — see [[project_voyager_dial_menu_send]]
+// in the assistant's own memory notes). A Single Preset Dump OVERWRITES the
+// exact stored slot its own embedded preset-number byte names — verified
+// via a safe modify-then-restore round trip on a real Voyager (see
+// [[project_voyager_restore_mechanism]]). All functions below open a file
+// picker, validate the file actually is the expected dump type/device
+// before doing anything with it, and — for the ones that overwrite stored
 // memory — show an explicit confirmation naming exactly what will be
 // overwritten before sending. Each is a no-op (logs and returns) if no
-// device is connected or it isn't Moog-style — most of this has no
-// Korg-style equivalent yet (Restore Panel below is the first exception).
+// device is connected.
+//
+// Moved into the File menu (2026-07-14, matching G2-Edit's own placement —
+// its File menu holds every single-patch operation regardless of whether
+// the other end is a file or a bank slot, reserving Backup/Restore for
+// bulk whole-bank operations only) — these were previously split across
+// separate Backup/Restore menu entries.
 
-// Triggered by "File > Open Panel File…" — loads a previously-saved dump
-// into the live edit buffer, same as physically turning every knob to
-// match. Accepts EITHER a genuine Panel Dump (mode 0x02 — "Save Panel to
-// File…"/"Backup > Current Panel") or a Single Preset Dump (mode 0x03 —
-// "Backup > Patch by Number" or a Bank (Individual Files) export),
-// converting the latter to the former first (synthBackup.c) — added
-// 2026-07-11 so any backed-up patch can be auditioned this way, not just
-// ones saved specifically as a Panel Dump. Does NOT touch any stored
-// preset either way. No confirmation prompt (nothing to lose — the live
-// buffer is exactly what Sync/preset navigation already overwrite freely).
-// Korg-style devices (Z1) branch internally to a different mechanism —
-// replaying every dial's own value as an individual live Parameter Change,
-// since there's no Korg equivalent of a Moog Panel Dump to just forward —
-// see restore_panel_korg_file()'s own comment, synthBackup.c. Added
-// 2026-07-14, untested against real Z1 hardware yet.
-void synth_backup_restore_panel(void);
+// Triggered by "File > Open Edit Buffer File…" (was "Open Panel File…") —
+// loads a previously-saved dump into the live edit buffer, same as
+// physically turning every knob to match. Accepts EITHER a genuine Panel
+// Dump (Moog's own term, mode 0x02 — "Save Edit Buffer to File…") or a
+// Single Preset Dump (mode 0x03 — "Save Patch by Number to File…" or a
+// Bank (Individual Files) export), converting the latter to the former
+// first (synthBackup.c) — added 2026-07-11 so any backed-up patch can be
+// auditioned this way, not just ones saved specifically as a Panel Dump.
+// Does NOT touch any stored preset either way. No confirmation prompt
+// (nothing to lose — the live buffer is exactly what Sync/preset
+// navigation already overwrite freely). Korg-style devices (Z1) branch
+// internally to a different mechanism — sending one whole Current Program
+// Data Dump (func 0x40), the Z1's own direct equivalent of a Moog Panel
+// Dump — see restore_edit_buffer_korg_file()'s own comment, synthBackup.c.
+// CONFIRMED against real Z1 hardware 2026-07-14.
+void synth_backup_restore_edit_buffer(void);
 
-// Test-only entry point for the backdoor RESTOREPANEL command
+// Test-only entry point for the backdoor RESTOREEDITBUFFER command
 // (graphics.cpp) — calls the exact same file-load-and-send logic
-// synth_backup_restore_panel() above triggers via its NSOpenPanel, just
-// with a path supplied directly instead of through a native modal file
-// picker (which has no headless way to click through, the same reason
-// KORGSELECT exists for Load-from-Bank). Added 2026-07-14 specifically to
-// test the new Korg-style Restore Panel mechanism above without real Z1
-// hardware connected (see tools/z1_emulator.swift). Safe to leave
-// reachable unattended for the same reason KORGSELECT is: loading a file
-// into the live edit buffer only touches what's currently playing, never
-// anything stored (contrast a hypothetical "write this to a bank slot"
-// command, which this deliberately is not).
-void synth_backup_restore_panel_from_path(const char * path);
+// synth_backup_restore_edit_buffer() above triggers via its NSOpenPanel,
+// just with a path supplied directly instead of through a native modal
+// file picker (which has no headless way to click through, the same
+// reason KORGSELECT exists for Load-from-Bank). Added 2026-07-14
+// specifically to test the Korg-style Restore Edit Buffer mechanism above
+// without real Z1 hardware connected (see tools/z1_emulator.swift). Safe
+// to leave reachable unattended for the same reason KORGSELECT is: loading
+// a file into the live edit buffer only touches what's currently playing,
+// never anything stored (contrast a hypothetical "write this to a bank
+// slot" command, which this deliberately is not).
+void synth_backup_restore_edit_buffer_from_path(const char * path);
 
-// Triggered by "Backup > Restore > Patch by Number…" — loads a previously-
-// saved Single Preset Dump and sends it back verbatim, OVERWRITING the
-// exact preset slot number embedded in the file itself (not something the
-// user picks — see this file's own comment on how that's decoded). Shows a
-// confirmation naming that slot number before sending; a no-op if the
-// chosen file doesn't decode as a valid Single Preset Dump for the
-// connected device.
+// Triggered by "File > Save Patch by Number to File…" (was "Backup >
+// Patch by Number…") — loads a previously-saved Single Preset Dump and
+// sends it back verbatim, OVERWRITING the exact preset slot number
+// embedded in the file itself (not something the user picks — see this
+// file's own comment on how that's decoded). Shows a confirmation naming
+// that slot number before sending; a no-op if the chosen file doesn't
+// decode as a valid Single Preset Dump for the connected device.
 void synth_backup_restore_patch(void);
 
-// Triggered by "Restore > Patch to Selected Bank Slot…" — Korg-style (Z1)
-// only, a no-op with a logged error otherwise. Like synth_backup_restore_
-// patch() above, loads a file and writes it DIRECTLY to a stored slot
-// (bypassing the live edit buffer entirely) — but instead of always
-// targeting the file's own embedded bank/program, shows the same named-slot
-// picker Store Patch to Bank uses so the owner can pick ANY destination.
-// The direct send-direction mirror of "Backup > Patch by Number" (which
-// already reads a specific stored slot straight to a file, no edit buffer
-// involved) — owner's own framing, 2026-07-14: "We can already save from a
-// flash slot to a file... this would be the reverse." Confirms before
-// sending (overwrites stored memory with no undo). UNCONFIRMED against real
-// Z1 hardware as of this writing.
+// Triggered by "File > Load Patch File to Bank Slot…" (was Korg-only
+// "Restore > Patch to Selected Bank Slot…") — loads a file and writes it
+// DIRECTLY to a stored slot (bypassing the live edit buffer entirely) —
+// but instead of always targeting the file's own embedded bank/program,
+// shows the same named-slot picker Store Patch to Bank uses so the owner
+// can pick ANY destination. The direct send-direction mirror of "Save
+// Patch by Number to File…" (which already reads a specific stored slot
+// straight to a file, no edit buffer involved) — owner's own framing,
+// 2026-07-14: "We can already save from a flash slot to a file... this
+// would be the reverse." Confirms before sending (overwrites stored memory
+// with no undo). Korg-style (Z1): UNCONFIRMED against real hardware as of
+// this writing. Moog-style (Voyager): added 2026-07-14, also unconfirmed —
+// patches the file's own preset-number byte (index 5, same offset synth_
+// backup_restore_patch() above already reads) to the chosen slot and
+// resends verbatim, no header reconstruction needed unlike the Korg branch.
 void synth_backup_restore_patch_to_bank(void);
 
 // Test-only entry point for a backdoor RESTOREPATCHTOBANK command
-// (graphics.cpp) — same reasoning synth_backup_restore_panel_from_path()
-// above already gives: the real menu action shows TWO native modals (a file
-// picker, then a named-slot picker) neither of which has a headless way to
-// click through. UNLIKE that one, this DOES write to a stored slot if run
-// against real hardware — deliberately skips the confirmation dialog too,
-// so this must only ever be exercised against something that can't actually
-// lose data (tools/z1_emulator.swift, never a real connected device).
+// (graphics.cpp) — same reasoning synth_backup_restore_edit_buffer_from_
+// path() above already gives: the real menu action shows TWO native
+// modals (a file picker, then a named-slot picker) neither of which has a
+// headless way to click through. UNLIKE that one, this DOES write to a
+// stored slot if run against real hardware — deliberately skips the
+// confirmation dialog too, so this must only ever be exercised against
+// something that can't actually lose data (tools/z1_emulator.swift or
+// tools/voyager_emulator.swift, never a real connected device). bank is
+// ignored for Moog-style devices (no bank concept — see synth_store_
+// patch_to_bank()'s own comment for the same convention).
 void synth_backup_restore_patch_to_bank_from_path(const char * path, uint8_t bank, uint32_t prog);
 
 // Triggered by "Backup > Restore > Bank…" — loads a previously-saved whole-
@@ -329,7 +357,7 @@ typedef enum {
 // acts on the chosen one: eNameSweepPurposeLoad calls
 // synth_load_patch_from_bank(), eNameSweepPurposeStore calls
 // synth_store_patch_to_bank() — for Store, the picker defaults to
-// gDevice.currentProgram + 1 (the slot the CURRENT panel was originally
+// gDevice.currentProgram + 1 (the slot the CURRENT edit buffer was originally
 // loaded from), a second 2026-07-11 owner request ("default to write to the
 // slot... the one we're working on came from"). A no-op if no device is
 // connected, it isn't Moog-style, or another backup/restore/sweep operation
@@ -338,8 +366,8 @@ void synth_backup_start_name_sweep(tNameSweepPurpose purpose);
 
 // Updates the name cache above for ONE preset — called from
 // handle_moog_single_preset_dump() (synthComms.c) for EVERY incoming Single
-// Preset Dump reply, regardless of why it was requested (Backup > Patch by
-// Number, a future patch browser, anything at all) — 2026-07-11 owner
+// Preset Dump reply, regardless of why it was requested (Save Patch by
+// Number to File, a future patch browser, anything at all) — 2026-07-11 owner
 // observation: "the gap will be closed if we have to read the patch in
 // question from the synth for any reason." presetNumber is 1-based
 // (1-128); name is whatever was just decoded for that reply (already
@@ -356,14 +384,16 @@ void synth_backup_note_preset_name(uint32_t presetNumber, const char * name);
 // (synthComms.c), not here.
 
 // Triggered by "File > Store Patch to Bank…" — commits the CURRENT live
-// panel to a chosen stored preset location, OVERWRITING whatever is there.
-// Shows a confirmation before doing anything. Mechanism is entirely
+// edit buffer to a chosen stored preset location, OVERWRITING whatever is
+// there. Shows a confirmation before doing anything. Mechanism is entirely
 // protocol-dependent (branches on cfg->moogStyleDump):
-//   - Moog-style (Voyager): request a FRESH Panel Dump (not a possibly-
-//     stale cache) so the exact current edit-buffer state is what gets
-//     stored, convert it to Single Preset Dump shape addressed to
-//     presetNumber (the inverse of Restore's own preset-dump -> panel-dump
-//     conversion, synthBackup.c), and send — the same "SEND PRESET(S)"
+//   - Moog-style (Voyager): request a FRESH Panel Dump (Moog's own SysEx
+//     term — not a possibly-stale cache) so the exact current edit-buffer
+//     state is what gets stored, convert it to Single Preset Dump shape
+//     addressed to presetNumber (the inverse of Restore's own preset-dump
+//     -> panel-dump conversion, synthBackup.c — "panel dump" there names
+//     the Moog wire format specifically), and send — the same "SEND
+//     PRESET(S)"
 //     mechanism Restore > Patch by Number already proved works on real
 //     hardware, just sourced from a live fetch instead of a file.
 //   - Korg-style (Z1): a single PROGRAM WRITE REQUEST (func 0x11,

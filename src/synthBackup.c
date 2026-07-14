@@ -50,6 +50,20 @@ static _Atomic int  gBackupExpect           = eBackupExpectNone;
 // suggest a filename that says so.
 static uint32_t     gBackupPresetNum        = 0;
 
+// Korg-style counterpart to gBackupPresetNum above — valid only while
+// gBackupExpect == eBackupExpectKorgProgram AND no sweep is active (a
+// standalone synth_backup_patch_by_number_korg() request, not the Load/
+// Store name-sweep, which tracks its own gKorgSweepIndex instead). Same
+// "just for the save dialog's default filename" purpose.
+static uint8_t      gBackupKorgBank         = 0;
+static uint32_t     gBackupKorgProg         = 0;
+
+// Forward-declared (tentative definition, legal in C — merges with the real
+// one) so synth_backup_patch_by_number_korg()'s busy-guard just below can
+// see it; the actual definition and the rest of the Korg sweep state lives
+// together further down, next to korg_sweep_start().
+static bool         gKorgSweepActive;
+
 // Set on the CoreMIDI thread just before opening the save dialog, read once
 // on the main thread inside the dialog's completion callback. No lock needed
 // for that handoff: open_file_write_dialogue_async() below dispatch_asyncs
@@ -360,7 +374,7 @@ void synth_store_patch_to_bank(uint8_t bank, uint32_t presetNumber) {
     // protocols address a slot differently (bank+number vs number alone).
     if (!synth_panel_config()->moogStyleDump) {
         snprintf(message, sizeof(message),
-                 "This will overwrite Bank %c, Program %u on the connected device with the CURRENT panel. This cannot be undone.",
+                 "This will overwrite Bank %c, Program %u on the connected device with the CURRENT edit buffer. This cannot be undone.",
                  bank ? 'B' : 'A', (unsigned)presetNumber);
 
         if (!show_confirm_dialogue("Store Patch to Bank", message)) {
@@ -368,13 +382,13 @@ void synth_store_patch_to_bank(uint8_t bank, uint32_t presetNumber) {
             return;
         }
         synth_send_korg_program_write_request(bank, presetNumber);
-        snprintf(message, sizeof(message), "Sent — Bank %c, Program %u should now match the current panel.",
+        snprintf(message, sizeof(message), "Sent — Bank %c, Program %u should now match the current edit buffer.",
                  bank ? 'B' : 'A', (unsigned)presetNumber);
         show_info_dialogue("Store Patch to Bank", message);
         return;
     }
     snprintf(message, sizeof(message),
-             "This will overwrite Preset %u on the connected device with the CURRENT panel. This cannot be undone.",
+             "This will overwrite Preset %u on the connected device with the CURRENT edit buffer. This cannot be undone.",
              (unsigned)presetNumber);
 
     if (!show_confirm_dialogue("Store Patch to Bank", message)) {
@@ -397,9 +411,45 @@ void synth_backup_patch_by_number(uint32_t presetNumber) {
         LOG_ERROR("Backup: no device connected\n");
         return;
     }
+
+    // gBackupBatchActive here catches the background name-sweep (both it and
+    // this lone fetch share eBackupExpectPreset) — without this, a reply
+    // arriving while the sweep owns the floor gets routed into the sweep's
+    // own branch in synth_backup_capture_dump() (matched purely by kind,
+    // not by WHICH preset was asked for) instead of this fetch's save-
+    // dialog path, silently discarding the request. Found 2026-07-14 while
+    // building the Korg twin of this function just below. Same reasoning
+    // as korg_sweep_show_picker()'s own guard against the reverse case
+    // (comment further down, "gBackupBatchActive/gBackupExpect==eBackupExpectPreset...").
+    if (gBackupBatchActive || (gBackupExpect != eBackupExpectNone)) {
+        LOG_ERROR("Backup: another backup/restore operation is already in progress\n");
+        return;
+    }
     gBackupPresetNum = presetNumber;
     gBackupExpect    = eBackupExpectPreset;
     synth_request_single_preset_dump(presetNumber); // logs its own error and leaves gBackupExpect armed-but-unfulfilled if out of range/wrong device
+}
+
+void synth_backup_patch_by_number_korg(uint8_t bank, uint32_t prog) {
+    if (!gDevice.connected) {
+        LOG_ERROR("Backup: no device connected\n");
+        return;
+    }
+
+    // gKorgSweepActive here catches the background name-sweep — same race
+    // as synth_backup_patch_by_number()'s own guard just above (it and this
+    // fetch share eBackupExpectKorgProgram), found the same way. Without
+    // this, a reply arriving mid-sweep gets misattributed to whatever
+    // program the sweep itself is currently waiting on, and this fetch's
+    // own request just silently never gets its save dialog.
+    if (gKorgSweepActive || (gBackupExpect != eBackupExpectNone)) {
+        LOG_ERROR("Backup: another backup/restore operation is already in progress\n");
+        return;
+    }
+    gBackupKorgBank = bank;
+    gBackupKorgProg = prog;
+    gBackupExpect   = eBackupExpectKorgProgram;
+    synth_request_korg_program_dump(bank, prog); // logs its own error and leaves gBackupExpect armed-but-unfulfilled if out of range/wrong device
 }
 
 void synth_backup_bank(void) {
@@ -581,7 +631,7 @@ static void name_cache_set_label(uint32_t presetNumber, const char * name, const
 // updates the name cache for presetNumber via name_cache_set_label() above.
 // Shared by every write path that knows exactly which slot it just wrote
 // and has the preset-dump bytes on hand: synth_backup_flush_store() (this
-// app's own live-panel write), restore_patch_file_chosen() (Restore >
+// app's own live-edit-buffer write), restore_patch_file_chosen() (Restore >
 // Patch by Number), and each per-file send in
 // synth_backup_flush_restore_folder() (Restore > Bank Individual Files).
 // Does NOT touch gDevice.progName — same "don't disturb what the live
@@ -1172,7 +1222,7 @@ static void korg_sweep_show_picker(void) {
         labelPtrs[i] = gKorgSweepLabels[i];
     }
 
-    // Store defaults to the slot the CURRENT panel was originally loaded
+    // Store defaults to the slot the CURRENT edit buffer was originally loaded
     // from — gDevice.currentProgram is 0-based WITHIN a bank (0-127) and
     // has no bank information of its own, so this can only default to a
     // Bank A slot (index == currentProgram) or fall back to the first
@@ -1187,8 +1237,8 @@ static void korg_sweep_show_picker(void) {
     }
     const char * title        = (gNameSweepPurpose == eNameSweepPurposeLoad) ? "Load Patch from Bank" : "Store Patch to Bank";
     const char * message      = (gNameSweepPurpose == eNameSweepPurposeLoad)
-                ? "Choose a program to load into the live panel:"
-                : "Choose a program to store the current panel to:";
+                ? "Choose a program to load into the live edit buffer:"
+                : "Choose a program to store the current edit buffer to:";
     int32_t      chosen       = show_device_choice_dialogue(title, message, labelPtrs, KORG_SWEEP_PRESET_COUNT, defaultIndex);
 
     // No synth_request_state_dump() here (removed 2026-07-14) — handle_prog_dump()
@@ -1318,7 +1368,7 @@ static void name_sweep_show_picker(void) {
         labelPtrs[i] = gNameSweepLabels[i];
     }
 
-    // Store defaults to the slot the CURRENT panel was originally loaded
+    // Store defaults to the slot the CURRENT edit buffer was originally loaded
     // from (gDevice.currentProgram, 0-based; -1 = unknown) — owner request,
     // 2026-07-11: "default to write to the slot... the one we're working on
     // came from". Load has no equivalent natural default, so it always
@@ -1331,8 +1381,8 @@ static void name_sweep_show_picker(void) {
     }
     const char * title        = (gNameSweepPurpose == eNameSweepPurposeLoad) ? "Load Patch from Bank" : "Store Patch to Bank";
     const char * message      = (gNameSweepPurpose == eNameSweepPurposeLoad)
-                ? "Choose a preset to load into the live panel:"
-                : "Choose a preset to store the current panel to:";
+                ? "Choose a preset to load into the live edit buffer:"
+                : "Choose a preset to store the current edit buffer to:";
     int32_t      chosen       = show_device_choice_dialogue(title, message, labelPtrs, BACKUP_BATCH_PRESET_COUNT, defaultIndex);
 
     // No synth_request_state_dump() here (removed 2026-07-14) — the sweep
@@ -1473,7 +1523,7 @@ void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExp
     gBackupExpect = eBackupExpectNone;
 
     if ((kind == eBackupExpectLive) && (gStoreArmedPresetNumber != 0)) {
-        // A "Store Patch to Bank…" fetch, not a "Save Panel to File…" one —
+        // A "Store Patch to Bank…" fetch, not a "Save Edit Buffer to File…" one —
         // see gStoreArmedPresetNumber's own comment above for why this check
         // comes before anything file-related. Same CoreMIDI-thread-copies/
         // main-thread-processes handoff as the bank-to-folder batch export
@@ -1543,12 +1593,12 @@ void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExp
         // Korg name sweep in progress — same CoreMIDI-thread-copies/main-
         // thread-decodes handoff as the Moog bank-to-folder sweep just
         // above, for the same reason (this runs on the CoreMIDI thread —
-        // see the Korg sweep block's own header comment). No plain
-        // "Backup > Patch by Number" equivalent yet for Korg (see
-        // [[project_z1_load_from_bank_todo]]), so unlike eBackupExpectPreset
-        // above, there's no generic fallthrough needed here if
-        // gKorgSweepActive is false — that would mean a stray/unexpected
-        // reply, safe to just drop.
+        // see the Korg sweep block's own header comment). If gKorgSweepActive
+        // is false, control falls through past this block to the generic
+        // capture-and-save path below — same as eBackupExpectPreset above —
+        // which is exactly how the standalone "Save Patch by Number to
+        // File…" feature (synth_backup_patch_by_number_korg(), added
+        // 2026-07-14) gets its reply handled, no sweep involved.
         uint8_t * korgCopy = (uint8_t *)malloc(length);
 
         if (korgCopy == NULL) {
@@ -1576,7 +1626,7 @@ void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExp
 
     // Bank has no single current-patch name to reflect (it's 128 of them at
     // once) — handled on its own, before touching gDevice.progName at all.
-    // Preset and Live ("Save Panel to File…", added 2026-07-11 at the
+    // Preset and Live ("Save Edit Buffer to File…", added 2026-07-11 at the
     // owner's request — "should default to a name reflecting the patch
     // name") both just want gDevice.progName if extract_moog_name()
     // (synthComms.c) managed to decode one, falling back to a kind-specific
@@ -1596,6 +1646,26 @@ void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExp
         } else if (kind == eBackupExpectPreset) {
             snprintf(defaultName, sizeof(defaultName), "%s Preset %u.syx",
                      (deviceName[0] != '\0') ? deviceName : "patch", (unsigned)gBackupPresetNum);
+        } else if (kind == eBackupExpectKorgProgram) {
+            // nameForFile above is empty for this kind — handle_prog_dump()
+            // (synthComms.c) deliberately never touches gDevice.progName
+            // (would corrupt the on-screen edit buffer with some OTHER
+            // program's name). Decode straight from the just-captured bytes
+            // instead, same as korg_name_cache_update_from_dump() does.
+            char korgName[sizeof(gDevice.progName)];
+
+            korgName[0] = '\0';
+            synth_decode_korg_name(gPendingBackupData, gPendingBackupLen, korgName, sizeof(korgName));
+            char korgNameForFile[sizeof(gDevice.progName)];
+
+            backup_sanitize_name_for_file(korgName, korgNameForFile, sizeof(korgNameForFile));
+
+            if (korgNameForFile[0] != '\0') {
+                snprintf(defaultName, sizeof(defaultName), "%s.syx", korgNameForFile);
+            } else {
+                snprintf(defaultName, sizeof(defaultName), "%s %c%03u.syx",
+                         (deviceName[0] != '\0') ? deviceName : "patch", gBackupKorgBank ? 'B' : 'A', (unsigned)gBackupKorgProg);
+            }
         } else {
             snprintf(defaultName, sizeof(defaultName), "%s.syx", (deviceName[0] != '\0') ? deviceName : "patch");
         }
@@ -1684,7 +1754,7 @@ static bool restore_validate_moog_dump(const uint8_t * data, uint32_t length, ui
     if (data[4] != expectedMode) {
         snprintf(reason, reasonSize,
                  "This file is a %s, not a %s — pick a file saved with the matching Backup action.",
-                 (data[4] == 0x01) ? "whole Bank dump" : (data[4] == 0x02) ? "Panel (Edit Buffer) dump" : (data[4] == 0x03) ? "Patch by Number dump" : "dump of an unrecognized type",
+                 (data[4] == 0x01) ? "whole Bank dump" : (data[4] == 0x02) ? "Edit Buffer dump" : (data[4] == 0x03) ? "Patch by Number dump" : "dump of an unrecognized type",
                  what);
         LOG_ERROR("Restore: %s is mode 0x%02X, expected 0x%02X\n", what, (unsigned)data[4], (unsigned)expectedMode);
         return false;
@@ -1747,7 +1817,7 @@ static bool restore_validate_korg_dump(const uint8_t * data, uint32_t length, ch
 // Converts a captured Single Preset Dump (mode 0x03 — "Patch by Number" or
 // a Bank (Individual Files) export) into an equivalent Panel Dump (mode
 // 0x02), so any backed-up patch can be loaded into the live edit buffer
-// via "Open Panel File…" too, not just restored-by-overwrite via
+// via "Open Edit Buffer File…" too, not just restored-by-overwrite via
 // "Restore > Patch by Number…" — added 2026-07-11, owner's own request
 // ("we should be able to use backup patches to load to panel").
 //
@@ -1787,7 +1857,7 @@ static uint8_t * convert_preset_dump_to_panel_dump(const uint8_t * src, uint32_t
 // preset-number byte and flips the mode byte the other way, turning a Panel
 // Dump into a Single Preset Dump addressed to a chosen destination. Used by
 // synth_store_patch_to_bank() below ("Store Patch to Bank…", G2-Edit
-// naming): the ONLY way to write the current live panel to a specific
+// naming): the ONLY way to write the current live edit buffer to a specific
 // stored location is the same "SEND PRESET(S)" mechanism Restore > Patch by
 // Number already proved works (see [[project_voyager_restore_mechanism]] in
 // the assistant's own memory notes) — there's no separate "commit edit
@@ -1840,7 +1910,7 @@ void synth_backup_flush_store(void) {
 
     if (converted == NULL) {
         LOG_ERROR("Store: failed to convert %u byte Panel Dump for preset %u\n", (unsigned)length, (unsigned)presetNumber);
-        show_info_dialogue("Store Patch Failed", "Couldn't prepare the current panel for sending — see the debug log.");
+        show_info_dialogue("Store Patch Failed", "Couldn't prepare the current edit buffer for sending — see the debug log.");
         return;
     }
     char      message[160];
@@ -1851,7 +1921,7 @@ void synth_backup_flush_store(void) {
         // Keeps the name cache (gNameCacheValid) accurate for this slot
         // without needing a full re-sweep — see that flag's own comment.
         name_cache_update_from_preset_dump(presetNumber, converted, convertedLen);
-        snprintf(message, sizeof(message), "Sent — Preset %u should now match the current panel.", (unsigned)presetNumber);
+        snprintf(message, sizeof(message), "Sent — Preset %u should now match the current edit buffer.", (unsigned)presetNumber);
         show_info_dialogue("Store Patch to Bank", message);
     } else {
         LOG_ERROR("Store: failed to send %u byte Single Preset Dump for preset %u\n",
@@ -1868,7 +1938,7 @@ void synth_backup_flush_store(void) {
 // (group=/param=), which only ever touches the live edit buffer, never
 // flash — this deliberately never sends a PROGRAM WRITE REQUEST, matching
 // the owner's own "wouldn't store to Z1 flash yet" caution (2026-07-14).
-// Paced with CFRunLoopRunInMode (not usleep — restore_panel_file_chosen()
+// Paced with CFRunLoopRunInMode (not usleep — restore_edit_buffer_file_chosen()
 // below runs on the main thread's own CFRunLoop, dispatched via open_file_
 // read_dialogue_async()'s NSOpenPanel completion handler.
 //
@@ -1895,9 +1965,9 @@ void synth_backup_flush_store(void) {
 // Most of z1.txt's dials are exactly that family, which is almost
 // certainly why the old approach reliably produced a near-init-sounding
 // result: every positive envelope level/mod amount/etc. got clamped away.
-static void restore_panel_korg_file(const uint8_t * data, uint32_t length, const char * path, char * reason, size_t reasonSize) {
+static void restore_edit_buffer_korg_file(const uint8_t * data, uint32_t length, const char * path, char * reason, size_t reasonSize) {
     if (!restore_validate_korg_dump(data, length, reason, reasonSize, NULL, NULL)) {
-        show_info_dialogue("Restore Panel Failed", reason);
+        show_info_dialogue("Restore Edit Buffer Failed", reason);
         return;
     }
     static uint8_t decoded[4096];
@@ -1905,14 +1975,14 @@ static void restore_panel_korg_file(const uint8_t * data, uint32_t length, const
 
     if (!synth_decode_korg_prog_dump(data, length, decoded, sizeof(decoded), &decodedLen)) {
         snprintf(reason, reasonSize, "Couldn't decode this file's Program Data Dump payload.");
-        show_info_dialogue("Restore Panel Failed", reason);
+        show_info_dialogue("Restore Edit Buffer Failed", reason);
         return;
     }
     tPanelConfig * cfg        = synth_panel_config();
 
     if (decodedLen < cfg->progNameLen) {
         snprintf(reason, reasonSize, "This file's decoded payload (%u bytes) is too short for this device's own program name field.", (unsigned)decodedLen);
-        show_info_dialogue("Restore Panel Failed", reason);
+        show_info_dialogue("Restore Edit Buffer Failed", reason);
         return;
     }
     // Re-slice the file's own RAW (still 7-bit-packed, NOT the decode_7to8()
@@ -1959,22 +2029,22 @@ static void restore_panel_korg_file(const uint8_t * data, uint32_t length, const
     if (!synth_dump_patch_in_flight()) {
         synth_request_state_dump();
     }
-    LOG_DEBUG("Restore: Korg-style panel restore from %s sent as one Current Program Data Dump (%u byte payload)\n", path, (unsigned)rawLen);
-    show_info_dialogue("Restore Panel", "Sent — the connected device's live edit buffer should now match this file.");
+    LOG_DEBUG("Restore: Korg-style edit buffer restore from %s sent as one Current Program Data Dump (%u byte payload)\n", path, (unsigned)rawLen);
+    show_info_dialogue("Restore Edit Buffer", "Sent — the connected device's live edit buffer should now match this file.");
 }
 
 // Runs on the main thread once the user has chosen (or cancelled) a file to
-// load into the live edit buffer — see synth_backup_restore_panel() below.
+// load into the live edit buffer — see synth_backup_restore_edit_buffer() below.
 // Accepts EITHER a genuine Panel Dump (mode 0x02, "Backup > Current Panel"
-// / "Save Panel to File…") or a Single Preset Dump (mode 0x03, "Backup >
+// / "Save Edit Buffer to File…") or a Single Preset Dump (mode 0x03, "Backup >
 // Patch by Number" or a Bank (Individual Files) export) — the latter is
 // converted via convert_preset_dump_to_panel_dump() above before sending.
-// Korg-style devices (Z1) branch off to restore_panel_korg_file() above
+// Korg-style devices (Z1) branch off to restore_edit_buffer_korg_file() above
 // instead — an entirely different mechanism (see its own comment) since
 // there's no Korg equivalent of a Moog Panel Dump to just forward as-is.
-static void restore_panel_file_chosen(const char * path) {
+static void restore_edit_buffer_file_chosen(const char * path) {
     if (path == NULL) {
-        LOG_DEBUG("Restore: panel restore cancelled\n");
+        LOG_DEBUG("Restore: edit buffer restore cancelled\n");
         return;
     }
     uint32_t  length = 0;
@@ -1986,7 +2056,7 @@ static void restore_panel_file_chosen(const char * path) {
     char      reason[192];
 
     if (!synth_panel_config()->moogStyleDump) {
-        restore_panel_korg_file(data, length, path, reason, sizeof(reason));
+        restore_edit_buffer_korg_file(data, length, path, reason, sizeof(reason));
         free(data);
         return;
     }
@@ -2009,35 +2079,35 @@ static void restore_panel_file_chosen(const char * path) {
     }
 
     if (!restore_validate_moog_dump(data, length, 0x02, "Panel Dump", reason, sizeof(reason))) {
-        show_info_dialogue("Restore Panel Failed", reason);
+        show_info_dialogue("Restore Edit Buffer Failed", reason);
         free(data);
         return;
     }
 
     if (midi_send(data, length)) {
         LOG_DEBUG("Restore: sent %u byte Panel Dump from %s (loads live edit buffer only)\n", (unsigned)length, path);
-        show_info_dialogue("Restore Panel", "Sent — the connected device's live edit buffer should now match this file.");
+        show_info_dialogue("Restore Edit Buffer", "Sent — the connected device's live edit buffer should now match this file.");
     } else {
         LOG_ERROR("Restore: failed to send %u byte Panel Dump from %s\n", (unsigned)length, path);
-        show_info_dialogue("Restore Panel Failed", "The message couldn't be sent — see the debug log for the exact MIDI error.");
+        show_info_dialogue("Restore Edit Buffer Failed", "The message couldn't be sent — see the debug log for the exact MIDI error.");
     }
     free(data);
 }
 
-void synth_backup_restore_panel(void) {
+void synth_backup_restore_edit_buffer(void) {
     if (!gDevice.connected) {
         LOG_ERROR("Restore: no device connected\n");
         return;
     }
-    open_file_read_dialogue_async(restore_panel_file_chosen);
+    open_file_read_dialogue_async(restore_edit_buffer_file_chosen);
 }
 
-void synth_backup_restore_panel_from_path(const char * path) {
+void synth_backup_restore_edit_buffer_from_path(const char * path) {
     if (!gDevice.connected) {
         LOG_ERROR("Restore: no device connected\n");
         return;
     }
-    restore_panel_file_chosen(path);
+    restore_edit_buffer_file_chosen(path);
 }
 
 // Runs on the main thread once the user has chosen (or cancelled) a Single

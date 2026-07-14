@@ -242,6 +242,30 @@ static int32_t choose_preset_number(const char * title, const char * message) {
     return show_device_choice_dialogue(title, message, labels, kPresetCount, 0);
 }
 
+// Korg-style (Z1) counterpart to choose_preset_number() above — 2 banks x
+// 128 programs instead of a single 128-preset range, bare "A001".."B128"
+// labels (no name-fetch dependency, same fast philosophy as the Voyager
+// picker above — this is meant to be quick, not the richer named Load/
+// Store Patch picker). Returns a 0-based sweep-style index (0..255,
+// bank*128+prog-1, matching gKorgSweepLabels' own indexing convention) or
+// -1 if cancelled — caller derives bank/prog the same way korg_sweep_show_
+// picker() (synthBackup.c) already does.
+static int32_t choose_korg_preset_number(const char * title, const char * message) {
+    const uint32_t kPresetCount = 256;
+    char           labelStorage[256][5]; // "A001".."B128", 4 chars + NUL
+    const char *   labels[256];
+
+    for (uint32_t i = 0; i < kPresetCount; i++) {
+        uint8_t  bank = (uint8_t)(i / 128);
+        uint32_t prog = (i % 128) + 1;
+
+        snprintf(labelStorage[i], sizeof(labelStorage[i]), "%c%03u", bank ? 'B' : 'A', (unsigned)prog);
+        labels[i] = labelStorage[i];
+    }
+
+    return show_device_choice_dialogue(title, message, labels, kPresetCount, 0);
+}
+
 @interface SynthMenuTarget : NSObject
 - (void)scanDevices:(id)sender;
 - (void)switchDevice:(id)sender;
@@ -256,7 +280,7 @@ static int32_t choose_preset_number(const char * title, const char * message) {
 - (void)storePatchToBank:(id)sender;
 - (void)backupBank:(id)sender;
 - (void)backupBankToFolder:(id)sender;
-- (void)restorePanel:(id)sender;
+- (void)restoreEditBuffer:(id)sender;
 - (void)restorePatch:(id)sender;
 - (void)restoreBank:(id)sender;
 - (void)restoreFolder:(id)sender;
@@ -282,7 +306,20 @@ static int32_t choose_preset_number(const char * title, const char * message) {
 }
 
 - (void)backupPatchByNumber:(id)sender {
-    int32_t chosen = choose_preset_number("Backup Patch", "Choose a preset number to back up:");
+    // Korg-style (Z1) needs bank+program (choose_korg_preset_number()'s own
+    // 256-entry picker) and a different backend call — see synth_backup_
+    // patch_by_number_korg()'s own comment, synthBackup.h, for why this
+    // couldn't just reuse synth_backup_patch_by_number() (Moog-only, no
+    // bank concept).
+    if (!synth_panel_config()->moogStyleDump) {
+        int32_t chosen = choose_korg_preset_number("Save Patch by Number to File", "Choose a program to save:");
+
+        if (chosen >= 0) {
+            synth_backup_patch_by_number_korg((uint8_t)(chosen / 128), (uint32_t)((chosen % 128) + 1));
+        }
+        return;
+    }
+    int32_t chosen = choose_preset_number("Save Patch by Number to File", "Choose a preset number to save:");
 
     if (chosen >= 0) {
         synth_backup_patch_by_number((uint32_t)(chosen + 1));
@@ -306,8 +343,8 @@ static int32_t choose_preset_number(const char * title, const char * message) {
     synth_backup_bank();
 }
 
-- (void)restorePanel:(id)sender {
-    synth_backup_restore_panel();
+- (void)restoreEditBuffer:(id)sender {
+    synth_backup_restore_edit_buffer();
 }
 
 - (void)restorePatch:(id)sender {
@@ -419,49 +456,84 @@ void setup_main_menu(void) {
 
         reposition_window(savedX, savedY);
     }
-    // File menu — Open/Save for the live edit buffer, same top-level
-    // position and Open/Save naming G2-Edit's own File menu uses
-    // (misc.mm there: "Open Patch/Perf File…" ⌘O, "Save Patch to File…"
-    // ⌘S) rather than burying these two under Backup/Restore alongside the
-    // stored-preset/bank actions — moved here 2026-07-11 at the owner's
-    // request, having started out in Backup/Restore (that's still where
-    // synth_backup_current_patch()/synth_backup_restore_panel() are
-    // declared/documented, synthBackup.h — this menu just points at them
-    // from a different, more familiar location).
+    // File menu — every single-patch operation lives here regardless of
+    // whether the other end is a file or a bank slot, matching G2-Edit's
+    // own File menu structure exactly (misc.mm there: Open/Load paired,
+    // then Save/Store paired) — reorganized 2026-07-14 at the owner's
+    // request to move Backup > Current Patch/Patch by Number and Restore >
+    // Panel/Patch by Number/Patch to Selected Bank Slot in here too,
+    // leaving Backup/Restore as bulk-only (whole-bank) menus below. The
+    // underlying functions are still declared/documented in synthBackup.h;
+    // this menu just points at them from their G2-Edit-matching location.
     NSMenuItem * fileMI                 = [[NSMenuItem alloc] init];
     NSMenu *     fileMenu               = [[NSMenu alloc] initWithTitle:@"File"];
-    NSMenuItem * openPanelItem          = [[NSMenuItem alloc] initWithTitle:@"Open Panel File…"
-                                           action:@selector(restorePanel:)
+    NSMenuItem * openEditBufferItem     = [[NSMenuItem alloc] initWithTitle:@"Open Edit Buffer File…"
+                                           action:@selector(restoreEditBuffer:)
                                            keyEquivalent:@"o"];
-    [openPanelItem setTarget:target];
-    [fileMenu addItem:openPanelItem];
+    [openEditBufferItem setTarget:target];
+    [fileMenu addItem:openEditBufferItem];
     // "Load Patch from Bank…" — G2-Edit naming/placement (misc.mm there:
     // right after "Open Patch/Perf File…", since both bring content INTO
     // the edit buffer) — added 2026-07-11 at the owner's explicit request
     // to follow that same convention. Distinct from Open (a disk file) and
-    // Restore > Patch by Number (also a disk file, and overwrites a STORED
-    // slot rather than loading into the live buffer) — this one talks
-    // directly to the connected device by preset number, no file involved.
+    // Load Patch File to Bank Slot below (also a disk file, and overwrites
+    // a STORED slot rather than loading into the live buffer) — this one
+    // talks directly to the connected device by preset number, no file
+    // involved.
     NSMenuItem * loadPatchItem          = [[NSMenuItem alloc] initWithTitle:@"Load Patch from Bank…"
                                            action:@selector(loadPatchFromBank:)
                                            keyEquivalent:@""];
     [loadPatchItem setTarget:target];
     [fileMenu addItem:loadPatchItem];
-    NSMenuItem * savePanelItem          = [[NSMenuItem alloc] initWithTitle:@"Save Panel to File…"
+    [fileMenu addItem:[NSMenuItem separatorItem]];
+    NSMenuItem * saveEditBufferItem     = [[NSMenuItem alloc] initWithTitle:@"Save Edit Buffer to File…"
                                            action:@selector(backupCurrentPatch:)
                                            keyEquivalent:@"s"];
-    [savePanelItem setTarget:target];
-    [fileMenu addItem:savePanelItem];
+    [saveEditBufferItem setTarget:target];
+    [fileMenu addItem:saveEditBufferItem];
     // "Store Patch to Bank…" — G2-Edit naming/placement (misc.mm there:
     // right after "Save Patch to File…", since both push content OUT of the
     // edit buffer), same owner request as Load above. Distinct from Save (a
-    // disk file) — this commits the current live panel directly to a
+    // disk file) — this commits the current live edit buffer directly to a
     // chosen stored location on the connected device.
     NSMenuItem * storePatchItem         = [[NSMenuItem alloc] initWithTitle:@"Store Patch to Bank…"
                                            action:@selector(storePatchToBank:)
                                            keyEquivalent:@""];
     [storePatchItem setTarget:target];
     [fileMenu addItem:storePatchItem];
+    [fileMenu addItem:[NSMenuItem separatorItem]];
+    // The remaining three are the "no edit buffer involved at all" single-
+    // patch operations — a specific stored slot read/written straight to/
+    // from a file. No G2-Edit precedent for these (its own Backup/Restore
+    // menus are bulk-only), but they're single-patch-level exactly like
+    // everything else above, so they land here too rather than under the
+    // now-bulk-only Backup/Restore menus below.
+    NSMenuItem * numberItem             = [[NSMenuItem alloc] initWithTitle:@"Save Patch by Number to File…"
+                                           action:@selector(backupPatchByNumber:)
+                                           keyEquivalent:@""];
+    [numberItem setTarget:target];
+    [fileMenu addItem:numberItem];
+    // Restores to the exact slot embedded in the file itself — no picker,
+    // minimal clicks, for the common "just put this back where it came
+    // from" case. Kept alongside Load Patch File to Bank Slot below (which
+    // lets you choose ANY destination) rather than removed in its favour —
+    // this one is hardware-CONFIRMED (2026-07-11, Voyager) and there was no
+    // reason to retire working, proven functionality just because a more
+    // general version now also exists.
+    NSMenuItem * restorePatchItem       = [[NSMenuItem alloc] initWithTitle:@"Load Patch by Number from File…"
+                                           action:@selector(restorePatch:)
+                                           keyEquivalent:@""];
+    [restorePatchItem setTarget:target];
+    [fileMenu addItem:restorePatchItem];
+    // Lets the owner pick ANY destination slot, not just the file's own
+    // embedded one — see synth_backup_restore_patch_to_bank()'s own
+    // comment, synthBackup.h, for the full mechanism (now dual-device,
+    // 2026-07-14).
+    NSMenuItem * restorePatchToBankItem = [[NSMenuItem alloc] initWithTitle:@"Load Patch File to Bank Slot…"
+                                           action:@selector(restorePatchToBank:)
+                                           keyEquivalent:@""];
+    [restorePatchToBankItem setTarget:target];
+    [fileMenu addItem:restorePatchToBankItem];
     [fileMI setSubmenu:fileMenu];
     [menuBar insertItem:fileMI atIndex:1];
 
@@ -519,14 +591,12 @@ void setup_main_menu(void) {
     [layoutsMI setSubmenu:layoutsMenu];
     [menuBar insertItem:layoutsMI atIndex:4];
 
-    // Modeled on G2-Edit's Backup menu (misc.mm there), scaled down to
-    // match what's actually implemented. Restore (below, its own top-level
-    // menu) added 2026-07-11 once sending a captured dump back was
-    // confirmed on real hardware (see [[project_voyager_restore_mechanism]]
-    // in the assistant's own memory notes) — G2-Edit has its own separate
-    // Backup/Restore top-level menu pair too, followed here. Current Panel
-    // (Edit Buffer) moved out to the File menu above, same day — it isn't
-    // a stored-preset/bank action like the rest of this menu.
+    // Bulk (whole-bank) operations only, matching G2-Edit's own Backup/
+    // Restore menus (misc.mm there) — every single-patch operation (Current
+    // Patch, Patch by Number, Panel/Edit Buffer, Patch to Selected Bank
+    // Slot) moved into File above, 2026-07-14, following that same
+    // precedent (G2-Edit's Backup/Restore are bulk-only too — "Patch Bank",
+    // "Performance Bank", "Everything", nothing single-patch-level).
     NSMenuItem * backupMI               = [[NSMenuItem alloc] init];
     NSMenu *     backupMenu             = [[NSMenu alloc] initWithTitle:@"Backup"];
     // Sets/changes the per-device default folder (get_last_backup_folder()/
@@ -543,11 +613,6 @@ void setup_main_menu(void) {
     [chooseBackupItem setTarget:target];
     [backupMenu addItem:chooseBackupItem];
     [backupMenu addItem:[NSMenuItem separatorItem]];
-    NSMenuItem * numberItem             = [[NSMenuItem alloc] initWithTitle:@"Patch by Number…"
-                                           action:@selector(backupPatchByNumber:)
-                                           keyEquivalent:@""];
-    [numberItem setTarget:target];
-    [backupMenu addItem:numberItem];
     // Whatever bank the connected unit's front panel currently has selected
     // — see synth_backup_bank()'s own comment (synthBackup.h) for why this
     // can't yet target a specific bank on an expanded (more-than-128-preset)
@@ -571,15 +636,9 @@ void setup_main_menu(void) {
     [menuBar insertItem:backupMI atIndex:5];
 
     // Restore — its own top-level menu, not nested inside Backup, matching
-    // G2-Edit's own Backup/Restore split (misc.mm there) rather than
-    // burying destructive/overwriting actions inside the read-only Backup
-    // menu. Patch/Bank both confirm before sending, since they overwrite
-    // stored memory with no undo — see synth_backup_restore_patch()/_bank()'s
-    // own comments (synthBackup.h) for exactly what each confirms. Panel
-    // (Edit Buffer) moved out to the File menu above, same day as Backup's
-    // own Current Panel — it isn't a stored-preset/bank action like the
-    // rest of this menu, and has no overwrite risk to confirm in the first
-    // place (loads the live edit buffer only).
+    // G2-Edit's own Backup/Restore split (misc.mm there). Bulk-only, same
+    // reasoning as Backup above — Bank/Bank (Individual Files) confirm
+    // before sending, since they overwrite stored memory with no undo.
     NSMenuItem * restoreMI              = [[NSMenuItem alloc] init];
     NSMenu *     restoreMenu            = [[NSMenu alloc] initWithTitle:@"Restore"];
     // Same "Choose Backup Folder…" action as the Backup menu's own copy
@@ -592,20 +651,6 @@ void setup_main_menu(void) {
     [chooseRestoreItem setTarget:target];
     [restoreMenu addItem:chooseRestoreItem];
     [restoreMenu addItem:[NSMenuItem separatorItem]];
-    NSMenuItem * restorePatchItem       = [[NSMenuItem alloc] initWithTitle:@"Patch by Number…"
-                                           action:@selector(restorePatch:)
-                                           keyEquivalent:@""];
-    [restorePatchItem setTarget:target];
-    [restoreMenu addItem:restorePatchItem];
-    // Korg-style (Z1) only — writes a file directly to a slot the owner
-    // picks, rather than the file's own embedded slot (Patch by Number
-    // above). See synth_backup_restore_patch_to_bank()'s own comment,
-    // synthBackup.h.
-    NSMenuItem * restorePatchToBankItem = [[NSMenuItem alloc] initWithTitle:@"Patch to Selected Bank Slot…"
-                                           action:@selector(restorePatchToBank:)
-                                           keyEquivalent:@""];
-    [restorePatchToBankItem setTarget:target];
-    [restoreMenu addItem:restorePatchToBankItem];
     NSMenuItem * restoreBankItem        = [[NSMenuItem alloc] initWithTitle:@"Bank…"
                                            action:@selector(restoreBank:)
                                            keyEquivalent:@""];

@@ -522,30 +522,30 @@ static void backdoor_dispatch(const char * cmd, const char * arg, GLFWwindow * w
         }
         synth_korg_select_program((uint8_t)bank, prog);
         backdoor_write_result("OK\n");
-    } else if (strcmp(cmd, "RESTOREPANEL") == 0) {
+    } else if (strcmp(cmd, "RESTOREEDITBUFFER") == 0) {
         // Testing-only command, added 2026-07-14 to verify the new Korg-
-        // style "Restore Panel" mechanism (synthBackup.c) directly,
-        // bypassing "File > Open Panel File…"'s own NSOpenPanel — same
-        // "a native modal has no headless way to click through it"
+        // style "Restore Edit Buffer" mechanism (synthBackup.c) directly,
+        // bypassing "File > Open Edit Buffer File…"'s own NSOpenPanel —
+        // same "a native modal has no headless way to click through it"
         // reasoning KORGSELECT above already gives. Safe to test
         // unattended for the same reason KORGSELECT is — see synth_
-        // backup_restore_panel_from_path()'s own comment, synthBackup.h.
+        // backup_restore_edit_buffer_from_path()'s own comment, synthBackup.h.
         if (arg[0] == '\0') {
-            backdoor_write_result("ERROR: expected 'RESTOREPANEL <path>'\n");
+            backdoor_write_result("ERROR: expected 'RESTOREEDITBUFFER <path>'\n");
             return;
         }
-        synth_backup_restore_panel_from_path(arg);
+        synth_backup_restore_edit_buffer_from_path(arg);
         backdoor_write_result("OK\n");
     } else if (strcmp(cmd, "RESTOREPATCHTOBANK") == 0) {
         // Testing-only command, added 2026-07-14 — same reasoning
-        // RESTOREPANEL above gives, but for the NEW "Restore Patch to
-        // Selected Bank Slot" mechanism, which has TWO native modals (file
-        // picker, then a named-slot picker) plus a confirmation, none
-        // scriptable headlessly. UNLIKE RESTOREPANEL, this DOES write to a
-        // stored slot — only ever exercise this against tools/
-        // z1_emulator.swift, never a real connected device (see synth_
-        // backup_restore_patch_to_bank_from_path()'s own comment,
-        // synthBackup.h).
+        // RESTOREEDITBUFFER above gives, but for the "Load Patch File to
+        // Bank Slot" mechanism (now dual-device, Moog and Korg), which has
+        // TWO native modals (file picker, then a named-slot picker) plus a
+        // confirmation, none scriptable headlessly. UNLIKE RESTOREEDITBUFFER,
+        // this DOES write to a stored slot — only ever exercise this
+        // against tools/z1_emulator.swift or tools/voyager_emulator.swift,
+        // never a real connected device (see synth_backup_restore_patch_
+        // to_bank_from_path()'s own comment, synthBackup.h).
         uint32_t bank          = 0;
         uint32_t prog          = 0;
         char     filePath[512] = {0};
@@ -555,6 +555,27 @@ static void backdoor_dispatch(const char * cmd, const char * arg, GLFWwindow * w
             return;
         }
         synth_backup_restore_patch_to_bank_from_path(filePath, (uint8_t)bank, prog);
+        backdoor_write_result("OK\n");
+    } else if (strcmp(cmd, "BACKUPPATCHNUMBER") == 0) {
+        // Testing-only command, added 2026-07-14 to verify the new Z1 "Save
+        // Patch by Number to File…" mechanism (synth_backup_patch_by_number_korg(),
+        // synthBackup.c) directly, bypassing choose_korg_preset_number()'s own
+        // native modal picker — same "no headless way to click through it"
+        // reasoning KORGSELECT/RESTOREEDITBUFFER above already give. The
+        // eventual save-location NSSavePanel (open_file_write_dialogue_async())
+        // still can't be scripted headlessly either, so this only confirms
+        // the request went out correctly and a sensible default filename got
+        // computed — check the app's own debug log / z1_emulator's request
+        // log for that. Safe to test unattended: this only READS a stored
+        // program, nothing is written.
+        uint32_t bank = 0;
+        uint32_t prog = 0;
+
+        if (sscanf(arg, "%u %u", &bank, &prog) != 2) {
+            backdoor_write_result("ERROR: expected 'BACKUPPATCHNUMBER <bank 0|1> <prog 1-128>'\n");
+            return;
+        }
+        synth_backup_patch_by_number_korg((uint8_t)bank, prog);
         backdoor_write_result("OK\n");
     } else {
         char msg[128];

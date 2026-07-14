@@ -396,7 +396,7 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
 }
 
 // Public wrapper around the static extract_prog_info() above — for
-// synthBackup.c's Korg-style "Restore Panel" (restore_panel_korg_file()),
+// synthBackup.c's Korg-style "Restore Edit Buffer" (restore_edit_buffer_korg_file()),
 // so the local GUI/dial state gets updated from the SAME decoded buffer
 // being replayed to the real device as live Parameter Change messages,
 // instead of depending on a round trip through real hardware to find out
@@ -874,7 +874,7 @@ static void handle_curr_prog_dump(const uint8_t * data, uint32_t length) {
     // Format: F0 <mfrId> 3g 46 40 01 [7-bit encoded data...] F7
     // Payload starts right after the header (F0+mfrId+chan+fam+func = 4+n
     // bytes) plus the extra "01" sub-byte this dump function has.
-    synth_backup_capture_dump(data, length, eBackupExpectLive); // no-op unless a live-panel Backup is pending — see synthBackup.c
+    synth_backup_capture_dump(data, length, eBackupExpectLive); // no-op unless a live-edit-buffer Backup is pending — see synthBackup.c
     tPanelConfig *  cfg        = synth_panel_config();
     uint32_t        skip       = 5 + cfg->manufacturerIdLen;
 
@@ -898,7 +898,7 @@ static void handle_curr_prog_dump(const uint8_t * data, uint32_t length) {
 // SPECIFIC stored preset's data (contrast handle_curr_prog_dump() above,
 // always the live edit buffer). Deliberately does NOT call
 // extract_prog_info() — that writes straight into the live dial state,
-// which would silently corrupt the on-screen panel with some OTHER
+// which would silently corrupt the on-screen edit buffer with some OTHER
 // preset's values every time a name-sweep or by-number backup touches this
 // reply. Just forwards the raw bytes to synth_backup_capture_dump() (a
 // no-op unless a Korg program-by-number fetch is actually pending) — any
@@ -1232,7 +1232,7 @@ static void handle_moog_panel_dump(const uint8_t * data, uint32_t length) {
     // gDevice.progName is already decoded by the time synth_backup_capture_dump()
     // builds a default filename from it, same "decode the name first" order
     // handle_moog_single_preset_dump() below already uses for the same
-    // reason. No-op unless a live-panel Backup is pending — see synthBackup.c.
+    // reason. No-op unless a live-edit-buffer Backup is pending — see synthBackup.c.
     synth_backup_capture_dump(data, length, eBackupExpectLive);
     synth_apply_pending_dump_patches();
 }
@@ -1287,7 +1287,7 @@ static void handle_moog_single_preset_dump(const uint8_t * data, uint32_t length
         // (2026-07-14 owner report: "Voyager is displaying names as they
         // come in, not the panel name") — masked before today by the sweep
         // running fast behind a full-screen blocking modal that hid the
-        // panel name display entirely; today's slower, sometimes-
+        // edit buffer name display entirely; today's slower, sometimes-
         // background sweep exposed it. Same "don't disturb the live
         // display" reasoning handle_prog_dump() already follows for Korg.
         strncpy(gDevice.progName, name, sizeof(gDevice.progName) - 1);
