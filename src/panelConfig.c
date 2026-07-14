@@ -630,6 +630,23 @@ tPanelDial * find_panel_dial_by_cc(tPanelConfig * config, uint8_t cc) {
     return NULL;
 }
 
+tPanelDial * find_panel_dial_by_kronos_param(tPanelConfig * config, uint32_t typ, uint32_t soc, uint32_t sub, uint32_t pid, uint32_t idx) {
+    for (uint32_t s = 0; s < config->sectionCount; s++) {
+        tPanelSection * section = &config->sections[s];
+
+        for (uint32_t i = 0; i < section->dialCount; i++) {
+            tPanelDial * dial = &section->dials[i];
+
+            if (  dial->hasKronosParam && (dial->kronosTyp == typ) && (dial->kronosSoc == soc)
+               && (dial->kronosSub == sub) && (dial->kronosPid == pid) && (dial->kronosIdx == idx)) {
+                return dial;
+            }
+        }
+    }
+
+    return NULL;
+}
+
 tPanelDial * find_panel_dial_by_label(tPanelConfig * config, const char * label) {
     for (uint32_t s = 0; s < config->sectionCount; s++) {
         tPanelSection * section = &config->sections[s];

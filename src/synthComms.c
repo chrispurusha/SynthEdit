@@ -1837,7 +1837,58 @@ void synth_flush_pending_dump_sends(void) {
 // Type") parameter layout confirmed first, since each of the 8 EXi engines
 // (AL-1/CX-3/EP-1/MOD-7/MS-20EX/PolysixEX/SGX-1/STR-1) has its own
 // completely different one — see kronos.txt's own header comment.
+// Parameter Change (func 0x43) arriving FROM the Kronos, not just a reply to
+// our own synth_send_kronos_parameter_change() writes below — confirmed
+// 2026-07-14 via tools/kronos_monitor (a passive listener, no send) that the
+// hardware also emits this unsolicited whenever a physical front-panel knob
+// is turned. Same wire shape we send it in, so decoding is the exact mirror
+// of synth_send_kronos_parameter_change(): F0 <mfrId> 3g <familyId> 43 typ
+// soc sub pid idx valueH valueM valueL F7, value a 21-bit 2's-complement
+// integer split across three 7-bit groups. Dispatch is generic — whichever
+// dial (if any) is wired to this exact TYP/SOC/SUB/PID/IDX in <device>.txt
+// gets updated, no per-parameter knowledge here (mirrors handle_parameter_
+// change()'s own Z1 group/paramId dispatch above). Re-applying our own echo
+// of a write we just sent is harmless (same value, redundant redraw) since
+// this only ever writes dial->value, never calls back out to send anything.
+static void handle_kronos_parameter_change(const uint8_t * data, uint32_t length) {
+    uint32_t     base  = 4 + synth_panel_config()->manufacturerIdLen;
+
+    if (length < base + 8 + 1) { // 5 addressing bytes + 3 value bytes + trailing F7
+        LOG_DEBUG("Kronos Parameter Change too short (len=%u)\n", (unsigned)length);
+        return;
+    }
+    uint32_t     typ   = data[base] & 0x7F;
+    uint32_t     soc   = data[base + 1] & 0x7F;
+    uint32_t     sub   = data[base + 2] & 0x7F;
+    uint32_t     pid   = data[base + 3] & 0x7F;
+    uint32_t     idx   = data[base + 4] & 0x7F;
+    uint32_t     v21   = ((uint32_t)(data[base + 5] & 0x7F) << 14)
+                         | ((uint32_t)(data[base + 6] & 0x7F) << 7)
+                         | (uint32_t)(data[base + 7] & 0x7F);
+
+    if (v21 & 0x100000) {
+        v21 |= 0xFFE00000; // sign-extend 21-bit two's complement
+    }
+    int32_t      value = (int32_t)v21;
+    tPanelDial * dial  = find_panel_dial_by_kronos_param(synth_panel_config(), typ, soc, sub, pid, idx);
+
+    if (dial) {
+        apply_dial_wire_value(dial, (uint32_t)value, dial->nativeMax);
+        gReDraw = true;
+        LOG_DEBUG("Kronos Parameter Change: TYP=%u SOC=%u SUB=%u PID=%u IDX=%u value=%d -> dial \"%s\"\n",
+                  (unsigned)typ, (unsigned)soc, (unsigned)sub, (unsigned)pid, (unsigned)idx, (int)value, dial->label);
+    } else {
+        LOG_DEBUG("Kronos Parameter Change (no matching dial): TYP=%u SOC=%u SUB=%u PID=%u IDX=%u value=%d\n",
+                  (unsigned)typ, (unsigned)soc, (unsigned)sub, (unsigned)pid, (unsigned)idx, (int)value);
+    }
+}
+
 static void handle_kronos_message(const uint8_t * data, uint32_t length, uint8_t funcId) {
+    if (funcId == 0x43) {
+        handle_kronos_parameter_change(data, length);
+        return;
+    }
+
     if (funcId != 0x75) {
         LOG_DEBUG("Kronos SysEx unhandled func 0x%02X (len=%u)\n", (unsigned)funcId, (unsigned)length);
         return;

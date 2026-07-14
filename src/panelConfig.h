@@ -732,6 +732,12 @@ tPanelDial * find_panel_dial_by_param(tPanelSection * section, uint32_t group, u
 // no section/group context to narrow the search.
 tPanelDial * find_panel_dial_by_cc(tPanelConfig * config, uint8_t cc);
 
+// Looks up the dial wired to a given Kronos Parameter Change address (see
+// the "typ="/"soc="/"sub="/"pid="/"idx=" file attributes), across every
+// section — for dispatching an incoming func 0x43 the same generic way
+// find_panel_dial_by_param() dispatches Z1's group/param addressing.
+tPanelDial * find_panel_dial_by_kronos_param(tPanelConfig * config, uint32_t typ, uint32_t soc, uint32_t sub, uint32_t pid, uint32_t idx);
+
 // Looks up a dial by its display LABEL (case-insensitive), across every
 // section — for generic code that needs to find a dial by what it MEANS
 // rather than by its short internal id, because different device families'
