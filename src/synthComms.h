@@ -45,6 +45,22 @@ void synth_on_connected(void);
 // before this had an output-buffer parameter at all.
 void synth_decode_moog_name(const uint8_t * payload, uint32_t payloadLen, int32_t offset, uint32_t bitOffset, uint32_t len, uint32_t lineWidth, char * outName, size_t outNameSize);
 
+// Sanity-checks a captured Single Preset Dump reply (full message, F0/F7
+// framing included) BEFORE it's trusted/decoded — catches a dropped MIDI
+// byte (e.g. traffic colliding with the reply's own transmission) that
+// would otherwise shift the whole payload and corrupt every field after
+// the gap. See this function's own comment (synthComms.c) for the full
+// reasoning, cross-checked against an independently-developed third-party
+// Voyager editor that uses the identical technique. Returns true
+// (no-op-safe) if this device declares no presetNameOffset to check
+// against at all. Added 2026-07-14.
+bool synth_moog_single_preset_dump_intact(const uint8_t * data, uint32_t length);
+
+// Korg counterpart to synth_moog_single_preset_dump_intact() above, for a
+// Program Data Dump/Current Program Dump reply instead of a Single Preset
+// Dump. Added 2026-07-14.
+bool synth_korg_program_dump_intact(const uint8_t * data, uint32_t length);
+
 // Extracts just the Category value's display name from a captured Moog-style
 // dump (Panel Dump or Single Preset Dump — full message, F0/F7 framing
 // included). The Moog counterpart to synth_decode_korg_category() below —

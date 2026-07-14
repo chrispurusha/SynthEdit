@@ -155,7 +155,16 @@ static tBackupBatchMode  gBackupBatchMode           = eBatchModeExportFiles;
 static tNameSweepPurpose gNameSweepPurpose          = eNameSweepPurposeLoad;
 
 #define BACKUP_BATCH_PRESET_COUNT    128    // matches misc.mm's own "Patch by Number" range / synth_request_single_preset_dump()'s own range check (synthComms.c) — a base Voyager's single bank
-#define BACKUP_BATCH_TIMEOUT_MS      1500.0 // generous relative to a real reply's actual latency (well under 100ms in practice) — a fallback for a genuinely non-responding location, not the normal-case wait
+// Lowered from 1500 to 1000ms 2026-07-14 (owner, comparing against an
+// independently-developed third-party Voyager editor — moogvoyagereditor.
+// pistolinstruments.com — whose own bank-fetch loop uses just a 250ms max
+// wait per request): still generous relative to a real reply's actual
+// latency (well under 100ms in practice) — a fallback for a genuinely
+// non-responding location or one that's slower than usual, not the
+// normal-case wait. Retry (NAME_SWEEP_MAX_RETRIES) means a single slow
+// reply now costs at most ~1s extra rather than ~1.5s before a slot is
+// retried or given up on.
+#define BACKUP_BATCH_TIMEOUT_MS    1000.0
 // "128: " (5) + a generously-truncated single-line name + " — " + a
 // Category name (up to "Guitar/Plucked", 15 chars) + NUL — widened from 40
 // to 64 on 2026-07-14 once the picker started showing category alongside
@@ -1222,6 +1231,21 @@ void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExp
     }
 
     if ((kind == eBackupExpectPreset) && gBackupBatchActive) {
+        // Discard a corrupt reply outright rather than handing it off — see
+        // synth_moog_single_preset_dump_intact()'s own comment (synthComms.h)
+        // for what this catches and why. Deliberately just drops it and
+        // returns rather than doing anything else here: gBackupBatchRequestSinceMs
+        // is untouched, so synth_backup_flush_bank_to_folder()'s own timeout
+        // check (purely elapsed-time-based, doesn't care whether gBackupExpect
+        // — already cleared above — is still armed) fires exactly as if
+        // nothing had arrived at all, reusing the EXISTING retry-then-give-up
+        // logic (NAME_SWEEP_MAX_RETRIES) rather than needing separate
+        // corruption-specific retry handling. Added 2026-07-14.
+        if (!synth_moog_single_preset_dump_intact(data, length)) {
+            LOG_DEBUG("Backup: preset %u reply looked corrupt (dropped MIDI byte?), discarding — will retry on timeout\n",
+                      (unsigned)gBackupBatchCurrentPreset);
+            return;
+        }
         // Bank-to-folder sweep in progress — hand the bytes off to the
         // main/render thread rather than doing any file I/O or sequencing
         // here (this runs on the CoreMIDI thread — see the batch state
@@ -1242,6 +1266,14 @@ void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExp
     }
 
     if ((kind == eBackupExpectKorgProgram) && gKorgSweepActive) {
+        // Discard a corrupt reply outright — same reasoning as the Moog
+        // branch just above (synth_moog_single_preset_dump_intact()'s own
+        // comment), reusing gKorgSweepRequestSinceMs's own timeout+retry
+        // instead of separate corruption-specific handling. Added 2026-07-14.
+        if (!synth_korg_program_dump_intact(data, length)) {
+            LOG_DEBUG("Load/Store: Korg sweep reply looked corrupt, discarding — will retry on timeout\n");
+            return;
+        }
         // Korg name sweep in progress — same CoreMIDI-thread-copies/main-
         // thread-decodes handoff as the Moog bank-to-folder sweep just
         // above, for the same reason (this runs on the CoreMIDI thread —

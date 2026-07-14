@@ -478,6 +478,65 @@ void synth_decode_moog_name(const uint8_t * payload, uint32_t payloadLen, int32_
     LOG_DEBUG("Decoded name: \"%s\"\n", outName);
 }
 
+// Sanity-checks a captured Single Preset Dump reply BEFORE it's trusted —
+// catches a dropped MIDI byte (a real risk any time other MIDI traffic —
+// a dial drag, another request — lands close enough to collide with this
+// reply's own transmission) shifting the whole 7-bit-packed payload from
+// the gap onward, corrupting every field after it. Same approach an
+// independently-developed third-party Voyager editor (moogvoyagereditor.
+// pistolinstruments.com, reviewed 2026-07-14 — owner: "Might be worth
+// comparing, to see if it's doing anything MIDI-wise that we're not") uses
+// successfully, its own comment explaining the exact same failure mode:
+// "A single MIDI byte dropped on the wire (USB buffer overrun) shifts the
+// whole 7-bit-packed payload from the gap onward, so every field after it
+// decodes to garbage." Checked two ways:
+//   1. Length — the preset name field must fully fit within the message;
+//      a truncated reply couldn't hold a real name (or anything after it)
+//      regardless of what its bytes happen to contain.
+//   2. The name itself — 24 bytes of plain printable ASCII (or NUL/space
+//      padding) on real hardware; a shifted payload scatters control
+//      characters through it, a reliable tripwire for corruption in every
+//      OTHER field too (mixer switches, filter settings, ...), not just
+//      the name. Tolerates a few bad bytes rather than rejecting on any
+//      single oddity — same tolerance the reference implementation uses.
+// A no-op-safe true (nothing to check) if this device doesn't declare a
+// presetNameOffset at all.
+bool synth_moog_single_preset_dump_intact(const uint8_t * data, uint32_t length) {
+    tPanelConfig *  cfg        = synth_panel_config();
+
+    if (cfg->presetNameOffset < 0) {
+        return true;
+    }
+
+    if (length < 2) {
+        return false;
+    }
+    const uint8_t * payload    = data + 1;   // skip F0, matches every other Moog dump handler
+    uint32_t        payloadLen = length - 2; // exclude leading skip + trailing F7
+    uint32_t        globalBit  = (uint32_t)cfg->presetNameOffset * 7 + cfg->presetNameBitOffset;
+    uint32_t        endBit     = globalBit + cfg->presetNameLen * 8;
+    uint32_t        lastByte   = (endBit == 0) ? 0 : (endBit - 1) / 7;
+
+    if (payloadLen <= lastByte) {
+        return false; // truncated before the name field even finishes
+    }
+    uint32_t        bad        = 0;
+
+    for (uint32_t i = 0; i < cfg->presetNameLen; i++) {
+        uint32_t byteOffset = globalBit / 7;
+        uint32_t bo         = globalBit % 7;
+        uint32_t raw        = read_bitpacked_field(payload, payloadLen, (int32_t)byteOffset, bo, 8);
+        uint8_t  ch         = (uint8_t)(raw & 0x7F);
+
+        if ((ch != 0) && (ch != ' ') && ((ch < 0x20) || (ch >= 0x7F))) {
+            bad++;
+        }
+        globalBit += 8;
+    }
+
+    return bad < 4;
+}
+
 // Extracts just the Category value's display name from a captured Moog-style
 // SINGLE PRESET DUMP (mode 0x03) reply — the Moog counterpart to
 // synth_decode_korg_category() (synthComms.h), and the other half of what
@@ -752,6 +811,39 @@ static bool korg_decode_prog_dump(const uint8_t * data, uint32_t length, uint8_t
 
     *outDecodedLen = decode_7to8(payload, payloadLen, decoded, decodedCap);
     return true;
+}
+
+// Korg counterpart to synth_moog_single_preset_dump_intact() above — same
+// "sanity-check before trusting a reply" reasoning, for a Korg-style
+// Program Data Dump/Current Program Dump reply instead of a Moog Single
+// Preset Dump. A no-op-safe false (nothing decoded, so nothing to trust)
+// if the message doesn't even parse as one of the two expected function
+// IDs; otherwise checks the decoded name field (the first progNameLen
+// bytes of the unpacked payload) for implausible control characters, same
+// tolerance as the Moog version.
+bool synth_korg_program_dump_intact(const uint8_t * data, uint32_t length) {
+    tPanelConfig * cfg        = synth_panel_config();
+    static uint8_t decoded[4096];
+    uint32_t       decodedLen = 0;
+
+    if (!korg_decode_prog_dump(data, length, decoded, sizeof(decoded), &decodedLen)) {
+        return false;
+    }
+
+    if (decodedLen < cfg->progNameLen) {
+        return false;
+    }
+    uint32_t       bad        = 0;
+
+    for (uint32_t i = 0; i < cfg->progNameLen; i++) {
+        uint8_t ch = decoded[i];
+
+        if ((ch != 0) && (ch != ' ') && ((ch < 0x20) || (ch >= 0x7F))) {
+            bad++;
+        }
+    }
+
+    return bad < 4;
 }
 
 void synth_decode_korg_name(const uint8_t * data, uint32_t length, char * outName, size_t outNameSize) {
