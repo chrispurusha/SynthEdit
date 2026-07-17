@@ -52,6 +52,11 @@ int main(int argc, char ** argv) {
     init_signals();
     register_sleep_wake_notifications();
 
+    // Must run before init_graphics() — its own synth_init_graphics() call (at its tail) reads
+    // get_saved_layouts_dir() (misc.h) to resolve the layouts folder for the very first frame, and
+    // that read needs the prefs file already loaded or it silently falls back to the built-in
+    // default every launch. See init_settings()'s own comment (misc.h) for the bug this fixes.
+    init_settings();
     init_graphics();
     setup_main_menu();
     start_midi_thread();

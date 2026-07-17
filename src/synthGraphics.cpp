@@ -40,7 +40,7 @@ extern "C" {
 #include "synthBackup.h"
 #include "midiComms.h"
 #include "misc.h"
-#include "fileDialogue.h"
+#include "bankBrowser.h"
 #include "synthGraphics.h"
 
 #define SYNTH_LAYOUTS_DIR_DEFAULT    "layouts"    // relative to cwd, used until a folder is chosen/persisted
@@ -489,6 +489,43 @@ static void synth_reload_panel_config(void) {
     gReDraw         = true;
 }
 
+// Candidate list from the multi-candidate branch below, kept around between synth_choose_config_
+// file() opening the async picker and on_startup_device_chosen() acting on whatever the user
+// picked — open_bank_browser() (bankBrowser.h) copies each item's `name` internally before
+// returning, but the callback only gets back (bank1Indexed, location1Indexed), not the original
+// tPanelConfigCandidate, so the filename each entry actually corresponds to has to survive here
+// instead. Same "app keeps its own menu/dialog context" idea as every other stash-a-static-before-
+// opening-then-read-it-back-in-the-callback spot in this codebase family (e.g. G2-Edit's own
+// tMenuContext, or this app's synthBackup.c gStoreArmedPresetNumber and friends).
+static tPanelConfigCandidate sPendingChooserCandidates[PANEL_MAX_CANDIDATES];
+static uint32_t              sPendingChooserCount = 0;
+
+// Confirmed callback for the "Choose Device" bank-browser picker below — location1Indexed is the
+// 1-based index into sPendingChooserCandidates (bank1Indexed is unused, always 1, there's no bank
+// concept for a device list). Mirrors what the old synchronous chooser did with its own `chosen`
+// return value, PLUS the synth_reload_panel_config() call synth_set_layouts_dir()/
+// synth_init_graphics() used to make unconditionally right after synth_choose_config_file()
+// returned — now that a multi-candidate pick can be deferred well past that point, THIS is what
+// actually loads the chosen config once the user responds, not the caller.
+static void on_startup_device_chosen(bool confirmed, uint32_t bank1Indexed, uint32_t location1Indexed) {
+    (void)bank1Indexed;
+
+    if (confirmed) {
+        uint32_t index = location1Indexed - 1;
+
+        if (index < sPendingChooserCount) {
+            strncpy(gConfigFileName, sPendingChooserCandidates[index].filename, sizeof(gConfigFileName) - 1);
+            gConfigFileName[sizeof(gConfigFileName) - 1] = '\0';
+            set_saved_device_config(gConfigFileName);
+        }
+    }
+    // Reload either way — even a cancelled pick should show whatever gConfigFileName already held
+    // (the pre-existing "leave it alone rather than blocking startup" behaviour), and the caller
+    // that opened this picker returned long ago without reloading, deliberately, so nothing else
+    // will.
+    synth_reload_panel_config();
+}
+
 // Scans gLayoutsDir for every <device>.txt it contains; a single match is
 // used directly (no prompt — nothing to choose), but more than one first
 // tries the persisted "lastDeviceConfig" preference (get_saved_device_
@@ -507,20 +544,29 @@ static void synth_reload_panel_config(void) {
 // emptied) instead puts up the same folder picker as the "Choose Layouts
 // Folder…" menu item, asynchronously — synth_set_layouts_dir() re-enters
 // this whole function once the user actually picks something.
-static void synth_choose_config_file(void) {
+//
+// Returns true if it settled on a config synchronously (auto-pick, saved
+// preference, or the zero-candidates folder-picker branch — none of those
+// need a reload beyond what the caller already does) — false if it opened
+// the async multi-candidate picker instead (bankBrowser.h, no native modal
+// left anywhere in this app any more — SynthLib's dialogs only resolve via
+// a callback fired from the render loop, which on_startup_device_chosen()
+// above is; the caller must NOT reload now, since there's nothing to reload
+// yet).
+static bool synth_choose_config_file(void) {
     tPanelConfigCandidate candidates[PANEL_MAX_CANDIDATES];
     uint32_t              count = scan_panel_configs(gLayoutsDir, candidates, PANEL_MAX_CANDIDATES);
 
     if (count == 0) {
         prompt_choose_layouts_folder();
-        return;
+        return true;
     }
 
     if (count == 1) {
         strncpy(gConfigFileName, candidates[0].filename, sizeof(gConfigFileName) - 1);
         gConfigFileName[sizeof(gConfigFileName) - 1] = '\0';
         set_saved_device_config(gConfigFileName);
-        return;
+        return true;
     }
     const char *          saved = get_saved_device_config();
 
@@ -530,31 +576,35 @@ static void synth_choose_config_file(void) {
                 strncpy(gConfigFileName, saved, sizeof(gConfigFileName) - 1);
                 gConfigFileName[sizeof(gConfigFileName) - 1] = '\0';
                 set_saved_device_config(gConfigFileName);
-                return;
+                return true;
             }
         }
     }
+    tBankBrowserItem      items[PANEL_MAX_CANDIDATES];
     char                  labelBuf[PANEL_MAX_CANDIDATES][200];
-    const char *          labels[PANEL_MAX_CANDIDATES];
+
+    sPendingChooserCount = count;
 
     for (uint32_t i = 0; i < count; i++) {
+        sPendingChooserCandidates[i] = candidates[i];
+
         if (candidates[i].description[0] != '\0') {
             snprintf(labelBuf[i], sizeof(labelBuf[i]), "%s \xe2\x80\x94 %s", candidates[i].deviceName, candidates[i].description);
         } else {
             snprintf(labelBuf[i], sizeof(labelBuf[i]), "%s", candidates[i].deviceName);
         }
-        labels[i] = labelBuf[i];
+        // No category concept for a device list (categoryNameCount=0 below disables that sort
+        // mode entirely) — bank1Indexed is always 1 (no bank concept either), location1Indexed is
+        // this candidate's 1-based index into sPendingChooserCandidates, read back in
+        // on_startup_device_chosen() above.
+        items[i]                     = (tBankBrowserItem){
+            labelBuf[i], 0, 1, i + 1
+        };
     }
 
-    int32_t               chosen = show_device_choice_dialogue("Choose Device",
-                                                               "More than one device configuration was found in the layouts folder.",
-                                                               labels, count, 0);
-
-    if (chosen >= 0) {
-        strncpy(gConfigFileName, candidates[(uint32_t)chosen].filename, sizeof(gConfigFileName) - 1);
-        gConfigFileName[sizeof(gConfigFileName) - 1] = '\0';
-        set_saved_device_config(gConfigFileName);
-    }
+    open_bank_browser("Choose Device", "More than one device configuration was found in the layouts folder.",
+                      "Choose", items, count, NULL, 0, on_startup_device_chosen);
+    return false;
 }
 
 void synth_set_layouts_dir(const char * dir) {
@@ -562,8 +612,10 @@ void synth_set_layouts_dir(const char * dir) {
         strncpy(gLayoutsDir, dir, sizeof(gLayoutsDir) - 1);
         gLayoutsDir[sizeof(gLayoutsDir) - 1] = '\0';
     }
-    synth_choose_config_file();
-    synth_reload_panel_config();
+
+    if (synth_choose_config_file()) {
+        synth_reload_panel_config();
+    }
 }
 
 const char * synth_layouts_dir(void) {
@@ -601,8 +653,10 @@ void synth_init_graphics(void) {
         strncpy(gLayoutsDir, saved, sizeof(gLayoutsDir) - 1);
         gLayoutsDir[sizeof(gLayoutsDir) - 1] = '\0';
     }
-    synth_choose_config_file();
-    synth_reload_panel_config();
+
+    if (synth_choose_config_file()) {
+        synth_reload_panel_config();
+    }
 }
 
 // ── Bulk operation progress overlay ─────────────────────────────────────────

@@ -44,6 +44,10 @@ extern "C" {
 #include "synthBackup.h"
 #include "misc.h"
 #include "graphics.h"
+#include "appMenuBar.h"
+#include "fileBrowser.h"
+#include "bankBrowser.h"
+#include "alertDialog.h"
 
 #include <stdio.h>
 #include <unistd.h>
@@ -303,10 +307,14 @@ static void render_frame(GLFWwindow * win) {
     //double     lcdDispH = LCD_HEIGHT * 2.0;
     //double     lcdX     = (logW / 2.0 - lcdDispW) / 2.0;
     //double     lcdY     = 10.0;
-    tRectangle area = {{0.0, 0.0}, {logW, logH}};
+    tRectangle area = {{0.0, MENU_BAR_HEIGHT}, {logW, logH - MENU_BAR_HEIGHT}};
 
     synth_render(area);
+    render_menu_bar(gAppMenuBar, app_menu_bar_rect());
     render_context_menu();
+    render_file_browser();
+    render_bank_browser();
+    render_alert_dialog(); // drawn last of all — modal, must paint over everything else
 
     glfwSwapBuffers(win);
 }
@@ -562,8 +570,9 @@ static void backdoor_dispatch(const char * cmd, const char * arg, GLFWwindow * w
         // synthBackup.c) directly, bypassing choose_korg_preset_number()'s own
         // native modal picker — same "no headless way to click through it"
         // reasoning KORGSELECT/RESTOREEDITBUFFER above already give. The
-        // eventual save-location NSSavePanel (open_file_write_dialogue_async())
-        // still can't be scripted headlessly either, so this only confirms
+        // eventual save-location file browser (open_file_browser_write(),
+        // via synth_backup_flush_pending_save()) still can't be scripted
+        // headlessly either, so this only confirms
         // the request went out correctly and a sensible default filename got
         // computed — check the app's own debug log / z1_emulator's request
         // log for that. Safe to test unattended: this only READS a stored
@@ -673,6 +682,11 @@ void do_graphics_loop(void) {
         // fresh Panel Dump reply has landed — see
         // synth_backup_flush_store()'s own comment (synthBackup.h).
         synth_backup_flush_store();
+        // Opens the save dialog for a just-captured Backup (Current Panel/
+        // Patch by Number/Bank) once its dump has landed on the CoreMIDI
+        // thread — see synth_backup_flush_pending_save()'s own comment
+        // (synthBackup.h).
+        synth_backup_flush_pending_save();
         // Tracks which context-menu item the mouse is currently over and
         // requests a redraw when it changes — contextMenu.h's own comment
         // (SynthLib) explicitly documents this as required "once per frame
@@ -685,6 +699,11 @@ void do_graphics_loop(void) {
         // hover-dwell submenu-opening timer to elapse even while the mouse
         // sits still over a flyout parent, per that same header comment.
         update_context_menu_hover();
+        // Same "once per frame, cheap no-op when nothing's open" contract as
+        // update_context_menu_hover() above — switches the open top-level
+        // menu-bar dropdown on hover (not just a second click) when moving
+        // from one label to another while one is already open.
+        update_menu_bar_hover(gAppMenuBar, app_menu_bar_rect());
         // See this whole mechanism's own header comment (backdoor_poll()
         // above) — cheap no-op check every iteration when idle.
         backdoor_poll(win);

@@ -26,6 +26,10 @@
 #include "synthComms.h"
 #include "synthGraphics.h"
 #include "mouseHandle.h"
+#include "appMenuBar.h"
+#include "fileBrowser.h"
+#include "bankBrowser.h"
+#include "alertDialog.h"
 
 // ── GLFW constants (avoids pulling GLFW header into C) ────────────────────────
 #define GLFW_CURSOR             0x00033001
@@ -231,6 +235,52 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
     tCoord coord   = window_to_logical(win, x, y);
     bool   pressed = (action == GLFW_PRESS);
 
+    // Modal — checked before anything else, including the drag-release handling right below, so
+    // nothing underneath (a dial drag, the menu bar, page tabs) can start or continue while one of
+    // these is open. Mouse-down/up gating matches G2-Edit/mouseHandle.c's own file_browser_active()/
+    // bank_browser_active()/alert_dialog_active() ordering.
+    if (file_browser_active()) {
+        if (pressed) {
+            handle_file_browser_mouse_down(coord);
+        } else {
+            handle_file_browser_click(coord);
+        }
+        gReDraw = true;
+        return;
+    }
+
+    if (bank_browser_active()) {
+        if (pressed) {
+            handle_bank_browser_mouse_down(coord);
+        } else {
+            handle_bank_browser_click(coord);
+        }
+        gReDraw = true;
+        return;
+    }
+
+    if (alert_dialog_active()) {
+        // Routes around the bank-picker's own dropdown (opened, from handle_alert_dialog_click(),
+        // using the app's shared context-menu system) — once that's open, clicks go to
+        // handle_context_menu_click() instead, exactly how the menu bar itself already defers to
+        // it, rather than being swallowed here as if they'd landed on the dialog panel.
+        if (pressed) {
+            if (!gContextMenu.active) {
+                handle_alert_dialog_mouse_down(coord);
+            }
+        } else {
+            if (gContextMenu.active) {
+                if (!handle_context_menu_click(coord)) {
+                    gContextMenu.active = false;
+                }
+            } else {
+                handle_alert_dialog_click(coord);
+            }
+        }
+        gReDraw = true;
+        return;
+    }
+
     // Release: end drag; restore cursor only for modes that hid it. GLFW's
     // cocoa backend already restores the cursor to wherever it was when
     // CURSOR_DISABLED was entered (see updateCursorMode() in
@@ -251,8 +301,23 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
         return;
     }
 
+    // Checked ahead of everything else on mouse-down — mirrors G2-Edit/mouseHandle.c's ordering,
+    // since the bar itself needs first refusal on a click before it's treated as a dial/tab hit or
+    // as closing whatever context menu (bar dropdown or otherwise) is currently open.
+    if (pressed && handle_menu_bar_click(gAppMenuBar, app_menu_bar_rect(), coord)) {
+        return;
+    }
+
     // Dismiss context menu
     if (gContextMenu.active) {
+        // Same click's mouse-down just opened/switched/closed this dropdown via
+        // handle_menu_bar_click() above — landing back on the bar itself on mouse-up is not a
+        // dropdown-item selection, so leave the state exactly as mouse-down left it. Must be
+        // checked before handle_context_menu_click(): that call closes the menu itself whenever
+        // coord doesn't land on any open item, which a bar click never does.
+        if (!pressed && within_rectangle(coord, app_menu_bar_rect())) {
+            return;
+        }
         handle_context_menu_click(coord); // closes the menu whether the click landed on an item or outside it
         return;
     }
@@ -476,6 +541,31 @@ void handle_key(void * win, int key, int scancode, int action, int mods) {
     (void)scancode;
     (void)mods;
 
+    if (file_browser_active()) {
+        handle_file_browser_key(key, action);
+        gReDraw = true;
+        return;
+    }
+
+    if (bank_browser_active()) {
+        handle_bank_browser_key(key, action);
+        gReDraw = true;
+        return;
+    }
+
+    if (alert_dialog_active()) {
+        // Escape closes just the bank-picker dropdown first, if it's open, rather than the whole
+        // dialog underneath it — same precedence the main window's own menu-vs-Escape handling
+        // would use.
+        if (gContextMenu.active && (key == GLFW_KEY_ESCAPE) && (action == GLFW_PRESS)) {
+            gContextMenu.active = false;
+        } else {
+            handle_alert_dialog_key(key, action);
+        }
+        gReDraw = true;
+        return;
+    }
+
     if (!gProgNameEdit.active) {
         return;
     }
@@ -519,6 +609,12 @@ void handle_key(void * win, int key, int scancode, int action, int mods) {
 void handle_char(void * win, unsigned int codepoint) {
     (void)win;
 
+    if (file_browser_active()) {
+        handle_file_browser_char(codepoint);
+        gReDraw = true;
+        return;
+    }
+
     if (!gProgNameEdit.active) {
         return;
     }
@@ -539,6 +635,16 @@ void handle_char(void * win, unsigned int codepoint) {
 void handle_scroll(void * win, double dx, double dy) {
     (void)win;
     (void)dx;
+
+    if (file_browser_active()) {
+        handle_file_browser_scroll(dy);
+        return;
+    }
+
+    if (bank_browser_active()) {
+        handle_bank_browser_scroll(dy);
+        return;
+    }
 
     if (gDraggedDial) {
         return;

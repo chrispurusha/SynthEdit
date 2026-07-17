@@ -32,7 +32,10 @@
 #include "panelConfig.h"
 #include "synthComms.h"
 #include "synthGraphics.h"
-#include "fileDialogue.h"
+#include "fileBrowser.h"
+#include "alertDialog.h"
+#include "bankBrowser.h"
+#include "misc.h"
 #include "midiComms.h"
 #include "synthBackup.h"
 
@@ -43,20 +46,20 @@
 // where that thread comes from. _Atomic for that reason, matching gReDraw's
 // own treatment elsewhere in this codebase. Stored as plain int, not
 // tBackupExpect, since not every compiler accepts an enum as an atomic type.
-static _Atomic int  gBackupExpect           = eBackupExpectNone;
+static _Atomic int  gBackupExpect    = eBackupExpectNone;
 
 // Valid only while gBackupExpect == eBackupExpectPreset — which preset number
 // (1-based) the pending request was for, purely so the save dialog can
 // suggest a filename that says so.
-static uint32_t     gBackupPresetNum        = 0;
+static uint32_t     gBackupPresetNum = 0;
 
 // Korg-style counterpart to gBackupPresetNum above — valid only while
 // gBackupExpect == eBackupExpectKorgProgram AND no sweep is active (a
 // standalone synth_backup_patch_by_number_korg() request, not the Load/
 // Store name-sweep, which tracks its own gKorgSweepIndex instead). Same
 // "just for the save dialog's default filename" purpose.
-static uint8_t      gBackupKorgBank         = 0;
-static uint32_t     gBackupKorgProg         = 0;
+static uint8_t      gBackupKorgBank  = 0;
+static uint32_t     gBackupKorgProg  = 0;
 
 // Forward-declared (tentative definition, legal in C — merges with the real
 // one) so synth_backup_patch_by_number_korg()'s busy-guard just below can
@@ -65,13 +68,28 @@ static uint32_t     gBackupKorgProg         = 0;
 static bool         gKorgSweepActive;
 
 // Set on the CoreMIDI thread just before opening the save dialog, read once
-// on the main thread inside the dialog's completion callback. No lock needed
-// for that handoff: open_file_write_dialogue_async() below dispatch_asyncs
-// onto the main queue, and GCD guarantees everything written on the enqueuing
-// thread before a dispatch_async is visible to the block it runs — so these
-// only need to be set before that call, not atomic themselves.
-static uint8_t *    gPendingBackupData      = NULL;
-static uint32_t     gPendingBackupLen       = 0;
+// on the main thread inside the dialog's completion callback. Previously
+// (fileDialogue.mm) no lock was needed here because open_file_write_dialogue_
+// async() itself dispatch_async'd onto the main queue, and GCD guarantees
+// everything written on the enqueuing thread before a dispatch_async is
+// visible to the block it runs. SynthLib's open_file_browser_write()
+// (fileBrowser.h) has no such internal thread-hop — it's a GLFW/OpenGL
+// widget whose state may only be touched from the main/render thread (same
+// requirement as gReDraw/render_file_browser() etc, see fileBrowser.h's own
+// header comment) — so opening the panel itself now has to move to the
+// main thread too, via the SAME gPendingBackupSaveReady handoff pattern as
+// gStoreReplyReady/gBackupBatchReplyReady below: synth_backup_capture_dump()
+// (CoreMIDI thread) only sets these plain fields and gPendingBackupSaveDefaultName,
+// then publishes gPendingBackupSaveReady=true LAST; synth_backup_flush_
+// pending_save() (main/render thread, called once per frame like every
+// other flush_* function here) is what actually calls open_file_browser_write().
+static uint8_t *    gPendingBackupData                = NULL;
+static uint32_t     gPendingBackupLen                 = 0;
+
+// CoreMIDI-thread-sets/main-thread-opens handoff for the save dialog itself
+// — see gPendingBackupData's own comment just above for why this exists.
+static _Atomic bool gPendingBackupSaveReady           = false;
+static char         gPendingBackupSaveDefaultName[96] = {0};
 
 // ── Store Patch to Bank ──────────────────────────────────────────────────────
 // synth_store_patch_to_bank() (main thread) arms this with the CONFIRMED
@@ -84,21 +102,21 @@ static uint32_t     gPendingBackupLen       = 0;
 // synth_backup_capture_dump() on the CoreMIDI thread the moment it consumes
 // it) — same "single owner at a time, flag consumed atomically via the
 // *Ready bool below" discipline as gBackupBatchReplyReady's own handoff.
-static uint32_t     gStoreArmedPresetNumber = 0;
+static uint32_t     gStoreArmedPresetNumber           = 0;
 
 // CoreMIDI-thread -> main-thread handoff for the fetched bytes, once the arm
 // above is satisfied — synth_backup_capture_dump() (CoreMIDI thread) copies
 // the bytes and publishes gStoreReplyReady=true LAST, after the plain writes
 // above it; synth_backup_flush_store() (main/render thread, called once per
 // frame) consumes and clears it before doing the actual convert+send, which
-// needs the main thread (show_confirm_dialogue()/show_info_dialogue() both
-// assume that — see their own comments, fileDialogue.mm). Same shape as
+// needs the main thread (show_confirm()/show_alert(), alertDialog.h, both
+// assume that). Same shape as
 // gBackupBatchReplyReady/Data/Len below, just for a single fetch rather than
 // a 128-preset sweep.
-static _Atomic bool gStoreReplyReady        = false;
-static uint8_t *    gStoreReplyData         = NULL;
-static uint32_t     gStoreReplyLen          = 0;
-static uint32_t     gStoreReplyPresetNumber = 0;
+static _Atomic bool gStoreReplyReady                  = false;
+static uint8_t *    gStoreReplyData                   = NULL;
+static uint32_t     gStoreReplyLen                    = 0;
+static uint32_t     gStoreReplyPresetNumber           = 0;
 
 // ── Bank-to-folder batch export ──────────────────────────────────────────────
 // Sequentially requests every preset (1..kBackupBatchPresetCount) and saves
@@ -353,6 +371,51 @@ void synth_backup_current_patch(void) {
     LOG_DEBUG("Backup: requested a fresh state dump to capture\n");
 }
 
+// Stashed by synth_store_patch_to_bank() immediately before opening the
+// (now-asynchronous) confirmation dialog, for its two confirmed-callbacks
+// below to pick back up — same CoreMIDI-thread/main-thread-style handoff
+// convention this file already uses for gStoreArmedPresetNumber/
+// gPendingBackupData above, just for a confirm-dialog completion here
+// instead of a CoreMIDI reply. Both branches of synth_store_patch_to_bank()
+// (Korg/Moog) are only ever entered from the main thread (a menu action, or
+// the Load/Store bank-browser picker's own confirmed-callback), so these
+// don't need to be atomic themselves.
+static uint8_t  gPendingStoreBank         = 0;
+static uint32_t gPendingStorePresetNumber = 0;
+
+// Confirmed-callback for the Korg-style (Z1) branch — a single PROGRAM
+// WRITE REQUEST (func 0x11), no local fetch/convert step or async reply to
+// wait for (see synth_send_korg_program_write_request()'s own comment,
+// synthComms.h). "Store..." rather than a generic "Continue" — matches
+// what this action actually does.
+static void on_store_patch_to_bank_korg_confirmed(bool confirmed) {
+    char message[160];
+
+    if (!confirmed) {
+        LOG_DEBUG("Store: cancelled at confirmation\n");
+        return;
+    }
+    synth_send_korg_program_write_request(gPendingStoreBank, gPendingStorePresetNumber);
+    snprintf(message, sizeof(message), "Sent — Bank %c, Program %u should now match the current edit buffer.",
+             gPendingStoreBank ? 'B' : 'A', (unsigned)gPendingStorePresetNumber);
+    show_alert("Store Patch to Bank", message);
+}
+
+// Confirmed-callback for the Moog-style branch — arms gStoreArmedPresetNumber
+// and requests a fresh state dump, exactly as the old synchronous
+// continuation did; synth_backup_flush_store() takes it from here once that
+// dump's reply lands.
+static void on_store_patch_to_bank_moog_confirmed(bool confirmed) {
+    if (!confirmed) {
+        LOG_DEBUG("Store: cancelled at confirmation\n");
+        return;
+    }
+    gStoreArmedPresetNumber = gPendingStorePresetNumber;
+    gBackupExpect           = eBackupExpectLive;
+    synth_request_state_dump();
+    LOG_DEBUG("Store: requested a fresh state dump to store as preset %u\n", (unsigned)gPendingStorePresetNumber);
+}
+
 void synth_store_patch_to_bank(uint8_t bank, uint32_t presetNumber) {
     if (!gDevice.connected) {
         LOG_ERROR("Store: no device connected\n");
@@ -365,6 +428,9 @@ void synth_store_patch_to_bank(uint8_t bank, uint32_t presetNumber) {
     }
     char message[160];
 
+    gPendingStoreBank         = bank;
+    gPendingStorePresetNumber = presetNumber;
+
     // Korg-style (Z1): a single PROGRAM WRITE REQUEST (func 0x11) — no
     // local fetch/convert step at all, so there's no async reply to wait
     // for before showing a result (see synth_send_korg_program_write_
@@ -376,29 +442,13 @@ void synth_store_patch_to_bank(uint8_t bank, uint32_t presetNumber) {
         snprintf(message, sizeof(message),
                  "This will overwrite Bank %c, Program %u on the connected device with the CURRENT edit buffer. This cannot be undone.",
                  bank ? 'B' : 'A', (unsigned)presetNumber);
-
-        if (!show_confirm_dialogue("Store Patch to Bank", message)) {
-            LOG_DEBUG("Store: cancelled at confirmation\n");
-            return;
-        }
-        synth_send_korg_program_write_request(bank, presetNumber);
-        snprintf(message, sizeof(message), "Sent — Bank %c, Program %u should now match the current edit buffer.",
-                 bank ? 'B' : 'A', (unsigned)presetNumber);
-        show_info_dialogue("Store Patch to Bank", message);
+        show_confirm("Store Patch to Bank", message, "Store...", on_store_patch_to_bank_korg_confirmed);
         return;
     }
     snprintf(message, sizeof(message),
              "This will overwrite Preset %u on the connected device with the CURRENT edit buffer. This cannot be undone.",
              (unsigned)presetNumber);
-
-    if (!show_confirm_dialogue("Store Patch to Bank", message)) {
-        LOG_DEBUG("Store: cancelled at confirmation\n");
-        return;
-    }
-    gStoreArmedPresetNumber = presetNumber;
-    gBackupExpect           = eBackupExpectLive;
-    synth_request_state_dump();
-    LOG_DEBUG("Store: requested a fresh state dump to store as preset %u\n", (unsigned)presetNumber);
+    show_confirm("Store Patch to Bank", message, "Store...", on_store_patch_to_bank_moog_confirmed);
 }
 // synth_backup_flush_store() is defined further down, right after
 // convert_panel_dump_to_preset_dump() (which it calls) — this file's
@@ -586,7 +636,8 @@ static void backup_batch_advance(void) {
 
 // Writes gNameSweepLabels[presetNumber-1] as "N: Name — Category" (or just
 // "N: Name" on a device with no category dial, or "N: (unnamed)"), ready to
-// hand straight to show_device_choice_dialogue(). Shared by every path that
+// hand straight to open_bank_browser() (as a tBankBrowserItem's own name).
+// Shared by every path that
 // learns a preset's current name: the name sweep itself
 // (name_sweep_capture_name() below), and every KEEP-THE-CACHE-CURRENT call
 // site (name_cache_update_from_preset_dump() below) — see gNameCacheValid's
@@ -703,7 +754,7 @@ static void backup_batch_folder_chosen(const char * path) {
     }
     strncpy(gBackupBatchFolder, path, sizeof(gBackupBatchFolder) - 1);
     gBackupBatchFolder[sizeof(gBackupBatchFolder) - 1] = '\0';
-    set_last_backup_folder(synth_current_device_config(), gBackupBatchFolder); // so a later single-file Backup save defaults here too — see its own comment (fileDialogue.h)
+    set_last_backup_folder(synth_current_device_config(), gBackupBatchFolder); // so a later single-file Backup save defaults here too — see its own comment (misc.h)
 
     // Fresh index file each run — truncates any previous one from an
     // earlier export into the same folder rather than appending onto
@@ -1186,7 +1237,7 @@ void synth_backup_bank_to_folder(void) {
             LOG_ERROR("Backup: another backup operation is already in progress\n");
             return;
         }
-        open_folder_choose_dialogue_async(korg_batch_folder_chosen, "Choose Backup Folder", get_last_backup_folder(synth_current_device_config()));
+        open_file_browser_folder(korg_batch_folder_chosen, "Choose Backup Folder");
         return;
     }
 
@@ -1199,7 +1250,35 @@ void synth_backup_bank_to_folder(void) {
         LOG_ERROR("Backup: another backup operation is already in progress\n");
         return;
     }
-    open_folder_choose_dialogue_async(backup_batch_folder_chosen, "Choose Backup Folder", get_last_backup_folder(synth_current_device_config()));
+    open_file_browser_folder(backup_batch_folder_chosen, "Choose Backup Folder");
+}
+
+// Confirmed-callback for korg_sweep_show_picker()'s bank browser below — the
+// picker hands back the chosen bank/location directly (no flat index to
+// re-derive bank/prog from any more, unlike the old show_device_choice_
+// dialogue()'s single chosen int). No synth_request_state_dump() here
+// (removed 2026-07-14) — handle_prog_dump() never touches gDevice.progName/
+// the live dials in the first place (see its own comment, synthComms.c), so
+// there's nothing to restore on cancel; on Load, synth_change_program()
+// (called via synth_korg_select_program(), the tail of synth_load_patch_
+// from_bank()'s Korg branch) already arms its own debounced state-dump
+// refresh, so an immediate extra request here was pure duplicate traffic —
+// and, worse, one that could land right as a background sweep's own
+// request/reply was in flight (owner report: one observed "patch select
+// failing" while a sweep was running).
+static void on_korg_sweep_picked(bool confirmed, uint32_t bank1Indexed, uint32_t location1Indexed) {
+    if (!confirmed) {
+        LOG_DEBUG("Load/Store: picker cancelled\n");
+        return;
+    }
+    uint8_t  bank = (uint8_t)(bank1Indexed - 1);
+    uint32_t prog = location1Indexed;
+
+    if (gNameSweepPurpose == eNameSweepPurposeLoad) {
+        synth_load_patch_from_bank(bank, prog);
+    } else {
+        synth_store_patch_to_bank(bank, prog);
+    }
 }
 
 // Shows the "A1: Name — Category" picker and acts on whatever the user
@@ -1210,59 +1289,38 @@ void synth_backup_bank_to_folder(void) {
 // unpopulated names before the full set is gleaned") — showing real names
 // for whatever korg_sweep_capture_reply() has filled in so far and "---"
 // (from korg_sweep_start()'s own initialisation) for anything not reached
-// yet. The sweep itself (if still running) simply pauses while this native
-// modal blocks the main thread — see synth_backup_flush_korg_name_sweep(),
-// only ever driven from the same per-frame render-loop call this modal
-// blocks — and resumes filling in the rest once the user dismisses it,
-// whether they chose an entry or cancelled.
+// yet. Ported from a synchronous NSAlert+dropdown (show_device_choice_
+// dialogue()) to SynthLib's open_bank_browser() (a scrollable named list,
+// matching what this function already builds — "N: Name — Category" per
+// entry — better than a raw dropdown for 256 entries) — category is passed
+// as 0 with categoryNameCount 0 for every item since the category is
+// already baked into each label's own text; this just means the browser's
+// own Category sort mode isn't available here, not that the information is
+// lost. Also, being asynchronous, this no longer pauses the background
+// sweep while the picker is open the way the old blocking modal did (see
+// synth_backup_flush_korg_name_sweep(), still driven every frame while this
+// panel is up) — labels now keep filling in live underneath it, an
+// improvement rather than a regression. Lost along with the synchronous
+// dialog: open_bank_browser() has no "default selected row" parameter, so
+// Store no longer pre-selects gDevice.currentProgram's own slot — a minor,
+// accepted UX simplification (see this function's git history for the
+// dropped defaultIndex calculation).
 static void korg_sweep_show_picker(void) {
-    const char * labelPtrs[KORG_SWEEP_PRESET_COUNT];
+    tBankBrowserItem items[KORG_SWEEP_PRESET_COUNT];
 
     for (uint32_t i = 0; i < KORG_SWEEP_PRESET_COUNT; i++) {
-        labelPtrs[i] = gKorgSweepLabels[i];
+        items[i].name             = gKorgSweepLabels[i];
+        items[i].category         = 0;
+        items[i].bank1Indexed     = (i / 128) + 1;
+        items[i].location1Indexed = (i % 128) + 1;
     }
 
-    // Store defaults to the slot the CURRENT edit buffer was originally loaded
-    // from — gDevice.currentProgram is 0-based WITHIN a bank (0-127) and
-    // has no bank information of its own, so this can only default to a
-    // Bank A slot (index == currentProgram) or fall back to the first
-    // entry, same "no equivalent natural default" reasoning as Load
-    // already has below for the Moog picker; not worth a bigger tracking
-    // change just for this cosmetic default.
-    uint32_t     defaultIndex = 0;
-
-    if (  (gNameSweepPurpose == eNameSweepPurposeStore)
-       && (gDevice.currentProgram >= 0) && (gDevice.currentProgram < 128)) {
-        defaultIndex = (uint32_t)gDevice.currentProgram;
-    }
-    const char * title        = (gNameSweepPurpose == eNameSweepPurposeLoad) ? "Load Patch from Bank" : "Store Patch to Bank";
-    const char * message      = (gNameSweepPurpose == eNameSweepPurposeLoad)
+    const char *     title   = (gNameSweepPurpose == eNameSweepPurposeLoad) ? "Load Patch from Bank" : "Store Patch to Bank";
+    const char *     message = (gNameSweepPurpose == eNameSweepPurposeLoad)
                 ? "Choose a program to load into the live edit buffer:"
                 : "Choose a program to store the current edit buffer to:";
-    int32_t      chosen       = show_device_choice_dialogue(title, message, labelPtrs, KORG_SWEEP_PRESET_COUNT, defaultIndex);
 
-    // No synth_request_state_dump() here (removed 2026-07-14) — handle_prog_dump()
-    // never touches gDevice.progName/the live dials in the first place (see
-    // its own comment, synthComms.c), so there's nothing to restore on
-    // cancel; on Load, synth_change_program() (called via
-    // synth_korg_select_program(), the tail of synth_load_patch_from_bank()'s
-    // Korg branch) already arms its own debounced state-dump refresh, so an
-    // immediate extra request here was pure duplicate traffic — and, worse,
-    // one that could land right as a background sweep's own request/reply
-    // was in flight (owner report: one observed "patch select failing"
-    // while a sweep was running).
-    if (chosen < 0) {
-        LOG_DEBUG("Load/Store: picker cancelled\n");
-        return;
-    }
-    uint8_t      bank         = (uint8_t)((uint32_t)chosen / 128);
-    uint32_t     prog         = ((uint32_t)chosen % 128) + 1;
-
-    if (gNameSweepPurpose == eNameSweepPurposeLoad) {
-        synth_load_patch_from_bank(bank, prog);
-    } else {
-        synth_store_patch_to_bank(bank, prog);
-    }
+    open_bank_browser(title, message, "Next...", items, KORG_SWEEP_PRESET_COUNT, NULL, 0, on_korg_sweep_picked);
 }
 
 void synth_backup_start_name_sweep(tNameSweepPurpose purpose) {
@@ -1346,67 +1404,72 @@ void synth_backup_start_name_sweep(tNameSweepPurpose purpose) {
     name_sweep_show_picker();
 }
 
+// Confirmed-callback for name_sweep_show_picker()'s bank browser below —
+// bank1Indexed is always 1 (a single implicit bank, Moog-style has no bank
+// concept — see items[i].bank1Indexed's own comment below), location1Indexed
+// is the 1-based preset number. No synth_request_state_dump() here (removed
+// 2026-07-14) — the sweep no longer leaves gDevice.progName showing the
+// last-swept preset's name at all (handle_moog_single_preset_dump() now
+// skips that write during name-sweep mode specifically, see its own comment
+// in synthComms.c), so there's nothing to restore on cancel; on Load,
+// synth_change_program() (the tail of synth_load_patch_from_bank()'s Moog
+// branch) already arms its own debounced state-dump refresh, and Store
+// already fetches its own fresh dump as part of capturing what to write —
+// so an immediate extra request here was pure duplicate traffic, and,
+// worse, one that could land right as a background sweep's own
+// request/reply was in flight (owner report: one observed "patch select
+// failing" while a sweep was running).
+static void on_name_sweep_picked(bool confirmed, uint32_t bank1Indexed, uint32_t location1Indexed) {
+    (void)bank1Indexed; // always 1 — see this callback's own comment
+
+    if (!confirmed) {
+        LOG_DEBUG("Load/Store: picker cancelled\n");
+        return;
+    }
+
+    if (gNameSweepPurpose == eNameSweepPurposeLoad) {
+        synth_load_patch_from_bank(0, location1Indexed); // bank ignored for Moog-style — see synth_load_patch_from_bank()'s own comment (synthComms.h)
+    } else {
+        synth_store_patch_to_bank(0, location1Indexed);  // bank ignored for Moog-style — see synth_store_patch_to_bank()'s own comment (synthBackup.h)
+    }
+}
+
 // Shows the "N: Name — Category" picker and acts on whatever the user
 // chose. Opens IMMEDIATELY regardless of sweep progress — 2026-07-14 (owner:
 // "we should allow the picker, with '---' unpopulated names before the full
 // set is gleaned") — showing real names for whatever
 // name_cache_update_from_preset_dump()/name_sweep_capture_name() has filled
 // in so far and "---" (from synth_backup_start_name_sweep()'s own
-// initialisation) for anything not reached yet. The sweep itself (if still
-// running) simply pauses while this native modal blocks the main thread —
-// see synth_backup_flush_bank_to_folder(), only ever driven from the same
-// per-frame render-loop call this modal blocks — and resumes filling in the
-// rest once the user dismisses it, whether they chose an entry or
-// cancelled. Called directly from synth_backup_start_name_sweep() now
-// (never automatically on sweep completion — see backup_batch_advance()'s
-// own comment for why), same "picker decoupled from sweep progress" design
-// as the Korg-side korg_sweep_show_picker() above.
+// initialisation) for anything not reached yet. Called directly from
+// synth_backup_start_name_sweep() now (never automatically on sweep
+// completion — see backup_batch_advance()'s own comment for why). Ported
+// from a synchronous NSAlert+dropdown (show_device_choice_dialogue()) to
+// SynthLib's open_bank_browser() — same "N: Name — Category" labels, same
+// isolation from korg_sweep_show_picker() above, and the same accepted
+// trade-offs that conversion made there: category passed as 0/
+// categoryNameCount 0 (already baked into the label text, so the browser's
+// own Category sort mode just isn't offered here), no more default-selected
+// row for Store (open_bank_browser() has no such parameter — dropped the
+// gDevice.currentProgram-based defaultIndex calculation this used to have),
+// and the background sweep (synth_backup_flush_bank_to_folder(), still
+// driven every frame while this panel is up) now keeps filling in labels
+// live instead of pausing behind a blocking modal.
 static void name_sweep_show_picker(void) {
-    const char * labelPtrs[BACKUP_BATCH_PRESET_COUNT];
+    tBankBrowserItem items[BACKUP_BATCH_PRESET_COUNT];
 
     for (uint32_t i = 0; i < BACKUP_BATCH_PRESET_COUNT; i++) {
-        labelPtrs[i] = gNameSweepLabels[i];
+        items[i].name             = gNameSweepLabels[i];
+        items[i].category         = 0;
+        items[i].bank1Indexed     = 1; // single implicit bank — Moog-style has no bank concept
+        items[i].location1Indexed = i + 1;
     }
 
-    // Store defaults to the slot the CURRENT edit buffer was originally loaded
-    // from (gDevice.currentProgram, 0-based; -1 = unknown) — owner request,
-    // 2026-07-11: "default to write to the slot... the one we're working on
-    // came from". Load has no equivalent natural default, so it always
-    // starts at the first entry (index 0).
-    uint32_t     defaultIndex = 0;
-
-    if (  (gNameSweepPurpose == eNameSweepPurposeStore)
-       && (gDevice.currentProgram >= 0) && (gDevice.currentProgram < (int32_t)BACKUP_BATCH_PRESET_COUNT)) {
-        defaultIndex = (uint32_t)gDevice.currentProgram;
-    }
-    const char * title        = (gNameSweepPurpose == eNameSweepPurposeLoad) ? "Load Patch from Bank" : "Store Patch to Bank";
-    const char * message      = (gNameSweepPurpose == eNameSweepPurposeLoad)
+    const char *     title   = (gNameSweepPurpose == eNameSweepPurposeLoad) ? "Load Patch from Bank" : "Store Patch to Bank";
+    const char *     message = (gNameSweepPurpose == eNameSweepPurposeLoad)
                 ? "Choose a preset to load into the live edit buffer:"
                 : "Choose a preset to store the current edit buffer to:";
-    int32_t      chosen       = show_device_choice_dialogue(title, message, labelPtrs, BACKUP_BATCH_PRESET_COUNT, defaultIndex);
 
-    // No synth_request_state_dump() here (removed 2026-07-14) — the sweep
-    // no longer leaves gDevice.progName showing the last-swept preset's
-    // name at all (handle_moog_single_preset_dump() now skips that write
-    // during name-sweep mode specifically, see its own comment in
-    // synthComms.c), so there's nothing to restore on cancel; on Load,
-    // synth_change_program() (the tail of synth_load_patch_from_bank()'s
-    // Moog branch) already arms its own debounced state-dump refresh, and
-    // Store already fetches its own fresh dump as part of capturing what to
-    // write — so an immediate extra request here was pure duplicate
-    // traffic, and, worse, one that could land right as a background
-    // sweep's own request/reply was in flight (owner report: one observed
-    // "patch select failing" while a sweep was running).
-    if (chosen < 0) {
-        LOG_DEBUG("Load/Store: picker cancelled\n");
-        return;
-    }
-
-    if (gNameSweepPurpose == eNameSweepPurposeLoad) {
-        synth_load_patch_from_bank(0, (uint32_t)(chosen + 1)); // bank ignored for Moog-style — see synth_load_patch_from_bank()'s own comment (synthComms.h)
-    } else {
-        synth_store_patch_to_bank(0, (uint32_t)(chosen + 1));  // bank ignored for Moog-style — see synth_store_patch_to_bank()'s own comment (synthBackup.h)
-    }
+    open_bank_browser(title, message, "Next...", items, BACKUP_BATCH_PRESET_COUNT, NULL, 0, on_name_sweep_picked);
 }
 
 void synth_backup_flush_bank_to_folder(void) {
@@ -1491,7 +1554,7 @@ static void backup_save_callback(const char * path) {
             // any kind — this one, Bank, or the Bank-to-Folder picker)
             // defaults here too, instead of each one starting from an
             // unrelated system default — see get_last_backup_folder()'s
-            // own comment (fileDialogue.h).
+            // own comment (misc.h).
             const char * lastSlash = strrchr(path, '/');
 
             if (lastSlash != NULL) {
@@ -1671,7 +1734,28 @@ void synth_backup_capture_dump(const uint8_t * data, uint32_t length, tBackupExp
         }
     }
     LOG_DEBUG("Backup: captured %u byte dump, opening save dialog\n", (unsigned)length);
-    open_file_write_dialogue_async(backup_save_callback, defaultName, get_last_backup_folder(synth_current_device_config()));
+    // Hands off to the main thread rather than opening the panel directly
+    // from here (the CoreMIDI thread) — see gPendingBackupSaveReady's own
+    // comment above for why. Plain writes first, atomic bool published
+    // LAST, same discipline as every other CoreMIDI-thread handoff in this
+    // file.
+    strncpy(gPendingBackupSaveDefaultName, defaultName, sizeof(gPendingBackupSaveDefaultName) - 1);
+    gPendingBackupSaveDefaultName[sizeof(gPendingBackupSaveDefaultName) - 1] = '\0';
+    gPendingBackupSaveReady                                                  = true;
+}
+
+// Per-frame poll for synth_backup_capture_dump()'s pending "open the save
+// dialog" request — see gPendingBackupSaveReady's own comment above for why
+// this hop through the main/render thread is needed now (SynthLib's
+// open_file_browser_write(), unlike the old NSSavePanel-based dialog, has no
+// internal dispatch_async of its own). Call once per frame from the render
+// loop, alongside the other synth_backup_flush_*() functions.
+void synth_backup_flush_pending_save(void) {
+    if (!gPendingBackupSaveReady) {
+        return;
+    }
+    gPendingBackupSaveReady = false;
+    open_file_browser_write(backup_save_callback, gPendingBackupSaveDefaultName);
 }
 
 // ── Restore ───────────────────────────────────────────────────────────────────
@@ -1724,7 +1808,7 @@ static uint8_t * restore_read_file(const char * path, uint32_t * outLen) {
 // false (and logs why) otherwise, so callers can bail out before sending
 // anything to the device.
 // reason/reasonSize receive a user-facing explanation on failure — shown
-// via show_info_dialogue() by each caller below, since LOG_ERROR alone
+// via show_alert() by each caller below, since LOG_ERROR alone
 // (stderr) is invisible to anyone not watching a console, which made an
 // earlier version of this validation fail completely silently from the
 // user's point of view (a wrong file picked just did nothing, with no way
@@ -1910,7 +1994,7 @@ void synth_backup_flush_store(void) {
 
     if (converted == NULL) {
         LOG_ERROR("Store: failed to convert %u byte Panel Dump for preset %u\n", (unsigned)length, (unsigned)presetNumber);
-        show_info_dialogue("Store Patch Failed", "Couldn't prepare the current edit buffer for sending — see the debug log.");
+        show_alert("Store Patch Failed", "Couldn't prepare the current edit buffer for sending — see the debug log.");
         return;
     }
     char      message[160];
@@ -1922,11 +2006,11 @@ void synth_backup_flush_store(void) {
         // without needing a full re-sweep — see that flag's own comment.
         name_cache_update_from_preset_dump(presetNumber, converted, convertedLen);
         snprintf(message, sizeof(message), "Sent — Preset %u should now match the current edit buffer.", (unsigned)presetNumber);
-        show_info_dialogue("Store Patch to Bank", message);
+        show_alert("Store Patch to Bank", message);
     } else {
         LOG_ERROR("Store: failed to send %u byte Single Preset Dump for preset %u\n",
                   (unsigned)convertedLen, (unsigned)presetNumber);
-        show_info_dialogue("Store Patch Failed", "The message couldn't be sent — see the debug log for the exact MIDI error.");
+        show_alert("Store Patch Failed", "The message couldn't be sent — see the debug log for the exact MIDI error.");
     }
     free(converted);
 }
@@ -1967,7 +2051,7 @@ void synth_backup_flush_store(void) {
 // result: every positive envelope level/mod amount/etc. got clamped away.
 static void restore_edit_buffer_korg_file(const uint8_t * data, uint32_t length, const char * path, char * reason, size_t reasonSize) {
     if (!restore_validate_korg_dump(data, length, reason, reasonSize, NULL, NULL)) {
-        show_info_dialogue("Restore Edit Buffer Failed", reason);
+        show_alert("Restore Edit Buffer Failed", reason);
         return;
     }
     static uint8_t decoded[4096];
@@ -1975,14 +2059,14 @@ static void restore_edit_buffer_korg_file(const uint8_t * data, uint32_t length,
 
     if (!synth_decode_korg_prog_dump(data, length, decoded, sizeof(decoded), &decodedLen)) {
         snprintf(reason, reasonSize, "Couldn't decode this file's Program Data Dump payload.");
-        show_info_dialogue("Restore Edit Buffer Failed", reason);
+        show_alert("Restore Edit Buffer Failed", reason);
         return;
     }
     tPanelConfig * cfg        = synth_panel_config();
 
     if (decodedLen < cfg->progNameLen) {
         snprintf(reason, reasonSize, "This file's decoded payload (%u bytes) is too short for this device's own program name field.", (unsigned)decodedLen);
-        show_info_dialogue("Restore Edit Buffer Failed", reason);
+        show_alert("Restore Edit Buffer Failed", reason);
         return;
     }
     // Re-slice the file's own RAW (still 7-bit-packed, NOT the decode_7to8()
@@ -2030,7 +2114,7 @@ static void restore_edit_buffer_korg_file(const uint8_t * data, uint32_t length,
         synth_request_state_dump();
     }
     LOG_DEBUG("Restore: Korg-style edit buffer restore from %s sent as one Current Program Data Dump (%u byte payload)\n", path, (unsigned)rawLen);
-    show_info_dialogue("Restore Edit Buffer", "Sent — the connected device's live edit buffer should now match this file.");
+    show_alert("Restore Edit Buffer", "Sent — the connected device's live edit buffer should now match this file.");
 }
 
 // Runs on the main thread once the user has chosen (or cancelled) a file to
@@ -2079,17 +2163,17 @@ static void restore_edit_buffer_file_chosen(const char * path) {
     }
 
     if (!restore_validate_moog_dump(data, length, 0x02, "Panel Dump", reason, sizeof(reason))) {
-        show_info_dialogue("Restore Edit Buffer Failed", reason);
+        show_alert("Restore Edit Buffer Failed", reason);
         free(data);
         return;
     }
 
     if (midi_send(data, length)) {
         LOG_DEBUG("Restore: sent %u byte Panel Dump from %s (loads live edit buffer only)\n", (unsigned)length, path);
-        show_info_dialogue("Restore Edit Buffer", "Sent — the connected device's live edit buffer should now match this file.");
+        show_alert("Restore Edit Buffer", "Sent — the connected device's live edit buffer should now match this file.");
     } else {
         LOG_ERROR("Restore: failed to send %u byte Panel Dump from %s\n", (unsigned)length, path);
-        show_info_dialogue("Restore Edit Buffer Failed", "The message couldn't be sent — see the debug log for the exact MIDI error.");
+        show_alert("Restore Edit Buffer Failed", "The message couldn't be sent — see the debug log for the exact MIDI error.");
     }
     free(data);
 }
@@ -2099,7 +2183,7 @@ void synth_backup_restore_edit_buffer(void) {
         LOG_ERROR("Restore: no device connected\n");
         return;
     }
-    open_file_read_dialogue_async(restore_edit_buffer_file_chosen);
+    open_file_browser_read(restore_edit_buffer_file_chosen);
 }
 
 void synth_backup_restore_edit_buffer_from_path(const char * path) {
@@ -2108,6 +2192,43 @@ void synth_backup_restore_edit_buffer_from_path(const char * path) {
         return;
     }
     restore_edit_buffer_file_chosen(path);
+}
+
+// Stashed by restore_patch_file_chosen() immediately before opening the now-
+// asynchronous confirmation dialog, for on_restore_patch_confirmed() below
+// to pick back up — path is copied into a fixed buffer rather than keeping
+// the pointer the file browser handed in, since it's only guaranteed valid
+// for the duration of that original callback, not until this LATER
+// confirm-callback fires.
+static uint8_t * gPendingRestorePatchData         = NULL;
+static uint32_t  gPendingRestorePatchLen          = 0;
+static uint32_t  gPendingRestorePatchPresetNumber = 0;
+static char      gPendingRestorePatchPath[1024]   = {0};
+
+static void on_restore_patch_confirmed(bool confirmed) {
+    char message[160];
+
+    if (!confirmed) {
+        LOG_DEBUG("Restore: patch restore cancelled at confirmation\n");
+        free(gPendingRestorePatchData);
+        gPendingRestorePatchData = NULL;
+        return;
+    }
+
+    if (midi_send(gPendingRestorePatchData, gPendingRestorePatchLen)) {
+        LOG_DEBUG("Restore: sent %u byte Single Preset Dump from %s (overwrote preset %u)\n",
+                  (unsigned)gPendingRestorePatchLen, gPendingRestorePatchPath, (unsigned)gPendingRestorePatchPresetNumber);
+        // Keeps the name cache (gNameCacheValid) accurate for this slot
+        // without needing a full re-sweep — see that flag's own comment.
+        name_cache_update_from_preset_dump(gPendingRestorePatchPresetNumber, gPendingRestorePatchData, gPendingRestorePatchLen);
+        snprintf(message, sizeof(message), "Sent — Preset %u should now match this file.", (unsigned)gPendingRestorePatchPresetNumber);
+        show_alert("Restore Patch", message);
+    } else {
+        LOG_ERROR("Restore: failed to send %u byte Single Preset Dump from %s\n", (unsigned)gPendingRestorePatchLen, gPendingRestorePatchPath);
+        show_alert("Restore Patch Failed", "The message couldn't be sent — see the debug log for the exact MIDI error.");
+    }
+    free(gPendingRestorePatchData);
+    gPendingRestorePatchData = NULL;
 }
 
 // Runs on the main thread once the user has chosen (or cancelled) a Single
@@ -2126,7 +2247,7 @@ static void restore_patch_file_chosen(const char * path) {
     char      reason[192];
 
     if (!restore_validate_moog_dump(data, length, 0x03, "Patch by Number dump", reason, sizeof(reason))) {
-        show_info_dialogue("Restore Patch Failed", reason);
+        show_alert("Restore Patch Failed", reason);
         free(data);
         return;
     }
@@ -2146,23 +2267,12 @@ static void restore_patch_file_chosen(const char * path) {
              "This will overwrite Preset %u on the connected device with the contents of this file. This cannot be undone.",
              (unsigned)presetNumber);
 
-    if (show_confirm_dialogue("Restore Patch", message)) {
-        if (midi_send(data, length)) {
-            LOG_DEBUG("Restore: sent %u byte Single Preset Dump from %s (overwrote preset %u)\n",
-                      (unsigned)length, path, (unsigned)presetNumber);
-            // Keeps the name cache (gNameCacheValid) accurate for this slot
-            // without needing a full re-sweep — see that flag's own comment.
-            name_cache_update_from_preset_dump(presetNumber, data, length);
-            snprintf(message, sizeof(message), "Sent — Preset %u should now match this file.", (unsigned)presetNumber);
-            show_info_dialogue("Restore Patch", message);
-        } else {
-            LOG_ERROR("Restore: failed to send %u byte Single Preset Dump from %s\n", (unsigned)length, path);
-            show_info_dialogue("Restore Patch Failed", "The message couldn't be sent — see the debug log for the exact MIDI error.");
-        }
-    } else {
-        LOG_DEBUG("Restore: patch restore cancelled at confirmation\n");
-    }
-    free(data);
+    gPendingRestorePatchData                                       = data;
+    gPendingRestorePatchLen                                        = length;
+    gPendingRestorePatchPresetNumber                               = presetNumber;
+    strncpy(gPendingRestorePatchPath, path, sizeof(gPendingRestorePatchPath) - 1);
+    gPendingRestorePatchPath[sizeof(gPendingRestorePatchPath) - 1] = '\0';
+    show_confirm("Restore Patch", message, "Restore...", on_restore_patch_confirmed);
 }
 
 // Korg-style counterpart to restore_patch_file_chosen() above (Moog). See
@@ -2178,6 +2288,45 @@ static void restore_patch_file_chosen(const char * path) {
 // worth a real test with a low-stakes preset before trusting it the way
 // the Moog mechanism (independently hardware-confirmed 2026-07-11) is
 // trusted.
+// Stashed by korg_restore_patch_file_chosen() immediately before opening the
+// now-asynchronous confirmation dialog, for on_korg_restore_patch_confirmed()
+// below to pick back up — same "copy path into a fixed buffer" reasoning as
+// gPendingRestorePatchPath above (the Moog counterpart).
+static uint8_t * gPendingKorgRestorePatchData       = NULL;
+static uint32_t  gPendingKorgRestorePatchLen        = 0;
+static uint8_t   gPendingKorgRestorePatchBank       = 0;
+static uint32_t  gPendingKorgRestorePatchProg       = 0;
+static char      gPendingKorgRestorePatchPath[1024] = {0};
+
+static void on_korg_restore_patch_confirmed(bool confirmed) {
+    char message[192];
+
+    if (!confirmed) {
+        LOG_DEBUG("Restore: patch restore cancelled at confirmation\n");
+        free(gPendingKorgRestorePatchData);
+        gPendingKorgRestorePatchData = NULL;
+        return;
+    }
+
+    if (midi_send(gPendingKorgRestorePatchData, gPendingKorgRestorePatchLen)) {
+        LOG_DEBUG("Restore: sent %u byte Program Data Dump from %s (overwrote Bank %c, Program %u)\n",
+                  (unsigned)gPendingKorgRestorePatchLen, gPendingKorgRestorePatchPath,
+                  gPendingKorgRestorePatchBank ? 'B' : 'A', (unsigned)gPendingKorgRestorePatchProg);
+        // Keeps the Korg name cache (gKorgNameCacheValid) accurate for
+        // this slot without needing a full re-sweep — see
+        // korg_name_cache_update_from_dump()'s own comment.
+        korg_name_cache_update_from_dump(gPendingKorgRestorePatchBank, gPendingKorgRestorePatchProg, gPendingKorgRestorePatchData, gPendingKorgRestorePatchLen);
+        snprintf(message, sizeof(message), "Sent — Bank %c, Program %u should now match this file.",
+                 gPendingKorgRestorePatchBank ? 'B' : 'A', (unsigned)gPendingKorgRestorePatchProg);
+        show_alert("Restore Patch", message);
+    } else {
+        LOG_ERROR("Restore: failed to send %u byte Program Data Dump from %s\n", (unsigned)gPendingKorgRestorePatchLen, gPendingKorgRestorePatchPath);
+        show_alert("Restore Patch Failed", "The message couldn't be sent — see the debug log for the exact MIDI error.");
+    }
+    free(gPendingKorgRestorePatchData);
+    gPendingKorgRestorePatchData = NULL;
+}
+
 static void korg_restore_patch_file_chosen(const char * path) {
     if (path == NULL) {
         LOG_DEBUG("Restore: patch restore cancelled\n");
@@ -2194,7 +2343,7 @@ static void korg_restore_patch_file_chosen(const char * path) {
     uint32_t  prog   = 0;
 
     if (!restore_validate_korg_dump(data, length, reason, sizeof(reason), &bank, &prog)) {
-        show_info_dialogue("Restore Patch Failed", reason);
+        show_alert("Restore Patch Failed", reason);
         free(data);
         return;
     }
@@ -2204,24 +2353,13 @@ static void korg_restore_patch_file_chosen(const char * path) {
              "This will overwrite Bank %c, Program %u on the connected device with the contents of this file. This cannot be undone.",
              bank ? 'B' : 'A', (unsigned)prog);
 
-    if (show_confirm_dialogue("Restore Patch", message)) {
-        if (midi_send(data, length)) {
-            LOG_DEBUG("Restore: sent %u byte Program Data Dump from %s (overwrote Bank %c, Program %u)\n",
-                      (unsigned)length, path, bank ? 'B' : 'A', (unsigned)prog);
-            // Keeps the Korg name cache (gKorgNameCacheValid) accurate for
-            // this slot without needing a full re-sweep — see
-            // korg_name_cache_update_from_dump()'s own comment.
-            korg_name_cache_update_from_dump(bank, prog, data, length);
-            snprintf(message, sizeof(message), "Sent — Bank %c, Program %u should now match this file.", bank ? 'B' : 'A', (unsigned)prog);
-            show_info_dialogue("Restore Patch", message);
-        } else {
-            LOG_ERROR("Restore: failed to send %u byte Program Data Dump from %s\n", (unsigned)length, path);
-            show_info_dialogue("Restore Patch Failed", "The message couldn't be sent — see the debug log for the exact MIDI error.");
-        }
-    } else {
-        LOG_DEBUG("Restore: patch restore cancelled at confirmation\n");
-    }
-    free(data);
+    gPendingKorgRestorePatchData                                           = data;
+    gPendingKorgRestorePatchLen                                            = length;
+    gPendingKorgRestorePatchBank                                           = bank;
+    gPendingKorgRestorePatchProg                                           = prog;
+    strncpy(gPendingKorgRestorePatchPath, path, sizeof(gPendingKorgRestorePatchPath) - 1);
+    gPendingKorgRestorePatchPath[sizeof(gPendingKorgRestorePatchPath) - 1] = '\0';
+    show_confirm("Restore Patch", message, "Restore...", on_korg_restore_patch_confirmed);
 }
 
 void synth_backup_restore_patch(void) {
@@ -2231,9 +2369,9 @@ void synth_backup_restore_patch(void) {
     }
 
     if (synth_panel_config()->moogStyleDump) {
-        open_file_read_dialogue_async(restore_patch_file_chosen);
+        open_file_browser_read(restore_patch_file_chosen);
     } else {
-        open_file_read_dialogue_async(korg_restore_patch_file_chosen);
+        open_file_browser_read(korg_restore_patch_file_chosen);
     }
 }
 
@@ -2272,56 +2410,94 @@ static void korg_restore_patch_to_bank_send(const uint8_t * data, uint32_t lengt
     korg_name_cache_update_from_dump(bank, prog, data, length);
 }
 
+// Stashed by korg_restore_patch_to_bank_file_chosen() across its now-two
+// chained async steps (open_bank_browser() then show_confirm()) — same
+// CoreMIDI-thread/main-thread-style handoff convention this file already
+// uses for confirm/callback chains elsewhere, just chained twice here since
+// this flow has two dialogs in sequence. Both callbacks below only ever run
+// on the main thread (the browser/dialog completion itself), so these don't
+// need to be atomic.
+static uint8_t * gPendingRestoreToBankData = NULL;
+static uint32_t  gPendingRestoreToBankLen  = 0;
+static uint8_t   gPendingRestoreToBankBank = 0;
+static uint32_t  gPendingRestoreToBankProg = 0;
+
+// Confirmed-callback for the final "are you sure" — sends and reports the
+// result, then frees the file data regardless of outcome.
+static void on_restore_patch_to_bank_confirmed(bool confirmed) {
+    char message[192];
+
+    if (!confirmed) {
+        LOG_DEBUG("Restore: patch-to-bank restore cancelled at confirmation\n");
+        free(gPendingRestoreToBankData);
+        gPendingRestoreToBankData = NULL;
+        return;
+    }
+    korg_restore_patch_to_bank_send(gPendingRestoreToBankData, gPendingRestoreToBankLen, gPendingRestoreToBankBank, gPendingRestoreToBankProg);
+    snprintf(message, sizeof(message), "Sent — Bank %c, Program %u should now match this file.",
+             gPendingRestoreToBankBank ? 'B' : 'A', (unsigned)gPendingRestoreToBankProg);
+    show_alert("Restore Patch to Bank", message);
+    free(gPendingRestoreToBankData);
+    gPendingRestoreToBankData = NULL;
+}
+
+// Confirmed-callback for the destination-slot bank browser below — stashes
+// the chosen bank/program and moves on to the overwrite-warning confirm.
+static void on_restore_patch_to_bank_target_chosen(bool confirmed, uint32_t bank1Indexed, uint32_t location1Indexed) {
+    char message[192];
+
+    if (!confirmed) {
+        LOG_DEBUG("Restore: patch-to-bank picker cancelled\n");
+        free(gPendingRestoreToBankData);
+        gPendingRestoreToBankData = NULL;
+        return;
+    }
+    gPendingRestoreToBankBank = (uint8_t)(bank1Indexed - 1);
+    gPendingRestoreToBankProg = location1Indexed;
+    snprintf(message, sizeof(message),
+             "This will overwrite Bank %c, Program %u on the connected device with the contents of this file. This cannot be undone.",
+             gPendingRestoreToBankBank ? 'B' : 'A', (unsigned)gPendingRestoreToBankProg);
+    show_confirm("Restore Patch to Bank", message, "Restore...", on_restore_patch_to_bank_confirmed);
+}
+
 static void korg_restore_patch_to_bank_file_chosen(const char * path) {
     if (path == NULL) {
         LOG_DEBUG("Restore: patch-to-bank restore cancelled\n");
         return;
     }
-    uint32_t     length = 0;
-    uint8_t *    data   = restore_read_file(path, &length);
+    uint32_t         length = 0;
+    uint8_t *        data   = restore_read_file(path, &length);
 
     if (data == NULL) {
         return;
     }
-    char         reason[192];
+    char             reason[192];
 
     if (!restore_validate_korg_dump(data, length, reason, sizeof(reason), NULL, NULL)) {
-        show_info_dialogue("Restore Patch Failed", reason);
+        show_alert("Restore Patch Failed", reason);
         free(data);
         return;
     }
     // Same named-slot picker Store Patch to Bank uses (korg_sweep_show_
     // picker() above) — opens immediately with whatever names are already
     // known ("---" for the rest), same "don't block on a full sweep" UX.
-    const char * labelPtrs[KORG_SWEEP_PRESET_COUNT];
+    // Ported from show_device_choice_dialogue() to open_bank_browser(), same
+    // reasoning/trade-offs as korg_sweep_show_picker()'s own conversion
+    // above (this is, in fact, the exact same "pick a named preset from a
+    // 256-entry list" shape that call already uses).
+    tBankBrowserItem items[KORG_SWEEP_PRESET_COUNT];
 
     for (uint32_t i = 0; i < KORG_SWEEP_PRESET_COUNT; i++) {
-        labelPtrs[i] = gKorgSweepLabels[i];
+        items[i].name             = gKorgSweepLabels[i];
+        items[i].category         = 0;
+        items[i].bank1Indexed     = (i / 128) + 1;
+        items[i].location1Indexed = (i % 128) + 1;
     }
 
-    int32_t      chosen = show_device_choice_dialogue("Restore Patch to Bank", "Choose a destination to load this file into:", labelPtrs, KORG_SWEEP_PRESET_COUNT, 0);
-
-    if (chosen < 0) {
-        LOG_DEBUG("Restore: patch-to-bank picker cancelled\n");
-        free(data);
-        return;
-    }
-    uint8_t      bank   = (uint8_t)((uint32_t)chosen / 128);
-    uint32_t     prog   = ((uint32_t)chosen % 128) + 1;
-    char         message[192];
-
-    snprintf(message, sizeof(message),
-             "This will overwrite Bank %c, Program %u on the connected device with the contents of this file. This cannot be undone.",
-             bank ? 'B' : 'A', (unsigned)prog);
-
-    if (show_confirm_dialogue("Restore Patch to Bank", message)) {
-        korg_restore_patch_to_bank_send(data, length, bank, prog);
-        snprintf(message, sizeof(message), "Sent — Bank %c, Program %u should now match this file.", bank ? 'B' : 'A', (unsigned)prog);
-        show_info_dialogue("Restore Patch to Bank", message);
-    } else {
-        LOG_DEBUG("Restore: patch-to-bank restore cancelled at confirmation\n");
-    }
-    free(data);
+    gPendingRestoreToBankData = data;
+    gPendingRestoreToBankLen  = length;
+    open_bank_browser("Restore Patch to Bank", "Choose a destination to load this file into:", "Next...",
+                      items, KORG_SWEEP_PRESET_COUNT, NULL, 0, on_restore_patch_to_bank_target_chosen);
 }
 
 void synth_backup_restore_patch_to_bank(void) {
@@ -2334,7 +2510,7 @@ void synth_backup_restore_patch_to_bank(void) {
         LOG_ERROR("Restore Patch to Bank: connected device isn't Korg-style — this action doesn't support it yet\n");
         return;
     }
-    open_file_read_dialogue_async(korg_restore_patch_to_bank_file_chosen);
+    open_file_browser_read(korg_restore_patch_to_bank_file_chosen);
 }
 
 void synth_backup_restore_patch_to_bank_from_path(const char * path, uint8_t bank, uint32_t prog) {
@@ -2364,6 +2540,39 @@ void synth_backup_restore_patch_to_bank_from_path(const char * path, uint8_t ban
     free(data);
 }
 
+// Stashed by restore_bank_file_chosen() immediately before opening the now-
+// asynchronous confirmation dialog, for on_restore_bank_confirmed() below to
+// pick back up — same "copy path into a fixed buffer" reasoning as
+// gPendingRestorePatchPath above.
+static uint8_t * gPendingRestoreBankData       = NULL;
+static uint32_t  gPendingRestoreBankLen        = 0;
+static char      gPendingRestoreBankPath[1024] = {0};
+
+static void on_restore_bank_confirmed(bool confirmed) {
+    if (!confirmed) {
+        LOG_DEBUG("Restore: bank restore cancelled at confirmation\n");
+        free(gPendingRestoreBankData);
+        gPendingRestoreBankData = NULL;
+        return;
+    }
+
+    if (midi_send(gPendingRestoreBankData, gPendingRestoreBankLen)) {
+        LOG_DEBUG("Restore: sent %u byte Bank dump from %s (overwrote entire current bank)\n", (unsigned)gPendingRestoreBankLen, gPendingRestoreBankPath);
+        // Invalidates the WHOLE name cache rather than trying to update
+        // it — a whole-bank dump is one opaque ~18KB blob with no
+        // confirmed per-preset name offset to extract 128 individual
+        // names from safely (see gNameCacheValid's own comment). The
+        // next Load/Store Patch to Bank will just re-sweep.
+        gNameCacheValid = false;
+        show_alert("Restore Bank", "Sent — the current bank should now match this file.");
+    } else {
+        LOG_ERROR("Restore: failed to send %u byte Bank dump from %s\n", (unsigned)gPendingRestoreBankLen, gPendingRestoreBankPath);
+        show_alert("Restore Bank Failed", "The message couldn't be sent — see the debug log for the exact MIDI error.");
+    }
+    free(gPendingRestoreBankData);
+    gPendingRestoreBankData = NULL;
+}
+
 // Runs on the main thread once the user has chosen (or cancelled) a whole-
 // bank dump file to restore — see synth_backup_restore_bank() below.
 static void restore_bank_file_chosen(const char * path) {
@@ -2380,30 +2589,17 @@ static void restore_bank_file_chosen(const char * path) {
     char      reason[192];
 
     if (!restore_validate_moog_dump(data, length, 0x01, "Bank dump", reason, sizeof(reason))) {
-        show_info_dialogue("Restore Bank Failed", reason);
+        show_alert("Restore Bank Failed", reason);
         free(data);
         return;
     }
-
-    if (show_confirm_dialogue("Restore Bank",
-                              "This will overwrite ALL 128 presets in the current bank on the connected device with the contents of this file. This cannot be undone.")) {
-        if (midi_send(data, length)) {
-            LOG_DEBUG("Restore: sent %u byte Bank dump from %s (overwrote entire current bank)\n", (unsigned)length, path);
-            // Invalidates the WHOLE name cache rather than trying to update
-            // it — a whole-bank dump is one opaque ~18KB blob with no
-            // confirmed per-preset name offset to extract 128 individual
-            // names from safely (see gNameCacheValid's own comment). The
-            // next Load/Store Patch to Bank will just re-sweep.
-            gNameCacheValid = false;
-            show_info_dialogue("Restore Bank", "Sent — the current bank should now match this file.");
-        } else {
-            LOG_ERROR("Restore: failed to send %u byte Bank dump from %s\n", (unsigned)length, path);
-            show_info_dialogue("Restore Bank Failed", "The message couldn't be sent — see the debug log for the exact MIDI error.");
-        }
-    } else {
-        LOG_DEBUG("Restore: bank restore cancelled at confirmation\n");
-    }
-    free(data);
+    gPendingRestoreBankData                                      = data;
+    gPendingRestoreBankLen                                       = length;
+    strncpy(gPendingRestoreBankPath, path, sizeof(gPendingRestoreBankPath) - 1);
+    gPendingRestoreBankPath[sizeof(gPendingRestoreBankPath) - 1] = '\0';
+    show_confirm("Restore Bank",
+                 "This will overwrite ALL 128 presets in the current bank on the connected device with the contents of this file. This cannot be undone.",
+                 "Restore...", on_restore_bank_confirmed);
 }
 
 void synth_backup_restore_bank(void) {
@@ -2411,7 +2607,7 @@ void synth_backup_restore_bank(void) {
         LOG_ERROR("Restore: no device connected\n");
         return;
     }
-    open_file_read_dialogue_async(restore_bank_file_chosen);
+    open_file_browser_read(restore_bank_file_chosen);
 }
 
 // ── Restore from folder (Bank Individual Files, in reverse) ─────────────────
@@ -2532,6 +2728,26 @@ static bool restore_folder_find_file(const char * folder, uint32_t presetNumber,
     return found;
 }
 
+// Stashed by restore_folder_chosen() immediately before opening the now-
+// asynchronous confirmation dialog, for on_restore_folder_confirmed() below
+// to pick back up — gRestoreFolderMissingCount is computed here (rather than
+// stashing indexCount itself) since that's the only piece the old inline
+// continuation actually derived from it.
+static uint32_t gPendingRestoreFolderMissingCount = 0;
+
+static void on_restore_folder_confirmed(bool confirmed) {
+    if (!confirmed) {
+        LOG_DEBUG("Restore: folder restore cancelled at confirmation\n");
+        return;
+    }
+    gRestoreFolderIndex        = 0;
+    gRestoreFolderSentCount    = 0;
+    gRestoreFolderMissingCount = gPendingRestoreFolderMissingCount; // entries listed but never found on disk
+    gRestoreFolderActive       = true;
+    gRestoreFolderNextSendMs   = backup_monotonic_ms();             // send the first one on the very next flush tick
+    LOG_DEBUG("Restore: starting folder restore of %u preset(s) from %s\n", (unsigned)gRestoreFolderCount, gRestoreFolderFolder);
+}
+
 // Runs on the main thread once the user has chosen (or cancelled) a folder
 // to restore from — see synth_backup_restore_folder() below.
 static void restore_folder_chosen(const char * path) {
@@ -2543,8 +2759,8 @@ static void restore_folder_chosen(const char * path) {
     uint32_t indexCount = restore_folder_parse_index(path, numbers, BACKUP_BATCH_PRESET_COUNT);
 
     if (indexCount == 0) {
-        show_info_dialogue("Restore Folder Failed",
-                           "No index for the connected device found in this folder (or it has no entries) — pick a folder created by Backup > Bank (Individual Files) for this same device.");
+        show_alert("Restore Folder Failed",
+                   "No index for the connected device found in this folder (or it has no entries) — pick a folder created by Backup > Bank (Individual Files) for this same device.");
         return;
     }
     // Resolve each listed preset number to an actual file in the folder —
@@ -2562,7 +2778,7 @@ static void restore_folder_chosen(const char * path) {
     }
 
     if (gRestoreFolderCount == 0) {
-        show_info_dialogue("Restore Folder Failed", "The index lists presets, but none of their files could be found in this folder.");
+        show_alert("Restore Folder Failed", "The index lists presets, but none of their files could be found in this folder.");
         return;
     }
     strncpy(gRestoreFolderFolder, path, sizeof(gRestoreFolderFolder) - 1);
@@ -2574,16 +2790,8 @@ static void restore_folder_chosen(const char * path) {
              "This will restore %u preset(s) found in this folder, overwriting their exact matching slots on the connected device. This cannot be undone.",
              (unsigned)gRestoreFolderCount);
 
-    if (!show_confirm_dialogue("Restore Folder", message)) {
-        LOG_DEBUG("Restore: folder restore cancelled at confirmation\n");
-        return;
-    }
-    gRestoreFolderIndex                                    = 0;
-    gRestoreFolderSentCount                                = 0;
-    gRestoreFolderMissingCount                             = indexCount - gRestoreFolderCount; // entries listed but never found on disk
-    gRestoreFolderActive                                   = true;
-    gRestoreFolderNextSendMs                               = backup_monotonic_ms();            // send the first one on the very next flush tick
-    LOG_DEBUG("Restore: starting folder restore of %u preset(s) from %s\n", (unsigned)gRestoreFolderCount, path);
+    gPendingRestoreFolderMissingCount                      = indexCount - gRestoreFolderCount;
+    show_confirm("Restore Folder", message, "Restore...", on_restore_folder_confirmed);
 }
 
 // synth_backup_restore_folder() itself lives further down, after the Korg
@@ -2652,7 +2860,7 @@ void synth_backup_flush_restore_folder(void) {
         char summary[192];
         snprintf(summary, sizeof(summary), "Restored %u preset(s), %u missing/failed.",
                  (unsigned)gRestoreFolderSentCount, (unsigned)gRestoreFolderMissingCount);
-        show_info_dialogue("Restore Folder", summary);
+        show_alert("Restore Folder", summary);
         LOG_DEBUG("Restore: folder restore finished — %u sent, %u missing/failed\n",
                   (unsigned)gRestoreFolderSentCount, (unsigned)gRestoreFolderMissingCount);
         return;
@@ -2739,6 +2947,24 @@ static bool korg_restore_folder_find_file(const char * folder, uint32_t index, c
     return found;
 }
 
+// Stashed by korg_restore_folder_chosen() immediately before opening the
+// now-asynchronous confirmation dialog — the Korg counterpart to
+// gPendingRestoreFolderMissingCount above (Moog).
+static uint32_t gPendingKorgRestoreFolderMissingCount = 0;
+
+static void on_korg_restore_folder_confirmed(bool confirmed) {
+    if (!confirmed) {
+        LOG_DEBUG("Restore: folder restore cancelled at confirmation\n");
+        return;
+    }
+    gKorgRestoreFolderIndex        = 0;
+    gKorgRestoreFolderSentCount    = 0;
+    gKorgRestoreFolderMissingCount = gPendingKorgRestoreFolderMissingCount; // entries listed but never found on disk
+    gKorgRestoreFolderActive       = true;
+    gKorgRestoreFolderNextSendMs   = backup_monotonic_ms();                 // send the first one on the very next flush tick
+    LOG_DEBUG("Restore: starting Korg folder restore of %u program(s) from %s\n", (unsigned)gKorgRestoreFolderCount, gKorgRestoreFolderFolder);
+}
+
 // Runs on the main thread once the user has chosen (or cancelled) a folder
 // to restore from — the Korg counterpart to restore_folder_chosen() above
 // (Moog). See synth_backup_restore_folder() below.
@@ -2751,8 +2977,8 @@ static void korg_restore_folder_chosen(const char * path) {
     uint32_t indexCount = korg_restore_folder_parse_index(path, indices, KORG_SWEEP_PRESET_COUNT);
 
     if (indexCount == 0) {
-        show_info_dialogue("Restore Folder Failed",
-                           "No index for the connected device found in this folder (or it has no entries) — pick a folder created by Backup > Bank (Individual Files) for this same device.");
+        show_alert("Restore Folder Failed",
+                   "No index for the connected device found in this folder (or it has no entries) — pick a folder created by Backup > Bank (Individual Files) for this same device.");
         return;
     }
     gKorgRestoreFolderCount                                        = 0;
@@ -2766,7 +2992,7 @@ static void korg_restore_folder_chosen(const char * path) {
     }
 
     if (gKorgRestoreFolderCount == 0) {
-        show_info_dialogue("Restore Folder Failed", "The index lists programs, but none of their files could be found in this folder.");
+        show_alert("Restore Folder Failed", "The index lists programs, but none of their files could be found in this folder.");
         return;
     }
     strncpy(gKorgRestoreFolderFolder, path, sizeof(gKorgRestoreFolderFolder) - 1);
@@ -2778,16 +3004,8 @@ static void korg_restore_folder_chosen(const char * path) {
              "This will restore %u program(s) found in this folder, overwriting their exact matching slots on the connected device. This cannot be undone.",
              (unsigned)gKorgRestoreFolderCount);
 
-    if (!show_confirm_dialogue("Restore Folder", message)) {
-        LOG_DEBUG("Restore: folder restore cancelled at confirmation\n");
-        return;
-    }
-    gKorgRestoreFolderIndex                                        = 0;
-    gKorgRestoreFolderSentCount                                    = 0;
-    gKorgRestoreFolderMissingCount                                 = indexCount - gKorgRestoreFolderCount; // entries listed but never found on disk
-    gKorgRestoreFolderActive                                       = true;
-    gKorgRestoreFolderNextSendMs                                   = backup_monotonic_ms();                // send the first one on the very next flush tick
-    LOG_DEBUG("Restore: starting Korg folder restore of %u program(s) from %s\n", (unsigned)gKorgRestoreFolderCount, path);
+    gPendingKorgRestoreFolderMissingCount                          = indexCount - gKorgRestoreFolderCount;
+    show_confirm("Restore Folder", message, "Restore...", on_korg_restore_folder_confirmed);
 }
 
 void synth_backup_restore_folder(void) {
@@ -2803,7 +3021,7 @@ void synth_backup_restore_folder(void) {
             LOG_ERROR("Restore: another backup/restore operation is already in progress\n");
             return;
         }
-        open_folder_choose_dialogue_async(korg_restore_folder_chosen, "Choose Folder to Restore From", get_last_backup_folder(synth_current_device_config()));
+        open_file_browser_folder(korg_restore_folder_chosen, "Choose Folder to Restore From");
         return;
     }
 
@@ -2811,7 +3029,7 @@ void synth_backup_restore_folder(void) {
         LOG_ERROR("Restore: another backup/restore operation is already in progress\n");
         return;
     }
-    open_folder_choose_dialogue_async(restore_folder_chosen, "Choose Folder to Restore From", get_last_backup_folder(synth_current_device_config()));
+    open_file_browser_folder(restore_folder_chosen, "Choose Folder to Restore From");
 }
 
 // Per-frame poll — the Korg counterpart to synth_backup_flush_restore_folder()
@@ -2865,7 +3083,7 @@ void synth_backup_flush_korg_restore_folder(void) {
         char summary[192];
         snprintf(summary, sizeof(summary), "Restored %u program(s), %u missing/failed.",
                  (unsigned)gKorgRestoreFolderSentCount, (unsigned)gKorgRestoreFolderMissingCount);
-        show_info_dialogue("Restore Folder", summary);
+        show_alert("Restore Folder", summary);
         LOG_DEBUG("Restore: Korg folder restore finished — %u sent, %u missing/failed\n",
                   (unsigned)gKorgRestoreFolderSentCount, (unsigned)gKorgRestoreFolderMissingCount);
         return;

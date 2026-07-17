@@ -410,10 +410,21 @@ void synth_store_patch_to_bank(uint8_t bank, uint32_t presetNumber);
 // fresh Panel Dump reply lands on the CoreMIDI thread
 // (synth_backup_capture_dump()), which only copies the bytes and publishes
 // them; the actual convert+send+result-dialog work happens here instead,
-// once per frame from the render loop, because show_confirm_dialogue()/
-// show_info_dialogue() (fileDialogue.mm) both require the main thread. A
-// no-op unless a Store fetch's reply has actually arrived.
+// once per frame from the render loop, because show_confirm()/show_alert()
+// (alertDialog.h) both require the main thread. A no-op unless a Store
+// fetch's reply has actually arrived.
 void synth_backup_flush_store(void);
+
+// Per-frame poll for synth_backup_capture_dump()'s pending "open the save
+// dialog" request (Backup > Current Panel/Patch by Number/Bank, all three) —
+// that capture happens on the CoreMIDI thread, but SynthLib's
+// open_file_browser_write() (fileBrowser.h) may only be called from the
+// main/render thread (it's a GLFW/OpenGL widget, not a native panel with its
+// own dispatch_async hop the way the old NSSavePanel-backed dialog was) — so
+// opening it is deferred here, same "CoreMIDI thread publishes, main thread
+// consumes once per frame" pattern as synth_backup_flush_store() above. A
+// no-op unless a capture is actually waiting to show its save dialog.
+void synth_backup_flush_pending_save(void);
 
 // ── Progress reporting for the two bulk sweeps above ─────────────────────────
 // Read by synth_render() (synthGraphics.cpp) each frame to draw a progress
