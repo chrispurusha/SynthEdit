@@ -699,7 +699,11 @@ bool synth_moog_single_preset_dump_intact(const uint8_t * data, uint32_t length)
 // everything." outCategory left untouched (caller should default it to ""
 // first) if this device has no such dial, or the decoded value is out of
 // range of that dial's own names= list.
-void synth_decode_moog_category(const uint8_t * data, uint32_t length, char * outCategory, size_t outCategorySize) {
+void synth_decode_moog_category(const uint8_t * data, uint32_t length, char * outCategory, size_t outCategorySize, uint8_t * outIndex) {
+    if (outIndex != NULL) {
+        *outIndex = 0xFF; // "no category" (bankBrowser.h) — overwritten below only on a fully successful decode
+    }
+
     if (outCategorySize == 0) {
         return;
     }
@@ -736,6 +740,10 @@ void synth_decode_moog_category(const uint8_t * data, uint32_t length, char * ou
     if (raw < dial->nameCount) {
         strncpy(outCategory, dial->names[raw], outCategorySize - 1);
         outCategory[outCategorySize - 1] = '\0';
+
+        if (outIndex != NULL) {
+            *outIndex = (uint8_t)raw; // dial->nameCount is realistically well under 256 for any device's Category list
+        }
     }
 }
 
@@ -1048,7 +1056,11 @@ void synth_decode_korg_name(const uint8_t * data, uint32_t length, char * outNam
 // and reads ITS dumpOffset/dumpShift/dumpMask/names — a device with no such
 // dial (or a Moog-style one, which never reaches this function at all) just
 // leaves outCategory untouched. Caller should default it to "" first.
-void synth_decode_korg_category(const uint8_t * data, uint32_t length, char * outCategory, size_t outCategorySize) {
+void synth_decode_korg_category(const uint8_t * data, uint32_t length, char * outCategory, size_t outCategorySize, uint8_t * outIndex) {
+    if (outIndex != NULL) {
+        *outIndex = 0xFF; // "no category" (bankBrowser.h) — overwritten below only on a fully successful decode
+    }
+
     if (outCategorySize == 0) {
         return;
     }
@@ -1072,6 +1084,10 @@ void synth_decode_korg_category(const uint8_t * data, uint32_t length, char * ou
     if (raw < dial->nameCount) {
         strncpy(outCategory, dial->names[raw], outCategorySize - 1);
         outCategory[outCategorySize - 1] = '\0';
+
+        if (outIndex != NULL) {
+            *outIndex = (uint8_t)raw; // dial->nameCount is realistically well under 256 for any device's Category list
+        }
     }
 }
 

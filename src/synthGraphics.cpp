@@ -464,7 +464,12 @@ static void synth_reload_panel_config(void) {
     if (gSynthPanelConfig.stateRequestSysExLen > 3) {
         gDevice.moogDeviceId = gSynthPanelConfig.stateRequestSysEx[3];
     }
-    gReDraw         = true;
+    // Whichever device's names were cached in memory a moment ago belong to
+    // the PREVIOUS config, not this one — reset and reload whatever's saved
+    // on disk for the device just loaded above (see this function's own
+    // comment, synthBackup.h).
+    synth_backup_reload_name_cache_for_device();
+    gReDraw = true;
 }
 
 // Candidate list from the multi-candidate branch below, kept around between synth_choose_config_

@@ -70,7 +70,13 @@ bool synth_korg_program_dump_intact(const uint8_t * data, uint32_t length);
 // than the Z1's (category). A no-op (outCategory left untouched — caller
 // should default it to "" first) if the connected device has no dial
 // labelled "Category", or if data is too short.
-void synth_decode_moog_category(const uint8_t * data, uint32_t length, char * outCategory, size_t outCategorySize);
+// outIndex (NULL if the caller only wants the display string) receives the
+// raw 0-based index into that dial's own names= list, the same value
+// tBankBrowserItem.category expects (bankBrowser.h) — or 0xFF ("no
+// category", the same sentinel that header documents) whenever outCategory
+// itself would have been left untouched (no Category dial, short data, or
+// an out-of-range raw value).
+void synth_decode_moog_category(const uint8_t * data, uint32_t length, char * outCategory, size_t outCategorySize, uint8_t * outIndex);
 
 // Korg-style equivalent of synth_decode_moog_name() above — decodes JUST
 // the program name from a raw CURRENT PROGRAM DATA DUMP (func 0x40) or
@@ -96,7 +102,9 @@ void synth_decode_korg_name(const uint8_t * data, uint32_t length, char * outNam
 // counterpart. A no-op (outCategory left untouched — caller should default
 // it to "" first) if the connected device has no dial labelled "Category"
 // in its own <device>.txt, or if data doesn't decode.
-void synth_decode_korg_category(const uint8_t * data, uint32_t length, char * outCategory, size_t outCategorySize);
+// outIndex — see synth_decode_moog_category()'s own comment above; same
+// contract here.
+void synth_decode_korg_category(const uint8_t * data, uint32_t length, char * outCategory, size_t outCategorySize, uint8_t * outIndex);
 
 // Full decode of a Program Data Dump/Current Program Dump reply into a plain
 // byte buffer (decoded from its 7-to-8 wire packing, header stripped) —

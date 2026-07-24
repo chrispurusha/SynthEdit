@@ -377,6 +377,25 @@ void synth_backup_start_name_sweep(tNameSweepPurpose purpose);
 // sweep has ever run this session.
 void synth_backup_note_preset_name(uint32_t presetNumber, const char * name);
 
+// Resets both in-memory name caches (Moog gNameSweepLabels, Korg
+// gKorgSweepLabels — whatever they held describes the PREVIOUSLY loaded
+// device, not this one) and reloads whichever one is on disk for the
+// device now active in synth_panel_config(), if any (prefs.h — see
+// name_cache_save_to_disk()'s own comment, synthBackup.c). Call once at
+// startup and again every time the user picks a different device, right
+// after synth_panel_config() itself has been repointed at the new one —
+// synth_reload_panel_config() (synthGraphics.cpp) is the one place that's
+// already true, so it's the only caller.
+void synth_backup_reload_name_cache_for_device(void);
+
+// Menu-driven "Clear Patch Name Cache" action — wipes both in-memory name
+// caches and their on-disk entries (prefs.h) for the device currently active
+// in synth_panel_config(), then leaves the cache empty/invalid so the next
+// Load/Store Patch from Bank… triggers a fresh live sweep rather than
+// reloading what was just cleared. See this function's own comment in
+// synthBackup.c.
+void synth_backup_clear_name_cache_for_device(void);
+
 // "File > Load Patch from Bank…" is now declared in synthComms.h (see
 // synth_load_patch_from_bank() there) — was duplicated here until
 // 2026-07-14, when the Korg-style bank parameter was added; kept the

@@ -706,6 +706,12 @@ void do_graphics_loop(void) {
         // menu-bar dropdown on hover (not just a second click) when moving
         // from one label to another while one is already open.
         update_menu_bar_hover(gAppMenuBar, app_menu_bar_rect());
+        // Same contract again — Load/Store Patch from Bank's row highlight
+        // (bankBrowser.cpp) previously only caught up with the mouse on
+        // whatever redraw next happened to fire for an unrelated reason
+        // (2026-07-24 user report: "only seems to highlight the line
+        // sometimes, not all the time").
+        update_bank_browser_hover();
         // See this whole mechanism's own header comment (backdoor_poll()
         // above) — cheap no-op check every iteration when idle.
         backdoor_poll(win);

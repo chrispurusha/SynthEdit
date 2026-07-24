@@ -38,6 +38,7 @@
 #include "misc.h"
 #include "midiComms.h"
 #include "synthBackup.h"
+#include "prefs.h"
 
 // gBackupExpect is written from the main thread (synth_backup_current_patch()/
 // synth_backup_patch_by_number(), both menu actions) and read/cleared from
@@ -206,6 +207,27 @@ static tNameSweepPurpose gNameSweepPurpose          = eNameSweepPurposeLoad;
 // reason for the two mechanisms to disagree on it.
 #define NAME_SWEEP_LABEL_LEN    64
 
+// Joins gNameSweepLabels/gKorgSweepLabels entries into one prefs.h string
+// value for on-disk caching (name_cache_save_to_disk()/
+// name_cache_load_from_disk() below) — an ASCII record separator, not '\n':
+// prefs.cpp's own file format is one "key=value" per line (std::getline()),
+// so an embedded real newline in a VALUE would corrupt the line-based
+// parse; this byte never collides with that (each entry is already
+// guaranteed newline-free — name_cache_set_label()/korg_sweep_set_label()
+// collapse any embedded '\n' from the device to a space) nor with '=' (only
+// the FIRST '=' on a line ends the key, so one appearing inside the joined
+// value, e.g. a patch name containing "=", is harmless).
+#define NAME_CACHE_JOIN_CHAR    '\x1e'
+
+// Separates a slot's name from its category index WITHIN one NAME_CACHE_JOIN_CHAR-delimited
+// record (an ASCII unit separator, one level down from the record separator above) — added
+// 2026-07-24, since gNameSweepCategoryIndex/gKorgSweepCategoryIndex previously lived in memory
+// only, so Category sort/grouping quietly reverted to "no category" every relaunch even though
+// the name cache itself survived. Category is stored as 2 hex digits (0x00-0xFF); a record with
+// no field char at all (an older on-disk cache written before this fix) is still readable — it
+// just decodes as "no category" (0xFF) for that slot, same as this fix's own initial default.
+#define NAME_CACHE_FIELD_CHAR    '\x1f'
+
 // Shared by BOTH name-sweep mechanisms (Moog gBackupBatchMode==
 // eBatchModeNameSweep below, and the Korg-only gKorgSweep* block further
 // down) — made common 2026-07-14 (owner: "these should be common
@@ -250,7 +272,23 @@ static tNameSweepPurpose gNameSweepPurpose          = eNameSweepPurposeLoad;
 // possible — worth one or two retries before giving up rather than none.
 #define NAME_SWEEP_MAX_RETRIES    2
 
-static char gNameSweepLabels[BACKUP_BATCH_PRESET_COUNT][NAME_SWEEP_LABEL_LEN];
+static char    gNameSweepLabels[BACKUP_BATCH_PRESET_COUNT][NAME_SWEEP_LABEL_LEN];
+
+// Parallel to gNameSweepLabels above — the raw Category dial index for the
+// SAME preset (0xFF = none/unknown, matching bankBrowser.h's own "no
+// category" sentinel), fed into tBankBrowserItem.category so
+// name_sweep_show_picker() below can offer a real Category sort mode
+// instead of the disabled placeholder that shipped with the initial
+// open_bank_browser() port (owner report, 2026-07-24: "can't select
+// Category on Load Patch from Bank for voyager"). gNameSweepLabels itself
+// no longer bakes "N: "/"— Category" into the string (see
+// name_cache_set_label()'s own comment for why: the browser already
+// prepends "Bank X, Loc Y: " for display, and an embedded location number
+// as the FIRST characters of every label was quietly breaking the
+// browser's own A-Z sort mode — it compares tBankBrowserItem.name as plain
+// text, so "10: ..." sorted before "2: ..." lexicographically, i.e. by
+// location number, not name).
+static uint8_t gNameSweepCategoryIndex[BACKUP_BATCH_PRESET_COUNT];
 
 // True once a full 128-preset name sweep has completed at least once this
 // session — synth_backup_start_name_sweep() below skips straight to
@@ -542,6 +580,17 @@ static void backup_batch_append_index_line(uint32_t presetNumber, const char * n
 // definition order.
 static void name_sweep_show_picker(void);
 
+// Defined further down, alongside name_cache_set_label() — forward-declared
+// here since backup_batch_advance()'s completion step below (and
+// name_cache_update_from_preset_dump(), also further down) both need to
+// reach it regardless of definition order.
+static void name_cache_save_to_disk(void);
+
+// Same reasoning as name_cache_save_to_disk() above, for the Korg side —
+// forward-declared here since korg_sweep_advance() (further down, but still
+// before korg_sweep_set_label()'s own definition) needs to reach it too.
+static void korg_name_cache_save_to_disk(void);
+
 // Sends (or resends, for a retry) the Single Preset Dump Request for
 // gBackupBatchCurrentPreset — shared by backup_batch_advance() (export
 // mode's own immediate re-request) and synth_backup_flush_bank_to_folder()
@@ -572,7 +621,8 @@ static void moog_name_sweep_start(void) {
     gBackupBatchMissingCount  = 0;
 
     for (uint32_t i = 0; i < BACKUP_BATCH_PRESET_COUNT; i++) {
-        snprintf(gNameSweepLabels[i], NAME_SWEEP_LABEL_LEN, "%u: ---", (unsigned)(i + 1));
+        snprintf(gNameSweepLabels[i], NAME_SWEEP_LABEL_LEN, "---");
+        gNameSweepCategoryIndex[i] = 0xFF;
     }
 
     backup_batch_request_current();
@@ -602,6 +652,7 @@ static void backup_batch_advance(void) {
             LOG_DEBUG("Name sweep finished — %u replied, %u missing\n",
                       (unsigned)gBackupBatchRepliedCount, (unsigned)gBackupBatchMissingCount);
             gNameCacheValid = true; // even a slot that timed out keeps its "N: (no response)" label — good enough to skip re-sweeping; a future Load/Store on that slot will just show that placeholder rather than silently retrying
+            name_cache_save_to_disk();
             // No auto-popup here (unlike before 2026-07-14) — Load/Store
             // Patch from/to Bank now opens the picker immediately whether
             // or not this sweep has finished, see name_sweep_show_picker()'s
@@ -634,16 +685,21 @@ static void backup_batch_advance(void) {
     backup_batch_request_current();
 }
 
-// Writes gNameSweepLabels[presetNumber-1] as "N: Name — Category" (or just
-// "N: Name" on a device with no category dial, or "N: (unnamed)"), ready to
-// hand straight to open_bank_browser() (as a tBankBrowserItem's own name).
-// Shared by every path that
-// learns a preset's current name: the name sweep itself
-// (name_sweep_capture_name() below), and every KEEP-THE-CACHE-CURRENT call
-// site (name_cache_update_from_preset_dump() below) — see gNameCacheValid's
-// own comment for the full list. category may be NULL/empty (no category
-// dial on this device, see synth_decode_moog_category()'s own comment).
-static void name_cache_set_label(uint32_t presetNumber, const char * name, const char * category) {
+// Writes gNameSweepLabels[presetNumber-1] as just the bare (unnamed)-or-real
+// patch name, and gNameSweepCategoryIndex[presetNumber-1] with categoryIndex
+// — ready to hand straight to open_bank_browser() (a tBankBrowserItem's own
+// name/category fields). Deliberately NOT "N: Name — Category" any more
+// (2026-07-24 fix, see gNameSweepCategoryIndex's own comment for the two
+// bugs that format caused) — the browser already shows "Bank X, Loc Y: "
+// itself, and Category is now conveyed structurally via categoryIndex
+// instead of baked into display text. Shared by every path that learns a
+// preset's current name: the name sweep itself (name_sweep_capture_name()
+// below), and every KEEP-THE-CACHE-CURRENT call site
+// (name_cache_update_from_preset_dump() below) — see gNameCacheValid's own
+// comment for the full list. categoryIndex is 0xFF (bankBrowser.h's own "no
+// category" sentinel) wherever this device has no Category dial, or the
+// caller has none on hand (synth_backup_note_preset_name()'s own comment).
+static void name_cache_set_label(uint32_t presetNumber, const char * name, uint8_t categoryIndex) {
     if ((presetNumber < 1) || (presetNumber > BACKUP_BATCH_PRESET_COUNT)) {
         return;
     }
@@ -669,12 +725,109 @@ static void name_cache_set_label(uint32_t presetNumber, const char * name, const
     char * label = gNameSweepLabels[presetNumber - 1];
 
     if (cleaned[0] == '\0') {
-        snprintf(label, NAME_SWEEP_LABEL_LEN, "%u: (unnamed)", (unsigned)presetNumber);
-    } else if (category && (category[0] != '\0')) {
-        snprintf(label, NAME_SWEEP_LABEL_LEN, "%u: %s \xe2\x80\x94 %s", (unsigned)presetNumber, cleaned, category);
+        snprintf(label, NAME_SWEEP_LABEL_LEN, "(unnamed)");
     } else {
-        snprintf(label, NAME_SWEEP_LABEL_LEN, "%u: %s", (unsigned)presetNumber, cleaned);
+        snprintf(label, NAME_SWEEP_LABEL_LEN, "%s", cleaned);
     }
+    gNameSweepCategoryIndex[presetNumber - 1] = categoryIndex;
+}
+
+// Persists gNameSweepLabels to disk (prefs.h — a plain per-OS key=value
+// settings file, see prefs.cpp), keyed by the currently-loaded device's own
+// deviceName so switching devices (synth_backup_reload_name_cache_for_device()
+// below) never shows one device's cached names for another. Called both at
+// full-sweep completion (backup_batch_advance()) and from
+// name_cache_update_from_preset_dump() below on every single-slot
+// opportunistic update — the latter is deliberately not rate-limited: a
+// single prefs.h rewrite is cheap relative to this app's own
+// NAME_SWEEP_PACING_MS, and correctness (never showing a stale on-disk name
+// for a slot this app just confirmed) matters more here than avoiding a
+// handful of extra small writes during a background sweep.
+static void name_cache_save_to_disk(void) {
+    char        key[80];
+
+    snprintf(key, sizeof(key), "nameCacheMoog_%s", synth_panel_config()->deviceName);
+
+    static char blob[BACKUP_BATCH_PRESET_COUNT * (NAME_SWEEP_LABEL_LEN + 4) + 1];
+    size_t      offset = 0;
+
+    for (uint32_t i = 0; i < BACKUP_BATCH_PRESET_COUNT; i++) {
+        size_t len = strlen(gNameSweepLabels[i]);
+
+        memcpy(&blob[offset], gNameSweepLabels[i], len);
+        offset        += len;
+        blob[offset++] = NAME_CACHE_FIELD_CHAR;
+        offset        += (size_t)snprintf(&blob[offset], 3, "%02X", gNameSweepCategoryIndex[i]);
+        blob[offset++] = NAME_CACHE_JOIN_CHAR;
+    }
+
+    blob[offset] = '\0';
+
+    prefs_set_string(key, blob);
+}
+
+// Counterpart to name_cache_save_to_disk() above — populates gNameSweepLabels
+// from whatever was last saved for the currently-loaded device, and marks
+// the cache valid (gNameCacheValid) if anything was actually found, so
+// synth_backup_start_name_sweep() can skip straight to showing the picker
+// without a live sweep, the same as an in-session cache already does. A
+// no-op (cache stays invalid) if this device has never been swept before —
+// prefs_get_string()'s own "" default reads as "nothing saved yet".
+static void name_cache_load_from_disk(void) {
+    char         key[80];
+
+    snprintf(key, sizeof(key), "nameCacheMoog_%s", synth_panel_config()->deviceName);
+    const char * blob  = prefs_get_string(key, "");
+
+    if (blob[0] == '\0') {
+        return;
+    }
+    uint32_t     index = 0;
+    const char * p     = blob;
+
+    while ((*p != '\0') && (index < BACKUP_BATCH_PRESET_COUNT)) {
+        const char * recordEnd = strchr(p, NAME_CACHE_JOIN_CHAR);
+        size_t       recordLen = recordEnd ? (size_t)(recordEnd - p) : strlen(p);
+        const char * fieldSep  = (const char *)memchr(p, NAME_CACHE_FIELD_CHAR, recordLen);
+        size_t       len       = fieldSep ? (size_t)(fieldSep - p) : recordLen;
+
+        if (len >= NAME_SWEEP_LABEL_LEN) {
+            len = NAME_SWEEP_LABEL_LEN - 1;
+        }
+        memcpy(gNameSweepLabels[index], p, len);
+        gNameSweepLabels[index][len]   = '\0';
+
+        gNameSweepCategoryIndex[index] = 0xFF; // older cache format, or a malformed field — see NAME_CACHE_FIELD_CHAR's own comment
+
+        if (fieldSep != NULL) {
+            unsigned int value = 0;
+
+            if (sscanf(fieldSep + 1, "%2x", &value) == 1) {
+                gNameSweepCategoryIndex[index] = (uint8_t)value;
+            }
+        }
+        index++;
+
+        if (!recordEnd) {
+            break;
+        }
+        p                              = recordEnd + 1;
+    }
+    gNameCacheValid = true;
+}
+
+// Clears the on-disk cache for the current device (name_cache_save_to_disk()
+// above) — called wherever gNameCacheValid itself is set back to false (a
+// whole-bank Restore, whose own comment explains why the in-memory names are
+// no longer trustworthy). Without this, a later relaunch would otherwise
+// still find yesterday's now-stale prefs.h entry and happily load it back
+// in via name_cache_load_from_disk(), silently undoing the invalidation the
+// moment this session ends.
+static void name_cache_clear_disk(void) {
+    char key[80];
+
+    snprintf(key, sizeof(key), "nameCacheMoog_%s", synth_panel_config()->deviceName);
+    prefs_set_string(key, "");
 }
 
 // Decodes the NAME and CATEGORY out of a Single-Preset-Dump-shaped buffer
@@ -688,17 +841,19 @@ static void name_cache_set_label(uint32_t presetNumber, const char * name, const
 // Does NOT touch gDevice.progName — same "don't disturb what the live
 // buffer is showing" reasoning as name_sweep_capture_name() below.
 static void name_cache_update_from_preset_dump(uint32_t presetNumber, const uint8_t * data, uint32_t length) {
-    tPanelConfig *  cfg        = synth_panel_config();
-    const uint8_t * payload    = data + 1;                      // skip F0, matches every other Moog dump handler
-    uint32_t        payloadLen = (length > 2) ? length - 2 : 0; // exclude leading skip + trailing F7
+    tPanelConfig *  cfg           = synth_panel_config();
+    const uint8_t * payload       = data + 1;                      // skip F0, matches every other Moog dump handler
+    uint32_t        payloadLen    = (length > 2) ? length - 2 : 0; // exclude leading skip + trailing F7
     char            name[sizeof(gDevice.progName)];
     char            category[32];
+    uint8_t         categoryIndex = 0xFF;
 
     name[0]     = '\0';
     category[0] = '\0';
     synth_decode_moog_name(payload, payloadLen, cfg->presetNameOffset, cfg->presetNameBitOffset, cfg->presetNameLen, cfg->nameLineWidth, name, sizeof(name));
-    synth_decode_moog_category(data, length, category, sizeof(category));
-    name_cache_set_label(presetNumber, name, category);
+    synth_decode_moog_category(data, length, category, sizeof(category), &categoryIndex);
+    name_cache_set_label(presetNumber, name, categoryIndex);
+    name_cache_save_to_disk();
 }
 
 // Decodes just the NAME out of a Single Preset Dump reply into
@@ -794,7 +949,7 @@ static void backup_batch_folder_chosen(const char * path) {
 // name_sweep_show_picker()'s own forward-declaration precedent above.
 
 void synth_backup_note_preset_name(uint32_t presetNumber, const char * name) {
-    name_cache_set_label(presetNumber, name, NULL); // no category on hand at this call site — see synth_backup_note_preset_name()'s own comment (synthBackup.h)
+    name_cache_set_label(presetNumber, name, 0xFF); // no category on hand at this call site — see synth_backup_note_preset_name()'s own comment (synthBackup.h)
 }
 
 // ── Korg-style name sweep (Z1: 2 banks x 128 programs) ───────────────────────
@@ -842,6 +997,9 @@ static uint32_t       gKorgSweepRepliedCount         = 0;
 static uint32_t       gKorgSweepMissingCount         = 0;
 static bool           gKorgNameCacheValid            = false;
 static char           gKorgSweepLabels[KORG_SWEEP_PRESET_COUNT][NAME_SWEEP_LABEL_LEN];
+
+// Korg counterpart to gNameSweepCategoryIndex above — see its own comment.
+static uint8_t        gKorgSweepCategoryIndex[KORG_SWEEP_PRESET_COUNT];
 
 // State for the Korg restore-folder mechanism (Restore > Bank (Individual
 // Files), in reverse) — declared here, alongside the rest of the Korg
@@ -935,6 +1093,7 @@ static void korg_sweep_advance(void) {
         // own comment), so it's a free, valid cache-populating side effect,
         // not something only a "real" name sweep should set.
         gKorgNameCacheValid = true;
+        korg_name_cache_save_to_disk();
         return;
     }
     // Paced, not immediate — the actual send happens on a later
@@ -995,27 +1154,149 @@ static void korg_sweep_write_capture_file(uint8_t bank, uint32_t prog, const cha
     }
 }
 
-// Writes gKorgSweepLabels[(bank?128:0)+(prog-1)] as "A1: Name — Category"
-// (or just "A1: Name" on a device with no category dial, or "A1: (unnamed)")
-// — the Korg counterpart to name_cache_set_label() above (Moog). Shared by
+// Writes gKorgSweepLabels[(bank?128:0)+(prog-1)] as just the bare
+// (unnamed)-or-real patch name, and gKorgSweepCategoryIndex at the same
+// index with categoryIndex — the Korg counterpart to name_cache_set_label()
+// above (Moog); see that function's own comment for why this no longer
+// bakes "A1: "/"— Category" into the label text. Shared by
 // korg_sweep_capture_reply() below (a sweep in progress) and
 // korg_restore_patch_file_chosen() further down (keeping the cache accurate
 // after a Restore write, without needing a full re-sweep — same "no extra
 // guard needed, a no-op-safe write either way" reasoning as
 // name_cache_update_from_preset_dump()'s own comment).
-static void korg_sweep_set_label(uint8_t bank, uint32_t prog, const char * name, const char * category) {
+static void korg_sweep_set_label(uint8_t bank, uint32_t prog, const char * name, uint8_t categoryIndex) {
     if ((prog < 1) || (prog > 128)) {
         return;
     }
     char * label = gKorgSweepLabels[(bank ? 128 : 0) + (prog - 1)];
 
     if ((name == NULL) || (name[0] == '\0')) {
-        snprintf(label, NAME_SWEEP_LABEL_LEN, "%c%u: (unnamed)", bank ? 'B' : 'A', (unsigned)prog);
-    } else if ((category != NULL) && (category[0] != '\0')) {
-        snprintf(label, NAME_SWEEP_LABEL_LEN, "%c%u: %s \xe2\x80\x94 %s", bank ? 'B' : 'A', (unsigned)prog, name, category);
+        snprintf(label, NAME_SWEEP_LABEL_LEN, "(unnamed)");
     } else {
-        snprintf(label, NAME_SWEEP_LABEL_LEN, "%c%u: %s", bank ? 'B' : 'A', (unsigned)prog, name);
+        snprintf(label, NAME_SWEEP_LABEL_LEN, "%s", name);
     }
+    gKorgSweepCategoryIndex[(bank ? 128 : 0) + (prog - 1)] = categoryIndex;
+}
+
+// Korg counterpart to name_cache_save_to_disk() above — see that function's
+// own comment for the reasoning (prefs.h, keyed by device, called at both
+// sweep completion and every single-slot opportunistic update).
+static void korg_name_cache_save_to_disk(void) {
+    char        key[80];
+
+    snprintf(key, sizeof(key), "nameCacheKorg_%s", synth_panel_config()->deviceName);
+
+    static char blob[KORG_SWEEP_PRESET_COUNT * (NAME_SWEEP_LABEL_LEN + 4) + 1];
+    size_t      offset = 0;
+
+    for (uint32_t i = 0; i < KORG_SWEEP_PRESET_COUNT; i++) {
+        size_t len = strlen(gKorgSweepLabels[i]);
+
+        memcpy(&blob[offset], gKorgSweepLabels[i], len);
+        offset        += len;
+        blob[offset++] = NAME_CACHE_FIELD_CHAR;
+        offset        += (size_t)snprintf(&blob[offset], 3, "%02X", gKorgSweepCategoryIndex[i]);
+        blob[offset++] = NAME_CACHE_JOIN_CHAR;
+    }
+
+    blob[offset] = '\0';
+
+    prefs_set_string(key, blob);
+}
+
+// Korg counterpart to name_cache_load_from_disk() above.
+static void korg_name_cache_load_from_disk(void) {
+    char         key[80];
+
+    snprintf(key, sizeof(key), "nameCacheKorg_%s", synth_panel_config()->deviceName);
+    const char * blob  = prefs_get_string(key, "");
+
+    if (blob[0] == '\0') {
+        return;
+    }
+    uint32_t     index = 0;
+    const char * p     = blob;
+
+    while ((*p != '\0') && (index < KORG_SWEEP_PRESET_COUNT)) {
+        const char * recordEnd = strchr(p, NAME_CACHE_JOIN_CHAR);
+        size_t       recordLen = recordEnd ? (size_t)(recordEnd - p) : strlen(p);
+        const char * fieldSep  = (const char *)memchr(p, NAME_CACHE_FIELD_CHAR, recordLen);
+        size_t       len       = fieldSep ? (size_t)(fieldSep - p) : recordLen;
+
+        if (len >= NAME_SWEEP_LABEL_LEN) {
+            len = NAME_SWEEP_LABEL_LEN - 1;
+        }
+        memcpy(gKorgSweepLabels[index], p, len);
+        gKorgSweepLabels[index][len]   = '\0';
+
+        gKorgSweepCategoryIndex[index] = 0xFF; // older cache format, or a malformed field — see NAME_CACHE_FIELD_CHAR's own comment
+
+        if (fieldSep != NULL) {
+            unsigned int value = 0;
+
+            if (sscanf(fieldSep + 1, "%2x", &value) == 1) {
+                gKorgSweepCategoryIndex[index] = (uint8_t)value;
+            }
+        }
+        index++;
+
+        if (!recordEnd) {
+            break;
+        }
+        p                              = recordEnd + 1;
+    }
+    gKorgNameCacheValid = true;
+}
+
+// Korg counterpart to name_cache_clear_disk() above.
+static void korg_name_cache_clear_disk(void) {
+    char key[80];
+
+    snprintf(key, sizeof(key), "nameCacheKorg_%s", synth_panel_config()->deviceName);
+    prefs_set_string(key, "");
+}
+
+// Called from synth_reload_panel_config() (synthGraphics.cpp) — once at
+// startup and again every time the user picks a different device from the
+// Device menu. Resets both in-memory caches first: the arrays/valid flags
+// just populated (or left over from) whichever device was loaded a moment
+// ago describe THAT device's presets, not the new one, and must never be
+// shown against it. Then attempts to load whichever on-disk cache exists for
+// the newly-loaded device — harmless to attempt both Moog- and Korg-style
+// unconditionally, since a real device is only ever one or the other, so
+// the wrong one's prefs.h lookup just finds nothing and no-ops.
+void synth_backup_reload_name_cache_for_device(void) {
+    gNameCacheValid     = false;
+    gKorgNameCacheValid = false;
+    memset(gNameSweepLabels, 0, sizeof(gNameSweepLabels));
+    memset(gKorgSweepLabels, 0, sizeof(gKorgSweepLabels));
+    memset(gNameSweepCategoryIndex, 0xFF, sizeof(gNameSweepCategoryIndex));
+    memset(gKorgSweepCategoryIndex, 0xFF, sizeof(gKorgSweepCategoryIndex));
+
+    name_cache_load_from_disk();
+    korg_name_cache_load_from_disk();
+}
+
+// Menu-driven equivalent of the above, minus the disk reload — wipes both
+// in-memory caches AND the on-disk entry for the current device (harmless to
+// clear both Moog- and Korg-style keys unconditionally, same reasoning as
+// synth_backup_reload_name_cache_for_device()'s own comment), then leaves
+// both caches empty/invalid so the very next Load/Store Patch from Bank…
+// falls back to a fresh live sweep instead of quietly resurrecting whatever
+// was just cleared. Added 2026-07-24 so a stale cache written before a
+// category/sort bug fix (e.g. one baked with the old "N: Name — Category"
+// label format) can be discarded without deleting prefs.txt by hand.
+void synth_backup_clear_name_cache_for_device(void) {
+    gNameCacheValid     = false;
+    gKorgNameCacheValid = false;
+    memset(gNameSweepLabels, 0, sizeof(gNameSweepLabels));
+    memset(gKorgSweepLabels, 0, sizeof(gKorgSweepLabels));
+    memset(gNameSweepCategoryIndex, 0xFF, sizeof(gNameSweepCategoryIndex));
+    memset(gKorgSweepCategoryIndex, 0xFF, sizeof(gKorgSweepCategoryIndex));
+
+    name_cache_clear_disk();
+    korg_name_cache_clear_disk();
+    gReDraw             = true;
 }
 
 // Decodes name+category from an arbitrary Program Data Dump buffer (not
@@ -1025,13 +1306,14 @@ static void korg_sweep_set_label(uint8_t bank, uint32_t prog, const char * name,
 // further down, both of which need this exact "decode this one buffer,
 // touch the cache for this one slot" step outside the sweep itself.
 static void korg_name_cache_update_from_dump(uint8_t bank, uint32_t prog, const uint8_t * data, uint32_t length) {
-    char name[sizeof(gDevice.progName)];
-    char category[32];
+    char    name[sizeof(gDevice.progName)];
+    char    category[32];
+    uint8_t categoryIndex = 0xFF;
 
     name[0]     = '\0';
     category[0] = '\0';
     synth_decode_korg_name(data, length, name, sizeof(name));
-    synth_decode_korg_category(data, length, category, sizeof(category));
+    synth_decode_korg_category(data, length, category, sizeof(category), &categoryIndex);
 
     for (char * p = name; *p != '\0'; p++) {
         if (*p == '\n') {
@@ -1039,7 +1321,8 @@ static void korg_name_cache_update_from_dump(uint8_t bank, uint32_t prog, const 
         }
     }
 
-    korg_sweep_set_label(bank, prog, name, category);
+    korg_sweep_set_label(bank, prog, name, categoryIndex);
+    korg_name_cache_save_to_disk();
 }
 
 // Decodes the name AND category from a captured Program Data Dump reply and
@@ -1053,15 +1336,16 @@ static void korg_name_cache_update_from_dump(uint8_t bank, uint32_t prog, const 
 // above is needed either way (for the label AND the export filename), so
 // there's no separate "export capture" entry point; this is it for both.
 static void korg_sweep_capture_reply(const uint8_t * data, uint32_t length) {
-    uint8_t  bank = (uint8_t)(gKorgSweepIndex / 128);
-    uint32_t prog = (gKorgSweepIndex % 128) + 1;
+    uint8_t  bank          = (uint8_t)(gKorgSweepIndex / 128);
+    uint32_t prog          = (gKorgSweepIndex % 128) + 1;
     char     name[sizeof(gDevice.progName)];
     char     category[32];
+    uint8_t  categoryIndex = 0xFF;
 
     name[0]     = '\0';
     category[0] = '\0';
     synth_decode_korg_name(data, length, name, sizeof(name));
-    synth_decode_korg_category(data, length, category, sizeof(category));
+    synth_decode_korg_category(data, length, category, sizeof(category), &categoryIndex);
 
     for (char * p = name; *p != '\0'; p++) {
         if (*p == '\n') {
@@ -1069,7 +1353,7 @@ static void korg_sweep_capture_reply(const uint8_t * data, uint32_t length) {
         }
     }
 
-    korg_sweep_set_label(bank, prog, name, category);
+    korg_sweep_set_label(bank, prog, name, categoryIndex);
 
     if (gKorgSweepMode == eKorgSweepModeExportFiles) {
         korg_sweep_write_capture_file(bank, prog, name, data, length); // owns its own Replied/Missing counting
@@ -1129,8 +1413,8 @@ void synth_backup_flush_korg_name_sweep(void) {
         }
         LOG_DEBUG("Korg name sweep: %c%u timed out after %u attempt(s)\n",
                   bank ? 'B' : 'A', (unsigned)prog, (unsigned)(NAME_SWEEP_MAX_RETRIES + 1));
-        snprintf(gKorgSweepLabels[gKorgSweepIndex], NAME_SWEEP_LABEL_LEN,
-                 "%c%u: (no response)", bank ? 'B' : 'A', (unsigned)prog);
+        snprintf(gKorgSweepLabels[gKorgSweepIndex], NAME_SWEEP_LABEL_LEN, "(no response)");
+        gKorgSweepCategoryIndex[gKorgSweepIndex] = 0xFF;
         gKorgSweepMissingCount++;
         korg_sweep_advance();
     }
@@ -1152,10 +1436,8 @@ static void korg_sweep_start(void) {
     gKorgSweepNextRequestMs = 0.0;
 
     for (uint32_t i = 0; i < KORG_SWEEP_PRESET_COUNT; i++) {
-        uint8_t  bank = (uint8_t)(i / 128);
-        uint32_t prog = (i % 128) + 1;
-
-        snprintf(gKorgSweepLabels[i], NAME_SWEEP_LABEL_LEN, "%c%u: ---", bank ? 'B' : 'A', (unsigned)prog);
+        snprintf(gKorgSweepLabels[i], NAME_SWEEP_LABEL_LEN, "---");
+        gKorgSweepCategoryIndex[i] = 0xFF;
     }
 
     korg_sweep_request_current(); // first request goes out right away; every one after this is paced (korg_sweep_advance())
@@ -1205,10 +1487,8 @@ static void korg_batch_folder_chosen(const char * path) {
     gKorgSweepNextRequestMs                        = 0.0;
 
     for (uint32_t i = 0; i < KORG_SWEEP_PRESET_COUNT; i++) {
-        uint8_t  bank = (uint8_t)(i / 128);
-        uint32_t prog = (i % 128) + 1;
-
-        snprintf(gKorgSweepLabels[i], NAME_SWEEP_LABEL_LEN, "%c%u: ---", bank ? 'B' : 'A', (unsigned)prog);
+        snprintf(gKorgSweepLabels[i], NAME_SWEEP_LABEL_LEN, "---");
+        gKorgSweepCategoryIndex[i] = 0xFF;
     }
 
     korg_sweep_request_current();
@@ -1281,46 +1561,59 @@ static void on_korg_sweep_picked(bool confirmed, uint32_t bank1Indexed, uint32_t
     }
 }
 
-// Shows the "A1: Name — Category" picker and acts on whatever the user
-// chose — the Korg counterpart to name_sweep_show_picker() below (kept
-// fully separate rather than parameterizing that one, same isolation
-// reasoning as the rest of this block). Opens IMMEDIATELY regardless of
-// sweep progress — 2026-07-14 user request ("allow the picker, with '---'
-// unpopulated names before the full set is gleaned") — showing real names
-// for whatever korg_sweep_capture_reply() has filled in so far and "---"
-// (from korg_sweep_start()'s own initialisation) for anything not reached
-// yet. Ported from a synchronous NSAlert+dropdown (show_device_choice_
-// dialogue()) to SynthLib's open_bank_browser() (a scrollable named list,
-// matching what this function already builds — "N: Name — Category" per
-// entry — better than a raw dropdown for 256 entries) — category is passed
-// as 0 with categoryNameCount 0 for every item since the category is
-// already baked into each label's own text; this just means the browser's
-// own Category sort mode isn't available here, not that the information is
-// lost. Also, being asynchronous, this no longer pauses the background
-// sweep while the picker is open the way the old blocking modal did (see
-// synth_backup_flush_korg_name_sweep(), still driven every frame while this
-// panel is up) — labels now keep filling in live underneath it, an
-// improvement rather than a regression. Lost along with the synchronous
-// dialog: open_bank_browser() has no "default selected row" parameter, so
-// Store no longer pre-selects gDevice.currentProgram's own slot — a minor,
-// accepted UX simplification (see this function's git history for the
-// dropped defaultIndex calculation).
+// Shows the picker and acts on whatever the user chose — the Korg
+// counterpart to name_sweep_show_picker() below (kept fully separate rather
+// than parameterizing that one, same isolation reasoning as the rest of
+// this block). Opens IMMEDIATELY regardless of sweep progress — 2026-07-14
+// user request ("allow the picker, with '---' unpopulated names before the
+// full set is gleaned") — showing real names for whatever
+// korg_sweep_capture_reply() has filled in so far and "---" (from
+// korg_sweep_start()'s own initialisation) for anything not reached yet.
+// Ported from a synchronous NSAlert+dropdown (show_device_choice_
+// dialogue()) to SynthLib's open_bank_browser() (a scrollable named list —
+// better than a raw dropdown for 256 entries). Also, being asynchronous,
+// this no longer pauses the background sweep while the picker is open the
+// way the old blocking modal did (see synth_backup_flush_korg_name_sweep(),
+// still driven every frame while this panel is up) — labels now keep
+// filling in live underneath it, an improvement rather than a regression.
+// Lost along with the synchronous dialog: open_bank_browser() has no
+// "default selected row" parameter, so Store no longer pre-selects
+// gDevice.currentProgram's own slot — a minor, accepted UX simplification
+// (see this function's git history for the dropped defaultIndex
+// calculation).
+//
+// Real categoryNames/per-item category wired in 2026-07-24 — see
+// name_sweep_show_picker()'s own comment (this function's Moog
+// counterpart) for the two bugs the original category=0/categoryNameCount=0
+// port caused and why this fixes both.
 static void korg_sweep_show_picker(void) {
     tBankBrowserItem items[KORG_SWEEP_PRESET_COUNT];
 
     for (uint32_t i = 0; i < KORG_SWEEP_PRESET_COUNT; i++) {
         items[i].name             = gKorgSweepLabels[i];
-        items[i].category         = 0;
+        items[i].category         = gKorgSweepCategoryIndex[i];
         items[i].bank1Indexed     = (i / 128) + 1;
         items[i].location1Indexed = (i % 128) + 1;
     }
 
-    const char *     title   = (gNameSweepPurpose == eNameSweepPurposeLoad) ? "Load Patch from Bank" : "Store Patch to Bank";
-    const char *     message = (gNameSweepPurpose == eNameSweepPurposeLoad)
+    tPanelDial *     categoryDial      = find_panel_dial_by_label(synth_panel_config(), "Category");
+    const char *     categoryNames[PANEL_MAX_NAMES];
+    uint32_t         categoryNameCount = 0;
+
+    if (categoryDial != NULL) {
+        categoryNameCount = categoryDial->nameCount;
+
+        for (uint32_t i = 0; i < categoryNameCount; i++) {
+            categoryNames[i] = categoryDial->names[i];
+        }
+    }
+    const char *     title             = (gNameSweepPurpose == eNameSweepPurposeLoad) ? "Load Patch from Bank" : "Store Patch to Bank";
+    const char *     message           = (gNameSweepPurpose == eNameSweepPurposeLoad)
                 ? "Choose a program to load into the live edit buffer:"
                 : "Choose a program to store the current edit buffer to:";
 
-    open_bank_browser(title, message, "Next...", items, KORG_SWEEP_PRESET_COUNT, NULL, 0, on_korg_sweep_picked);
+    open_bank_browser(title, message, "Next...", items, KORG_SWEEP_PRESET_COUNT,
+                      (categoryNameCount > 0) ? categoryNames : NULL, categoryNameCount, on_korg_sweep_picked);
 }
 
 void synth_backup_start_name_sweep(tNameSweepPurpose purpose) {
@@ -1434,42 +1727,63 @@ static void on_name_sweep_picked(bool confirmed, uint32_t bank1Indexed, uint32_t
     }
 }
 
-// Shows the "N: Name — Category" picker and acts on whatever the user
-// chose. Opens IMMEDIATELY regardless of sweep progress — 2026-07-14 (owner:
-// "we should allow the picker, with '---' unpopulated names before the full
-// set is gleaned") — showing real names for whatever
+// Shows the picker and acts on whatever the user chose. Opens IMMEDIATELY
+// regardless of sweep progress — 2026-07-14 (owner: "we should allow the
+// picker, with '---' unpopulated names before the full set is gleaned") —
+// showing real names for whatever
 // name_cache_update_from_preset_dump()/name_sweep_capture_name() has filled
 // in so far and "---" (from synth_backup_start_name_sweep()'s own
 // initialisation) for anything not reached yet. Called directly from
 // synth_backup_start_name_sweep() now (never automatically on sweep
 // completion — see backup_batch_advance()'s own comment for why). Ported
 // from a synchronous NSAlert+dropdown (show_device_choice_dialogue()) to
-// SynthLib's open_bank_browser() — same "N: Name — Category" labels, same
-// isolation from korg_sweep_show_picker() above, and the same accepted
-// trade-offs that conversion made there: category passed as 0/
-// categoryNameCount 0 (already baked into the label text, so the browser's
-// own Category sort mode just isn't offered here), no more default-selected
-// row for Store (open_bank_browser() has no such parameter — dropped the
+// SynthLib's open_bank_browser(), same isolation from
+// korg_sweep_show_picker() above; no more default-selected row for Store
+// (open_bank_browser() has no such parameter — dropped the
 // gDevice.currentProgram-based defaultIndex calculation this used to have),
 // and the background sweep (synth_backup_flush_bank_to_folder(), still
 // driven every frame while this panel is up) now keeps filling in labels
 // live instead of pausing behind a blocking modal.
+//
+// Real categoryNames/per-item category wired in 2026-07-24 (owner report:
+// "can't select Category on Load Patch from Bank for voyager") — the
+// original port passed category 0/categoryNameCount 0 unconditionally
+// (baking "Name — Category" into the label text instead), which
+// bankBrowser.cpp's own handle_bank_browser_click() explicitly disables the
+// Category sort BUTTON for (categoryNames.empty()), not just leaves it
+// inert — the click was silently swallowed, reading as "can't select" at
+// all. find_panel_dial_by_label() with no match (a device with no Category
+// dial at all) falls back to the same categoryNames=NULL/categoryNameCount=0
+// this always passed, so Category sort mode simply isn't offered there,
+// same as before.
 static void name_sweep_show_picker(void) {
     tBankBrowserItem items[BACKUP_BATCH_PRESET_COUNT];
 
     for (uint32_t i = 0; i < BACKUP_BATCH_PRESET_COUNT; i++) {
         items[i].name             = gNameSweepLabels[i];
-        items[i].category         = 0;
+        items[i].category         = gNameSweepCategoryIndex[i];
         items[i].bank1Indexed     = 1; // single implicit bank — Moog-style has no bank concept
         items[i].location1Indexed = i + 1;
     }
 
-    const char *     title   = (gNameSweepPurpose == eNameSweepPurposeLoad) ? "Load Patch from Bank" : "Store Patch to Bank";
-    const char *     message = (gNameSweepPurpose == eNameSweepPurposeLoad)
+    tPanelDial *     categoryDial      = find_panel_dial_by_label(synth_panel_config(), "Category");
+    const char *     categoryNames[PANEL_MAX_NAMES];
+    uint32_t         categoryNameCount = 0;
+
+    if (categoryDial != NULL) {
+        categoryNameCount = categoryDial->nameCount;
+
+        for (uint32_t i = 0; i < categoryNameCount; i++) {
+            categoryNames[i] = categoryDial->names[i];
+        }
+    }
+    const char *     title             = (gNameSweepPurpose == eNameSweepPurposeLoad) ? "Load Patch from Bank" : "Store Patch to Bank";
+    const char *     message           = (gNameSweepPurpose == eNameSweepPurposeLoad)
                 ? "Choose a preset to load into the live edit buffer:"
                 : "Choose a preset to store the current edit buffer to:";
 
-    open_bank_browser(title, message, "Next...", items, BACKUP_BATCH_PRESET_COUNT, NULL, 0, on_name_sweep_picked);
+    open_bank_browser(title, message, "Next...", items, BACKUP_BATCH_PRESET_COUNT,
+                      (categoryNameCount > 0) ? categoryNames : NULL, categoryNameCount, on_name_sweep_picked);
 }
 
 void synth_backup_flush_bank_to_folder(void) {
@@ -1528,8 +1842,8 @@ void synth_backup_flush_bank_to_folder(void) {
         gBackupBatchMissingCount++;
 
         if (gBackupBatchMode == eBatchModeNameSweep) {
-            snprintf(gNameSweepLabels[gBackupBatchCurrentPreset - 1], NAME_SWEEP_LABEL_LEN,
-                     "%u: (no response)", (unsigned)gBackupBatchCurrentPreset);
+            snprintf(gNameSweepLabels[gBackupBatchCurrentPreset - 1], NAME_SWEEP_LABEL_LEN, "(no response)");
+            gNameSweepCategoryIndex[gBackupBatchCurrentPreset - 1] = 0xFF;
         } else {
             backup_batch_append_index_line(gBackupBatchCurrentPreset, "(no response)");
         }
@@ -2484,20 +2798,34 @@ static void korg_restore_patch_to_bank_file_chosen(const char * path) {
     // Ported from show_device_choice_dialogue() to open_bank_browser(), same
     // reasoning/trade-offs as korg_sweep_show_picker()'s own conversion
     // above (this is, in fact, the exact same "pick a named preset from a
-    // 256-entry list" shape that call already uses).
+    // 256-entry list" shape that call already uses) — including the real
+    // categoryNames/per-item category wiring added there 2026-07-24 (see
+    // name_sweep_show_picker()'s own comment for the bugs that fixed).
     tBankBrowserItem items[KORG_SWEEP_PRESET_COUNT];
 
     for (uint32_t i = 0; i < KORG_SWEEP_PRESET_COUNT; i++) {
         items[i].name             = gKorgSweepLabels[i];
-        items[i].category         = 0;
+        items[i].category         = gKorgSweepCategoryIndex[i];
         items[i].bank1Indexed     = (i / 128) + 1;
         items[i].location1Indexed = (i % 128) + 1;
     }
 
+    tPanelDial *     categoryDial      = find_panel_dial_by_label(synth_panel_config(), "Category");
+    const char *     categoryNames[PANEL_MAX_NAMES];
+    uint32_t         categoryNameCount = 0;
+
+    if (categoryDial != NULL) {
+        categoryNameCount = categoryDial->nameCount;
+
+        for (uint32_t i = 0; i < categoryNameCount; i++) {
+            categoryNames[i] = categoryDial->names[i];
+        }
+    }
     gPendingRestoreToBankData = data;
     gPendingRestoreToBankLen  = length;
     open_bank_browser("Restore Patch to Bank", "Choose a destination to load this file into:", "Next...",
-                      items, KORG_SWEEP_PRESET_COUNT, NULL, 0, on_restore_patch_to_bank_target_chosen);
+                      items, KORG_SWEEP_PRESET_COUNT,
+                      (categoryNameCount > 0) ? categoryNames : NULL, categoryNameCount, on_restore_patch_to_bank_target_chosen);
 }
 
 void synth_backup_restore_patch_to_bank(void) {
@@ -2564,6 +2892,7 @@ static void on_restore_bank_confirmed(bool confirmed) {
         // names from safely (see gNameCacheValid's own comment). The
         // next Load/Store Patch to Bank will just re-sweep.
         gNameCacheValid = false;
+        name_cache_clear_disk();
         show_alert("Restore Bank", "Sent — the current bank should now match this file.");
     } else {
         LOG_ERROR("Restore: failed to send %u byte Bank dump from %s\n", (unsigned)gPendingRestoreBankLen, gPendingRestoreBankPath);

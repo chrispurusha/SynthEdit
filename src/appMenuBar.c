@@ -39,6 +39,7 @@ extern "C" {
 #include "misc.h"
 #include "graphics.h"
 #include "fileBrowser.h"
+#include "alertDialog.h"
 #include "appMenuBar.h"
 
 // ── File menu ────────────────────────────────────────────────────────────────
@@ -74,6 +75,26 @@ static void action_restore_patch(int index) {
 static void action_restore_patch_to_bank(int index) {
     (void)index;
     synth_backup_restore_patch_to_bank();
+}
+
+// A stale on-disk cache (e.g. one written before a category/sort bug fix)
+// won't self-correct just by relaunching — synth_backup_reload_name_cache_
+// for_device() happily reloads it right back. This is the manual escape
+// hatch: wipe it and let the next Load/Store Patch from Bank… re-sweep the
+// device fresh.
+static void on_clear_name_cache_confirmed(bool confirmed) {
+    if (!confirmed) {
+        return;
+    }
+    synth_backup_clear_name_cache_for_device();
+}
+
+static void action_clear_name_cache(int index) {
+    (void)index;
+    show_confirm("Clear Patch Name Cache",
+                 "Discard the cached patch names for the connected device? The next "
+                 "Load/Store Patch from Bank... will re-read them from the device.",
+                 "Clear", on_clear_name_cache_confirmed);
 }
 
 // "Save Patch by Number to File..." flyout — a flat 1-128 (Moog) or A001-B128 (Korg) grid of bare
@@ -122,7 +143,7 @@ static void build_preset_number_items(uint32_t * outColumns) {
 }
 
 static void open_file_menu(tCoord anchor) {
-    static tMenuItem items[8];
+    static tMenuItem items[9];
     uint32_t         presetColumns;
     int              i = 0;
 
@@ -148,6 +169,9 @@ static void open_file_menu(tCoord anchor) {
     };
     items[i++] = (tMenuItem){
         "Load Patch File to Bank Slot...", (tRgb)RGB_GREY_3, action_restore_patch_to_bank, 0, NULL, 0, 0.0
+    };
+    items[i++] = (tMenuItem){
+        "Clear Patch Name Cache...", (tRgb)RGB_GREY_3, action_clear_name_cache, 0, NULL, 0, 0.0
     };
     items[i++] = (tMenuItem){
         NULL, (tRgb)RGB_BLACK, NULL, 0, NULL, 0, 0.0
