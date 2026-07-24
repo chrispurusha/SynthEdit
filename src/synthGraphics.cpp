@@ -28,6 +28,7 @@ extern "C" {
 #pragma clang diagnostic pop
 
 #include <ctype.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include "defs.h"
@@ -219,31 +220,6 @@ bool synth_hit_test_prog_name(tCoord coord) {
     return gProgNameLaidOut && within_rectangle(coord, gProgNameRect);
 }
 
-// ── Info row hit-test ─────────────────────────────────────────────────────────
-// Mirrors synth_render()'s own Info Row iteration (every dial in a `hidden`
-// section, anywhere in the config) rather than synth_current_page_sections()
-// above, which deliberately excludes hidden sections — the Info Row is drawn
-// on every page, not scoped to gCurrentPage, so its hit-test can't be either.
-tPanelDial * synth_hit_test_info_row(tCoord coord) {
-    for (uint32_t s = 0; s < gSynthPanelConfig.sectionCount; s++) {
-        tPanelSection * section = &gSynthPanelConfig.sections[s];
-
-        if (!section->hidden) {
-            continue;
-        }
-
-        for (uint32_t d = 0; d < section->dialCount; d++) {
-            tPanelDial * dial = &section->dials[d];
-
-            if (within_rectangle(coord, dial->rect)) {
-                return dial;
-            }
-        }
-    }
-
-    return NULL;
-}
-
 // Inserts '\n' every lineWidth characters of `flat` for display — the same
 // display-only wrap extract_moog_name() applies when decoding a name off the
 // wire (see that function's own comment for why there's no real separator
@@ -377,6 +353,7 @@ static double render_page_tabs(tRectangle origin) {
         tRgb       colour  = pressed ? (tRgb)RGB_GREY_5 : (active ? (tRgb)RGB_GREEN_ON : (tRgb)RGB_GREY_7);
         draw_button(mainArea, rect, label, colour);
         gPageTabs[i].rect = rect;
+        register_click_region(rect, eClickLayerPanel, page_tab_click_handler, (void *)(intptr_t)i);
         x                += width + tabGap;
     }
 
@@ -867,6 +844,7 @@ void synth_render(tRectangle area) {
         }
         gProgNameRect    = {{x, y}, {450.0, 32.0 * (double)reservedRows}};
         gProgNameLaidOut = true;
+        register_click_region(gProgNameRect, eClickLayerPanel, prog_name_click_handler, NULL);
 
         // Prev/Next patch buttons — see synth_navigate_preset() (synthComms.h)
         // for what they send. Prev/Next specifically ALSO need a known
@@ -902,6 +880,18 @@ void synth_render(tRectangle area) {
         draw_button(mainArea, gSyncPatchRect, "Sync from synth", syncColour);
         gPatchNavLaidOut = true;
 
+        // Prev/Next only register while actually enabled (see
+        // synth_hit_test_patch_nav()'s own comment on prevNextEnabled) — a
+        // click there should genuinely do nothing, not just look disabled.
+        // Sync has no such gating, matches navEnabled alone.
+        if (prevNextEnabled) {
+            register_click_region(gPrevPatchRect, eClickLayerPanel, patch_nav_click_handler, (void *)(intptr_t)0);
+            register_click_region(gNextPatchRect, eClickLayerPanel, patch_nav_click_handler, (void *)(intptr_t)1);
+        }
+
+        if (navEnabled) {
+            register_click_region(gSyncPatchRect, eClickLayerPanel, patch_nav_click_handler, (void *)(intptr_t)2);
+        }
         y               += 32.0 * (double)reservedRows;
     }
 
@@ -915,7 +905,8 @@ void synth_render(tRectangle area) {
     // Each segment is measured and drawn individually (rather than one
     // concatenated string, as before 2026-07-11) so its on-screen
     // tRectangle can be stored into that dial's own `rect` field —
-    // synth_hit_test_info_row() above then lets a panel_dial_needs_value_menu()
+    // registering each segment's rect below (panel_dial_press_click_handler,
+    // shared with the main grid) then lets a panel_dial_needs_value_menu()
     // dial here (e.g. soundCategory) open the same generic dropdown a normal
     // grid dial's own click does (open_dial_value_menu(), menus.c), with no
     // device-specific code: a numeric-only hidden dial just gets a rect
@@ -983,6 +974,12 @@ void synth_render(tRectangle area) {
 
                 dial->rect = {{ix, rowY}, {width, rowHeight}};
                 render_text(mainArea, dial->rect, pair);
+                // Same handler the main per-page grid dials use just below —
+                // arm_dial_press() already no-ops for readOnly/disabled, and
+                // the old inline synth_hit_test_info_row() path (removed from
+                // mouseHandle.c) called it unconditionally too, so no extra
+                // gating is needed here either.
+                register_click_region(dial->rect, eClickLayerPanel, panel_dial_press_click_handler, dial);
                 ix        += width;
             }
         }

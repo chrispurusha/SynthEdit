@@ -17,6 +17,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <stdint.h>
+
 #include "defs.h"
 #include "synthlibDefs.h"
 #include "types.h"
@@ -95,9 +97,9 @@ static tPanelDial * gPressedToggleDial    = NULL;
 // it. Real bug hit and fixed 2026-07-08 building this.
 static tPanelDial * gPressedValueMenuDial = NULL;
 
-// Given a dial that was just hit on press — by EITHER hit-test source, the
-// generic per-page grid loop or synth_hit_test_info_row() (both in
-// handle_mouse_button() below) — arms whichever interaction it needs: a
+// Given a dial that was just hit on press — via panel_dial_press_click_handler,
+// registered for both the main per-page grid and the Info Row (see
+// synthGraphics.cpp's synth_render()) — arms whichever interaction it needs: a
 // value-menu dropdown (3+ named positions, no CC — or, as of 2026-07-13, a
 // 2-position dial explicitly opted in via asMenu=, e.g. the Z1's Porta
 // on/off, to pick up its section colour instead of the toggle styling
@@ -235,6 +237,55 @@ void panel_dial_press_click_handler(tCoord coord, eClickPhase phase, void * user
 
     glfwGetCursorPos(gWindow, &x, &y);
     arm_dial_press(gWindow, (tPanelDial *)userData, x, y);
+}
+
+void page_tab_click_handler(tCoord coord, eClickPhase phase, void * userData) {
+    (void)coord;
+
+    if (phase != eClickPress) {
+        return; // action fires on release, via the global armed-state check in handle_mouse_button()
+    }
+    int32_t index = (int32_t)(intptr_t)userData;
+
+    gPressedTab = index;
+    synth_set_pressed_page_tab(index);
+}
+
+void patch_nav_click_handler(tCoord coord, eClickPhase phase, void * userData) {
+    (void)coord;
+
+    if (phase != eClickPress) {
+        return; // action fires on release, via the global armed-state check in handle_mouse_button()
+    }
+    int32_t index = (int32_t)(intptr_t)userData;
+
+    gPressedPatchNav = index;
+    synth_set_pressed_patch_nav(index);
+}
+
+void prog_name_click_handler(tCoord coord, eClickPhase phase, void * userData) {
+    (void)coord;
+    (void)userData;
+
+    if (phase != eClickPress) {
+        return;
+    }
+    gProgNameEdit.active    = true;
+
+    // Seed from the FLAT name — gDevice.progName may contain
+    // nameLineWidth's own display-only '\n's (see extract_moog_name(),
+    // synthComms.c), stripped back out here since the wire format has
+    // no real line breaks, only synth_render()'s own wrap-for-display.
+    uint32_t o = 0;
+
+    for (const char * p = gDevice.progName; (*p != '\0') && ((o + 1) < sizeof(gProgNameEdit.buffer)); p++) {
+        if (*p != '\n') {
+            gProgNameEdit.buffer[o++] = *p;
+        }
+    }
+
+    gProgNameEdit.buffer[o] = '\0';
+    gProgNameEdit.cursorPos = o;
 }
 
 // ── Public handlers ───────────────────────────────────────────────────────────
@@ -387,68 +438,19 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
         gPressedValueMenuDial = NULL;
         return;
     }
-    // Page-tab row is checked before dial hit-testing so a tab press can't
-    // also be misread as a drag start. Just arms gPressedTab here — the
-    // action itself fires on release above, not here on press.
-    gPressedTab      = synth_hit_test_page_tab(coord);
 
-    if (gPressedTab >= 0) {
-        synth_set_pressed_page_tab(gPressedTab);
-        return;
-    }
-    // Same reasoning as the page-tab row above — checked before dial
-    // hit-testing so a Prev/Next press can't be misread as a drag start.
-    gPressedPatchNav = synth_hit_test_patch_nav(coord);
-
-    if (gPressedPatchNav >= 0) {
-        synth_set_pressed_patch_nav(gPressedPatchNav);
-        return;
-    }
-
-    // Program name field — checked before dial hit-testing, same reasoning
-    // as the page-tab row and Prev/Next/Sync buttons above. No press/release
-    // split the way gPressedValueMenuDial needs (see its own comment below)
-    // — there's no menu here a same-click release could prematurely
-    // dismiss, so edit mode starts immediately on press.
-    if (synth_hit_test_prog_name(coord)) {
-        gProgNameEdit.active    = true;
-
-        // Seed from the FLAT name — gDevice.progName may contain
-        // nameLineWidth's own display-only '\n's (see extract_moog_name(),
-        // synthComms.c), stripped back out here since the wire format has
-        // no real line breaks, only synth_render()'s own wrap-for-display.
-        uint32_t o = 0;
-
-        for (const char * p = gDevice.progName; (*p != '\0') && ((o + 1) < sizeof(gProgNameEdit.buffer)); p++) {
-            if (*p != '\n') {
-                gProgNameEdit.buffer[o++] = *p;
-            }
-        }
-
-        gProgNameEdit.buffer[o] = '\0';
-        gProgNameEdit.cursorPos = o;
-        return;
-    }
-    // Info Row dials (e.g. Voyager's soundCategory) — a hidden-section dial
-    // is deliberately excluded from synth_current_page_sections() (see that
-    // function's own comment), so it never reaches the generic per-page
-    // loop below and needs its own hit-test instead. arm_dial_press() above
-    // gives it the same 3-way value-menu/toggle/drag treatment a normal
-    // grid dial gets — release-time handling (toggle flip, menu open) is
-    // already generic over gPressedToggleDial/gPressedValueMenuDial/
-    // gDraggedDial regardless of which hit-test armed them, so nothing
-    // else needs to change to support this.
-    tPanelDial *    infoRowHit   = synth_hit_test_info_row(coord);
-
-    if (infoRowHit) {
-        arm_dial_press(win, infoRowHit, x, y);
-        return;
-    }
-
-    // Fast path: the current page's dial grid registers its click region at
-    // render time (see synthGraphics.cpp's synth_render()). Falls through to
-    // the legacy generic-section loop below for anything not matched (should
-    // be nothing today — every visible, enabled dial registers itself).
+    // Fast path: every interactive widget on this press — page tabs,
+    // Prev/Next/Sync, the program name field, Info Row dials, and the
+    // current page's dial grid — registers its click region at render time
+    // (see synthGraphics.cpp's render_page_tabs()/synth_render()). Priority
+    // among them (page tabs before Prev/Next/Sync before the program name
+    // field before Info Row before the grid, matching the old sequential
+    // checks this replaced) doesn't need replicating via registration order:
+    // none of these widgets ever occupy overlapping screen space, so
+    // whichever one dispatch_click_region() matches is unambiguously the
+    // right one regardless of registration order. Falls through to the
+    // legacy generic-section loop below for anything not matched (should be
+    // nothing today).
     if (dispatch_click_region(coord, eClickPress)) {
         return;
     }
