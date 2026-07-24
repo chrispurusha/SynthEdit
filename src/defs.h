@@ -82,6 +82,7 @@
 
 
 // ── Graphics / layout constants (used by utilsGraphics) ──────────────────────
+#define MENU_BAR_HEIGHT    (24.0)
 
 // ── Colour macros ─────────────────────────────────────────────────────────────
 
