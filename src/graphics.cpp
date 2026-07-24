@@ -49,6 +49,7 @@ extern "C" {
 #include "bankBrowser.h"
 #include "alertDialog.h"
 #include "synthlibHost.h"
+#include "synthlibScale.h"
 
 #include <stdio.h>
 #include <unistd.h>
@@ -63,30 +64,28 @@ extern "C" {
 #include "../SynthLib/ThirdParty/glfw/deps/stb_image_write.h"
 #pragma clang diagnostic pop
 
-static float gContentScale = 2.0f;
-
 static void setup_projection(GLFWwindow * win);
 
 // ── GLFW callbacks ────────────────────────────────────────────────────────────
 
 void framebuffer_size_callback(GLFWwindow * window, int width, int height) {
-    // Update the OpenGL viewport to match the current framebuffer size
-    glViewport(0, 0, width, height);
+    (void)window;
+    synthlib_scale_update(width, height);
 
-    set_render_width(width);   // Inform utilsGraphics
-    set_render_height(height); // Inform utilsGraphics
-    gGlobalGuiScale = (double)gContentScale * (double)width / (double)TARGET_FRAME_BUFF_WIDTH;
+    gReDraw = true;
+}
 
-    // Configure a 2D orthographic projection in framebuffer pixels
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(0, width, height, 0, -1, 1);
+// Fires when the window moves to a display with a different HiDPI scale (e.g. dragging from a
+// Retina built-in display to a non-Retina external one, or vice versa) — see synthlibScale.h's
+// own comment for the bug this fixes (right-click menus and anything else deriving screen
+// position from gGlobalGuiScale landing mispositioned wherever the real scale wasn't 2.0 — G2-Edit
+// hit this first as issue #9; this app never had the fix at all until now).
+static void content_scale_callback(GLFWwindow * window, float xscale, float yscale) {
+    (void)yscale; // this app only ever uses a single uniform scale factor
 
-    // Restore the model-view matrix ready for normal rendering
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
+    synthlib_scale_set_content_scale(window, xscale);
 
-    gReDraw         = true;
+    gReDraw = true;
 }
 
 void window_size_callback(GLFWwindow * window, int width, int height) {
@@ -109,6 +108,7 @@ void window_close_callback(GLFWwindow * window) {
     gReDraw = false;
 
     glfwSetFramebufferSizeCallback((GLFWwindow *)gWindow, NULL);
+    glfwSetWindowContentScaleCallback((GLFWwindow *)gWindow, NULL);
     glfwSetWindowCloseCallback((GLFWwindow *)gWindow, NULL);
     glfwSetKeyCallback((GLFWwindow *)gWindow, NULL);
     glfwSetCharCallback((GLFWwindow *)gWindow, NULL);
@@ -259,6 +259,7 @@ void init_graphics(void) {
         .requestRedraw = request_redraw,
         .mouseCoord    = get_global_gui_scaled_mouse_coord,
     });
+    synthlib_scale_init(TARGET_FRAME_BUFF_WIDTH);
 
     glfwSetErrorCallback(error_callback);
 
@@ -282,6 +283,11 @@ void init_graphics(void) {
 
     glfwMakeContextCurrent((GLFWwindow *)gWindow);
 
+    // Real initial scale for whichever display the window opens on, not the 2.0 (Retina-only)
+    // assumption this used to hardcode — see synthlibScale.h's own comment for the bug that broke
+    // (G2-Edit hit this first as issue #9; this app never had the fix at all until now).
+    synthlib_scale_query_initial(gWindow);
+
     {
         int fbWidth  = 0;
         int fbHeight = 0;
@@ -290,6 +296,7 @@ void init_graphics(void) {
     }
 
     glfwSetFramebufferSizeCallback((GLFWwindow *)gWindow, framebuffer_size_callback);
+    glfwSetWindowContentScaleCallback((GLFWwindow *)gWindow, content_scale_callback);
     glfwSetWindowSizeCallback((GLFWwindow *)gWindow, window_size_callback);
     glfwSetWindowPosCallback((GLFWwindow *)gWindow, window_pos_callback);
     glfwSwapInterval(1);
