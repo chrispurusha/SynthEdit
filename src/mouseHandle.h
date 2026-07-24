@@ -21,6 +21,8 @@
 #define __MOUSE_HANDLE_H__
 
 #include "types.h"
+#include "panelConfig.h"
+#include "clickRegion.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,6 +33,15 @@ void handle_cursor_pos(void * win, double x, double y);
 void handle_key(void * win, int key, int scancode, int action, int mods);
 void handle_char(void * win, unsigned int codepoint);
 void handle_scroll(void * win, double dx, double dy);
+
+// Arms a panel dial's press state (gDraggedDial/gPressedToggleDial/
+// gPressedValueMenuDial, private to mouseHandle.c) via arm_dial_press() —
+// registered by synthGraphics.cpp's synth_render() as each visible, enabled
+// dial's click region. Release is handled entirely by the existing global
+// armed-state check in handle_mouse_button(), not by this handler — that
+// logic resolves whatever was pressed regardless of what's under the cursor
+// now, so it isn't a per-widget dispatch target.
+void panel_dial_press_click_handler(tCoord coord, eClickPhase phase, void * userData);
 
 // Supplied for SynthLib's contextMenu.c to link against — current mouse
 // position in the same logical (render-scaled) space menu coords are opened

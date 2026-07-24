@@ -42,6 +42,7 @@ extern "C" {
 #include "misc.h"
 #include "fileDialogue.h"
 #include "synthGraphics.h"
+#include "mouseHandle.h"
 
 #define SYNTH_LAYOUTS_DIR_DEFAULT    "layouts"    // relative to cwd, used until a folder is chosen/persisted
 #define SYNTH_MAX_PAGE_TABS          PANEL_MAX_SECTIONS
@@ -1190,6 +1191,14 @@ void synth_render(tRectangle area) {
                     draw_button(mainArea, dial->rect, name, colour);
                 } else {
                     render_dial(mainArea, dial->rect, dialVal, dial->max, 0, disabled ? (tRgb)RGB_GREY_3 : dial->colour);
+                }
+
+                // A disabled or readOnly dial takes no interaction at all (see
+                // arm_dial_press()'s own comment) — simplest to just not
+                // register a click region for it this frame, rather than
+                // registering one whose handler is a no-op.
+                if (!disabled && !dial->readOnly) {
+                    register_click_region(dial->rect, eClickLayerPanel, panel_dial_press_click_handler, dial);
                 }
                 char valBuf[48]; // 24 was enough for every existing display mode, but not dialDisplaySignedHiLo's "High: N (or M)  Low: K" text (see that branch's own comment below)
 

@@ -220,6 +220,19 @@ static uint32_t clamp_dial_value(int32_t v, uint32_t max) {
     return (uint32_t)v;
 }
 
+void panel_dial_press_click_handler(tCoord coord, eClickPhase phase, void * userData) {
+    (void)coord;
+
+    if (phase != eClickPress) {
+        return; // release is handled entirely by the global armed-state check in handle_mouse_button()
+    }
+    double x = 0.0;
+    double y = 0.0;
+
+    glfwGetCursorPos(gWindow, &x, &y);
+    arm_dial_press(gWindow, (tPanelDial *)userData, x, y);
+}
+
 // ── Public handlers ───────────────────────────────────────────────────────────
 
 void handle_mouse_button(void * win, int button, int action, int mods, double x, double y) {
@@ -364,6 +377,14 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
 
     if (infoRowHit) {
         arm_dial_press(win, infoRowHit, x, y);
+        return;
+    }
+
+    // Fast path: the current page's dial grid registers its click region at
+    // render time (see synthGraphics.cpp's synth_render()). Falls through to
+    // the legacy generic-section loop below for anything not matched (should
+    // be nothing today — every visible, enabled dial registers itself).
+    if (dispatch_click_region(coord, eClickPress)) {
         return;
     }
     // Hit-test every section on the current panel page generically —
