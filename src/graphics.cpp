@@ -48,6 +48,7 @@ extern "C" {
 #include "fileBrowser.h"
 #include "bankBrowser.h"
 #include "alertDialog.h"
+#include "synthlibHost.h"
 
 #include <stdio.h>
 #include <unistd.h>
@@ -176,6 +177,13 @@ void wake_glfw(void) {
     glfwPostEmptyEvent();
 }
 
+// SynthLib's popup/panel mechanisms (contextMenu.c, menuBar.c, alertDialog.cpp, bankBrowser.cpp,
+// fileBrowser.cpp) call this via synthlib_request_redraw() instead of setting gReDraw directly —
+// see synthlib_host_init()'s call site in init_graphics() below.
+static void request_redraw(void) {
+    gReDraw = true;
+}
+
 // ── Projection ────────────────────────────────────────────────────────────────
 
 static void setup_projection(GLFWwindow * win) {
@@ -241,6 +249,15 @@ void init_graphics(void) {
         .orange2        = (tRgb)RGB_ORANGE_2,
         .greenOn        = (tRgb)RGB_GREEN_ON,
         .backgroundGrey = (tRgb)RGB_BACKGROUND_GREY,
+    });
+
+    // Single injection point replacing the `extern "C" _Atomic bool gReDraw;` / `extern "C" void
+    // get_global_gui_scaled_mouse_coord(tCoord *);` previously redeclared in every SynthLib popup/
+    // panel file (contextMenu.c, menuBar.c, alertDialog.cpp, bankBrowser.cpp, fileBrowser.cpp) —
+    // see synthlibHost.h's own comment.
+    synthlib_host_init((tSynthLibHost){
+        .requestRedraw = request_redraw,
+        .mouseCoord    = get_global_gui_scaled_mouse_coord,
     });
 
     glfwSetErrorCallback(error_callback);
