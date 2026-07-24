@@ -21,13 +21,6 @@
 #include "types.h"
 #include "globalVars.h"
 
-tDialMode       gDialMode     = eDialModeVertical;
-
-_Atomic bool    gQuitAll      = false;
-_Atomic bool    gReDraw       = true;
-
-void *          gWindow       = NULL;
-
 tSynthDevice    gDevice       = {0};
 tNameEdit       gProgNameEdit = {0};
 MIDIClientRef   gMidiClient   = 0;

@@ -32,25 +32,13 @@
 #include "graphics.h"
 #include "misc.h"
 #include "prefs.h"
+#include "synthlibPersistence.h"
 
 // Must run before any other prefs_get_*/prefs_set_*/prefs_has_key call — see this function's own
 // declaration comment (misc.h) for why it's called separately from, and well before,
 // load_saved_settings() below.
 void init_settings(void) {
     prefs_init("SynthEdit");
-}
-
-void save_dial_mode(int mode) {
-    prefs_set_int("dialMode", mode);
-}
-
-void save_window_size(int w) {
-    prefs_set_int("windowWidth", w);
-}
-
-void save_window_pos(int x, int y) {
-    prefs_set_int("windowX", x);
-    prefs_set_int("windowY", y);
 }
 
 // No security-scoped bookmark needed any more (App Sandbox removed) — a plain saved path survives
@@ -81,22 +69,7 @@ void set_saved_device_config(const char * filename) {
 // startup from setup_main_menu() (misc.mm) — prefs_init() must run before this (also there), so
 // the settings file is loaded before any of these get_* calls.
 void load_saved_settings(void) {
-    gDialMode = (tDialMode)prefs_get_int("dialMode", (long)gDialMode);
-
-    long savedW = prefs_get_int("windowWidth", 0);
-
-    if (savedW > 0) {
-        int savedH = (int)savedW * TARGET_FRAME_BUFF_HEIGHT / TARGET_FRAME_BUFF_WIDTH;
-
-        resize_window((int)savedW, savedH);
-    }
-
-    if (prefs_has_key("windowX") && prefs_has_key("windowY")) {
-        int savedX = (int)prefs_get_int("windowX", 0);
-        int savedY = (int)prefs_get_int("windowY", 0);
-
-        reposition_window(savedX, savedY);
-    }
+    synthlib_load_window_and_dial_mode(TARGET_FRAME_BUFF_WIDTH, TARGET_FRAME_BUFF_HEIGHT);
 }
 
 // Key BASE for get_last_backup_folder()/set_last_backup_folder() below —

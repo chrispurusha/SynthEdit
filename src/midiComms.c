@@ -589,7 +589,7 @@ static void dispatch_cc(uint8_t channel, uint8_t cc, uint8_t value) {
     bool handled = synth_handle_cc(cc, value);
 
     if (handled) {
-        gReDraw = true;
+        synthlib_request_redraw();
 
         if (gWakeCb != NULL) {
             gWakeCb();
@@ -915,7 +915,7 @@ static void * midi_thread(void * arg) {
         return NULL;
     }
 
-    while (!gQuitAll) {
+    while (!synthlib_quit_requested()) {
         if (atomic_exchange(&gReconnectRequested, false)) {
             // Only this thread ever writes gDevice.connected/gMidiSource/
             // gMidiDest (see gReconnectRequested's own comment above) — drop

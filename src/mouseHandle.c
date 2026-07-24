@@ -149,7 +149,7 @@ static void arm_dial_press(void * win, tPanelDial * dial, double x, double y) {
     gDragPrevY     = y;
     gDragTypeAccum = 0.0;
 
-    if (gDialMode != eDialModeRotary) {
+    if (synthlib_dial_mode() != eDialModeRotary) {
         gDragSkipCount = 3;
         glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     }
@@ -183,8 +183,8 @@ void get_global_gui_scaled_mouse_coord(tCoord * coord) {
     double x = 0.0;
     double y = 0.0;
 
-    glfwGetCursorPos(gWindow, &x, &y);
-    *coord = window_to_logical(gWindow, x, y);
+    glfwGetCursorPos(synthlib_window(), &x, &y);
+    *coord = window_to_logical(synthlib_window(), x, y);
 }
 
 // Scale a window-space delta to logical-space delta
@@ -235,8 +235,8 @@ void panel_dial_press_click_handler(tCoord coord, eClickPhase phase, void * user
     double x = 0.0;
     double y = 0.0;
 
-    glfwGetCursorPos(gWindow, &x, &y);
-    arm_dial_press(gWindow, (tPanelDial *)userData, x, y);
+    glfwGetCursorPos(synthlib_window(), &x, &y);
+    arm_dial_press(synthlib_window(), (tPanelDial *)userData, x, y);
 }
 
 void page_tab_click_handler(tCoord coord, eClickPhase phase, void * userData) {
@@ -309,7 +309,7 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
         } else {
             handle_file_browser_click(coord);
         }
-        gReDraw = true;
+        synthlib_request_redraw();
         return;
     }
 
@@ -319,7 +319,7 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
         } else {
             handle_bank_browser_click(coord);
         }
-        gReDraw = true;
+        synthlib_request_redraw();
         return;
     }
 
@@ -341,7 +341,7 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
                 handle_alert_dialog_click(coord);
             }
         }
-        gReDraw = true;
+        synthlib_request_redraw();
         return;
     }
 
@@ -359,7 +359,7 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
         gDragSkipCount = 0;
         gDraggedDial   = NULL;
 
-        if (gDialMode != eDialModeRotary) {
+        if (synthlib_dial_mode() != eDialModeRotary) {
             glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         }
         return;
@@ -491,7 +491,7 @@ void handle_cursor_pos(void * win, double x, double y) {
     uint32_t range  = gDraggedDial->max;
     int32_t  newVal = (int32_t)get_panel_dial_value(gDraggedDial);
 
-    if (gDialMode == eDialModeRotary) {
+    if (synthlib_dial_mode() == eDialModeRotary) {
         tCoord logCoord = window_to_logical(win, x, y);
         double angle    = calculate_mouse_angle(logCoord, gDraggedDial->rect);
         newVal = (int32_t)angle_to_value(angle, range);
@@ -500,7 +500,7 @@ void handle_cursor_pos(void * win, double x, double y) {
         // whole-step increments rather than mapping delta directly to value.
         double  delta = 0.0;
 
-        if (gDialMode == eDialModeHorizontal) {
+        if (synthlib_dial_mode() == eDialModeHorizontal) {
             delta      = delta_to_logical(win, x - gDragPrevX, true);
             gDragPrevX = x;
         } else {
@@ -511,7 +511,7 @@ void handle_cursor_pos(void * win, double x, double y) {
         int32_t step  = (int32_t)gDragTypeAccum;
         gDragTypeAccum -= (double)step;
         newVal         += step;
-    } else if (gDialMode == eDialModeVertical) {
+    } else if (synthlib_dial_mode() == eDialModeVertical) {
         // Holding Shift maps the full range over as many pixels as the
         // range HAS units (1 raw unit per pixel, the finest mouse movement
         // can resolve) — but never FEWER than the default 200, or a
@@ -566,13 +566,13 @@ void handle_key(void * win, int key, int scancode, int action, int mods) {
 
     if (file_browser_active()) {
         handle_file_browser_key(key, action);
-        gReDraw = true;
+        synthlib_request_redraw();
         return;
     }
 
     if (bank_browser_active()) {
         handle_bank_browser_key(key, action);
-        gReDraw = true;
+        synthlib_request_redraw();
         return;
     }
 
@@ -585,7 +585,7 @@ void handle_key(void * win, int key, int scancode, int action, int mods) {
         } else {
             handle_alert_dialog_key(key, action);
         }
-        gReDraw = true;
+        synthlib_request_redraw();
         return;
     }
 
@@ -626,7 +626,7 @@ void handle_key(void * win, int key, int scancode, int action, int mods) {
         // Cancel — discard edits
         gProgNameEdit.active = false;
     }
-    gReDraw = true;
+    synthlib_request_redraw();
 }
 
 void handle_char(void * win, unsigned int codepoint) {
@@ -634,7 +634,7 @@ void handle_char(void * win, unsigned int codepoint) {
 
     if (file_browser_active()) {
         handle_file_browser_char(codepoint);
-        gReDraw = true;
+        synthlib_request_redraw();
         return;
     }
 
@@ -652,7 +652,7 @@ void handle_char(void * win, unsigned int codepoint) {
     memmove(&gProgNameEdit.buffer[cursorPos + 1], &gProgNameEdit.buffer[cursorPos], len - cursorPos + 1);
     gProgNameEdit.buffer[cursorPos] = (char)codepoint;
     gProgNameEdit.cursorPos         = cursorPos + 1;
-    gReDraw                         = true;
+    synthlib_request_redraw();
 }
 
 void handle_scroll(void * win, double dx, double dy) {

@@ -45,15 +45,12 @@ void setup_main_menu(void);
 void init_settings(void);
 
 // Applies saved window size/position and dial mode — called once by setup_main_menu(), which runs
-// after init_graphics() (needs gWindow to already exist for resize_window()/reposition_window()).
+// after init_graphics() (needs synthlib_window() to already be non-NULL — see
+// synthlib_load_window_and_dial_mode()'s own comment, synthlibPersistence.h).
 // Layouts dir and last device config are NOT restored here — see synth_init_graphics()
 // (synthGraphics.cpp), which reads them directly and needs init_settings() above to have already
 // run by then. Implemented in persistence.c.
 void load_saved_settings(void);
-
-void save_dial_mode(int mode);
-void save_window_size(int w);
-void save_window_pos(int x, int y);
 
 // NSTemporaryDirectory() is still the simplest cross-launch-stable temp dir on macOS (App Sandbox
 // or not — sandbox was only ever the reason this couldn't just be a hardcoded "/tmp/..." literal,

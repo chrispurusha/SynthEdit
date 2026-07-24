@@ -40,6 +40,7 @@ extern "C" {
 #include "graphics.h"
 #include "fileBrowser.h"
 #include "alertDialog.h"
+#include "synthlibPersistence.h"
 #include "appMenuBar.h"
 
 // ── File menu ────────────────────────────────────────────────────────────────
@@ -250,20 +251,20 @@ static void open_device_menu(tCoord anchor) {
 
 static void action_dial_mode_rotary(int index) {
     (void)index;
-    gDialMode = eDialModeRotary;
-    save_dial_mode(gDialMode);
+    synthlib_set_dial_mode(eDialModeRotary);
+    synthlib_save_dial_mode(synthlib_dial_mode());
 }
 
 static void action_dial_mode_vertical(int index) {
     (void)index;
-    gDialMode = eDialModeVertical;
-    save_dial_mode(gDialMode);
+    synthlib_set_dial_mode(eDialModeVertical);
+    synthlib_save_dial_mode(synthlib_dial_mode());
 }
 
 static void action_dial_mode_horizontal(int index) {
     (void)index;
-    gDialMode = eDialModeHorizontal;
-    save_dial_mode(gDialMode);
+    synthlib_set_dial_mode(eDialModeHorizontal);
+    synthlib_save_dial_mode(synthlib_dial_mode());
 }
 
 static void open_controls_menu(tCoord anchor) {
@@ -278,7 +279,7 @@ static void open_controls_menu(tCoord anchor) {
     int              i;
 
     for (i = 0; i < 3; i++) {
-        items[i].label = ((int)gDialMode == i) ? checked[i] : unchecked[i];
+        items[i].label = ((int)synthlib_dial_mode() == i) ? checked[i] : unchecked[i];
     }
 
     open_context_menu(anchor, items, 0, 0.0);

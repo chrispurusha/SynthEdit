@@ -78,7 +78,7 @@ void synth_set_current_page(const char * page) {
     if (page && (page[0] != '\0')) {
         strncpy(gCurrentPage, page, sizeof(gCurrentPage) - 1);
         gCurrentPage[sizeof(gCurrentPage) - 1] = '\0';
-        gReDraw                                = true;
+        synthlib_request_redraw();
     }
 }
 
@@ -115,7 +115,7 @@ void synth_action_page_tab(int32_t index) {
 void synth_set_pressed_page_tab(int32_t index) {
     if (index != gPressedTabIndex) {
         gPressedTabIndex = index;
-        gReDraw          = true;
+        synthlib_request_redraw();
     }
 }
 
@@ -208,7 +208,7 @@ void synth_action_patch_nav(int32_t index) {
 void synth_set_pressed_patch_nav(int32_t index) {
     if (index != gPressedPatchNav) {
         gPressedPatchNav = index;
-        gReDraw          = true;
+        synthlib_request_redraw();
     }
 }
 
@@ -469,7 +469,7 @@ static void synth_reload_panel_config(void) {
     // on disk for the device just loaded above (see this function's own
     // comment, synthBackup.h).
     synth_backup_reload_name_cache_for_device();
-    gReDraw = true;
+    synthlib_request_redraw();
 }
 
 // Candidate list from the multi-candidate branch below, kept around between synth_choose_config_
@@ -626,7 +626,7 @@ void synth_switch_device_config(const char * filename) {
     // MIDI-thread-owned (see gReconnectRequested's comment, midiComms.c) —
     // this just flags the request; the MIDI thread clears it and rescans.
     midi_request_reconnect();
-    gReDraw                                      = true;
+    synthlib_request_redraw();
 }
 
 void synth_init_graphics(void) {

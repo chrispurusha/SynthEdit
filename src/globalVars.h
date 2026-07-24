@@ -22,16 +22,7 @@
 
 #include "sysIncludes.h"
 #include "types.h"
-
-// ── Lifecycle ─────────────────────────────────────────────────────────────────
-extern _Atomic bool    gQuitAll;
-extern _Atomic bool    gReDraw;
-
-// ── Dial mode ─────────────────────────────────────────────────────────────────
-extern tDialMode       gDialMode;
-
-// ── GLFW window ───────────────────────────────────────────────────────────────
-extern void *          gWindow;            // GLFWwindow*; void* avoids pulling GLFW into C headers
+#include "synthlibGlobals.h" // synthlib_quit_requested()/synthlib_request_redraw()/synthlib_window()/synthlib_dial_mode() etc.
 
 // ── MIDI / device ─────────────────────────────────────────────────────────────
 extern tSynthDevice    gDevice;

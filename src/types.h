@@ -53,13 +53,8 @@ typedef struct {
     tRectangle rect;
 } tButton;
 
-// ── Dial mouse mode ───────────────────────────────────────────────────────────
-
-typedef enum {
-    eDialModeRotary     = 0,   // circular arc around dial centre; cursor visible
-    eDialModeVertical   = 1,   // drag up/down; cursor hidden
-    eDialModeHorizontal = 2,   // drag left/right; cursor hidden
-} tDialMode;
+// tDialMode now lives in SynthLib's synthlibTypes.h (identical across all three apps) — pulled in
+// transitively via geometry.h above.
 
 // ── Scroll state ──────────────────────────────────────────────────────────────
 

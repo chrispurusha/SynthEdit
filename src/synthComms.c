@@ -1987,7 +1987,7 @@ void synth_flush_pending_cc(void) {
             if (dial->hasPendingCc && ((now - dial->pendingSinceMs) >= CC_DEBOUNCE_MS)) {
                 dial->hasPendingCc = false;
                 apply_dial_wire_value(dial, dial->pendingRawValue, dial->nativeMax);
-                gReDraw            = true;
+                synthlib_request_redraw();
             }
         }
     }
@@ -2084,7 +2084,7 @@ static void handle_kronos_parameter_change(const uint8_t * data, uint32_t length
 
     if (dial) {
         apply_dial_wire_value(dial, (uint32_t)value, dial->nativeMax);
-        gReDraw = true;
+        synthlib_request_redraw();
         LOG_DEBUG("Kronos Parameter Change: TYP=%u SOC=%u SUB=%u PID=%u IDX=%u value=%d -> dial \"%s\"\n",
                   (unsigned)typ, (unsigned)soc, (unsigned)sub, (unsigned)pid, (unsigned)idx, (int)value, dial->label);
     } else {
@@ -2166,7 +2166,7 @@ void synth_handle_message(const uint8_t * data, uint32_t length) {
         } else {
             LOG_DEBUG("Moog SysEx unhandled mode 0x%02X\n", (unsigned)mode);
         }
-        gReDraw = true;
+        synthlib_request_redraw();
         return;
     }
 
@@ -2178,7 +2178,7 @@ void synth_handle_message(const uint8_t * data, uint32_t length) {
 
     if (!synth_panel_config()->supportsKorgProgramDump) {
         handle_kronos_message(data, length, funcId);
-        gReDraw = true;
+        synthlib_request_redraw();
         return;
     }
     LOG_DEBUG("Synth SysEx func=0x%02X len=%u\n", (unsigned)funcId, (unsigned)length);
@@ -2212,7 +2212,7 @@ void synth_handle_message(const uint8_t * data, uint32_t length) {
             LOG_DEBUG("Synth unhandled func 0x%02X\n", (unsigned)funcId);
             break;
     }
-    gReDraw = true;
+    synthlib_request_redraw();
 }
 
 // Holds at most ONE deferred outgoing send PER WIRE SHAPE (single CC, 14-bit
@@ -2421,7 +2421,7 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
 
         synth_send_parameter_change((uint8_t)dial->paramGroup, (uint16_t)dial->paramId, wireValue);
     }
-    gReDraw = true;
+    synthlib_request_redraw();
 }
 
 uint32_t synth_effective_name_maxlen(void) {

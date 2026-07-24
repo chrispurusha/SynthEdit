@@ -641,7 +641,7 @@ static void backup_batch_advance(void) {
     // this function drives entirely on its own otherwise looks frozen on
     // screen even while genuinely progressing. Found 2026-07-11 while
     // adding the overlay itself, not from a bug report.
-    gReDraw                = true;
+    synthlib_request_redraw();
     gBackupBatchCurrentPreset++;
     gBackupBatchRetryCount = 0; // fresh slot, fresh retry budget — see NAME_SWEEP_MAX_RETRIES's own comment
 
@@ -1072,7 +1072,7 @@ static void korg_sweep_request_current(void) {
 // korg_sweep_show_picker()'s own comment for why that's now a fully
 // separate concern from sweep progress.
 static void korg_sweep_advance(void) {
-    gReDraw              = true;
+    synthlib_request_redraw();
     gKorgSweepIndex++;
     gKorgSweepRetryCount = 0;    // fresh slot, fresh retry budget — see NAME_SWEEP_MAX_RETRIES's own comment
 
@@ -1296,7 +1296,7 @@ void synth_backup_clear_name_cache_for_device(void) {
 
     name_cache_clear_disk();
     korg_name_cache_clear_disk();
-    gReDraw             = true;
+    synthlib_request_redraw();
 }
 
 // Decodes name+category from an arbitrary Program Data Dump buffer (not
@@ -2415,7 +2415,7 @@ static void restore_edit_buffer_korg_file(const uint8_t * data, uint32_t length,
     // hardware test of the original approach found the GUI simply didn't
     // change at all after a restore.
     synth_apply_korg_prog_dump_locally(decoded, decodedLen);
-    gReDraw          = true;
+    synthlib_request_redraw();
 
     // Belt-and-suspenders: also request a fresh dump from the device itself
     // once sent, so if anything genuinely didn't land (dropped, real
@@ -3140,7 +3140,7 @@ void synth_backup_flush_restore_folder(void) {
     // synthGraphics.cpp) would only repaint whenever something UNRELATED
     // happened to set gReDraw — see backup_batch_advance()'s own identical
     // comment above for the full reasoning; same fix, same day, same cause.
-    gReDraw = true;
+    synthlib_request_redraw();
     uint32_t presetNumber = gRestoreFolderEntries[gRestoreFolderIndex];
     char     filePath[1280];
 
@@ -3376,7 +3376,7 @@ void synth_backup_flush_korg_restore_folder(void) {
     if (backup_monotonic_ms() < gKorgRestoreFolderNextSendMs) {
         return; // still pacing since the last send
     }
-    gReDraw = true;
+    synthlib_request_redraw();
     uint32_t index = gKorgRestoreFolderEntries[gKorgRestoreFolderIndex];
     uint8_t  bank  = (uint8_t)(index / 128);
     uint32_t prog  = (index % 128) + 1;

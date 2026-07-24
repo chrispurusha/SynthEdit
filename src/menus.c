@@ -49,7 +49,7 @@ static void action_set_dial_value(int index) {
         synth_set_panel_dial_value(gMenuDial, (uint32_t)gContextMenu.items[index].param);
     }
     gContextMenu.active = false;
-    gReDraw             = true;
+    synthlib_request_redraw();
 }
 
 void open_dial_value_menu(tCoord coord, tPanelDial * dial) {
