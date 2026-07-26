@@ -22,38 +22,31 @@
 #include "synthlibDefs.h"
 #include "types.h"
 #include "globalVars.h"
+#include "msgQueue.h"
 #include "synthComms.h"
 #include "synthGraphics.h"
 #include "midiComms.h"
 
-static void             (*gWakeCb)(void) = NULL;
-static pthread_t        gMidiThread             = 0;
-static pthread_mutex_t  gSendMutex              = PTHREAD_MUTEX_INITIALIZER;
+static void            (*gWakeCb)(void) = NULL;
+static pthread_t       gMidiThread             = 0;
+static pthread_mutex_t gSendMutex              = PTHREAD_MUTEX_INITIALIZER;
 
-// ── Identity reply buffer ─────────────────────────────────────────────────────
+// ── Identity replies ──────────────────────────────────────────────────────────
 // The CoreMIDI read callback fires on the CoreMIDI thread; the MIDI thread
 // processes replies after a timeout.  Having the callback do nothing except
-// store data eliminates all races with gDevice and rescan logic.
-#define MAX_IDENTITY_REPLIES    16
-
-static struct {
-    MIDIEndpointRef src;
-    uint8_t         deviceId;    // data[2]
-    uint8_t         mfrId[3];    // data[5..] — 1 or 3 bytes, see mfrIdLen
-    uint32_t        mfrIdLen;    // 1 (classic) or 3 (extended, data[5]==0x00)
-    uint8_t         familyLSB;   // data[5+mfrIdLen]
-    uint8_t         memberLSB;   // data[5+mfrIdLen+2]
-}                       gIdReplies[MAX_IDENTITY_REPLIES];
-
-static _Atomic uint32_t gIdReplyCount           = 0;
+// post the raw data eliminates all races with gDevice and rescan logic.
+//
+// This used to be a local gIdReplies[16] array + an atomic count; it is now
+// SynthLib's gToMidiThread (msgQueue.h), which has no capacity limit and no
+// count/array skew — see msgQueue.h for the over-read that skew could cause.
 
 // Notification from notify thread; polled by the MIDI thread.
-static _Atomic bool     gRescanNeeded           = false;
+static _Atomic bool    gRescanNeeded           = false;
 
 // Set by midi_request_reconnect() (any thread — UI menu actions, sleep/wake
 // notifications, the Device-switch menu) and consumed only by midi_thread()
-// itself. gDevice/gMidiSource/gMidiDest/gIdReplyCount and the connect/scan
-// logic are documented above (gIdReplies' own comment) as MIDI-thread-only —
+// itself. gDevice/gMidiSource/gMidiDest/gToMidiThread and the connect/scan
+// logic are documented above (the identity-reply comment) as MIDI-thread-only —
 // a caller on another thread must never touch midi_scan_devices() or
 // gDevice.connected directly, only flag that a reconnect is wanted and let
 // the MIDI thread tear down/rebuild its own connection state. Found
@@ -64,7 +57,7 @@ static _Atomic bool     gRescanNeeded           = false;
 // symptom was a device switch sometimes leaving gDevice.connected stuck
 // true with a stale/zeroed gMidiDest, silently dropping every send until
 // the app was restarted (see midi_send_to()'s dest==0 short-circuit above).
-static _Atomic bool     gReconnectRequested     = false;
+static _Atomic bool    gReconnectRequested     = false;
 
 // ── State dump request debounce ─────────────────────────────────────────────
 // A Program Change followed immediately by a state dump request works for a
@@ -84,7 +77,7 @@ static _Atomic bool     gReconnectRequested     = false;
 // the LAST change in the burst rather than after each individual one.
 #define SYNTH_STATE_DUMP_DEBOUNCE_TICKS    8 // * MIDI_IDLE_TICK_SECONDS below ~= 264ms
 #define MIDI_IDLE_TICK_SECONDS             0.033
-static _Atomic int      gStateDumpDebounceTicks = 0;
+static _Atomic int     gStateDumpDebounceTicks = 0;
 
 // A periodic low-frequency state poll (re-request a Panel Dump every ~5s of
 // quiet, so no-CC dials like Headphone Volume eventually pick up a hardware
@@ -293,40 +286,69 @@ static MIDIEndpointRef find_dest_for_source(MIDIEndpointRef src) {
 // too now that process_identity_replies() can also fall back to it.
 static MIDIEndpointRef find_destination_by_name(const char * substr);
 
+// ── Discard stale replies (MIDI thread only) ─────────────────────────────────
+// Called at the top of every scan, replacing the old `gIdReplyCount = 0` reset. Same purpose: a
+// reply left over from the previous attempt must not be matched against this one's connection
+// state. The queue makes the discard explicit rather than implicit in a counter reset.
+
+static void discard_queued_identity_replies(void) {
+    tMessageContent msg     = {0};
+    uint32_t        dropped = 0;
+
+    while (msg_receive(&gToMidiThread, eRcvPoll, &msg) == EXIT_SUCCESS) {
+        dropped++;
+    }
+
+    if (dropped > 0) {
+        LOG_DEBUG("Discarded %u stale identity replies before rescan\n", (unsigned)dropped);
+    }
+}
+
 // ── Process buffered identity replies (MIDI thread only) ──────────────────────
 // Scans the reply buffer collected since the last scan, selects the first synth
 // and calls synth_on_connected().  All CoreMIDI lookups happen here — no races.
 
 static void process_identity_replies(void) {
-    uint32_t count = gIdReplyCount;
+    tMessageContent      msg       = {0};
+    tIdentityReplyData * reply     = &msg.identityReplyData;
+    uint32_t             index     = 0;
+    bool                 connected = false;
 
-    LOG_DEBUG("Processing %u identity replies\n", (unsigned)count);
-
-    for (uint32_t i = 0; i < count; i++) {
+    // Drains to empty even after a match: the queue must not carry this scan's leftovers into the
+    // next one (the old array got the same effect by resetting gIdReplyCount at the top of every
+    // midi_scan_devices()). `connected` makes the post-match iterations log-and-discard rather than
+    // re-run the connect, preserving the old first-match-wins behaviour.
+    while (msg_receive(&gToMidiThread, eRcvPoll, &msg) == EXIT_SUCCESS) {
+        if (msg.cmd != eMsgCmdIdentityReply) {
+            LOG_ERROR("Unknown MIDI-thread command %u\n", (unsigned)msg.cmd);
+            continue;
+        }
         // Full mfrId dump (not just byte 0) — this is the line to read off
         // when bringing up a new <device>.txt's manufacturerId/familyId/
         // memberId from a real device, matched or not (see sn2.txt's own
         // comments for how the Supernova 2's placeholders were meant to be
         // replaced this way).
         LOG_DEBUG("  reply[%u]: mfrLen=%u mfr=%02X:%02X:%02X fam=0x%02X mem=0x%02X src=0x%08X\n",
-                  (unsigned)i,
-                  (unsigned)gIdReplies[i].mfrIdLen,
-                  gIdReplies[i].mfrId[0],
-                  gIdReplies[i].mfrId[1],
-                  gIdReplies[i].mfrId[2],
-                  gIdReplies[i].familyLSB,
-                  gIdReplies[i].memberLSB,
-                  (unsigned)gIdReplies[i].src);
+                  (unsigned)index,
+                  (unsigned)reply->mfrIdLen,
+                  reply->mfrId[0],
+                  reply->mfrId[1],
+                  reply->mfrId[2],
+                  reply->familyLSB,
+                  reply->memberLSB,
+                  (unsigned)reply->source);
+        index++;
 
         tPanelConfig *  cfg  = synth_panel_config();
 
-        if (  (gIdReplies[i].mfrIdLen != cfg->manufacturerIdLen)
-           || (memcmp(gIdReplies[i].mfrId, cfg->manufacturerId, cfg->manufacturerIdLen) != 0)
-           || (gIdReplies[i].familyLSB != cfg->familyId)
-           || (gIdReplies[i].memberLSB != cfg->memberId)) {
+        if (  connected
+           || (reply->mfrIdLen != cfg->manufacturerIdLen)
+           || (memcmp(reply->mfrId, cfg->manufacturerId, cfg->manufacturerIdLen) != 0)
+           || (reply->familyLSB != cfg->familyId)
+           || (reply->memberLSB != cfg->memberId)) {
             continue;
         }
-        MIDIEndpointRef src  = gIdReplies[i].src;
+        MIDIEndpointRef src  = (MIDIEndpointRef)reply->source;
         // find_dest_for_source() assumes send and receive share one physical
         // interface (same entity, or at least matching display names) —
         // true for most single-cable setups but not for a real one this
@@ -351,9 +373,9 @@ static void process_identity_replies(void) {
             LOG_ERROR("Synth found but no matching destination for src=0x%08X\n", (unsigned)src);
             continue;
         }
-        gDevice.id        = gIdReplies[i].deviceId;
-        gDevice.family    = (uint16_t)gIdReplies[i].familyLSB;
-        gDevice.member    = (uint16_t)gIdReplies[i].memberLSB;
+        gDevice.id        = reply->deviceId;
+        gDevice.family    = (uint16_t)reply->familyLSB;
+        gDevice.member    = (uint16_t)reply->memberLSB;
         gDevice.connected = true;
         gMidiSource       = src;
         gMidiDest         = dest;
@@ -366,10 +388,13 @@ static void process_identity_replies(void) {
         if (gWakeCb != NULL) {
             gWakeCb();
         }
-        return;
+        connected         = true;
     }
+    LOG_DEBUG("Processed %u identity replies\n", (unsigned)index);
 
-    LOG_DEBUG("No Synth found in this batch of identity replies\n");
+    if (!connected) {
+        LOG_DEBUG("No Synth found in this batch of identity replies\n");
+    }
 }
 
 // ── Identity reply callback handler ──────────────────────────────────────────
@@ -387,22 +412,24 @@ static void handle_identity_reply(MIDIEndpointRef src, const uint8_t * data, uin
     if (length < 10) {
         return;
     }
-    uint32_t mfrLen = (data[5] == 0x00) ? 3 : 1;
+    uint32_t        mfrLen = (data[5] == 0x00) ? 3 : 1;
 
     if (length < (uint32_t)(5 + mfrLen + 4)) {
         return;
     }
-    uint32_t idx    = atomic_fetch_add(&gIdReplyCount, 1);
+    tMessageContent msg    = {0};
 
-    if (idx < MAX_IDENTITY_REPLIES) {
-        gIdReplies[idx].src       = src;
-        gIdReplies[idx].deviceId  = data[2];
-        gIdReplies[idx].mfrIdLen  = mfrLen;
-        memset(gIdReplies[idx].mfrId, 0, sizeof(gIdReplies[idx].mfrId)); // clean display for the mfrLen==1 case — see process_identity_replies()'s log line
-        memcpy(gIdReplies[idx].mfrId, &data[5], mfrLen);
-        gIdReplies[idx].familyLSB = data[5 + mfrLen];
-        gIdReplies[idx].memberLSB = data[5 + mfrLen + 2];
-    }
+    msg.cmd                         = eMsgCmdIdentityReply;
+    msg.identityReplyData.source    = (uint32_t)src;
+    msg.identityReplyData.deviceId  = data[2];
+    msg.identityReplyData.mfrIdLen  = mfrLen;
+    // mfrId's unused bytes stay zeroed by msg's own initialiser, for a clean display in the
+    // mfrLen==1 case — see process_identity_replies()'s log line.
+    memcpy(msg.identityReplyData.mfrId, &data[5], mfrLen);
+    msg.identityReplyData.familyLSB = data[5 + mfrLen];
+    msg.identityReplyData.memberLSB = data[5 + mfrLen + 2];
+
+    msg_send(&gToMidiThread, &msg);
 }
 
 // ── Source connection ─────────────────────────────────────────────────────────
@@ -782,7 +809,7 @@ static int midi_scan_devices(void) {
     // current patch/filter values the GUI is showing/editing; wiping the
     // whole struct here was resetting every dial on a timer, independent of
     // anything the user did, which looked like it was caused by clicking.
-    gIdReplyCount     = 0;
+    discard_queued_identity_replies();
     gMidiSource       = 0;
     gMidiDest         = 0;
     gDevice.connected = false;
@@ -994,6 +1021,11 @@ static void * midi_thread(void * arg) {
 // ── Startup ───────────────────────────────────────────────────────────────────
 
 int start_midi_thread(void) {
+    // Before pthread_create: the CoreMIDI read callback can only fire once the input port exists,
+    // which the thread itself creates, but initialising here keeps the queue's lifetime tied to the
+    // thread's owner rather than to its body.
+    msg_init(&gToMidiThread, "toMidiThread", sizeof(tMessageContent));
+
     if (pthread_create(&gMidiThread, NULL, midi_thread, NULL) != 0) {
         LOG_ERROR("pthread_create for MIDI thread failed\n");
         return EXIT_FAILURE;

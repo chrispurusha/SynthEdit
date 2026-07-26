@@ -22,6 +22,7 @@
 
 #include "sysIncludes.h"
 #include "types.h"
+#include "msgQueue.h"
 #include "synthlibGlobals.h" // synthlib_quit_requested()/synthlib_request_redraw()/synthlib_window()/synthlib_dial_mode() etc.
 
 // ── MIDI / device ─────────────────────────────────────────────────────────────
@@ -32,5 +33,9 @@ extern MIDIPortRef     gMidiInPort;
 extern MIDIPortRef     gMidiOutPort;
 extern MIDIEndpointRef gMidiSource;
 extern MIDIEndpointRef gMidiDest;
+
+// CoreMIDI read callback thread -> MIDI thread. Initialised by start_midi_thread() before the
+// thread is created. See msgQueue.h for what does and doesn't belong on it.
+extern tMessageQueue   gToMidiThread;
 
 #endif // __GLOBAL_VARS_H__

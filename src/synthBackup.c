@@ -399,9 +399,35 @@ static void backup_index_file_path(char * outPath, size_t outPathSize, const cha
     snprintf(outPath, outPathSize, "%s/Patches-%s.txt", folder, (sanitized[0] != '\0') ? sanitized : "Device");
 }
 
+// ── "No device" guard for the File/Backup menu entry points ──────────────────
+// Every one of those actions needs the device: there is nothing to read a patch from, and nowhere
+// to send one. Each used to LOG_ERROR and return, which made the menu item look broken — you click
+// "Open File...", no browser appears, no message, nothing (owner report 2026-07-26; the file
+// browser genuinely never opens because synth_backup_restore_edit_buffer() bails before
+// open_file_browser_read()). Same silent-failure class the G2-Edit reverse-queue work closed by
+// routing op results to show_alert().
+//
+// Returns TRUE when there is NO device, so call sites read as `if (warn_if_not_connected(...)) {
+// return; }` — the truthy case is the bail-out, matching the shape of the guard it replaced.
+//
+// Deliberately NOT applied to three kinds of caller: the scripted *_from_path variants (they run
+// unattended from the command-file harness in graphics.cpp, where a modal would hang the run),
+// synth_backup_flush_background_prefetch() (a background tick — an alert per tick would be
+// unusable), and the synthComms.c helpers reached only from the bank browser after a successful
+// sweep, which by construction had a device moments earlier and would otherwise double-report.
+static bool warn_if_not_connected(const char * title) {
+    if (gDevice.connected) {
+        return false;
+    }
+    LOG_ERROR("%s: no device connected\n", title);
+    show_alert(title, "No synth is connected. Use Device > Scan Devices once the "
+               "hardware is switched on and its MIDI interface is attached, "
+               "then try again.");
+    return true;
+}
+
 void synth_backup_current_patch(void) {
-    if (!gDevice.connected) {
-        LOG_ERROR("Backup: no device connected\n");
+    if (warn_if_not_connected("Save Patch")) {
         return;
     }
     gBackupExpect = eBackupExpectLive;
@@ -495,8 +521,7 @@ void synth_store_patch_to_bank(uint8_t bank, uint32_t presetNumber) {
 // up here with the other single-shot Backup/Store triggers.
 
 void synth_backup_patch_by_number(uint32_t presetNumber) {
-    if (!gDevice.connected) {
-        LOG_ERROR("Backup: no device connected\n");
+    if (warn_if_not_connected("Save Patch by Number")) {
         return;
     }
 
@@ -519,8 +544,7 @@ void synth_backup_patch_by_number(uint32_t presetNumber) {
 }
 
 void synth_backup_patch_by_number_korg(uint8_t bank, uint32_t prog) {
-    if (!gDevice.connected) {
-        LOG_ERROR("Backup: no device connected\n");
+    if (warn_if_not_connected("Save Patch by Number")) {
         return;
     }
 
@@ -541,8 +565,7 @@ void synth_backup_patch_by_number_korg(uint8_t bank, uint32_t prog) {
 }
 
 void synth_backup_bank(void) {
-    if (!gDevice.connected) {
-        LOG_ERROR("Backup: no device connected\n");
+    if (warn_if_not_connected("Backup Bank")) {
         return;
     }
     gBackupExpect = eBackupExpectBank;
@@ -1497,8 +1520,7 @@ static void korg_batch_folder_chosen(const char * path) {
 }
 
 void synth_backup_bank_to_folder(void) {
-    if (!gDevice.connected) {
-        LOG_ERROR("Backup: no device connected\n");
+    if (warn_if_not_connected("Backup Bank to Folder")) {
         return;
     }
 
@@ -1617,8 +1639,7 @@ static void korg_sweep_show_picker(void) {
 }
 
 void synth_backup_start_name_sweep(tNameSweepPurpose purpose) {
-    if (!gDevice.connected) {
-        LOG_ERROR("Load/Store: no device connected\n");
+    if (warn_if_not_connected("Patch Names")) {
         return;
     }
     gNameSweepPurpose = purpose;
@@ -2493,8 +2514,7 @@ static void restore_edit_buffer_file_chosen(const char * path) {
 }
 
 void synth_backup_restore_edit_buffer(void) {
-    if (!gDevice.connected) {
-        LOG_ERROR("Restore: no device connected\n");
+    if (warn_if_not_connected("Open File")) {
         return;
     }
     open_file_browser_read(restore_edit_buffer_file_chosen);
@@ -2677,8 +2697,7 @@ static void korg_restore_patch_file_chosen(const char * path) {
 }
 
 void synth_backup_restore_patch(void) {
-    if (!gDevice.connected) {
-        LOG_ERROR("Restore: no device connected\n");
+    if (warn_if_not_connected("Load Patch by Number")) {
         return;
     }
 
@@ -2829,8 +2848,7 @@ static void korg_restore_patch_to_bank_file_chosen(const char * path) {
 }
 
 void synth_backup_restore_patch_to_bank(void) {
-    if (!gDevice.connected) {
-        LOG_ERROR("Restore: no device connected\n");
+    if (warn_if_not_connected("Load Patch File to Bank Slot")) {
         return;
     }
 
@@ -2932,8 +2950,7 @@ static void restore_bank_file_chosen(const char * path) {
 }
 
 void synth_backup_restore_bank(void) {
-    if (!gDevice.connected) {
-        LOG_ERROR("Restore: no device connected\n");
+    if (warn_if_not_connected("Restore Bank")) {
         return;
     }
     open_file_browser_read(restore_bank_file_chosen);
@@ -3338,8 +3355,7 @@ static void korg_restore_folder_chosen(const char * path) {
 }
 
 void synth_backup_restore_folder(void) {
-    if (!gDevice.connected) {
-        LOG_ERROR("Restore: no device connected\n");
+    if (warn_if_not_connected("Restore Folder")) {
         return;
     }
 

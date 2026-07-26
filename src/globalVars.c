@@ -28,3 +28,5 @@ MIDIPortRef     gMidiInPort   = 0;
 MIDIPortRef     gMidiOutPort  = 0;
 MIDIEndpointRef gMidiSource   = 0;
 MIDIEndpointRef gMidiDest     = 0;
+
+tMessageQueue   gToMidiThread = {0};
