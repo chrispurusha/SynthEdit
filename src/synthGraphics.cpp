@@ -167,15 +167,17 @@ int32_t synth_hit_test_patch_nav(tCoord coord) {
     // from Bank wasn't working either), reading as "Prev/Next always
     // starts at the first patch." Sync (index 2) is unaffected — it needs
     // no known program to mean something.
-    if ((gDevice.currentProgram >= 0) && within_rectangle(coord, gPrevPatchRect)) {
+    // draw_button_bounds(): these rects are drawn via draw_button() (which draws
+    // DRAW_BUTTON_MARGIN larger bottom/right), so hit-test the true drawn bounds.
+    if ((gDevice.currentProgram >= 0) && within_rectangle(coord, draw_button_bounds(gPrevPatchRect))) {
         return 0;
     }
 
-    if ((gDevice.currentProgram >= 0) && within_rectangle(coord, gNextPatchRect)) {
+    if ((gDevice.currentProgram >= 0) && within_rectangle(coord, draw_button_bounds(gNextPatchRect))) {
         return 1;
     }
 
-    if (within_rectangle(coord, gSyncPatchRect)) {
+    if (within_rectangle(coord, draw_button_bounds(gSyncPatchRect))) {
         return 2;
     }
     return -1;
@@ -352,8 +354,11 @@ static double render_page_tabs(tRectangle origin) {
         // regardless of which page is actually selected right now.
         tRgb       colour  = pressed ? (tRgb)RGB_GREY_5 : (active ? (tRgb)RGB_GREEN_ON : (tRgb)RGB_GREY_7);
         draw_button(mainArea, rect, label, colour);
-        gPageTabs[i].rect = rect;
-        register_click_region(rect, eClickLayerPanel, page_tab_click_handler, (void *)(intptr_t)i);
+        // draw_button() draws DRAW_BUTTON_MARGIN larger bottom/right than `rect`
+        // and the tab's only other use of this rect is hit-testing — store the
+        // true drawn bounds so those edge pixels click (was the small `rect`).
+        gPageTabs[i].rect = draw_button_bounds(rect);
+        register_click_region(gPageTabs[i].rect, eClickLayerPanel, page_tab_click_handler, (void *)(intptr_t)i);
         x                += width + tabGap;
     }
 
@@ -890,12 +895,14 @@ void synth_render(tRectangle area) {
         // click there should genuinely do nothing, not just look disabled.
         // Sync has no such gating, matches navEnabled alone.
         if (prevNextEnabled) {
-            register_click_region(gPrevPatchRect, eClickLayerPanel, patch_nav_click_handler, (void *)(intptr_t)0);
-            register_click_region(gNextPatchRect, eClickLayerPanel, patch_nav_click_handler, (void *)(intptr_t)1);
+            // draw_button_bounds(): register the true drawn rect (see draw_button),
+            // matching synth_hit_test_patch_nav()'s own wrapped checks above.
+            register_click_region(draw_button_bounds(gPrevPatchRect), eClickLayerPanel, patch_nav_click_handler, (void *)(intptr_t)0);
+            register_click_region(draw_button_bounds(gNextPatchRect), eClickLayerPanel, patch_nav_click_handler, (void *)(intptr_t)1);
         }
 
         if (navEnabled) {
-            register_click_region(gSyncPatchRect, eClickLayerPanel, patch_nav_click_handler, (void *)(intptr_t)2);
+            register_click_region(draw_button_bounds(gSyncPatchRect), eClickLayerPanel, patch_nav_click_handler, (void *)(intptr_t)2);
         }
         y               += 32.0 * (double)reservedRows;
     }
@@ -1254,7 +1261,14 @@ void synth_render(tRectangle area) {
                 // register a click region for it this frame, rather than
                 // registering one whose handler is a no-op.
                 if (!disabled && !dial->readOnly) {
-                    register_click_region(dial->rect, eClickLayerPanel, panel_dial_press_click_handler, dial);
+                    // A button-drawn dial (the draw_button branch above, same
+                    // condition) is drawn DRAW_BUTTON_MARGIN larger bottom/right
+                    // than dial->rect, so register its true drawn bounds or that
+                    // edge strip is visible-but-unclickable. A render_dial dial is
+                    // drawn exactly at dial->rect.
+                    bool       asButton = panel_dial_is_binary(dial) || panel_dial_needs_value_menu(dial);
+                    tRectangle hitRect  = asButton ? draw_button_bounds(dial->rect) : dial->rect;
+                    register_click_region(hitRect, eClickLayerPanel, panel_dial_press_click_handler, dial);
                 }
                 char valBuf[48]; // 24 was enough for every existing display mode, but not dialDisplaySignedHiLo's "High: N (or M)  Low: K" text (see that branch's own comment below)
 
