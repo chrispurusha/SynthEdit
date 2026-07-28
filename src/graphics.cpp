@@ -270,7 +270,10 @@ void init_graphics(void) {
         glfwTerminate();
         exit(EXIT_FAILURE);
     }
-    glfwSetWindowSizeLimits((GLFWwindow *)synthlib_window(), TARGET_FRAME_BUFF_WIDTH / 8, TARGET_FRAME_BUFF_HEIGHT / 8, GLFW_DONT_CARE, GLFW_DONT_CARE);
+    // Minimum 640x360 (TARGET/4, so still exactly the locked 16:9). The old TARGET/8 allowed a
+    // 320pt window, which on a 1x display is a 320px framebuffer — gGlobalGuiScale 0.25, putting
+    // body text at ~3px, unreadable however well it is rendered.
+    glfwSetWindowSizeLimits((GLFWwindow *)synthlib_window(), TARGET_FRAME_BUFF_WIDTH / 4, TARGET_FRAME_BUFF_HEIGHT / 4, GLFW_DONT_CARE, GLFW_DONT_CARE);
     glfwSetWindowAspectRatio((GLFWwindow *)synthlib_window(), TARGET_FRAME_BUFF_WIDTH, TARGET_FRAME_BUFF_HEIGHT);
 
     glfwMakeContextCurrent((GLFWwindow *)synthlib_window());
