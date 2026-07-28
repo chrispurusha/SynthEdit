@@ -609,10 +609,28 @@ static void name_sweep_show_picker(void);
 // reach it regardless of definition order.
 static void name_cache_save_to_disk(void);
 
+// Presets between progressive cache flushes during a name sweep - see the use site for the
+// trade-off between write volume and how much work an interrupted sweep loses.
+#define NAME_CACHE_SAVE_INTERVAL    (16)
+
+// Both defined alongside name_cache_save_to_disk() below, forward-declared here for the same reason
+// it is: the sweep advance and start paths above need them.
+static void name_cache_set_complete(bool complete);
+static bool name_cache_is_complete(void);
+
+// A slot counts as fetched once it holds anything other than the "---" placeholder or an empty
+// string (never written). A timed-out slot keeps its "(no response)" label and counts as fetched on
+// purpose - see gNameCacheValid's own comment - so resuming a sweep does not retry it forever.
+static bool name_slot_fetched(const char * label) {
+    return (label[0] != '\0') && (strcmp(label, "---") != 0);
+}
+
 // Same reasoning as name_cache_save_to_disk() above, for the Korg side —
 // forward-declared here since korg_sweep_advance() (further down, but still
 // before korg_sweep_set_label()'s own definition) needs to reach it too.
 static void korg_name_cache_save_to_disk(void);
+static void korg_name_cache_set_complete(bool complete);
+static bool korg_name_cache_is_complete(void);
 
 // Sends (or resends, for a retry) the Single Preset Dump Request for
 // gBackupBatchCurrentPreset — shared by backup_batch_advance() (export
@@ -635,6 +653,8 @@ static void backup_batch_request_current(void) {
 // korg_sweep_start() further down. Caller is responsible for having already
 // confirmed nothing else is using gBackupBatchActive/gBackupExpect.
 static void moog_name_sweep_start(void) {
+    name_cache_set_complete(false); // cleared before the first request, set again only on the completion path
+
     gBackupBatchMode          = eBatchModeNameSweep;
     gBackupBatchActive        = true;
     gBackupBatchCurrentPreset = 1;
@@ -643,10 +663,26 @@ static void moog_name_sweep_start(void) {
     gBackupBatchRepliedCount  = 0;
     gBackupBatchMissingCount  = 0;
 
-    for (uint32_t i = 0; i < BACKUP_BATCH_PRESET_COUNT; i++) {
+    // Resume where the last attempt stopped rather than restarting at the first slot. A partial
+    // cache (progressive flush, see NAME_CACHE_SAVE_INTERVAL) already holds every slot that attempt
+    // got through, and re-requesting those costs NAME_SWEEP_PACING_MS each for names we already have.
+    uint32_t resumeFrom = 0;
+
+    while ((resumeFrom < BACKUP_BATCH_PRESET_COUNT) && name_slot_fetched(gNameSweepLabels[resumeFrom])) {
+        resumeFrom++;
+    }
+
+    if (resumeFrom >= BACKUP_BATCH_PRESET_COUNT) {
+        resumeFrom = 0; // every slot filled but the cache was not marked complete - sweep the lot
+    }
+
+    // Only the unfetched tail is reset; everything before resumeFrom is cached data we are keeping.
+    for (uint32_t i = resumeFrom; i < BACKUP_BATCH_PRESET_COUNT; i++) {
         snprintf(gNameSweepLabels[i], NAME_SWEEP_LABEL_LEN, "---");
         gNameSweepCategoryIndex[i] = 0xFF;
     }
+
+    gBackupBatchCurrentPreset = resumeFrom + 1; // 1-based
 
     backup_batch_request_current();
     LOG_DEBUG("Load/Store: starting a %u-preset name sweep\n", (unsigned)BACKUP_BATCH_PRESET_COUNT);
@@ -668,6 +704,17 @@ static void backup_batch_advance(void) {
     gBackupBatchCurrentPreset++;
     gBackupBatchRetryCount = 0; // fresh slot, fresh retry budget — see NAME_SWEEP_MAX_RETRIES's own comment
 
+    // Flush what has been collected so far, so quitting or crashing part-way through a sweep does
+    // not throw away every name fetched to that point. Batched rather than per-reply because each
+    // save rewrites the whole cache file; at 16 the worst case loses 15 slots' work, which is a few
+    // seconds of sweeping. Only the name sweep does this - a full bank export has its own file
+    // output and does not want the extra writes.
+    if (  (gBackupBatchMode == eBatchModeNameSweep)
+       && (gBackupBatchCurrentPreset <= BACKUP_BATCH_PRESET_COUNT)
+       && ((gBackupBatchCurrentPreset % NAME_CACHE_SAVE_INTERVAL) == 0)) {
+        name_cache_save_to_disk();
+    }
+
     if (gBackupBatchCurrentPreset > BACKUP_BATCH_PRESET_COUNT) {
         gBackupBatchActive = false;
 
@@ -676,6 +723,7 @@ static void backup_batch_advance(void) {
                       (unsigned)gBackupBatchRepliedCount, (unsigned)gBackupBatchMissingCount);
             gNameCacheValid = true; // even a slot that timed out keeps its "N: (no response)" label — good enough to skip re-sweeping; a future Load/Store on that slot will just show that placeholder rather than silently retrying
             name_cache_save_to_disk();
+            name_cache_set_complete(true);
             // No auto-popup here (unlike before 2026-07-14) — Load/Store
             // Patch from/to Bank now opens the picker immediately whether
             // or not this sweep has finished, see name_sweep_show_picker()'s
@@ -766,6 +814,27 @@ static void name_cache_set_label(uint32_t presetNumber, const char * name, uint8
 // NAME_SWEEP_PACING_MS, and correctness (never showing a stale on-disk name
 // for a slot this app just confirmed) matters more here than avoiding a
 // handful of extra small writes during a background sweep.
+// The cache is now flushed part-way through a sweep (see NAME_CACHE_SAVE_INTERVAL at its use site),
+// so "there is a blob on disk" no longer implies "the sweep finished". This separate key records
+// that, and gates gNameCacheValid on load — otherwise an interrupted sweep would come back looking
+// complete and its missing slots would never be re-fetched.
+static void name_cache_set_complete(bool complete) {
+    char key[80];
+
+    snprintf(key, sizeof(key), "nameCacheMoogDone_%s", synth_panel_config()->deviceName);
+    cache_set_string(key, complete ? "1" : "0");
+}
+
+// Absent key means a cache written before progressive saving existed - back then a blob was only
+// ever written at 100%, so treating it as complete is right and avoids a pointless re-sweep on the
+// first run after upgrading.
+static bool name_cache_is_complete(void) {
+    char key[80];
+
+    snprintf(key, sizeof(key), "nameCacheMoogDone_%s", synth_panel_config()->deviceName);
+    return strcmp(cache_get_string(key, "1"), "1") == 0;
+}
+
 static void name_cache_save_to_disk(void) {
     char        key[80];
 
@@ -786,7 +855,7 @@ static void name_cache_save_to_disk(void) {
 
     blob[offset] = '\0';
 
-    prefs_set_string(key, blob);
+    cache_set_string(key, blob);
 }
 
 // Counterpart to name_cache_save_to_disk() above — populates gNameSweepLabels
@@ -795,12 +864,12 @@ static void name_cache_save_to_disk(void) {
 // synth_backup_start_name_sweep() can skip straight to showing the picker
 // without a live sweep, the same as an in-session cache already does. A
 // no-op (cache stays invalid) if this device has never been swept before —
-// prefs_get_string()'s own "" default reads as "nothing saved yet".
+// cache_get_string()'s own "" default reads as "nothing saved yet".
 static void name_cache_load_from_disk(void) {
     char         key[80];
 
     snprintf(key, sizeof(key), "nameCacheMoog_%s", synth_panel_config()->deviceName);
-    const char * blob  = prefs_get_string(key, "");
+    const char * blob  = cache_get_string(key, "");
 
     if (blob[0] == '\0') {
         return;
@@ -836,7 +905,7 @@ static void name_cache_load_from_disk(void) {
         }
         p                              = recordEnd + 1;
     }
-    gNameCacheValid = true;
+    gNameCacheValid = name_cache_is_complete();
 }
 
 // Clears the on-disk cache for the current device (name_cache_save_to_disk()
@@ -850,7 +919,7 @@ static void name_cache_clear_disk(void) {
     char key[80];
 
     snprintf(key, sizeof(key), "nameCacheMoog_%s", synth_panel_config()->deviceName);
-    prefs_set_string(key, "");
+    cache_set_string(key, "");
 }
 
 // Decodes the NAME and CATEGORY out of a Single-Preset-Dump-shaped buffer
@@ -1099,6 +1168,15 @@ static void korg_sweep_advance(void) {
     gKorgSweepIndex++;
     gKorgSweepRetryCount = 0;    // fresh slot, fresh retry budget — see NAME_SWEEP_MAX_RETRIES's own comment
 
+    // Same progressive flush as the Moog path — see NAME_CACHE_SAVE_INTERVAL's own comment for why
+    // it is batched rather than per-reply. Export mode is excluded for the same reason there: it
+    // writes its own files and does not want the extra cache writes.
+    if (  (gKorgSweepMode == eKorgSweepModeNameSweep)
+       && (gKorgSweepIndex < KORG_SWEEP_PRESET_COUNT)
+       && ((gKorgSweepIndex % NAME_CACHE_SAVE_INTERVAL) == 0)) {
+        korg_name_cache_save_to_disk();
+    }
+
     if (gKorgSweepIndex >= KORG_SWEEP_PRESET_COUNT) {
         gKorgSweepActive    = false;
 
@@ -1117,6 +1195,7 @@ static void korg_sweep_advance(void) {
         // not something only a "real" name sweep should set.
         gKorgNameCacheValid = true;
         korg_name_cache_save_to_disk();
+        korg_name_cache_set_complete(true);
         return;
     }
     // Paced, not immediate — the actual send happens on a later
@@ -1204,6 +1283,23 @@ static void korg_sweep_set_label(uint8_t bank, uint32_t prog, const char * name,
 // Korg counterpart to name_cache_save_to_disk() above — see that function's
 // own comment for the reasoning (prefs.h, keyed by device, called at both
 // sweep completion and every single-slot opportunistic update).
+// Korg counterparts to name_cache_set_complete()/name_cache_is_complete() above — same reasoning:
+// the cache is flushed mid-sweep now, so a blob on disk no longer implies the sweep finished.
+static void korg_name_cache_set_complete(bool complete) {
+    char key[80];
+
+    snprintf(key, sizeof(key), "nameCacheKorgDone_%s", synth_panel_config()->deviceName);
+    cache_set_string(key, complete ? "1" : "0");
+}
+
+// Absent key means a pre-progressive-save cache, which was only ever written at 100%.
+static bool korg_name_cache_is_complete(void) {
+    char key[80];
+
+    snprintf(key, sizeof(key), "nameCacheKorgDone_%s", synth_panel_config()->deviceName);
+    return strcmp(cache_get_string(key, "1"), "1") == 0;
+}
+
 static void korg_name_cache_save_to_disk(void) {
     char        key[80];
 
@@ -1224,7 +1320,7 @@ static void korg_name_cache_save_to_disk(void) {
 
     blob[offset] = '\0';
 
-    prefs_set_string(key, blob);
+    cache_set_string(key, blob);
 }
 
 // Korg counterpart to name_cache_load_from_disk() above.
@@ -1232,7 +1328,7 @@ static void korg_name_cache_load_from_disk(void) {
     char         key[80];
 
     snprintf(key, sizeof(key), "nameCacheKorg_%s", synth_panel_config()->deviceName);
-    const char * blob  = prefs_get_string(key, "");
+    const char * blob  = cache_get_string(key, "");
 
     if (blob[0] == '\0') {
         return;
@@ -1268,7 +1364,7 @@ static void korg_name_cache_load_from_disk(void) {
         }
         p                              = recordEnd + 1;
     }
-    gKorgNameCacheValid = true;
+    gKorgNameCacheValid = korg_name_cache_is_complete();
 }
 
 // Korg counterpart to name_cache_clear_disk() above.
@@ -1276,7 +1372,7 @@ static void korg_name_cache_clear_disk(void) {
     char key[80];
 
     snprintf(key, sizeof(key), "nameCacheKorg_%s", synth_panel_config()->deviceName);
-    prefs_set_string(key, "");
+    cache_set_string(key, "");
 }
 
 // Called from synth_reload_panel_config() (synthGraphics.cpp) — once at
@@ -1450,6 +1546,8 @@ void synth_backup_flush_korg_name_sweep(void) {
 // "A1: ---" so korg_sweep_show_picker() has something sane to show for
 // whatever hasn't been swept yet, whichever way the picker was opened.
 static void korg_sweep_start(void) {
+    korg_name_cache_set_complete(false);               // cleared up front, set again only on the completion path below
+
     gKorgSweepMode          = eKorgSweepModeNameSweep; // always the name-only entry point — korg_batch_folder_chosen() below sets up export mode itself, without going through here
     gKorgSweepActive        = true;
     gKorgSweepIndex         = 0;
@@ -1458,10 +1556,26 @@ static void korg_sweep_start(void) {
     gKorgSweepMissingCount  = 0;
     gKorgSweepNextRequestMs = 0.0;
 
-    for (uint32_t i = 0; i < KORG_SWEEP_PRESET_COUNT; i++) {
+    // Resume where the last attempt stopped rather than restarting at the first slot. A partial
+    // cache (progressive flush, see NAME_CACHE_SAVE_INTERVAL) already holds every slot that attempt
+    // got through, and re-requesting those costs NAME_SWEEP_PACING_MS each for names we already have.
+    uint32_t resumeFrom = 0;
+
+    while ((resumeFrom < KORG_SWEEP_PRESET_COUNT) && name_slot_fetched(gKorgSweepLabels[resumeFrom])) {
+        resumeFrom++;
+    }
+
+    if (resumeFrom >= KORG_SWEEP_PRESET_COUNT) {
+        resumeFrom = 0; // every slot filled but the cache was not marked complete - sweep the lot
+    }
+
+    // Only the unfetched tail is reset; everything before resumeFrom is cached data we are keeping.
+    for (uint32_t i = resumeFrom; i < KORG_SWEEP_PRESET_COUNT; i++) {
         snprintf(gKorgSweepLabels[i], NAME_SWEEP_LABEL_LEN, "---");
         gKorgSweepCategoryIndex[i] = 0xFF;
     }
+
+    gKorgSweepIndex = resumeFrom; // 0-based
 
     korg_sweep_request_current(); // first request goes out right away; every one after this is paced (korg_sweep_advance())
     LOG_DEBUG("Load/Store: starting a %u-program Korg name sweep (2 banks x 128), paced %.0fms/request\n",

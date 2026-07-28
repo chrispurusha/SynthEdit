@@ -228,6 +228,31 @@ dial o1semi label="O1 Semi" color=osc1 max=25  display=signed displayOffset=12  
 dial o1fine label="O1 Fine" color=osc1 max=101 display=signed displayOffset=50    group=1 param=177 dumpOffset=157
 dial o1freq label="O1 Freq" color=osc1 max=201 display=signed displayOffset=100   group=1 param=178 dumpOffset=158
 
+# ── OSC1 VPM controls (o1type = 2) ───────────────────────────────────────────
+# Params 500-520 from the MIDI spec's [VPM OSC] block (Carrier 500-512,
+# Modulator 513-520). Gated on o1type:2 — Oscillator Type (param 174) is
+# 0~12 per the spec, so VPM is index 2 on a 0-based list.
+#
+# NO dumpOffset ON THESE YET, deliberately: the param->dump delta is not
+# constant across the table (o1type is param 174 -> dump 154, but mo1o1 is
+# param 224 -> dump 280), so it cannot be derived — it needs the dump layout
+# read out of the spec separately. Same as the LFO dials above, which are also
+# param-only. Effect: these send correctly on edit, but are not populated from
+# a Current Program dump until the offsets are added.
+#
+# The -99~+99 Mod1/Mod2 Source+Int pairs (502-505, 507-510, 515-518) are
+# deliberately NOT here yet — they are the Int family that silently clamps
+# positive writes to 0 on real hardware (known Z1 bug, unfixed), so wiring
+# them up would ship controls that half-work.
+dial o1vpmcwave   label="O1 VPM Wave"    color=osc1 max=4   names=SAW,SQU,TRI,SIN                                    group=1 param=500 disableUnless=o1type:2
+dial o1vpmclevel  label="O1 VPM Level"   color=osc1 max=100 display=raw                                              group=1 param=501 disableUnless=o1type:2
+dial o1vpmcshape  label="O1 VPM Shape"   color=osc1 max=100 display=raw                                              group=1 param=506 disableUnless=o1type:2
+dial o1vpmcstype  label="O1 VPM Shp Typ" color=osc1 max=2   names=1,2                                                group=1 param=511 disableUnless=o1type:2
+dial o1vpmcfb     label="O1 VPM Fdbk"    color=osc1 max=100 display=raw                                              group=1 param=512 disableUnless=o1type:2
+dial o1vpmmcoarse label="O1 VPM M Crse"  color=osc1 max=17  display=raw                                              group=1 param=513 disableUnless=o1type:2
+dial o1vpmmwave   label="O1 VPM M Wave"  color=osc1 max=8   names=SAW,SQU,TRI,SIN,OSC1,SubOSC,Filt1,Filt2            group=1 param=519 disableUnless=o1type:2
+dial o1vpmmlevel  label="O1 VPM M Lvl"   color=osc1 max=100 display=raw                                              group=1 param=520 disableUnless=o1type:2
+
 page       oscillators
 section    osc2
 dialSize   40

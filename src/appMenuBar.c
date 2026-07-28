@@ -229,7 +229,10 @@ static void open_device_menu(tCoord anchor) {
         strncpy(gDeviceCandidateFilenames[c], candidates[c].filename, sizeof(gDeviceCandidateFilenames[c]) - 1);
 
         if (candidates[c].description[0] != '\0') {
-            snprintf(gDeviceCandidateLabels[c], sizeof(gDeviceCandidateLabels[c]), "%s%s \xe2\x80\x94 %s",
+            // ASCII hyphen, not a UTF-8 em dash: render_text() walks bytes with no UTF-8 decoding
+            // and substitutes '?' for anything >= MAX_GLYPH_CHAR (127), so "\xe2\x80\x94" drew as
+            // "???". Same fix as bankBrowser.cpp's row separator.
+            snprintf(gDeviceCandidateLabels[c], sizeof(gDeviceCandidateLabels[c]), "%s%s - %s",
                      isActive ? "* " : "", candidates[c].deviceName, candidates[c].description);
         } else {
             snprintf(gDeviceCandidateLabels[c], sizeof(gDeviceCandidateLabels[c]), "%s%s",

@@ -577,7 +577,7 @@ static bool synth_choose_config_file(void) {
         sPendingChooserCandidates[i] = candidates[i];
 
         if (candidates[i].description[0] != '\0') {
-            snprintf(labelBuf[i], sizeof(labelBuf[i]), "%s \xe2\x80\x94 %s", candidates[i].deviceName, candidates[i].description);
+            snprintf(labelBuf[i], sizeof(labelBuf[i]), "%s - %s", candidates[i].deviceName, candidates[i].description); // ASCII hyphen - a UTF-8 em dash renders as "???", see appMenuBar.c's own comment
         } else {
             snprintf(labelBuf[i], sizeof(labelBuf[i]), "%s", candidates[i].deviceName);
         }
@@ -686,7 +686,7 @@ static void synth_render_sweep_status_row(void) {
     double   renderW     = get_render_width() / gGlobalGuiScale;
     double   renderH     = get_render_height() / gGlobalGuiScale;
     double   margin      = 10.0;
-    double   textH       = 13.0;
+    double   textH       = 12.0; // matches the nav buttons' own text height, so the row sits level
     double   barW        = 160.0;
     double   barH        = 6.0;
     unsigned pct         = (total > 0) ? (unsigned)(((uint64_t)current * 100) / total) : 0;
@@ -695,16 +695,35 @@ static void synth_render_sweep_status_row(void) {
     snprintf(lineBuf, sizeof(lineBuf), "Fetching preset names... %u%% (%u of %u, %u found)",
              pct, (unsigned)current, (unsigned)total, (unsigned)actionCount);
 
+    // Sits to the right of "Sync from synth" rather than along the bottom edge, where it used to
+    // overlap the lowest row of dials. Falls back to the old bottom-left position if the nav rects
+    // haven't been laid out yet (no device, so synth_render() never placed them) — otherwise the
+    // row would render at 0,0 on those frames.
+    double   textX       = margin;
     double   textY       = renderH - margin - textH;
-    double   barY        = textY - 4.0 - barH;
 
-    set_rgb_colour((tRgb)RGB_GREY_2);
-    render_rectangle(mainArea, {{margin, barY}, {barW, barH}});
-    set_rgb_colour((tRgb)RGB_GREEN_ON);
-    render_rectangle(mainArea, {{margin, barY}, {barW * ((double)pct / 100.0), barH}});
+    if (gPatchNavLaidOut) {
+        textX = gSyncPatchRect.coord.x + gSyncPatchRect.size.w + 24.0;
+        textY = gSyncPatchRect.coord.y;
+    }
+    double   textW       = get_text_width(lineBuf, textH, eNoCache);
+    double   barX        = textX + textW + 10.0;
+    double   available   = renderW - margin - barX;
 
     set_rgb_colour((tRgb)RGB_GREY_7);
-    render_text(mainArea, {{margin, textY}, {renderW - (margin * 2.0), textH}}, lineBuf);
+    render_text(mainArea, {{textX, textY}, {textW, textH}}, lineBuf);
+
+    // Drop the bar rather than let it run off the right edge on a narrow window - the percentage is
+    // already in the text, so the bar is the redundant half of the pair.
+    if (available >= 40.0) {
+        double barY = textY + ((textH - barH) / 2.0);
+
+        barW = fmin(barW, available);
+        set_rgb_colour((tRgb)RGB_GREY_2);
+        render_rectangle(mainArea, {{barX, barY}, {barW, barH}});
+        set_rgb_colour((tRgb)RGB_GREEN_ON);
+        render_rectangle(mainArea, {{barX, barY}, {barW * ((double)pct / 100.0), barH}});
+    }
 }
 
 static void synth_render_backup_progress(void) {
