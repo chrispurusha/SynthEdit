@@ -207,10 +207,12 @@ static void setup_projection(GLFWwindow * win) {
 // ── Font ──────────────────────────────────────────────────────────────────────
 
 static int init_font(void) {
-    static const char * fontPaths[] = {"/System/Library/Fonts/Supplemental/Arial.ttf",
-                                       "/System/Library/Fonts/Helvetica.ttc",
-                                       "/System/Library/Fonts/SFNSMono.ttf",
-                                       NULL};
+    static const char * fontPaths[] = {
+        "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/System/Library/Fonts/Helvetica.ttc",
+        "/System/Library/Fonts/SFNSMono.ttf",
+        NULL
+    };
 
     for (int i = 0; fontPaths[i] != NULL; i++) {
         if (preload_glyph_textures(fontPaths[i], 72.0)) {

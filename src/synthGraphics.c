@@ -711,7 +711,7 @@ static void synth_render_sweep_status_row(void) {
     double   available   = renderW - margin - barX;
 
     set_rgb_colour((tRgb)RGB_GREY_7);
-    render_text(mainArea, {{textX, textY}, {textW, textH}}, lineBuf);
+    render_text(mainArea, (tRectangle){{textX, textY}, {textW, textH}}, lineBuf);
 
     // Drop the bar rather than let it run off the right edge on a narrow window - the percentage is
     // already in the text, so the bar is the redundant half of the pair.
@@ -720,9 +720,9 @@ static void synth_render_sweep_status_row(void) {
 
         barW = fmin(barW, available);
         set_rgb_colour((tRgb)RGB_GREY_2);
-        render_rectangle(mainArea, {{barX, barY}, {barW, barH}});
+        render_rectangle(mainArea, (tRectangle){{barX, barY}, {barW, barH}});
         set_rgb_colour((tRgb)RGB_GREEN_ON);
-        render_rectangle(mainArea, {{barX, barY}, {barW * ((double)pct / 100.0), barH}});
+        render_rectangle(mainArea, (tRectangle){{barX, barY}, {barW * ((double)pct / 100.0), barH}});
     }
 }
 
@@ -759,26 +759,26 @@ static void synth_render_backup_progress(void) {
 
     // Background overlay to de-emphasise content beneath the dialog
     set_rgb_colour((tRgb)RGB_GREY_2);
-    render_rectangle(mainArea, {{0.0, 0.0}, {renderW, renderH}});
+    render_rectangle(mainArea, (tRectangle){{0.0, 0.0}, {renderW, renderH}});
 
     // Dialog box
     set_rgb_colour((tRgb)RGB_GREY_5);
-    render_rectangle_with_border(mainArea, {{boxX, boxY}, {boxW, boxH}});
+    render_rectangle_with_border(mainArea, (tRectangle){{boxX, boxY}, {boxW, boxH}});
 
     // Title bar
     set_rgb_colour((tRgb)RGB_GREY_3);
-    render_rectangle(mainArea, {{boxX, boxY}, {boxW, titleH}});
+    render_rectangle(mainArea, (tRectangle){{boxX, boxY}, {boxW, titleH}});
     set_rgb_colour((tRgb)RGB_BLACK);
-    render_text(mainArea, {{boxX + margin, boxY + 6.0}, {BLANK_SIZE, STANDARD_TEXT_HEIGHT}}, title);
+    render_text(mainArea, (tRectangle){{boxX + margin, boxY + 6.0}, {BLANK_SIZE, STANDARD_TEXT_HEIGHT}}, title);
 
     char         lineBuf[128];
 
     snprintf(lineBuf, sizeof(lineBuf), "Preset %u of %u", (unsigned)current, (unsigned)total);
     set_rgb_colour((tRgb)RGB_WHITE);
-    render_text(mainArea, {{boxX + margin, boxY + titleH + margin}, {BLANK_SIZE, STANDARD_TEXT_HEIGHT}}, lineBuf);
+    render_text(mainArea, (tRectangle){{boxX + margin, boxY + titleH + margin}, {BLANK_SIZE, STANDARD_TEXT_HEIGHT}}, lineBuf);
 
     snprintf(lineBuf, sizeof(lineBuf), "%u %s so far", (unsigned)actionCount, verb);
-    render_text(mainArea, {{boxX + margin, boxY + titleH + margin + STANDARD_TEXT_HEIGHT + 6.0}, {BLANK_SIZE, STANDARD_TEXT_HEIGHT}}, lineBuf);
+    render_text(mainArea, (tRectangle){{boxX + margin, boxY + titleH + margin + STANDARD_TEXT_HEIGHT + 6.0}, {BLANK_SIZE, STANDARD_TEXT_HEIGHT}}, lineBuf);
 
     // Progress bar
     double       barY = boxY + boxH - margin - 8.0;
@@ -790,9 +790,9 @@ static void synth_render_backup_progress(void) {
     // there) — RGB_GREY_2 used instead, darker so it reads clearly against
     // both the box's own RGB_GREY_5 and the green fill.
     set_rgb_colour((tRgb)RGB_GREY_2);
-    render_rectangle(mainArea, {{boxX + margin, barY}, {barW, 8.0}});
+    render_rectangle(mainArea, (tRectangle){{boxX + margin, barY}, {barW, 8.0}});
     set_rgb_colour((tRgb)RGB_GREEN_ON);
-    render_rectangle(mainArea, {{boxX + margin, barY}, {barW * frac, 8.0}});
+    render_rectangle(mainArea, (tRectangle){{boxX + margin, barY}, {barW * frac, 8.0}});
 }
 
 void synth_render(tRectangle area) {
@@ -800,7 +800,7 @@ void synth_render(tRectangle area) {
     double y = area.coord.y + 20.0;
 
     // ── Page tabs ──────────────────────────────────────────────────────────────
-    y += render_page_tabs({{x, y}, {0, 0}});
+    y += render_page_tabs((tRectangle){{x, y}, {0, 0}});
 
     // ── Program name ──────────────────────────────────────────────────────────
     // While disconnected, show "Not connected" instead of a name. Some
@@ -871,7 +871,12 @@ void synth_render(tRectangle area) {
             line = strtok(NULL, "\n");
             row++;
         }
-        gProgNameRect    = {{x, y}, {450.0, 32.0 * (double)reservedRows}};
+        gProgNameRect    = (tRectangle){{
+                                            x, y
+                                        }, {
+                                            450.0, 32.0 * (double)reservedRows
+                                        }
+        };
         gProgNameLaidOut = true;
         register_click_region(gProgNameRect, eClickLayerPanel, prog_name_click_handler, NULL);
 
@@ -901,9 +906,24 @@ void synth_render(tRectangle area) {
         tRgb         nextColour      = (gPressedPatchNav == 1) ? (tRgb)RGB_GREY_5 : (prevNextEnabled ? (tRgb)RGB_GREY_7 : (tRgb)RGB_GREY_3);
         tRgb         syncColour      = (gPressedPatchNav == 2) ? (tRgb)RGB_GREY_5 : (navEnabled ? (tRgb)RGB_GREY_7 : (tRgb)RGB_GREY_3);
 
-        gPrevPatchRect   = {{x + 460.0, y}, {prevWidth, navBtnHeight}};
-        gNextPatchRect   = {{x + 460.0 + prevWidth + 12.0, y}, {nextWidth, navBtnHeight}};
-        gSyncPatchRect   = {{x + 460.0 + prevWidth + 12.0 + nextWidth + 24.0, y}, {syncWidth, navBtnHeight}};
+        gPrevPatchRect   = (tRectangle){{
+                                            x + 460.0, y
+                                        }, {
+                                            prevWidth, navBtnHeight
+                                        }
+        };
+        gNextPatchRect   = (tRectangle){{
+                                            x + 460.0 + prevWidth + 12.0, y
+                                        }, {
+                                            nextWidth, navBtnHeight
+                                        }
+        };
+        gSyncPatchRect   = (tRectangle){{
+                                            x + 460.0 + prevWidth + 12.0 + nextWidth + 24.0, y
+                                        }, {
+                                            syncWidth, navBtnHeight
+                                        }
+        };
         draw_button(mainArea, gPrevPatchRect, "< Prev", prevColour);
         draw_button(mainArea, gNextPatchRect, "Next >", nextColour);
         draw_button(mainArea, gSyncPatchRect, "Sync from synth", syncColour);
@@ -996,14 +1016,24 @@ void synth_render(tRectangle area) {
                 }
 
                 if (!first) {
-                    tRectangle sepRect = {{ix, rowY}, {0.0, rowHeight}};
+                    tRectangle sepRect = (tRectangle){{
+                                                          ix, rowY
+                                                      }, {
+                                                          0.0, rowHeight
+                                                      }
+                    };
 
                     render_text(mainArea, sepRect, sep);
                     ix += sepWidth;
                 }
                 first      = false;
 
-                dial->rect = {{ix, rowY}, {width, rowHeight}};
+                dial->rect = (tRectangle){{
+                                              ix, rowY
+                                          }, {
+                                              width, rowHeight
+                                          }
+                };
                 render_text(mainArea, dial->rect, pair);
                 // Same handler the main per-page grid dials use just below —
                 // arm_dial_press() already no-ops for readOnly/disabled, and
@@ -1118,12 +1148,17 @@ void synth_render(tRectangle area) {
                 }
 
                 double         colX        = x + ((double)columnLabel->col * cfg->gridColWidth);
-                tRectangle     labelRect   = {{colX, y}, {cfg->gridColWidth, headerHeight}};
+                tRectangle     labelRect   = (tRectangle){{
+                                                              colX, y
+                                                          }, {
+                                                              cfg->gridColWidth, headerHeight
+                                                          }
+                };
                 set_rgb_colour((tRgb)RGB_WHITE);
                 render_text(mainArea, labelRect, upper);
 
                 set_rgb_colour((tRgb)RGB_GREY_5);
-                render_line(mainArea, {colX, y + headerHeight + 2.0}, {colX + cfg->gridColWidth - padding, y + headerHeight + 2.0}, 1.0);
+                render_line(mainArea, (tCoord){colX, y + headerHeight + 2.0}, (tCoord){colX + cfg->gridColWidth - padding, y + headerHeight + 2.0}, 1.0);
             }
 
             if (anyLabel) {
@@ -1245,7 +1280,9 @@ void synth_render(tRectangle area) {
                         }
                     }
                     dial->rect.coord.y += (section->dialSize - buttonHeight) / 2.0;
-                    dial->rect.size     = {widest + padding, buttonHeight};
+                    dial->rect.size     = (tSize){
+                        widest + padding, buttonHeight
+                    };
 
                     // RGB_GREY_7, not RGB_BACKGROUND_GREY — see
                     // render_page_tabs()'s own identical comment above:
@@ -1371,8 +1408,13 @@ void synth_render(tRectangle area) {
                 // below would be a redundant duplicate, not a genuine second
                 // piece of information the way it is for a knob.
                 if (!panel_dial_is_binary(dial) && !panel_dial_needs_value_menu(dial)) {
-                    tRectangle valRect = {{dial->rect.coord.x, baseY + section->dialSize + 4.0},
-                        {section->spacing,                              12.0}};
+                    tRectangle valRect = (tRectangle){{
+                                                          dial->rect.coord.x, baseY + section->dialSize + 4.0
+                                                      },
+                                                      {
+                                                          section->spacing, 12.0
+                                                      }
+                    };
                     set_rgb_colour((tRgb)RGB_GREY_7);
                     render_text(mainArea, valRect, valBuf);
                 }
@@ -1408,8 +1450,13 @@ void synth_render(tRectangle area) {
                 // above), so it needs this label line same as any other
                 // value-menu button, unlike a real toggle.
                 if (!isToggle && !isSelfExplanatoryButton) {
-                    tRectangle lblRect = {{dial->rect.coord.x, lblY},
-                        {section->spacing,   12.0}};
+                    tRectangle lblRect = (tRectangle){{
+                                                          dial->rect.coord.x, lblY
+                                                      },
+                                                      {
+                                                          section->spacing, 12.0
+                                                      }
+                    };
 
                     // Explicit here, not left over from the valRect render_text
                     // above — that one's skipped for a binary button, which
