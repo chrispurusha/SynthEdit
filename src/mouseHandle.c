@@ -213,41 +213,10 @@ static double delta_to_logical(void * win, double winDelta, bool isX) {
 // incidentally: graphics.c clears the state on focus loss, where the poll would instead have kept
 // reporting a key this process could no longer see.
 
-// How many pixels a drag spreads the dial's full range over: 200 unmodified, and with Shift held the
-// larger of the dial's own range and the floor below. Shared by the vertical and horizontal branches
-// of handle_cursor_pos(), which had the expression written out identically in both.
-//
-// THE FLOOR IS 2000 RATHER THAN 200, AND THAT IS A FIX (2026-08-09, on the owner's report that Shift
-// gave no fine dragging at all). "One raw unit per pixel" is the finest a mouse can RESOLVE, and
-// max(range, 200) reaches it — but only for a dial with MORE units than the unmodified 200-pixel
-// mapping already gives. Every dial narrower than that is ALREADY finer than one unit per pixel, so
-// max(range, 200) evaluated to exactly 200 and Shift changed nothing whatsoever.
-//
-// That is not an edge case, it is most of the fleet: of the five layouts only voyager.txt (31 dials)
-// and minitaur.txt (28) have any dial wider than 200 units, kronos.txt and sn2.txt have none, and
-// EVERY z1.txt dial is 201 or under — 98 of them at 199. Shift was a no-op on the entire Z1 panel.
-//
-// 2000 makes a Shift drag 10x slower on all of those (a 199-step dial goes from about 1 unit per
-// pixel to one per 10) while leaving the wide ones untouched: max(65536, 2000) is still 65536, so the
-// Voyager's 16-bit fixed values behave exactly as before. Raising the floor moves nothing in between
-// either — no dial in any layout has a range between 201 and 16384, so the two groups stay cleanly
-// separated whatever this is tuned to next.
-//
-// WHY A MULTI-SCREEN PIXEL COUNT IS FINE HERE: the drag hides and captures the pointer
-// (GLFW_CURSOR_DISABLED in arm_dial_press()), so movement arrives as relative deltas that accumulate
-// with no screen edge to run into. 2000 pixels of travel is not 2000 pixels of screen.
-//
-// The floor must stay ABOVE the unmodified 200 or Shift would speed the drag up instead of slowing
-// it — the original bug the old floor was added to prevent, and the reason this is a floor rather
-// than a plain multiplier: multiplying would make the 65536-step dials unusably slow.
-#define DIAL_FINE_DRAG_PIXELS    2000.0
-
-static double pixels_for_full_range(uint32_t range) {
-    if (!shift_modifier_held()) {
-        return 200.0;
-    }
-    return ((double)range > DIAL_FINE_DRAG_PIXELS) ? (double)range : DIAL_FINE_DRAG_PIXELS;
-}
+// The Shift-slows-the-drag policy is SynthLib's dial_drag_pixels_for_full_range() (geometry.h) now,
+// shared with G2-Edit's canvas dials so that "finer" cannot come to mean two different things. It was
+// local here first, including the reasoning for its floor and the Clock Div bug that shaped it; that
+// reasoning went with it.
 
 // Clamps to the dial's own display-space range [0, max-1] — the one thing
 // every dial has in common, regardless of what it controls.
@@ -551,7 +520,7 @@ void handle_cursor_pos(void * win, double x, double y) {
         // Shift = a slower drag over more pixels — see pixels_for_full_range() for the mapping and
         // for why its floor is what it is. The Clock Div bug that shaped it (Shift speeding the drag
         // up on a narrow dial, 2026-07-12) is recorded there too.
-        double  pixelsForFullRange = pixels_for_full_range(range);
+        double  pixelsForFullRange = dial_drag_pixels_for_full_range(range);
         double  dy                 = delta_to_logical(win, gDragPrevY - y, false);
 
         gDragPrevY      = y;
@@ -573,7 +542,7 @@ void handle_cursor_pos(void * win, double x, double y) {
         gDragTypeAccum -= (double)step;
         newVal         += step;
     } else {
-        double  pixelsForFullRange = pixels_for_full_range(range);
+        double  pixelsForFullRange = dial_drag_pixels_for_full_range(range);
         double  dx                 = delta_to_logical(win, x - gDragPrevX, true);
 
         gDragPrevX      = x;
