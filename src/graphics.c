@@ -51,6 +51,7 @@ extern "C" {
 #include "synthlibHost.h"
 #include "synthlibScale.h"
 #include "synthlibPersistence.h"
+#include "inputState.h"
 
 #include <stdio.h>
 #include <unistd.h>
@@ -116,6 +117,7 @@ void window_close_callback(GLFWwindow * window) {
     glfwSetCursorPosCallback((GLFWwindow *)synthlib_window(), NULL);
     glfwSetMouseButtonCallback((GLFWwindow *)synthlib_window(), NULL);
     glfwSetScrollCallback((GLFWwindow *)synthlib_window(), NULL);
+    glfwSetWindowFocusCallback((GLFWwindow *)synthlib_window(), NULL);
 
     glfwSetWindowShouldClose((GLFWwindow *)synthlib_window(), GLFW_TRUE);
     glfwPostEmptyEvent();
@@ -138,15 +140,34 @@ void error_callback(int error, const char * description) {
     LOG_ERROR("GLFW error [%d]: %s\n", error, description);
 }
 
+// A modifier released while another application has the keyboard is a release this process is never
+// told about, so it would otherwise stay stuck on — which for the dial drags means Shift's fine-drag
+// silently latched. Nothing to restore on the way back in: the next key or button event carries the
+// truth with it. This is the one thing the old glfwGetKey() poll did handle by accident, so it has to
+// be handled deliberately now.
+static void window_focus_cb(GLFWwindow * win, int focused) {
+    (void)win;
+
+    if (focused == 0) {
+        set_modifier_state((uint32_t)eModifierNone);
+    }
+}
+
 static void window_refresh_cb(GLFWwindow * win) {
     (void)win;
     synthlib_request_redraw();
 }
 
+// THE MODIFIER SEAM (SynthLib/src/inputState.h). GLFW hands `mods` to both this and key_cb, giving
+// the modifier state at the moment of the event, so the shell pushes it once and every reader —
+// shift_modifier_held() in mouseHandle.c's dial drags today — reads state rather than polling the
+// window. G2-Edit's shell does exactly the same, and the G2 VST3 plug-in pushes the same bits from an
+// NSEvent, which is why the translation itself is SynthLib's and not written out here.
 static void mouse_button_cb(GLFWwindow * win, int button, int action, int mods) {
     double x = 0.0;
     double y = 0.0;
 
+    set_modifier_state_from_glfw(mods);
     glfwGetCursorPos(win, &x, &y);
     handle_mouse_button(win, button, action, mods, x, y);
     synthlib_request_redraw();
@@ -157,6 +178,7 @@ static void cursor_pos_cb(GLFWwindow * win, double x, double y) {
 }
 
 static void key_cb(GLFWwindow * win, int key, int scancode, int action, int mods) {
+    set_modifier_state_from_glfw(mods);   // a modifier press or release is a key event like any other
     handle_key(win, key, scancode, action, mods);
     synthlib_request_redraw();
 }
@@ -304,13 +326,14 @@ void init_graphics(void) {
     glfwSetMouseButtonCallback((GLFWwindow *)synthlib_window(), mouse_button_cb);
     glfwSetScrollCallback((GLFWwindow *)synthlib_window(), scroll_cb);
     glfwSetWindowRefreshCallback((GLFWwindow *)synthlib_window(), window_refresh_cb);
+    glfwSetWindowFocusCallback((GLFWwindow *)synthlib_window(), window_focus_cb); // clears held modifiers — see inputState.h
 
-    glEnable(GL_BLEND);               // TODO - Assess if G2 edit could benefit from this
+    glEnable(GL_BLEND);                                                           // TODO - Assess if G2 edit could benefit from this
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    init_font();                      // TODO - G2 edit could benefit from this if we're loading multiple fonts
-    synth_init_graphics();            // TODO - do we need to call this, since it's currently empty?
+    init_font();                                                                  // TODO - G2 edit could benefit from this if we're loading multiple fonts
+    synth_init_graphics();                                                        // TODO - do we need to call this, since it's currently empty?
 
-    register_midi_wake_cb(wake_glfw); // TODO - this doesn't belong in here
+    register_midi_wake_cb(wake_glfw);                                             // TODO - this doesn't belong in here
 }
 // ── Render frame ──────────────────────────────────────────────────────────────
 

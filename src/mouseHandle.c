@@ -32,6 +32,7 @@
 #include "fileBrowser.h"
 #include "bankBrowser.h"
 #include "alertDialog.h"
+#include "inputState.h"
 
 // ── GLFW constants (avoids pulling GLFW header into C) ────────────────────────
 #define GLFW_CURSOR             0x00033001
@@ -49,13 +50,10 @@
 #define GLFW_KEY_LEFT           263
 #define GLFW_KEY_HOME           268
 #define GLFW_KEY_END            269
-#define GLFW_KEY_LEFT_SHIFT     340
-#define GLFW_KEY_RIGHT_SHIFT    344
 
 extern void glfwSetInputMode(void *, int, int);
 extern void glfwGetWindowSize(void *, int *, int *);
 extern void glfwGetCursorPos(void *, double *, double *);
-extern int glfwGetKey(void *, int);
 
 // ── Dial drag state ───────────────────────────────────────────────────────────
 // Deliberately just a pointer into whichever tPanelDial was hit — this file
@@ -201,18 +199,19 @@ static double delta_to_logical(void * win, double winDelta, bool isX) {
     }
 }
 
-// True while either Shift key is physically held — polled directly
-// (glfwGetKey()) rather than tracked via handle_key()'s own key-event
-// callback, since a drag's per-pixel resolution needs to react to Shift
-// changing mid-drag without requiring the key event to have fired through
-// this specific window/callback first (glfwGetKey() reflects the CURRENT
-// physical state regardless of event delivery order). See its own call
-// sites in handle_cursor_pos() below for why this matters.
-static bool shift_held(void * win) {
-    return (glfwGetKey(win, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
-           || (glfwGetKey(win, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS);
-}
-
+// shift_held(win) USED TO BE HERE, polling glfwGetKey() through a hand-declared extern. It is now
+// SynthLib's shift_modifier_held(), reading state that graphics.c pushes from the `mods` argument
+// GLFW already hands every key and mouse-button callback. G2-Edit and the G2 VST3 plug-in read the
+// same predicate, the plug-in pushing from an NSEvent instead — see SynthLib/src/inputState.h.
+//
+// THE OLD COMMENT ARGUED FOR THE POLL, so here is why that argument does not survive. It said a
+// drag's per-pixel resolution must react to Shift changing MID-DRAG "without requiring the key event
+// to have fired through this specific window/callback first". Pressing Shift during a drag IS a key
+// event, and it is delivered to the window being dragged in, because that window has the keyboard
+// focus — there is no ordering to lose. The one case the poll genuinely covered better was Shift
+// released while ANOTHER application had focus, and that is now handled properly rather than
+// incidentally: graphics.c clears the state on focus loss, where the poll would instead have kept
+// reporting a key this process could no longer see.
 // Clamps to the dial's own display-space range [0, max-1] — the one thing
 // every dial has in common, regardless of what it controls.
 static uint32_t clamp_dial_value(int32_t v, uint32_t max) {
@@ -524,7 +523,7 @@ void handle_cursor_pos(void * win, double x, double y) {
         // mapping. The max(range, 200) floor fixes that while still
         // reaching exactly 1 unit/pixel for any WIDE-range dial (e.g. the
         // 65536-step pgmShaping1FixedValue this was originally added for).
-        double  pixelsForFullRange = shift_held(win) ? ((range > 200) ? (double)range : 200.0) : 200.0;
+        double  pixelsForFullRange = shift_modifier_held() ? ((range > 200) ? (double)range : 200.0) : 200.0;
         double  dy                 = delta_to_logical(win, gDragPrevY - y, false);
 
         gDragPrevY      = y;
@@ -546,7 +545,7 @@ void handle_cursor_pos(void * win, double x, double y) {
         gDragTypeAccum -= (double)step;
         newVal         += step;
     } else {
-        double  pixelsForFullRange = shift_held(win) ? ((range > 200) ? (double)range : 200.0) : 200.0;
+        double  pixelsForFullRange = shift_modifier_held() ? ((range > 200) ? (double)range : 200.0) : 200.0;
         double  dx                 = delta_to_logical(win, x - gDragPrevX, true);
 
         gDragPrevX      = x;
