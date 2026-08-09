@@ -32,6 +32,7 @@
 #include "fileBrowser.h"
 #include "bankBrowser.h"
 #include "alertDialog.h"
+#include "geometry.h"    // dial_drag_pixels_for_full_range() — the shared Shift-slows-the-drag policy
 #include "inputState.h"
 
 // ── GLFW constants (avoids pulling GLFW header into C) ────────────────────────
