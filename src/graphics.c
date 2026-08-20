@@ -36,6 +36,7 @@ extern "C" {
 #include "utils.h"
 #include "utilsGraphics.h"
 #include "synthlibWindow.h"
+#include "synthlibPopups.h"
 #include "synthGraphics.h"
 #include "panelConfig.h"
 #include "mouseHandle.h"
@@ -215,6 +216,10 @@ void init_graphics(void) {
     // draw_power_button()'s "green when on, grey when off" rendered both states as identical black —
     // the toggle's value was changing correctly, only the colour never showed it. Passing it as part
     // of window creation is what stops that being forgettable again.
+    // The coordinator needs the menu bar before the first frame — see synthlibPopups.h. This app
+    // registers no popups of its own: everything it pops up is SynthLib's.
+    synthlib_popups_set_menu_bar(gAppMenuBar, app_menu_bar_rect);
+
     synthlib_window_create(&(tSynthLibWindowConfig){
         .title        = title,
         .targetWidth  = TARGET_FRAME_BUFF_WIDTH,
@@ -265,11 +270,11 @@ static void render_frame(GLFWwindow * win) {
     tRectangle area = {{0.0, MENU_BAR_HEIGHT}, {logW, logH - MENU_BAR_HEIGHT}};
 
     synth_render(area);
+    // The BAR stays here rather than moving into the coordinator: it is chrome, and anything that
+    // floats does so above it. Everything that pops UP goes through the coordinator, back to front
+    // by layer instead of by the order of these calls — see synthlibPopups.h.
     render_menu_bar(gAppMenuBar, app_menu_bar_rect());
-    render_context_menu();
-    render_file_browser();
-    render_bank_browser();
-    render_alert_dialog(); // drawn last of all — modal, must paint over everything else
+    synthlib_popups_render();
 
     glfwSwapBuffers(win);
 }
@@ -653,22 +658,15 @@ void do_graphics_loop(void) {
         // unconditional every frame is fine — also needed for the
         // hover-dwell submenu-opening timer to elapse even while the mouse
         // sits still over a flyout parent, per that same header comment.
-        update_context_menu_hover();
-        // Same "once per frame, cheap no-op when nothing's open" contract as
-        // update_context_menu_hover() above — switches the open top-level
-        // menu-bar dropdown on hover (not just a second click) when moving
-        // from one label to another while one is already open.
-        update_menu_bar_hover(gAppMenuBar, app_menu_bar_rect());
+        // Every registered popup's hover/dwell update in one call, so the host cannot forget one —
+        // which this app did twice, its own comments recording handlers that were "never actually
+        // called anywhere until now". Cheap no-ops when nothing is open, and unconditional every
+        // frame so a hover-dwell timer elapses while the mouse sits still. See synthlibPopups.h.
+        synthlib_popups_tick();
 
         // A gesture whose release went missing never survives a frame: a stuck gDraggedDial means
         // every mouse move keeps editing that dial and sending it to the synth.
         recover_lost_dial_drag(synthlib_window());
-        // Same contract again — Load/Store Patch from Bank's row highlight
-        // (bankBrowser.cpp) previously only caught up with the mouse on
-        // whatever redraw next happened to fire for an unrelated reason
-        // (2026-07-24 user report: "only seems to highlight the line
-        // sometimes, not all the time").
-        update_bank_browser_hover();
         // See this whole mechanism's own header comment (backdoor_poll()
         // above) — cheap no-op check every iteration when idle.
         backdoor_poll(win);
