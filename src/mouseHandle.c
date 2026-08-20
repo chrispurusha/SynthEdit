@@ -350,13 +350,15 @@ void handle_mouse_button(tCoord coord, tMouseButton button, int mods) {
         end_dial_drag(synthlib_window());
         return;
     }
-
-    // Checked ahead of everything else on mouse-down — mirrors G2-Edit/mouseHandle.c's ordering,
-    // since the bar itself needs first refusal on a click before it's treated as a dial/tab hit or
-    // as closing whatever context menu (bar dropdown or otherwise) is currently open.
-    if (pressed && handle_menu_bar_click(gAppMenuBar, app_menu_bar_rect(), coord)) {
-        return;
-    }
+    // THE BAR'S OWN CLICK TEST USED TO BE HERE. It is dispatched by the coordinator above now, at
+    // the lowest layer there is, which is what "ahead of everything else on mouse-down" meant when
+    // this app had nothing ranked below it. Leaving the call as well would not have double-fired —
+    // dispatch_click() returns true for a bar hit and this line was already unreachable — which is
+    // precisely why it had to go rather than stay as belt and braces: an unreachable copy of a
+    // dispatch rule is the thing that lets the two rules drift apart unnoticed.
+    //
+    // EmuUtility keeps its equivalent call deliberately: it does not route clicks through the
+    // coordinator at all, so there the bar is still the host's to test.
 
     // Dismiss context menu
     if (gContextMenu.active) {
@@ -540,11 +542,10 @@ void handle_cursor_pos(tCoord coord) {
 
 void handle_key(int key, int scancode, int action, int mods) {
     (void)scancode;
-    (void)mods;
 
     // Same cascade as the clicks, and gone the same way — including the Escape precedence that let
     // the alert's bank-picker dropdown close before the dialog under it. See synthlibPopups.h.
-    if (synthlib_popups_dispatch_key(key, action)) {
+    if (synthlib_popups_dispatch_key(key, mods, action)) {
         synthlib_request_redraw();
         return;
     }
