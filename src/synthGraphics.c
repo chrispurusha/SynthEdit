@@ -1322,9 +1322,10 @@ void synth_render(tRectangle area) {
                     // than dial->rect, so register its true drawn bounds or that
                     // edge strip is visible-but-unclickable. A render_dial dial is
                     // drawn exactly at dial->rect.
-                    bool       asButton = panel_dial_is_binary(dial) || panel_dial_needs_value_menu(dial);
-                    tRectangle hitRect  = asButton ? draw_button_bounds(dial->rect) : dial->rect;
-                    register_click_region(hitRect, eClickLayerPanel, panel_dial_press_click_handler, dial);
+                    // One definition of the clickable bounds, shared with the hit test and with the
+                    // release check in mouseHandle.c — see panel_dial_hit_rect().
+                    register_click_region(panel_dial_hit_rect(dial), eClickLayerPanel,
+                                          panel_dial_press_click_handler, dial);
                 }
                 char valBuf[48]; // 24 was enough for every existing display mode, but not dialDisplaySignedHiLo's "High: N (or M)  Low: K" text (see that branch's own comment below)
 

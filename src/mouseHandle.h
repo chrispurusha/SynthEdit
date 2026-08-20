@@ -28,16 +28,18 @@
 extern "C" {
 #endif
 
-void handle_mouse_button(void * win, int button, int action, int mods, double x, double y);
-void handle_cursor_pos(void * win, double x, double y);
-void handle_key(void * win, int key, int scancode, int action, int mods);
+// Normalised input handlers, registered with SynthLib via tSynthLibInputHandlers — the coordinate
+// arrives already scaled and the button already decoded. See synthlibWindow.h.
+void handle_mouse_button(tCoord coord, tMouseButton button, int mods);
+void handle_cursor_pos(tCoord coord);
+void handle_key(int key, int scancode, int action, int mods);
 
 // Ends a dial drag whose mouse release never arrived. Call once per frame — it no-ops unless the
 // drag really is stuck. Without it, a lost release leaves every later mouse move editing that dial
 // and transmitting it to the synth. See its definition.
 void recover_lost_dial_drag(void * win);
-void handle_char(void * win, unsigned int codepoint);
-void handle_scroll(void * win, double dx, double dy);
+void handle_char(unsigned int codepoint);
+void handle_scroll(double dx, double dy);
 
 // Arms a panel dial's press state (gDraggedDial/gPressedToggleDial/
 // gPressedValueMenuDial, private to mouseHandle.c) via arm_dial_press() —

@@ -64,6 +64,10 @@ extern void glfwGetCursorPos(void *, double *, double *);
 // ...). That all comes from the descriptor parsed out of the layout file
 // (see panelConfig.h/synthComms.c) and is looked up generically by rect.
 static tPanelDial * gDraggedDial          = NULL;
+// LOGICAL coordinates, not window pixels — the cursor handler is handed logical ones now.
+// window_to_logical is a linear scale with no offset, so the difference of two logical coordinates
+// equals the converted difference of two window ones, which is exactly what delta_to_logical()
+// computed here; the drag rate is unchanged.
 static double       gDragPrevX            = 0.0; // cursor position at previous cursor_pos call — incremental delta
 static double       gDragPrevY            = 0.0;
 static int          gDragSkipCount        = 0;   // skip first N cursor_pos events after CURSOR_DISABLED — covers stale events + transition event
@@ -116,7 +120,7 @@ static tPanelDial * gPressedValueMenuDial = NULL;
 // the value-menu case, silently leaving a 2-option Info Row dial (like
 // triggerMode) or a raw-numeric one (like midiClkDivider) with no click
 // behaviour at all.
-static void arm_dial_press(void * win, tPanelDial * dial, double x, double y) {
+static void arm_dial_press(tPanelDial * dial, tCoord coord) {
     // A readOnly dial (panelConfig.h — e.g. Voyager's hPhoneVolume, which
     // just mirrors a real analog pot's live position) takes no interaction
     // at all: no drag, no toggle, no dropdown. Checked first, before any of
@@ -146,13 +150,13 @@ static void arm_dial_press(void * win, tPanelDial * dial, double x, double y) {
         return;
     }
     gDraggedDial   = dial;
-    gDragPrevX     = x;
-    gDragPrevY     = y;
+    gDragPrevX     = coord.x;
+    gDragPrevY     = coord.y;
     gDragTypeAccum = 0.0;
 
     if (synthlib_dial_mode() != eDialModeRotary) {
         gDragSkipCount = 3;
-        glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        glfwSetInputMode(synthlib_window(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     }
 }
 
@@ -179,18 +183,8 @@ void get_global_gui_scaled_mouse_coord(tCoord * coord) {
 }
 
 // Scale a window-space delta to logical-space delta
-static double delta_to_logical(void * win, double winDelta, bool isX) {
-    int winW = 0;
-    int winH = 0;
-
-    glfwGetWindowSize(win, &winW, &winH);
-
-    if (isX) {
-        return (winW > 0) ? (winDelta / winW) * (get_render_width() / gGlobalGuiScale) : winDelta;
-    } else {
-        return (winH > 0) ? (winDelta / winH) * (get_render_height() / gGlobalGuiScale) : winDelta;
-    }
-}
+// delta_to_logical() removed: the cursor handler receives logical coordinates now, so a delta of
+// two of them is already logical. See gDragPrevX/gDragPrevY.
 
 // shift_held(win) USED TO BE HERE, polling glfwGetKey() through a hand-declared extern. It is now
 // SynthLib's shift_modifier_held(), reading state that graphics.c pushes from the `mods` argument
@@ -230,11 +224,10 @@ void panel_dial_press_click_handler(tCoord coord, eClickPhase phase, void * user
     if (phase != eClickPress) {
         return; // release is handled entirely by the global armed-state check in handle_mouse_button()
     }
-    double x = 0.0;
-    double y = 0.0;
+    tCoord at = {0};
 
-    glfwGetCursorPos(synthlib_window(), &x, &y);
-    arm_dial_press(synthlib_window(), (tPanelDial *)userData, x, y);
+    get_global_gui_scaled_mouse_coord(&at);   // logical, to match what the drag stores
+    arm_dial_press((tPanelDial *)userData, at);
 }
 
 void page_tab_click_handler(tCoord coord, eClickPhase phase, void * userData) {
@@ -320,14 +313,15 @@ void recover_lost_dial_drag(void * win) {
     end_dial_drag(win);
 }
 
-void handle_mouse_button(void * win, int button, int action, int mods, double x, double y) {
+// The coordinate arrives already scaled and the button already decoded — SynthLib's shim does both,
+// and updates the modifier state before this runs. See tSynthLibInputHandlers in synthlibWindow.h.
+void handle_mouse_button(tCoord coord, tMouseButton button, int mods) {
     (void)mods;
 
-    if (button != 0) {
-        return;
+    if ((button != mouseButtonLeftDown) && (button != mouseButtonLeftUp)) {
+        return;   // left button only
     }
-    tCoord coord   = synthlib_window_to_logical(x, y);
-    bool   pressed = (action == GLFW_PRESS);
+    bool pressed = (button == mouseButtonLeftDown);
 
     // The modal cascade — file browser, bank browser, alert dialog, each with its own early return
     // and mouse-down/up gating, plus the alert's routing around its bank-picker dropdown — is
@@ -353,7 +347,7 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
     // 10px gap). Clear gDraggedDial before switching cursor mode, not
     // after — belt and braces against any reentrant callback.
     if (!pressed && gDraggedDial) {
-        end_dial_drag(win);
+        end_dial_drag(synthlib_window());
         return;
     }
 
@@ -410,7 +404,10 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
 
         // Same press-and-release-on-the-same-target convention as above —
         // flips the dial only if the release also lands back on it.
-        if (gPressedToggleDial && within_rectangle(coord, gPressedToggleDial->rect)) {
+        // panel_dial_hit_rect(), not ->rect: the press was accepted through the button's DRAWN
+        // bounds, so the release has to be judged by the same ones or the bottom/right edge strip
+        // arms the dial and then silently does nothing. See panelConfig.c.
+        if (gPressedToggleDial && within_rectangle(coord, panel_dial_hit_rect(gPressedToggleDial))) {
             uint32_t current = get_panel_dial_value(gPressedToggleDial);
 
             synth_set_panel_dial_value(gPressedToggleDial, current ? 0 : 1);
@@ -424,7 +421,7 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
         // during press instead meant the release ending that same click
         // immediately dismissed the menu before it was ever visible to a
         // second click. Real bug hit and fixed 2026-07-08 building this.
-        if (gPressedValueMenuDial && within_rectangle(coord, gPressedValueMenuDial->rect)) {
+        if (gPressedValueMenuDial && within_rectangle(coord, panel_dial_hit_rect(gPressedValueMenuDial))) {
             open_dial_value_menu(coord, gPressedValueMenuDial);
         }
         gPressedValueMenuDial = NULL;
@@ -465,18 +462,18 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
     }
 
     if (hit) {
-        arm_dial_press(win, hit, x, y);
+        arm_dial_press(hit, coord);
     }
 }
 
-void handle_cursor_pos(void * win, double x, double y) {
+void handle_cursor_pos(tCoord coord) {
     if (!gDraggedDial) {
         return;
     }
 
     if (gDragSkipCount > 0) {
-        gDragPrevX = x;
-        gDragPrevY = y;
+        gDragPrevX = coord.x;
+        gDragPrevY = coord.y;
         gDragSkipCount--;
         return;
     }
@@ -484,8 +481,7 @@ void handle_cursor_pos(void * win, double x, double y) {
     int32_t  newVal = (int32_t)get_panel_dial_value(gDraggedDial);
 
     if (synthlib_dial_mode() == eDialModeRotary) {
-        tCoord logCoord = synthlib_window_to_logical(x, y);
-        double angle    = calculate_mouse_angle(logCoord, gDraggedDial->rect);
+        double angle = calculate_mouse_angle(coord, gDraggedDial->rect);
         newVal = (int32_t)angle_to_value(angle, range);
     } else if (gDraggedDial->display == dialDisplayNames) {
         // Discrete/stepped control (few positions): accumulate delta into
@@ -493,11 +489,11 @@ void handle_cursor_pos(void * win, double x, double y) {
         double  delta = 0.0;
 
         if (synthlib_dial_mode() == eDialModeHorizontal) {
-            delta      = delta_to_logical(win, x - gDragPrevX, true);
-            gDragPrevX = x;
+            delta      = coord.x - gDragPrevX;
+            gDragPrevX = coord.x;
         } else {
-            delta      = delta_to_logical(win, gDragPrevY - y, false);
-            gDragPrevY = y;
+            delta      = gDragPrevY - coord.y;
+            gDragPrevY = coord.y;
         }
         gDragTypeAccum += delta / 30.0;
         int32_t step  = (int32_t)gDragTypeAccum;
@@ -508,9 +504,9 @@ void handle_cursor_pos(void * win, double x, double y) {
         // for why its floor is what it is. The Clock Div bug that shaped it (Shift speeding the drag
         // up on a narrow dial, 2026-07-12) is recorded there too.
         double  pixelsForFullRange = dial_drag_pixels_for_full_range(range);
-        double  dy                 = delta_to_logical(win, gDragPrevY - y, false);
+        double  dy                 = gDragPrevY - coord.y;
 
-        gDragPrevY      = y;
+        gDragPrevY      = coord.y;
         // Accumulates the fractional remainder across calls (same idiom as
         // the discrete/stepped branch above, gDragTypeAccum) rather than
         // truncating each individual cursor-move event's own delta and
@@ -530,9 +526,9 @@ void handle_cursor_pos(void * win, double x, double y) {
         newVal         += step;
     } else {
         double  pixelsForFullRange = dial_drag_pixels_for_full_range(range);
-        double  dx                 = delta_to_logical(win, x - gDragPrevX, true);
+        double  dx                 = coord.x - gDragPrevX;
 
-        gDragPrevX      = x;
+        gDragPrevX      = coord.x;
         gDragTypeAccum += dx * (double)(range - 1) / pixelsForFullRange;
         int32_t step               = (int32_t)gDragTypeAccum;
 
@@ -542,8 +538,7 @@ void handle_cursor_pos(void * win, double x, double y) {
     synth_set_panel_dial_value(gDraggedDial, clamp_dial_value(newVal, range));
 }
 
-void handle_key(void * win, int key, int scancode, int action, int mods) {
-    (void)win;
+void handle_key(int key, int scancode, int action, int mods) {
     (void)scancode;
     (void)mods;
 
@@ -594,9 +589,7 @@ void handle_key(void * win, int key, int scancode, int action, int mods) {
     synthlib_request_redraw();
 }
 
-void handle_char(void * win, unsigned int codepoint) {
-    (void)win;
-
+void handle_char(unsigned int codepoint) {
     if (synthlib_popups_dispatch_char(codepoint)) {
         synthlib_request_redraw();
         return;
@@ -619,8 +612,7 @@ void handle_char(void * win, unsigned int codepoint) {
     synthlib_request_redraw();
 }
 
-void handle_scroll(void * win, double dx, double dy) {
-    (void)win;
+void handle_scroll(double dx, double dy) {
     (void)dx;
 
     if (synthlib_popups_dispatch_scroll(dy)) {

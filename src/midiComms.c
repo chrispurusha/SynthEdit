@@ -20,6 +20,7 @@
 #include "sysIncludes.h"
 #include "defs.h"
 #include "synthlibDefs.h"
+#include "synthlibMidi.h"   // AFTER defs.h — synthlibDefs.h gates its colours on the app macro
 #include "types.h"
 #include "globalVars.h"
 #include "msgQueue.h"
@@ -27,9 +28,9 @@
 #include "synthGraphics.h"
 #include "midiComms.h"
 
-static void            (*gWakeCb)(void) = NULL;
-static pthread_t       gMidiThread             = 0;
-static pthread_mutex_t gSendMutex              = PTHREAD_MUTEX_INITIALIZER;
+static void         (*gWakeCb)(void) = NULL;
+static pthread_t    gMidiThread             = 0;
+// gSendMutex moved into SynthLib with the send primitive it guarded — see synthlibMidi.c.
 
 // ── Identity replies ──────────────────────────────────────────────────────────
 // The CoreMIDI read callback fires on the CoreMIDI thread; the MIDI thread
@@ -41,7 +42,7 @@ static pthread_mutex_t gSendMutex              = PTHREAD_MUTEX_INITIALIZER;
 // count/array skew — see msgQueue.h for the over-read that skew could cause.
 
 // Notification from notify thread; polled by the MIDI thread.
-static _Atomic bool    gRescanNeeded           = false;
+static _Atomic bool gRescanNeeded           = false;
 
 // Set by midi_request_reconnect() (any thread — UI menu actions, sleep/wake
 // notifications, the Device-switch menu) and consumed only by midi_thread()
@@ -57,7 +58,7 @@ static _Atomic bool    gRescanNeeded           = false;
 // symptom was a device switch sometimes leaving gDevice.connected stuck
 // true with a stale/zeroed gMidiDest, silently dropping every send until
 // the app was restarted (see midi_send_to()'s dest==0 short-circuit above).
-static _Atomic bool    gReconnectRequested     = false;
+static _Atomic bool gReconnectRequested     = false;
 
 // ── State dump request debounce ─────────────────────────────────────────────
 // A Program Change followed immediately by a state dump request works for a
@@ -77,7 +78,7 @@ static _Atomic bool    gReconnectRequested     = false;
 // the LAST change in the burst rather than after each individual one.
 #define SYNTH_STATE_DUMP_DEBOUNCE_TICKS    8 // * MIDI_IDLE_TICK_SECONDS below ~= 264ms
 #define MIDI_IDLE_TICK_SECONDS             0.033
-static _Atomic int     gStateDumpDebounceTicks = 0;
+static _Atomic int  gStateDumpDebounceTicks = 0;
 
 // A periodic low-frequency state poll (re-request a Panel Dump every ~5s of
 // quiet, so no-CC dials like Headphone Volume eventually pick up a hardware
@@ -170,40 +171,11 @@ static tMidiChannelParseState * channel_parse_state_for(MIDIEndpointRef src) {
 // existing caller just discards it unchanged from before this had a return
 // value at all.
 static bool midi_send_to(const uint8_t * data, uint32_t length, MIDIEndpointRef dest) {
-    if ((gMidiOutPort == 0) || (dest == 0) || (data == NULL) || (length == 0)) {
-        return false;
-    }
-    // SYSEX_BUF_SIZE (above), not a small fixed size — this used to be a
-    // 512-byte stack buffer, plenty for every message this app sends
-    // EXCEPT a whole-bank restore (synth_backup_restore_bank(), up to
-    // 18734+ bytes, confirmed real capture size — see gSysExBuf's own
-    // comment above for why headroom beyond that matters too). That
-    // 512-byte limit silently failed MIDIPacketListAdd for anything larger
-    // — silently to the CALLER, not fully silently: it did LOG_ERROR, but
-    // midi_send()/midi_send_to() had no return value for anything to check
-    // that against, so Restore Bank logged (and told the user) "sent"
-    // regardless of whether it actually was. Found 2026-07-11 via the
-    // owner's own MIDI Monitor capture showing nothing arrived despite the
-    // app's log claiming success.
-    uint8_t          buf[SYSEX_BUF_SIZE + sizeof(MIDIPacketList)];
-    MIDIPacketList * pktList = (MIDIPacketList *)buf;
-    MIDIPacket *     pkt     = MIDIPacketListInit(pktList);
-
-    pkt = MIDIPacketListAdd(pktList, sizeof(buf), pkt, 0, length, data);
-
-    if (pkt == NULL) {
-        LOG_ERROR("MIDIPacketListAdd failed (message too long? %u bytes)\n", (unsigned)length);
-        return false;
-    }
-    pthread_mutex_lock(&gSendMutex);
-    OSStatus         err     = MIDISend(gMidiOutPort, dest, pktList);
-    pthread_mutex_unlock(&gSendMutex);
-
-    if (err != noErr) {
-        LOG_ERROR("MIDISend error %d\n", (int)err);
-        return false;
-    }
-    return true;
+    // THE PACKING AND THE SEND ARE SHARED NOW — see SynthLib's synthlibMidi.h. Both editors carried
+    // their own copy of this, character-identical apart from a log string, and differing only in the
+    // two ways that had already caused a real fault here: a 512-byte stack buffer that silently
+    // failed a whole-bank restore, and no return value for the caller to notice with.
+    return synthlib_midi_send_to(data, length, dest);
 }
 
 // ── Destination lookup ────────────────────────────────────────────────────────
@@ -936,6 +908,10 @@ static void * midi_thread(void * arg) {
         return NULL;
     }
     err = MIDIOutputPortCreate(gMidiClient, CFSTR("SynthEdit Out"), &gMidiOutPort);
+
+    // Hand the port to the shared send primitive (synthlibMidi.h); creating and naming it stays
+    // here, inside the connect logic that is deliberately not shared.
+    synthlib_midi_set_out_port(gMidiOutPort);
 
     if (err != noErr) {
         LOG_ERROR("MIDIOutputPortCreate failed: %d\n", (int)err);

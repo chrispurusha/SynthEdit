@@ -98,16 +98,13 @@ void set_window_title(const char * filePath) {
 // silently latched. Nothing to restore on the way back in: the next key or button event carries the
 // truth with it. This is the one thing the old glfwGetKey() poll did handle by accident, so it has to
 // be handled deliberately now.
-static void window_focus_cb(GLFWwindow * win, int focused) {
-    (void)win;
-
-    if (focused == 0) {
+static void on_window_focus(bool focused) {
+    if (!focused) {
         set_modifier_state((uint32_t)eModifierNone);
     }
 }
 
-static void window_refresh_cb(GLFWwindow * win) {
-    (void)win;
+static void on_window_refresh(void) {
     synthlib_request_redraw();
 }
 
@@ -116,35 +113,9 @@ static void window_refresh_cb(GLFWwindow * win) {
 // shift_modifier_held() in mouseHandle.c's dial drags today — reads state rather than polling the
 // window. G2-Edit's shell does exactly the same, and the G2 VST3 plug-in pushes the same bits from an
 // NSEvent, which is why the translation itself is SynthLib's and not written out here.
-static void mouse_button_cb(GLFWwindow * win, int button, int action, int mods) {
-    double x = 0.0;
-    double y = 0.0;
-
-    set_modifier_state_from_glfw(mods);
-    glfwGetCursorPos(win, &x, &y);
-    handle_mouse_button(win, button, action, mods, x, y);
-    synthlib_request_redraw();
-}
-
-static void cursor_pos_cb(GLFWwindow * win, double x, double y) {
-    handle_cursor_pos(win, x, y);
-}
-
-static void key_cb(GLFWwindow * win, int key, int scancode, int action, int mods) {
-    set_modifier_state_from_glfw(mods);   // a modifier press or release is a key event like any other
-    handle_key(win, key, scancode, action, mods);
-    synthlib_request_redraw();
-}
-
-static void char_cb(GLFWwindow * win, unsigned int codepoint) {
-    handle_char(win, codepoint);
-    synthlib_request_redraw();
-}
-
-static void scroll_cb(GLFWwindow * win, double dx, double dy) {
-    handle_scroll(win, dx, dy);
-    synthlib_request_redraw();
-}
+// The shims that used to sit here — set the modifier state, fetch and scale the cursor, decode the
+// button, call the handler, request a redraw — are SynthLib's now, written once for all three
+// editors. See tSynthLibInputHandlers in synthlibWindow.h.
 
 
 // ── Wake (called from MIDI thread) ───────────────────────────────────────────
@@ -233,15 +204,16 @@ void init_graphics(void) {
             .backgroundGrey = (tRgb)RGB_BACKGROUND_GREY,
         },
         .mouseCoord   = get_global_gui_scaled_mouse_coord,
-    }, &(tSynthLibWindowCallbacks){
-        .key           = key_cb,
-        .character     = char_cb,
-        .cursorPos     = cursor_pos_cb,
-        .mouseButton   = mouse_button_cb,
-        .scroll        = scroll_cb,
-        .windowFocus   = window_focus_cb,   // clears held modifiers — see inputState.h
-        .windowRefresh = window_refresh_cb,
-    });
+        .handlers     = &(const tSynthLibInputHandlers){
+            .mouseButton   = handle_mouse_button,
+            .cursorPos     = handle_cursor_pos,
+            .key           = handle_key,
+            .character     = handle_char,
+            .scroll        = handle_scroll,
+            .windowFocus   = on_window_focus,
+            .windowRefresh = on_window_refresh,
+        },
+    }, NULL);
 
     init_font();                      // TODO - G2 edit could benefit from this if we're loading multiple fonts
     synth_init_graphics();            // TODO - do we need to call this, since it's currently empty?

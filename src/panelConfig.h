@@ -806,6 +806,10 @@ uint32_t scan_panel_configs(const char * dir, tPanelConfigCandidate * outCandida
 
 // Returns the index into section->dials[] under `point`, or -1 if none.
 // Call after layout_panel_section() has populated the dials' rects.
+// The rectangle a dial can actually be clicked in — larger than dial->rect for one drawn as a
+// button. Use this rather than dial->rect anywhere a click is being tested; see the definition.
+tRectangle panel_dial_hit_rect(const tPanelDial * dial);
+
 int32_t hit_test_panel_section(tPanelSection * section, tCoord point);
 
 // Display-space value (0..max-1) — pure arithmetic on the dial's own stored

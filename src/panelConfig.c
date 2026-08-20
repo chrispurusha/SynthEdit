@@ -24,6 +24,7 @@
 #include <strings.h>
 
 #include "synthlibDefs.h"
+#include "utilsGraphics.h"   // draw_button_bounds()
 #include "panelConfig.h"
 
 #define PANEL_LINE_LEN      1024
@@ -663,9 +664,41 @@ tPanelDial * find_panel_dial_by_label(tPanelConfig * config, const char * label)
     return NULL;
 }
 
+// WHERE A DIAL CAN ACTUALLY BE CLICKED, which is not always dial->rect.
+//
+// A dial drawn as a BUTTON is drawn larger than its rect: draw_button() keeps the origin and adds
+// 2 * DRAW_BUTTON_MARGIN to the width and the height, so the button extends four units past its rect
+// at the bottom and the right. Three places needed to know that and only one of them did — the click
+// region registered the expanded bounds (synthGraphics.c), while this hit test and the press/release
+// pair in mouseHandle.c both used the raw rect. The visible result was a dead strip along the bottom
+// and right edge of every toggle and every value-menu button: the press armed the dial through the
+// click region, then the release re-tested against the raw rect, failed, and the button did nothing.
+// You had to click "further into" it.
+//
+// One function, so the answer cannot differ between the code that draws it, the code that registers
+// it and the code that decides whether the release counted.
+tRectangle panel_dial_hit_rect(const tPanelDial * dial) {
+    if (dial == NULL) {
+        return (tRectangle){
+            {
+                0.0, 0.0
+            }, {
+                0.0, 0.0
+            }
+        };
+    }
+
+    // The same condition synthGraphics.c draws on — a binary dial or one carrying a value menu is
+    // drawn with draw_button(); anything else is drawn with render_dial(), exactly at its rect.
+    if (panel_dial_is_binary(dial) || panel_dial_needs_value_menu(dial)) {
+        return draw_button_bounds(dial->rect);
+    }
+    return dial->rect;
+}
+
 int32_t hit_test_panel_section(tPanelSection * section, tCoord point) {
     for (uint32_t i = 0; i < section->dialCount; i++) {
-        if (within_rectangle(point, section->dials[i].rect)) {
+        if (within_rectangle(point, panel_dial_hit_rect(&section->dials[i]))) {
             return (int32_t)i;
         }
     }
