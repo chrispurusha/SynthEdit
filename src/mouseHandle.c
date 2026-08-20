@@ -168,24 +168,14 @@ static void synth_commit_prog_name_edit(void) {
 
 // ── Coordinate helpers ────────────────────────────────────────────────────────
 
-static tCoord window_to_logical(void * win, double x, double y) {
-    int winW = 0;
-    int winH = 0;
-
-    glfwGetWindowSize(win, &winW, &winH);
-    return (tCoord){
-        .x = (winW > 0) ? (x / winW) * (get_render_width() / gGlobalGuiScale) : x,
-        .y = (winH > 0) ? (y / winH) * (get_render_height() / gGlobalGuiScale) : y,
-    };
-}
+// window_to_logical() moved into SynthLib (declared in inputState.h, implemented in
+// inputStateGlfw.c): it was character-identical here and in the other editor, and inlined in
+// the third — where it had lost the divide-by-zero guard both copies here kept. SynthLib owns
+// the window, so the shared one takes no window argument.
 
 // Supplied for SynthLib's contextMenu.c to link against — see mouseHandle.h.
 void get_global_gui_scaled_mouse_coord(tCoord * coord) {
-    double x = 0.0;
-    double y = 0.0;
-
-    glfwGetCursorPos(synthlib_window(), &x, &y);
-    *coord = window_to_logical(synthlib_window(), x, y);
+    synthlib_mouse_coord(coord);   // see inputState.h
 }
 
 // Scale a window-space delta to logical-space delta
@@ -336,7 +326,7 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
     if (button != 0) {
         return;
     }
-    tCoord coord   = window_to_logical(win, x, y);
+    tCoord coord   = synthlib_window_to_logical(x, y);
     bool   pressed = (action == GLFW_PRESS);
 
     // The modal cascade — file browser, bank browser, alert dialog, each with its own early return
@@ -494,7 +484,7 @@ void handle_cursor_pos(void * win, double x, double y) {
     int32_t  newVal = (int32_t)get_panel_dial_value(gDraggedDial);
 
     if (synthlib_dial_mode() == eDialModeRotary) {
-        tCoord logCoord = window_to_logical(win, x, y);
+        tCoord logCoord = synthlib_window_to_logical(x, y);
         double angle    = calculate_mouse_angle(logCoord, gDraggedDial->rect);
         newVal = (int32_t)angle_to_value(angle, range);
     } else if (gDraggedDial->display == dialDisplayNames) {
