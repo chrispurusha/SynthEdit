@@ -53,6 +53,7 @@
 #define GLFW_KEY_END            269
 
 extern void glfwSetInputMode(void *, int, int);
+extern int glfwGetMouseButton(void *, int);   // for recover_lost_dial_drag()
 extern void glfwGetWindowSize(void *, int *, int *);
 extern void glfwGetCursorPos(void *, double *, double *);
 
@@ -296,6 +297,38 @@ void prog_name_click_handler(tCoord coord, eClickPhase phase, void * userData) {
 
 // ── Public handlers ───────────────────────────────────────────────────────────
 
+// Ends a dial drag. Both the real mouse release and recover_lost_dial_drag() call this, so the two
+// cannot drift apart. Clears gDraggedDial BEFORE switching cursor mode, not after — belt and braces
+// against any reentrant callback.
+static void end_dial_drag(void * win) {
+    gDragSkipCount = 0;
+    gDraggedDial   = NULL;
+
+    if (synthlib_dial_mode() != eDialModeRotary) {
+        glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    }
+}
+
+// A drag whose release never arrived — the button came up outside the window, or focus was lost
+// mid-gesture — leaves gDraggedDial pointing at a dial FOREVER. That is not merely a stuck cursor:
+// every later cursor_pos event keeps changing that dial's value AND sending it to the synth, so
+// simply moving the mouse silently edits real hardware. synthComms.c also relies on the invariant
+// that only one dial is ever under an active drag at a time.
+//
+// Called once per frame from the render loop; a no-op unless the pointer really is stuck. G2-Edit
+// does the same with recover_lost_cursor(); EmuUtility with recover_lost_dial_drag().
+void recover_lost_dial_drag(void * win) {
+    if (gDraggedDial == NULL) {
+        return;
+    }
+
+    if (glfwGetMouseButton(win, 0) == GLFW_PRESS) {   // left button genuinely still held
+        return;
+    }
+    LOG_DEBUG("Recovering a dial drag whose release never arrived\n");
+    end_dial_drag(win);
+}
+
 void handle_mouse_button(void * win, int button, int action, int mods, double x, double y) {
     (void)mods;
 
@@ -362,12 +395,7 @@ void handle_mouse_button(void * win, int button, int action, int mods, double x,
     // 10px gap). Clear gDraggedDial before switching cursor mode, not
     // after — belt and braces against any reentrant callback.
     if (!pressed && gDraggedDial) {
-        gDragSkipCount = 0;
-        gDraggedDial   = NULL;
-
-        if (synthlib_dial_mode() != eDialModeRotary) {
-            glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-        }
+        end_dial_drag(win);
         return;
     }
 

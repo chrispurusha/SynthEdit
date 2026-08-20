@@ -750,6 +750,10 @@ void do_graphics_loop(void) {
         // menu-bar dropdown on hover (not just a second click) when moving
         // from one label to another while one is already open.
         update_menu_bar_hover(gAppMenuBar, app_menu_bar_rect());
+
+        // A gesture whose release went missing never survives a frame: a stuck gDraggedDial means
+        // every mouse move keeps editing that dial and sending it to the synth.
+        recover_lost_dial_drag(synthlib_window());
         // Same contract again — Load/Store Patch from Bank's row highlight
         // (bankBrowser.cpp) previously only caught up with the mouse on
         // whatever redraw next happened to fire for an unrelated reason
