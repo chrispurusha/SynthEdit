@@ -35,6 +35,7 @@ extern "C" {
 #include "globalVars.h"
 #include "utils.h"
 #include "utilsGraphics.h"
+#include "synthlibWindow.h"
 #include "synthGraphics.h"
 #include "panelConfig.h"
 #include "mouseHandle.h"
@@ -70,57 +71,12 @@ static void setup_projection(GLFWwindow * win);
 
 // ── GLFW callbacks ────────────────────────────────────────────────────────────
 
-void framebuffer_size_callback(GLFWwindow * window, int width, int height) {
-    (void)window;
-    synthlib_scale_update(width, height);
-
-    synthlib_request_redraw();
-}
-
-// Fires when the window moves to a display with a different HiDPI scale (e.g. dragging from a
-// Retina built-in display to a non-Retina external one, or vice versa) — see synthlibScale.h's
-// own comment for the bug this fixes (right-click menus and anything else deriving screen
-// position from gGlobalGuiScale landing mispositioned wherever the real scale wasn't 2.0 — G2-Edit
-// hit this first as issue #9; this app never had the fix at all until now).
-static void content_scale_callback(GLFWwindow * window, float xscale, float yscale) {
-    (void)yscale; // this app only ever uses a single uniform scale factor
-
-    synthlib_scale_set_content_scale(window, xscale);
-
-    synthlib_request_redraw();
-}
-
-void window_size_callback(GLFWwindow * window, int width, int height) {
-    synthlib_save_window_size(width);
-}
-
-void window_pos_callback(GLFWwindow * window, int x, int y) {
-    synthlib_save_window_pos(x, y);
-}
-
 void resize_window(int w, int h) {
     glfwSetWindowSize((GLFWwindow *)synthlib_window(), w, h);
 }
 
 void reposition_window(int x, int y) {
     glfwSetWindowPos((GLFWwindow *)synthlib_window(), x, y);
-}
-
-void window_close_callback(GLFWwindow * window) {
-    synthlib_clear_redraw();
-
-    glfwSetFramebufferSizeCallback((GLFWwindow *)synthlib_window(), NULL);
-    glfwSetWindowContentScaleCallback((GLFWwindow *)synthlib_window(), NULL);
-    glfwSetWindowCloseCallback((GLFWwindow *)synthlib_window(), NULL);
-    glfwSetKeyCallback((GLFWwindow *)synthlib_window(), NULL);
-    glfwSetCharCallback((GLFWwindow *)synthlib_window(), NULL);
-    glfwSetCursorPosCallback((GLFWwindow *)synthlib_window(), NULL);
-    glfwSetMouseButtonCallback((GLFWwindow *)synthlib_window(), NULL);
-    glfwSetScrollCallback((GLFWwindow *)synthlib_window(), NULL);
-    glfwSetWindowFocusCallback((GLFWwindow *)synthlib_window(), NULL);
-
-    glfwSetWindowShouldClose((GLFWwindow *)synthlib_window(), GLFW_TRUE);
-    glfwPostEmptyEvent();
 }
 
 void set_window_title(const char * filePath) {
@@ -134,10 +90,6 @@ void set_window_title(const char * filePath) {
     }
     snprintf(newTitle, sizeof(newTitle), "%s - %s", WINDOW_TITLE, filename);
     glfwSetWindowTitle((GLFWwindow *)synthlib_window(), newTitle);
-}
-
-void error_callback(int error, const char * description) {
-    LOG_ERROR("GLFW error [%d]: %s\n", error, description);
 }
 
 // A modifier released while another application has the keyboard is a release this process is never
@@ -254,87 +206,44 @@ void init_graphics(void) {
 
     snprintf(title, sizeof(title), "%s - Build %s %s", WINDOW_TITLE, __DATE__, __TIME__);
 
-    // Tells SynthLib's utilsGraphics.cpp which colours/metrics this app
-    // uses, without it needing to include this app's defs.h — see
-    // configure_synthlib_theme(). Never called here before now: gTheme
-    // (utilsGraphics.cpp) defaults to all-zero, so draw_power_button()'s
-    // "green when on, grey when off" rendered both states as identical
-    // black — the on/off toggle dials' value was changing correctly, only
-    // the colour never visibly reflected it.
-    configure_synthlib_theme((tSynthLibTheme){
-        .topBarHeight   = TOP_BAR_HEIGHT,
-        .orange1        = (tRgb)RGB_ORANGE_1,
-        .orange2        = (tRgb)RGB_ORANGE_2,
-        .greenOn        = (tRgb)RGB_GREEN_ON,
-        .backgroundGrey = (tRgb)RGB_BACKGROUND_GREY,
+    // THE WINDOW, ITS SCALE AND ITS INPUT WIRING ARE SYNTHLIB'S — see synthlibWindow.h. The six
+    // callbacks that only ever called back into SynthLib (error, framebuffer size, content scale,
+    // window size, window position, window close) went with it; the ones below are this app's own.
+    //
+    // configure_synthlib_theme() goes through the config now. It was once missing here entirely, and
+    // the symptom was subtle enough to be worth remembering: gTheme defaulted to all-zero, so
+    // draw_power_button()'s "green when on, grey when off" rendered both states as identical black —
+    // the toggle's value was changing correctly, only the colour never showed it. Passing it as part
+    // of window creation is what stops that being forgettable again.
+    synthlib_window_create(&(tSynthLibWindowConfig){
+        .title        = title,
+        .targetWidth  = TARGET_FRAME_BUFF_WIDTH,
+        .targetHeight = TARGET_FRAME_BUFF_HEIGHT,
+        .dialMode     = eDialModeVertical,
+        .theme        = (tSynthLibTheme){
+            .topBarHeight   = TOP_BAR_HEIGHT,
+            .orange1        = (tRgb)RGB_ORANGE_1,
+            .orange2        = (tRgb)RGB_ORANGE_2,
+            .greenOn        = (tRgb)RGB_GREEN_ON,
+            .backgroundGrey = (tRgb)RGB_BACKGROUND_GREY,
+        },
+        .mouseCoord   = get_global_gui_scaled_mouse_coord,
+    }, &(tSynthLibWindowCallbacks){
+        .key           = key_cb,
+        .character     = char_cb,
+        .cursorPos     = cursor_pos_cb,
+        .mouseButton   = mouse_button_cb,
+        .scroll        = scroll_cb,
+        .windowFocus   = window_focus_cb,   // clears held modifiers — see inputState.h
+        .windowRefresh = window_refresh_cb,
     });
 
-    // Injection point for the mouse-coord query every SynthLib popup/panel file (contextMenu.c,
-    // menuBar.c, alertDialog.cpp, bankBrowser.cpp, fileBrowser.cpp) needs — see synthlibHost.h's
-    // own comment.
-    synthlib_host_init((tSynthLibHost){
-        .mouseCoord = get_global_gui_scaled_mouse_coord,
-    });
-    synthlib_scale_init(TARGET_FRAME_BUFF_WIDTH);
+    init_font();                      // TODO - G2 edit could benefit from this if we're loading multiple fonts
+    synth_init_graphics();            // TODO - do we need to call this, since it's currently empty?
 
-    glfwSetErrorCallback(error_callback);
-
-    if (!glfwInit()) {
-        exit(EXIT_FAILURE);
-    }
-    //register_glfw_wake_cb(wake_glfw);
-    //register_full_patch_change_notify_cb(notify_full_patch_change);
-    //topbar_init_controls();
-
-    glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE);
-    glfwWindowHint(GLFW_COCOA_GRAPHICS_SWITCHING, GLFW_TRUE);  // Needed for Intel systems with discrete graphics
-    synthlib_set_window((void *)glfwCreateWindow(TARGET_FRAME_BUFF_WIDTH / 4, TARGET_FRAME_BUFF_HEIGHT / 4, title, NULL, NULL));
-
-    if (!synthlib_window()) {
-        glfwTerminate();
-        exit(EXIT_FAILURE);
-    }
-    // Minimum 640x360 (TARGET/4, so still exactly the locked 16:9). The old TARGET/8 allowed a
-    // 320pt window, which on a 1x display is a 320px framebuffer — gGlobalGuiScale 0.25, putting
-    // body text at ~3px, unreadable however well it is rendered.
-    glfwSetWindowSizeLimits((GLFWwindow *)synthlib_window(), TARGET_FRAME_BUFF_WIDTH / 4, TARGET_FRAME_BUFF_HEIGHT / 4, GLFW_DONT_CARE, GLFW_DONT_CARE);
-    glfwSetWindowAspectRatio((GLFWwindow *)synthlib_window(), TARGET_FRAME_BUFF_WIDTH, TARGET_FRAME_BUFF_HEIGHT);
-
-    glfwMakeContextCurrent((GLFWwindow *)synthlib_window());
-
-    // Real initial scale for whichever display the window opens on, not the 2.0 (Retina-only)
-    // assumption this used to hardcode — see synthlibScale.h's own comment for the bug that broke
-    // (G2-Edit hit this first as issue #9; this app never had the fix at all until now).
-    synthlib_scale_query_initial(synthlib_window());
-
-    {
-        int fbWidth  = 0;
-        int fbHeight = 0;
-        glfwGetFramebufferSize((GLFWwindow *)synthlib_window(), &fbWidth, &fbHeight);
-        framebuffer_size_callback((GLFWwindow *)synthlib_window(), fbWidth, fbHeight);
-    }
-
-    glfwSetFramebufferSizeCallback((GLFWwindow *)synthlib_window(), framebuffer_size_callback);
-    glfwSetWindowContentScaleCallback((GLFWwindow *)synthlib_window(), content_scale_callback);
-    glfwSetWindowSizeCallback((GLFWwindow *)synthlib_window(), window_size_callback);
-    glfwSetWindowPosCallback((GLFWwindow *)synthlib_window(), window_pos_callback);
-    glfwSwapInterval(1);
-    glfwSetWindowCloseCallback((GLFWwindow *)synthlib_window(), window_close_callback);
-    glfwSetKeyCallback((GLFWwindow *)synthlib_window(), key_cb);
-    glfwSetCharCallback((GLFWwindow *)synthlib_window(), char_cb);
-    glfwSetCursorPosCallback((GLFWwindow *)synthlib_window(), cursor_pos_cb);
-    glfwSetMouseButtonCallback((GLFWwindow *)synthlib_window(), mouse_button_cb);
-    glfwSetScrollCallback((GLFWwindow *)synthlib_window(), scroll_cb);
-    glfwSetWindowRefreshCallback((GLFWwindow *)synthlib_window(), window_refresh_cb);
-    glfwSetWindowFocusCallback((GLFWwindow *)synthlib_window(), window_focus_cb); // clears held modifiers — see inputState.h
-
-    glEnable(GL_BLEND);                                                           // TODO - Assess if G2 edit could benefit from this
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    init_font();                                                                  // TODO - G2 edit could benefit from this if we're loading multiple fonts
-    synth_init_graphics();                                                        // TODO - do we need to call this, since it's currently empty?
-
-    register_midi_wake_cb(wake_glfw);                                             // TODO - this doesn't belong in here
+    register_midi_wake_cb(wake_glfw); // TODO - this doesn't belong in here
 }
+
 // ── Render frame ──────────────────────────────────────────────────────────────
 
 static void render_frame(GLFWwindow * win) {
