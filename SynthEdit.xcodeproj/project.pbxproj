@@ -36,6 +36,11 @@
 			path = src;
 			sourceTree = "<group>";
 		};
+		A0F1C0012FD5A00100DD4947 /* Resources */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Resources;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -59,6 +64,7 @@
 			isa = PBXGroup;
 			children = (
 				A04E4EEAFCCE334E00468BB7 /* src */,
+				A0F1C0012FD5A00100DD4947 /* Resources */,
 				49BEB827A7B14F99AC9EC792 /* SynthLib/src */,
 				A0453C2CFCFF7104004E572A /* Frameworks */,
 				A045332CFCFF6E5F004E572A /* Products */,
@@ -104,6 +110,7 @@
 			fileSystemSynchronizedGroups = (
 				49BEB827A7B14F99AC9EC792 /* SynthLib/src */,
 				A04E4EEAFCCE334E00468BB7 /* src */,
+				A0F1C0012FD5A00100DD4947 /* Resources */,
 			);
 			name = SynthEdit;
 			packageProductDependencies = (
