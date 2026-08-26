@@ -141,12 +141,7 @@ static void setup_projection(GLFWwindow * win) {
     set_render_width(fbW);
     set_render_height(fbH);
 
-    glViewport(0, 0, fbW, fbH);
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(0.0, fbW, fbH, 0.0, -1.0, 1.0);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
+    render_backend_set_surface(fbW, fbH);
 }
 
 
@@ -226,8 +221,7 @@ void init_graphics(void) {
 static void render_frame(GLFWwindow * win) {
     setup_projection(win);
 
-    glClearColor(0.15f, 0.15f, 0.15f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    render_backend_clear((tRgb){0.15, 0.15, 0.15});
 
     clear_click_regions();
 
@@ -284,7 +278,7 @@ static void render_frame(GLFWwindow * win) {
 //                             synchronous, so the capture below always
 //                             reflects whatever PAGE/SET/DEVICE command
 //                             most recently ran, not a stale frame) then
-//                             glReadPixels()+stbi_write_png() to path
+//                             frame read-back + stbi_write_png() to path
 // Writes "OK\n" (DUMP/nothing else appends its own text after) or
 // "ERROR: <reason>\n" to the result file once the command's fully handled,
 // then deletes the command file — so a caller can poll for the command
@@ -336,8 +330,18 @@ static void backdoor_screenshot(GLFWwindow * win, const char * path) {
         backdoor_write_result("ERROR: out of memory\n");
         return;
     }
-    glReadPixels(0, 0, w, h, GL_RGB, GL_UNSIGNED_BYTE, pixels);
-    // OpenGL's origin is bottom-left; PNGs are conventionally read top-down.
+
+    // Rows come back tightly packed (w*3 bytes). This used to be a bare glReadPixels with no
+    // GL_PACK_ALIGNMENT of 1 in front of it, so at any width where w*3 is not a multiple of 4 GL
+    // padded every row — which both sheared the PNG (stride mismatch against stbi's w*3) and
+    // OVERRAN this w*h*3 buffer. The alignment now lives inside the backend call, alongside
+    // G2-Edit's and EmuUtility's, which both already had it.
+    if (!render_backend_read_pixels_rgb(0, 0, w, h, pixels)) {
+        free(pixels);
+        backdoor_write_result("ERROR: frame read-back failed\n");
+        return;
+    }
+    // Read-back origin is bottom-left; PNGs are conventionally read top-down.
     stbi_flip_vertically_on_write(1);
 
     int       ok     = stbi_write_png(path, w, h, 3, pixels, w * 3);
