@@ -30,6 +30,8 @@ extern "C" {
 #include "types.h"
 #include "utilsGraphics.h"
 #include "contextMenu.h"
+#include "renderBackend.h"
+#include "prefs.h"
 #include "globalVars.h"
 #include "panelConfig.h"
 #include "synthComms.h"
@@ -387,14 +389,77 @@ static void open_restore_menu(tCoord anchor) {
     open_context_menu(anchor, items, 0, 0.0);
 }
 
+
+// ── Experimental menu ─────────────────────────────────────────────────────────
+// Work that is being tried out rather than relied on, kept as its own menu so that what is
+// finished and what is an experiment are not sitting side by side. Anything here may change or
+// disappear, and graduates into one of the other menus once it has settled. Modelled on
+// G2-Edit's, which is where the renderer choice landed first.
+
+// SWITCHING TAKES EFFECT ON THE NEXT LAUNCH, and the alert says so rather than leaving the user to
+// wonder why nothing changed. It cannot be done live: the window itself is built differently for
+// each backend — OpenGL has GLFW create a context alongside it, Metal has GLFW create none — so
+// changing it means destroying and rebuilding the window, its context, every glyph atlas and
+// texture, and all the callbacks established around it. See SynthLib's renderBackend.h.
+static void action_toggle_render_backend(int index) {
+    (void)index;
+
+    tRenderBackendId wanted = (gfx_backend_current() == eRenderBackendOpenGL)
+                              ? eRenderBackendMetal : eRenderBackendOpenGL;
+
+    if (!gfx_backend_available(wanted)) {
+        show_alert("Renderer", "That renderer is not available in this build.");
+        return;
+    }
+    // Written, not applied. gfx_backend_choose() is deliberately NOT called here: the running
+    // window belongs to the current backend and would be left talking to the wrong one.
+    prefs_set_int("renderBackend", (long)wanted);
+
+    static char      message[176];
+
+    snprintf(message, sizeof(message),
+             "The %s renderer will be used the next time %s starts.\n\nCurrently running: %s.",
+             gfx_backend_name(wanted), "SynthEdit", gfx_backend_name(gfx_backend_current()));
+    show_alert("Renderer", message);
+}
+
+static void open_experimental_menu(tCoord anchor) {
+    static tMenuItem items[4];
+    int              i = 0;
+
+    // The label names the backend it will switch TO, and says outright that it needs a restart so
+    // nobody clicks it twice wondering why the screen looks the same.
+    items[i++] = (tMenuItem){
+        (gfx_backend_current() == eRenderBackendOpenGL)
+        ? "Use Metal Renderer (on restart)" : "Use OpenGL Renderer (on restart)",
+        (tRgb)RGB_GREY_3, action_toggle_render_backend, 0, NULL, 0, 0.0
+    };
+
+    // What is running now, greyed so it reads as information rather than a control. Without it
+    // there is no way to tell which backend drew the window you are looking at.
+    static char      rendererLine[48];
+
+    snprintf(rendererLine, sizeof(rendererLine), "Renderer: %s",
+             gfx_backend_name(gfx_backend_current()));
+    items[i++] = (tMenuItem){
+        rendererLine, (tRgb)RGB_GREY_5, NULL, 0, NULL, 0, 0.0
+    };
+    items[i]   = (tMenuItem){
+        NULL, (tRgb)RGB_BLACK, NULL, 0, NULL, 0, 0.0
+    };
+
+    open_context_menu(anchor, items, 0, 0.0);
+}
+
 tMenuBarItem gAppMenuBar[] = {
-    {"File",     open_file_menu    },
-    {"Device",   open_device_menu  },
-    {"Controls", open_controls_menu},
-    {"Layouts",  open_layouts_menu },
-    {"Backup",   open_backup_menu  },
-    {"Restore",  open_restore_menu },
-    {NULL,       NULL              },
+    {"File",         open_file_menu        },
+    {"Device",       open_device_menu      },
+    {"Controls",     open_controls_menu    },
+    {"Layouts",      open_layouts_menu     },
+    {"Backup",       open_backup_menu      },
+    {"Restore",      open_restore_menu     },
+    {"Experimental", open_experimental_menu},
+    {NULL,           NULL                  },
 };
 
 tRectangle app_menu_bar_rect(void) {

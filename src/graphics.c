@@ -46,6 +46,8 @@ extern "C" {
 #include "synthBackup.h"
 #include "misc.h"
 #include "graphics.h"
+#include "contextMenu.h"
+#include <strings.h>
 #include "appMenuBar.h"
 #include "fileBrowser.h"
 #include "bankBrowser.h"
@@ -242,7 +244,10 @@ static void render_frame(GLFWwindow * win) {
     render_menu_bar(gAppMenuBar, app_menu_bar_rect());
     synthlib_popups_render();
 
-    glfwSwapBuffers(win);
+    // Submits the frame's one vertex array and puts it on screen. This was a render_backend_flush()
+    // followed by glfwSwapBuffers() — the last GLFW call in this loop, and one that cannot exist
+    // under Metal, where the window is created with no context to swap. See utilsGraphics.h.
+    render_present();
 }
 
 // ── Backdoor test-control channel ───────────────────────────────────────────
@@ -264,6 +269,10 @@ static void render_frame(GLFWwindow * win) {
 //
 // Command file format: one command per file, first line only —
 // "<COMMAND> <rest of line as its argument>". Commands:
+//   MENU <bar>[/<item>[/<sub>]] — run a menu item by label (matched anywhere in it,
+//                       case-insensitively, levels separated by '/'). OMIT the last level and that
+//                       menu is LISTED instead of clicked, which is how a test finds what is there.
+//                       Ported from G2-Edit 2026-08-29 so the renderer toggle could be exercised.
 //   PAGE <page id>          — synth_set_current_page()
 //   SET <dialId> <value>    — find_panel_dial_anywhere() + synth_set_panel_dial_value()
 //   DEVICE <filename>       — synth_switch_device_config()
@@ -311,6 +320,163 @@ static void backdoor_write_result(const char * text) {
     if (f) {
         fputs(text, f);
         fclose(f);
+    }
+}
+
+// Does `wanted` appear anywhere in `label`, case-insensitively? Matched anywhere rather than only
+// at the front because menu labels can carry a leading marker ("* " for a current selection), and a
+// leading-substring match could then never name the thing being selected.
+static bool backdoor_label_contains(const char * label, const char * wanted) {
+    size_t wantedLength = strlen(wanted);
+    size_t labelLength  = strlen(label);
+    size_t at           = 0;
+
+    if ((wantedLength == 0) || (wantedLength > labelLength)) {
+        return false;
+    }
+
+    for (at = 0; at <= (labelLength - wantedLength); at++) {
+        if (strncasecmp(label + at, wanted, wantedLength) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// MENU <bar>[/<item>[/<subitem>]] — runs a menu item by label without going near the mouse. Labels
+// are matched case-insensitively anywhere in the label and separated by '/', so
+// 'MENU Exp/Use Metal' reaches an item by a fragment of its text. OMIT THE LAST LEVEL and the
+// deepest menu reached is LISTED rather than clicked, which is how a test discovers what is there.
+// Ported from G2-Edit's backdoor, which has had this since the menu bar moved in-window; driving
+// menus by screen coordinate meant re-deriving them every time a window moved.
+static void backdoor_menu(const char * arg) {
+    char        part[3][64] = {0};
+    uint32_t    partCount   = 0;
+    uint32_t    b           = 0;
+    tMenuItem * items       = NULL;
+
+    {
+        const char * p = arg;
+
+        while ((partCount < 3) && (*p != '\0')) {
+            const char * slash  = strchr(p, '/');
+            size_t       length = (slash != NULL) ? (size_t)(slash - p) : strlen(p);
+
+            while ((length > 0) && (*p == ' ')) {
+                p++;
+                length--;
+            }
+
+            while ((length > 0) && (p[length - 1] == ' ')) {
+                length--;
+            }
+
+            if (length >= sizeof(part[0])) {
+                length = sizeof(part[0]) - 1;
+            }
+            memcpy(part[partCount], p, length);
+            part[partCount][length] = '\0';
+            partCount++;
+
+            if (slash == NULL) {
+                break;
+            }
+            p                       = slash + 1;
+        }
+    }
+
+    if (partCount == 0) {
+        backdoor_write_result("ERROR: expected 'MENU <bar>[/<item>[/<subitem>]]'\n");
+        return;
+    }
+
+    for (b = 0; gAppMenuBar[b].label != NULL; b++) {
+        if (backdoor_label_contains(gAppMenuBar[b].label, part[0]) == true) {
+            break;
+        }
+    }
+
+    if (gAppMenuBar[b].label == NULL) {
+        backdoor_write_result("ERROR: no such menu\n");
+        return;
+    }
+    // Populates gContextMenu with the items that menu would show RIGHT NOW, which is what makes
+    // state-dependent labels ("Use Metal Renderer") matchable at all.
+    gAppMenuBar[b].open((tCoord){0.0, 0.0});
+    items = (gContextMenu.depth > 0) ? gContextMenu.frame[0].items : NULL;
+
+    {
+        uint32_t level = 1;
+
+        while ((level < partCount) && (items != NULL)) {
+            uint32_t i     = 0;
+            bool     found = false;
+
+            for (i = 0; items[i].label != NULL; i++) {
+                if (backdoor_label_contains(items[i].label, part[level]) == false) {
+                    continue;
+                }
+                found = true;
+
+                if (level == (partCount - 1)) {
+                    if (items[i].subMenu != NULL) {
+                        items = items[i].subMenu;
+                        break;
+                    }
+                    {
+                        void (*action)(int index) = items[i].action;
+
+                        // action() callbacks read gContextMenu.items[index].param, so point that at
+                        // the array the item lives in — the same thing a real click does.
+                        gContextMenu.items = items;
+
+                        if (action == NULL) {
+                            close_context_menu();
+                            backdoor_write_result("ERROR: item is disabled\n");
+                            return;
+                        }
+                        action((int)i);
+                        close_context_menu();
+                        synthlib_request_redraw();
+                        backdoor_write_result("OK\n");
+                        return;
+                    }
+                }
+
+                if (items[i].subMenu == NULL) {
+                    close_context_menu();
+                    backdoor_write_result("ERROR: that item has no submenu\n");
+                    return;
+                }
+                items = items[i].subMenu;
+                break;
+            }
+
+            if (found == false) {
+                close_context_menu();
+                backdoor_write_result("ERROR: no such item\n");
+                return;
+            }
+            level++;
+        }
+    }
+
+    // Nothing left to click: list what the level we reached contains.
+    {
+        char     list[2048] = {0};
+        size_t   used       = 0;
+        uint32_t i          = 0;
+
+        used += (size_t)snprintf(list + used, sizeof(list) - used, "OK\n");
+
+        for (i = 0; (items != NULL) && (items[i].label != NULL) && (used < sizeof(list)); i++) {
+            used += (size_t)snprintf(list + used, sizeof(list) - used, "%s%s\n",
+                                     items[i].label, (items[i].subMenu != NULL) ? " >" : "");
+        }
+
+        close_context_menu();
+        backdoor_write_result(list);
     }
 }
 
@@ -444,6 +610,8 @@ static void backdoor_dispatch(const char * cmd, const char * arg, GLFWwindow * w
         backdoor_write_result(dump);
     } else if (strcmp(cmd, "SCREENSHOT") == 0) {
         backdoor_screenshot(win, arg);
+    } else if (strcmp(cmd, "MENU") == 0) {
+        backdoor_menu(arg);
     } else if (strcmp(cmd, "KORGSELECT") == 0) {
         // Testing-only command, added 2026-07-14 to verify the new Z1
         // Load-Patch-from-Bank wire mechanism (Bank Select + Program
