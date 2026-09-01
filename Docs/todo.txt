@@ -1,0 +1,9 @@
+SynthEdit TODO
+
+Things to do. ONE LINE PER ITEM - keep it that way.
+Measurements, reasoning and completed-work narrative go in findings.txt, NOT here.
+Built-but-unchecked work goes in to-test.txt.
+
+Bugs
+
+- For voyager, controls are being sent, but not sure we're sending patches from files correctly. ...or when we request a patch to save, it's not the edit buffer patch.
