@@ -1,0 +1,338 @@
+#!/bin/zsh
+
+# Builds a universal (arm64 + x86_64) Release binary of SynthEdit and packages it as a
+# .dmg ready to attach to a GitHub release.
+#
+# Modelled on G2-Edit/do-release, minus the plug-in half - this project ships an
+# application and nothing else. Everything about versioning, signing, verification
+# and packaging is deliberately identical, so all four projects release the same way.
+#
+# Versions are semver: V<major>.<minor>.<patch>-beta.<n>. The .dmg is normally
+# built BEFORE the tag exists, so name the part you are bumping and the next
+# version is worked out from the newest existing tag:
+#
+#   ./do-release beta      V0.5.0-beta.6 -> V0.5.0-beta.7   (the usual one)
+#   ./do-release patch     V0.5.0-beta.6 -> V0.5.1-beta.1
+#   ./do-release minor     V0.5.0-beta.6 -> V0.6.0-beta.1
+#   ./do-release major     V0.5.0-beta.6 -> V1.0.0-beta.1
+#   ./do-release final     V0.5.0-beta.6 -> V0.5.0           (drops -beta.n)
+#
+#   ./do-release 0.9.0-rc1 an explicit version, used as given
+#   ./do-release           reuse the newest tag as-is (rebuild an old release)
+#   ./do-release beta ~/tmp any of the above, into a different directory
+#
+# Under semver, 0.x.y means the interface is still unstable - so bumping to 1.0.0
+# is a deliberate statement that it has settled, not just "the next big one".
+#
+# This script never creates or pushes the tag - it prints the git command for you
+# to run once you are happy with the .dmg.
+#
+# The .dmg lands on the Desktop by default - outside the repo, so it is easy to
+# drag onto a GitHub release and can never be committed by accident.
+#
+# The app is ad-hoc signed only. There is no paid Apple Developer membership
+# behind this project, so the .dmg is NOT notarized and macOS will refuse to
+# open it until the user clears the quarantine flag. Instructions for that are
+# written into the .dmg as "Read Me First.txt" so they travel with the download.
+
+set -e
+
+ARG_BUMP="$1"
+
+# Resolve a relative output path against the caller's directory, not the
+# project directory we are about to switch to.
+DIST="${2:-$HOME/Desktop}"
+DIST="${DIST:a}"
+
+cd ${0:a:h}
+
+PROJECT="SynthEdit.xcodeproj"
+SCHEME="SynthEdit"
+APP_NAME="SynthEdit.app"
+VOL_NAME="SynthEdit"
+DERIVED="build/release-tmp"
+
+# --- version -------------------------------------------------------------
+
+# Git tags are the source of truth. MARKETING_VERSION in the project file is not
+# maintained per-release and is deliberately ignored.
+#
+# --sort=-v:refname orders by version rather than alphabetically, so beta.10 is
+# correctly newer than beta.9. --abbrev=0 on describe would give the tag nearest
+# HEAD, which is not the same thing once branches are involved.
+LATEST=$(git tag --list --sort=-v:refname 'V*' 2>/dev/null | head -1)
+NEW_TAG=""
+
+case "$ARG_BUMP" in
+    super-major)
+        # Retired name from the pre-semver scheme. Rejected rather than silently
+        # treated as a literal version string, which would build "G2-Edit-super-major.dmg".
+        echo "error: 'super-major' is the old name for what semver calls 'major'." >&2
+        echo "       The names shifted by one when this switched to semver:" >&2
+        echo "           super-major -> major     minor -> patch" >&2
+        echo "           major       -> minor     beta  -> beta" >&2
+        exit 1
+        ;;
+
+    major|minor|patch|beta|final)
+        if [[ -z $LATEST ]]; then
+            echo "error: no existing V* tag to bump from." >&2
+            echo "       give an explicit version instead: ./do-release 0.1.0-beta.1" >&2
+            exit 1
+        fi
+
+        # V<major>.<minor>.<patch>[-beta.<n>]
+        if [[ ! $LATEST =~ '^[Vv]([0-9]+)\.([0-9]+)\.([0-9]+)(-beta\.([0-9]+))?$' ]]; then
+            echo "error: newest tag '$LATEST' is not V<n>.<n>.<n>[-beta.<n>]," >&2
+            echo "       so it cannot be bumped. Give an explicit version instead." >&2
+            exit 1
+        fi
+
+        MAJOR=$match[1]
+        MINOR=$match[2]
+        PATCH=$match[3]
+        BETA=$match[5]
+
+        case "$ARG_BUMP" in
+            major) (( MAJOR++ )); MINOR=0; PATCH=0; BETA=1 ;;
+            minor) (( MINOR++ ));          PATCH=0; BETA=1 ;;
+            patch) (( PATCH++ ));                   BETA=1 ;;
+            beta)
+                if [[ -z $BETA ]]; then
+                    echo "error: '$LATEST' has no -beta.n to bump." >&2
+                    echo "       use 'patch' to start a new beta series." >&2
+                    exit 1
+                fi
+                (( BETA++ ))
+                ;;
+            final) BETA="" ;;
+        esac
+
+        if [[ -n $BETA ]]; then
+            NEW_TAG="V$MAJOR.$MINOR.$PATCH-beta.$BETA"
+        else
+            NEW_TAG="V$MAJOR.$MINOR.$PATCH"
+        fi
+
+        if git rev-parse -q --verify "refs/tags/$NEW_TAG" >/dev/null; then
+            echo "error: tag $NEW_TAG already exists." >&2
+            exit 1
+        fi
+
+        VERSION="$NEW_TAG"
+        echo "==> version $VERSION ($ARG_BUMP bump from $LATEST)"
+        ;;
+
+    "")
+        if [[ -z $LATEST ]]; then
+            echo "error: no git tag found and no version given." >&2
+            echo "       try: ./do-release beta" >&2
+            exit 1
+        fi
+
+        VERSION="$LATEST"
+        echo "==> version $VERSION (reusing newest tag)"
+
+        # Only meaningful when reusing an existing tag. When bumping, HEAD being
+        # ahead of the previous tag is the whole point.
+        if [[ -n $(git rev-list "$LATEST"..HEAD 2>/dev/null) ]]; then
+            echo "    WARNING: HEAD is ahead of $LATEST - this .dmg contains code" >&2
+            echo "             that is not in that tag. Did you mean ./do-release beta?" >&2
+        fi
+        ;;
+
+    *)
+        # An explicit version. Require it to start like one, so a mistyped keyword
+        # ("bета", "pacth") is caught here instead of producing G2-Edit-pacth.dmg.
+        if [[ ! $ARG_BUMP =~ '^[Vv]?[0-9]+\.' ]]; then
+            echo "error: '$ARG_BUMP' is not a bump keyword or a version number." >&2
+            echo "       keywords: major minor patch beta final" >&2
+            echo "       or give a version: ./do-release 0.9.0-rc1" >&2
+            exit 1
+        fi
+
+        VERSION="$ARG_BUMP"
+        echo "==> version $VERSION (specified)"
+        ;;
+esac
+
+if [[ -n $(git status --porcelain 2>/dev/null) ]]; then
+    echo "    WARNING: working tree has uncommitted changes" >&2
+fi
+
+# Strip a leading V/v for filenames and the volume title: tags read "V0.5.0",
+# but "G2-Edit-0.5.0.dmg" is the conventional artifact name.
+VERSION_CLEAN="${VERSION#[Vv]}"
+
+# --- build ---------------------------------------------------------------
+
+echo "==> clean build, universal Release"
+
+# Always build from scratch. Deleting the derived data is stronger than
+# "xcodebuild clean": it also discards the module cache and any stale headers, so
+# a release can never pick up something left behind by an earlier Debug build.
+# Using a private -derivedDataPath keeps this away from Xcode's own build dir, so
+# running this does not force a full rebuild next time you open the IDE.
+rm -rf $DERIVED
+
+xcodebuild \
+    -project $PROJECT \
+    -scheme $SCHEME \
+    -configuration Release \
+    -derivedDataPath $DERIVED \
+    ARCHS="arm64 x86_64" \
+    ONLY_ACTIVE_ARCH=NO \
+    CODE_SIGN_IDENTITY="-" \
+    CODE_SIGN_STYLE=Manual \
+    DEVELOPMENT_TEAM="" \
+    MARKETING_VERSION="$VERSION_CLEAN" \
+    GCC_PREPROCESSOR_DEFINITIONS='$(inherited) SYNTHLIB_VERSION_STRING=\"'"$VERSION"'\"' \
+    clean build
+
+APP="$DERIVED/Build/Products/Release/$APP_NAME"
+
+if [[ ! -d $APP ]]; then
+    echo "error: build succeeded but $APP is missing" >&2
+    exit 1
+fi
+
+# --- verify --------------------------------------------------------------
+
+BINARY="$APP/Contents/MacOS/${APP_NAME:r}"
+ARCHS=$(lipo -archs "$BINARY")
+
+echo "==> built $ARCHS"
+
+if [[ $ARCHS != *arm64* || $ARCHS != *x86_64* ]]; then
+    echo "error: expected a universal binary, got '$ARCHS'" >&2
+    exit 1
+fi
+
+# Confirm the version actually reached the bundle, so the .dmg name and the
+# app's Get Info panel can never disagree.
+PLIST_VERSION=$(defaults read "${APP:a}/Contents/Info" CFBundleShortVersionString 2>/dev/null || echo "")
+
+if [[ $PLIST_VERSION != $VERSION_CLEAN ]]; then
+    echo "error: Info.plist says '$PLIST_VERSION', expected '$VERSION_CLEAN'" >&2
+    exit 1
+fi
+
+echo "==> bundle version $PLIST_VERSION"
+
+# --- sign ----------------------------------------------------------------
+
+# Ad-hoc signature. Not a substitute for notarization, but it keeps the bundle
+# internally consistent so it launches once quarantine is cleared.
+echo "==> ad-hoc signing"
+xattr -cr "$APP"
+codesign --force --options runtime --sign - "$APP"
+codesign --verify --strict "$APP"
+
+# --- stage ---------------------------------------------------------------
+
+echo "==> staging disk image contents"
+
+STAGE=$(mktemp -d)
+trap "rm -rf $STAGE" EXIT
+
+cp -R "$APP" "$STAGE/"
+ln -s /Applications "$STAGE/Applications"
+
+# THE LAYOUTS TRAVEL WITH THE APP, and this is not optional packaging polish.
+# SYNTH_LAYOUTS_DIR_DEFAULT is "layouts" RELATIVE TO THE WORKING DIRECTORY
+# (synthGraphics.c), and an app launched from Finder has a working directory of
+# "/" - so a .dmg containing only the app ships an editor that can describe no
+# device at all until the user points it at a folder by hand. Shipping the folder
+# beside the app is what makes that possible; the Read Me says how.
+if [[ ! -d layouts ]]; then
+    echo "error: no layouts/ directory - the app would ship unable to describe any device" >&2
+    exit 1
+fi
+cp -R layouts "$STAGE/"
+
+cat > "$STAGE/Read Me First.txt" <<EOF
+$VOL_NAME $VERSION_CLEAN
+========================
+
+WHAT IS IN HERE
+
+  $APP_NAME         the application
+  layouts/             the device descriptions it reads (see "LAYOUTS" below)
+
+STEP 1 - INSTALL
+
+Drag "$APP_NAME" onto the Applications folder shown in this window.
+
+Do this before step 2. The command below refers to the app in your
+Applications folder, so it only works once the app is actually there. Do not
+run the app from this disk image.
+
+STEP 2 - UNLOCK
+
+This app is not notarized by Apple, so macOS blocks the first launch and may
+claim the app is damaged. It isn't - macOS says that about any app it cannot
+check with Apple.
+
+Open Terminal (Applications > Utilities > Terminal), then copy and paste this
+line exactly, including the quotes, and press Return:
+
+    xattr -dr com.apple.quarantine "/Applications/$APP_NAME"
+
+It prints nothing if it worked. You can now launch $APP_NAME from your
+Applications folder as normal.
+
+You only need to do this once, and again after each update.
+
+If you installed somewhere other than Applications, change the path in the
+command to match where you put the app.
+
+Alternative, if you would rather not use Terminal: double-click the app in
+Applications, dismiss the warning, then open System Settings > Privacy &
+Security, scroll down, and click "Open Anyway".
+
+LAYOUTS
+
+SynthEdit does not know about any synth on its own - each one is described by a
+plain text file in the "layouts" folder in this disk image. Copy that folder
+somewhere of your own (your Documents folder is a good choice), then in the app
+choose Settings > Layouts Folder and point it there. It is remembered after that.
+
+Keeping the folder outside the app means you can edit a layout, or add one for a
+synth nobody has written yet, without rebuilding anything.
+
+REQUIREMENTS
+
+macOS 11.5 or later, Apple Silicon or Intel.
+EOF
+
+# --- package -------------------------------------------------------------
+
+mkdir -p $DIST
+DMG="$DIST/$VOL_NAME-$VERSION_CLEAN.dmg"
+rm -f "$DMG"
+
+echo "==> creating $DMG"
+
+# Volume names are capped at 27 characters on HFS+.
+hdiutil create \
+    -volname "${${VOL_NAME}[1,15]} $VERSION_CLEAN" \
+    -srcfolder "$STAGE" \
+    -fs HFS+ \
+    -format UDZO \
+    -ov \
+    "$DMG" >/dev/null
+
+echo
+echo "done: $DMG ($(du -h "$DMG" | cut -f1))"
+echo "architectures: $ARCHS"
+
+echo "contents: $APP_NAME + layouts/"
+echo "signature: ad-hoc, NOT notarized - users must clear quarantine"
+
+if [[ -n $NEW_TAG ]]; then
+    echo
+    echo "$NEW_TAG does not exist yet. Once you are happy with the .dmg:"
+    echo
+    echo "    git tag -a $NEW_TAG -m \"$NEW_TAG\""
+    echo "    git push origin $NEW_TAG"
+fi
