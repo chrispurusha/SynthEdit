@@ -1,0 +1,45 @@
+SynthEdit FINDINGS
+
+Completed work, measurements, and the traps that cost real time.
+One entry per finding, newest first.
+
+
+2026-09-02  RACE CONDITION REVIEW - PARTIAL, AND NOTHING BROKEN FOUND YET
+------------------------------------------------------------
+Same method as the GenBridge and G2-Edit reviews: establish the threads, then map shared state onto
+them. This one is INCOMPLETE and the coverage is stated at the end - it found no defect, which is a
+weaker claim than "there is none".
+
+THE ARCHITECTURE, which is the thing to know before reading any of the rest:
+  midi_read_cb() DISPATCHES INLINE. dispatch_sysex(), dispatch_cc() and dispatch_program_change() all
+  run on the CoreMIDI callback thread, and there is NO MIDI -> UI queue at all - only gToMidiThread
+  going the other way. So every incoming message mutates shared state directly on the CoreMIDI
+  thread while the render thread reads it. That is the same shape as EmuUtility, and deliberate for
+  the same reason: what SynthEdit reports upward is coalescing dirty state, which must collapse N
+  updates into one redraw, and a queue would enqueue N.
+
+CHECKED, AND SOUND - recorded so nobody "fixes" them:
+  - gDevice.progName is written on the CoreMIDI thread by three separate paths
+    (set_prog_name_display, extract_prog_info, synth_decode_moog_name) and read by synth_render on
+    the render thread. It IS raced, and the effect is cosmetic rather than dangerous: every one of
+    the three bounds its characters at < size-1 and only ever writes '\0' at the last index, and the
+    array starts zero-initialised - so the final byte is permanently NUL and a reader can never walk
+    off the end. The worst case is one frame showing a new prefix with an old tail.
+    That safety is a consequence of the bounds discipline rather than of anything that says so; a
+    fourth writer that filled the array to the brim would remove it silently.
+  - The backup/sweep state machine spans both threads BY DESIGN and says so
+    (synthBackup.c:174-181): gBackupBatchActive is _Atomic, the CoreMIDI thread copies, and the
+    main thread branches. Not an oversight.
+
+NOT EXAMINED, and worth saying plainly:
+  - The 154 file-statics in synthBackup.c individually - only the batch flag and the sweep entry
+    points were traced.
+  - The panel dial VALUES, written from dispatch_cc/dump decode on the CoreMIDI thread and read by
+    the renderer. Expected to be the benign scalar case, but not verified dial by dial.
+  - The name cache and its on-disk half.
+  - synthComms.c's 46 statics.
+
+WHY IT LOOKS BETTER THAN GENBRIDGE DID: the two-thread split here was designed in from the start and
+is commented at the points where it matters, where GenBridge grew its worker and its editor around a
+processor that began single-threaded. The seven races fixed in GenBridge were all in state that
+predated the thread that came to touch it.
