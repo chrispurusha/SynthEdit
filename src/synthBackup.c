@@ -2619,6 +2619,29 @@ static void restore_edit_buffer_file_chosen(const char * path) {
 
     if (midi_send(data, length)) {
         LOG_DEBUG("Restore: sent %u byte Panel Dump from %s (loads live edit buffer only)\n", (unsigned)length, path);
+
+        // SHOW WHAT WAS JUST LOADED. Sending a Panel Dump changes the DEVICE; it does not change a
+        // single dial on screen, so without this the panel went on showing whatever it showed
+        // before and the restore looked like it had done nothing — owner-reported against A27
+        // Subaquaeous, whose filter cutoff was audibly correct on the synth while the GUI never
+        // moved.
+        //
+        // FROM THE FILE, NOT FROM A RE-READ, and that is the opposite of what it looks like it
+        // should be. Re-reading sounds safer — let the device be the authority on what it actually
+        // ended up with — and for the Korg path above it is. A Voyager will not answer that way: a
+        // Panel Dump is the state of the PANEL, and for a parameter backed by a physical pot the
+        // synth goes on reporting the pot rather than the value the patch just put there. Measured
+        // 2026-09-02, both halves in the same session: a dump differing only in Filter Cutoff
+        // changed the sound while every later read still returned the old value, and a dump-only
+        // field in the same message (Clock Div, 24 -> 30 -> 24) round-tripped exactly. So a re-read
+        // would quietly replace the value the user just loaded with the position of a knob they
+        // have not touched.
+        //
+        // Nothing is lost by not re-reading: for every field the synth does report faithfully, the
+        // file and the device agree, because the file is what we just sent it. "Sync from synth" is
+        // still there, unchanged, for anyone who wants the panel's own account of itself.
+        synth_apply_moog_panel_dump_locally(data, length);
+        synthlib_request_redraw();
         show_alert("Restore Edit Buffer", "Sent — the connected device's live edit buffer should now match this file.");
     } else {
         LOG_ERROR("Restore: failed to send %u byte Panel Dump from %s\n", (unsigned)length, path);

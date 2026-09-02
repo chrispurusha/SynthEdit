@@ -279,6 +279,10 @@ static void render_frame(GLFWwindow * win) {
 //   SYNC                    — synth_request_state_dump(), same as the real
 //                             "Sync from synth" button — async, poll with
 //                             a later DUMP to see the result once it lands
+//   ALERT [ok|cancel]       — dismiss the modal dialogue that is currently up, as pressing Enter
+//                             (default) or Escape would. Errors if none is open, so a test can
+//                             assert that a command DID raise one. Without this a scripted
+//                             sequence stops at the first alert and needs a human to click OK.
 //   DUMP                    — current page + every dial on it: id, label,
 //                             current value, rect (x/y/w/h) — the same
 //                             numbers a screenshot would otherwise require
@@ -603,6 +607,25 @@ static void backdoor_dispatch(const char * cmd, const char * arg, GLFWwindow * w
             synth_request_state_dump();
         }
         backdoor_write_result("OK\n");
+    } else if (strcmp(cmd, "ALERT") == 0) {
+        // DISMISS A MODAL DIALOG. Every restore, backup and bank operation finishes by putting one
+        // up, and a modal dialog is exactly the thing a headless test cannot click — so a scripted
+        // sequence used to stop dead at the first one and need a human to press OK. Owner-reported
+        // 2026-09-02, mid-test, having had to do that by hand.
+        //
+        // Routed through handle_alert_dialog_key() rather than a synthetic click, because that is
+        // the path a real keyboard already takes: Enter confirms, Escape cancels, and the dialog's
+        // own callback runs either way. Nothing here can dismiss a dialog that is not up — that
+        // reports an error instead, which is what makes "did my last command raise one?" testable.
+        if (!alert_dialog_active()) {
+            backdoor_write_result("ERROR: no dialogue is open\n");
+        } else {
+            bool confirm = (arg[0] == '\0') || (strcasecmp(arg, "ok") == 0) || (strcasecmp(arg, "confirm") == 0);
+
+            handle_alert_dialog_key(confirm ? GLFW_KEY_ENTER : GLFW_KEY_ESCAPE, GLFW_PRESS);
+            synthlib_request_redraw();
+            backdoor_write_result(confirm ? "OK\nconfirmed\n" : "OK\ncancelled\n");
+        }
     } else if (strcmp(cmd, "DUMP") == 0) {
         char dump[16384];
 

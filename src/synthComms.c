@@ -1253,6 +1253,26 @@ static void handle_moog_panel_dump(const uint8_t * data, uint32_t length) {
     synth_apply_pending_dump_patches();
 }
 
+// The Moog counterpart of synth_apply_korg_prog_dump_locally() below: take a whole Panel Dump
+// MESSAGE (F0 ... F7, exactly as it sits in a .syx file) and put its values on screen, without
+// anything having to come back from the device.
+//
+// IT EXISTS BECAUSE RE-READING IS NOT ENOUGH ON A VOYAGER. A Panel Dump is what its name says — the
+// state of the PANEL — and for a parameter backed by a physical pot the synth goes on reporting the
+// pot, not the value a patch just loaded into it. Measured 2026-09-02: sending a dump whose only
+// difference was Filter Cutoff changed the SOUND (owner heard it) while every subsequent read still
+// reported the old value, where a dump-only field in the same message (Clock Div, 24 -> 30 -> 24)
+// round-tripped exactly. So the device is the authority on what it will do next, and the FILE is the
+// authority on what was just loaded — and it is the file the user is asking to see.
+void synth_apply_moog_panel_dump_locally(const uint8_t * data, uint32_t length) {
+    const uint32_t skip = 1;    // F0 only, matching handle_moog_panel_dump()
+
+    if ((data == NULL) || (length < (skip + 2))) {
+        return;
+    }
+    extract_moog_panel_info(data + skip, length - skip - 1);   // trailing F7 excluded
+}
+
 // Format: F0 <mfrId> <productId> <deviceId> 03 <payload...> F7 — the reply to
 // synth_request_single_preset_dump()'s mode 0x06 request. Only decodes the
 // name (extract_moog_name() above, at presetNameOffset rather than

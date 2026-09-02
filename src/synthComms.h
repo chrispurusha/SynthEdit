@@ -137,6 +137,7 @@ void synth_send_korg_program_data_dump(uint8_t bank, uint32_t progNumber, const 
 // synthBackup.c's Korg-style "Restore Edit Buffer": updates what the GUI shows to
 // match a restored file immediately, rather than only sending wire messages
 // and hoping a later dump request reflects them.
+void synth_apply_moog_panel_dump_locally(const uint8_t * data, uint32_t length);
 void synth_apply_korg_prog_dump_locally(const uint8_t * decoded, uint32_t decodedLen);
 
 // Dispatch an incoming synth SysEx message (full message including F0 header)
