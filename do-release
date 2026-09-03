@@ -50,7 +50,27 @@ PROJECT="SynthEdit.xcodeproj"
 SCHEME="SynthEdit"
 APP_NAME="SynthEdit.app"
 VOL_NAME="SynthEdit"
-DERIVED="build/release-tmp"
+
+# OUTSIDE THE PROJECT, AND REMOVED ON THE WAY OUT.
+#
+# This used to be build/release-tmp and was left behind after every release: a
+# whole Xcode derived-data tree, some 300 MB, plus a second SynthEdit.app beside
+# the one in build/.
+#
+# The sharper version of this bit MidiSyncTool, where the leftover was a VST3
+# bundle - identically named, inside a directory a host was scanning, and VST3
+# scanning recurses. The host loaded the stale one and presented an old build with
+# nothing to say so. THIS project ships no plug-in, so that particular failure
+# cannot happen here; the fix is applied anyway for the disk and because four
+# release scripts that differ only by accident are four scripts nobody can read
+# quickly.
+#
+# The trap removes it whether the release succeeds, fails a check, or is
+# interrupted. STAGE joins the same trap further down rather than installing a
+# second one on EXIT, which would silently replace this one.
+DERIVED=$(mktemp -d)
+STAGE=""
+trap 'rm -rf "$DERIVED" "$STAGE"' EXIT
 
 # --- version -------------------------------------------------------------
 
@@ -168,12 +188,12 @@ VERSION_CLEAN="${VERSION#[Vv]}"
 
 echo "==> clean build, universal Release"
 
-# Always build from scratch. Deleting the derived data is stronger than
-# "xcodebuild clean": it also discards the module cache and any stale headers, so
-# a release can never pick up something left behind by an earlier Debug build.
-# Using a private -derivedDataPath keeps this away from Xcode's own build dir, so
-# running this does not force a full rebuild next time you open the IDE.
-rm -rf $DERIVED
+# Always build from scratch. A fresh temporary derived-data path per run (see the
+# note at the top) is stronger than "xcodebuild clean": it also discards the
+# module cache and any stale headers, so a release can never pick up something
+# left behind by an earlier Debug build - and it keeps this away from Xcode's own
+# build dir, so running this does not force a full rebuild next time you open the
+# IDE.
 
 xcodebuild \
     -project $PROJECT \
@@ -232,8 +252,10 @@ codesign --verify --strict "$APP"
 
 echo "==> staging disk image contents"
 
+# NO NEW TRAP HERE. The one set beside DERIVED covers both, and a second trap on
+# EXIT would silently replace the first - leaving the build tree behind again,
+# which is the whole thing this is guarding against.
 STAGE=$(mktemp -d)
-trap "rm -rf $STAGE" EXIT
 
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
