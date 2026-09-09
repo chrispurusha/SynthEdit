@@ -397,45 +397,16 @@ static void open_restore_menu(tCoord anchor) {
 // disappear, and graduates into one of the other menus once it has settled. Modelled on
 // G2-Edit's, which is where the renderer choice landed first.
 
-// SWITCHING TAKES EFFECT ON THE NEXT LAUNCH, and the alert says so rather than leaving the user to
-// wonder why nothing changed. It cannot be done live: the window itself is built differently for
-// each backend — OpenGL has GLFW create a context alongside it, Metal has GLFW create none — so
-// changing it means destroying and rebuilding the window, its context, every glyph atlas and
-// texture, and all the callbacks established around it. See SynthLib's renderBackend.h.
-static void action_toggle_render_backend(int index) {
-    (void)index;
-
-    tRenderBackendId wanted = (gfx_backend_current() == eRenderBackendOpenGL)
-                              ? eRenderBackendMetal : eRenderBackendOpenGL;
-
-    if (!gfx_backend_available(wanted)) {
-        show_alert("Renderer", "That renderer is not available in this build.");
-        return;
-    }
-    // Written, not applied. gfx_backend_choose() is deliberately NOT called here: the running
-    // window belongs to the current backend and would be left talking to the wrong one.
-    prefs_set_int("renderBackend", (long)wanted);
-
-    static char      message[176];
-
-    snprintf(message, sizeof(message),
-             "The %s renderer will be used the next time %s starts.\n\nCurrently running: %s.",
-             gfx_backend_name(wanted), "SynthEdit", gfx_backend_name(gfx_backend_current()));
-    show_alert("Renderer", message);
-}
 
 static void open_experimental_menu(tCoord anchor) {
     static tMenuItem items[4];
     int              i = 0;
 
-    // The label names the backend it will switch TO, and says outright that it needs a restart so
-    // nobody clicks it twice wondering why the screen looks the same.
-    items[i++] = (tMenuItem){
-        (gfx_backend_current() == eRenderBackendOpenGL)
-        ? "Use Metal Renderer (on restart)" : "Use OpenGL Renderer (on restart)",
-        (tRgb)RGB_GREY_3, action_toggle_render_backend, 0, NULL, 0, 0.0
-    };
-
+    // WHICH RENDERER IS RUNNING - a readout, not a control, since 2026-09-09. macOS is Metal only
+    // now (SYNTHLIB_NO_GL_BACKEND, set for every Apple target in renderBackendSelect.h), so there is
+    // no second backend to switch to: OpenGL is what Windows and Linux will run, and on a Mac it
+    // comes back only in a build made with SYNTHLIB_ALLOW_GL_ON_APPLE.
+    //
     // What is running now, greyed so it reads as information rather than a control. Without it
     // there is no way to tell which backend drew the window you are looking at.
     static char      rendererLine[48];
