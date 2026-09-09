@@ -391,37 +391,13 @@ static void open_restore_menu(tCoord anchor) {
 }
 
 
-// ── Experimental menu ─────────────────────────────────────────────────────────
-// Work that is being tried out rather than relied on, kept as its own menu so that what is
-// finished and what is an experiment are not sitting side by side. Anything here may change or
-// disappear, and graduates into one of the other menus once it has settled. Modelled on
-// G2-Edit's, which is where the renderer choice landed first.
+// NO EXPERIMENTAL MENU ANY MORE (2026-09-09). It held one thing - the OpenGL/Metal choice - and
+// macOS is Metal only now, so the switch went and the greyed "Renderer: <name>" readout beneath it
+// was the only item left. A whole top-level menu for one line of information is not worth the width,
+// and the About box prints the renderer anyway (see synthlib_about_text()).
+//
+// If something genuinely experimental turns up again, G2-Edit still has the pattern to copy.
 
-
-static void open_experimental_menu(tCoord anchor) {
-    static tMenuItem items[4];
-    int              i = 0;
-
-    // WHICH RENDERER IS RUNNING - a readout, not a control, since 2026-09-09. macOS is Metal only
-    // now (SYNTHLIB_NO_GL_BACKEND, set for every Apple target in renderBackendSelect.h), so there is
-    // no second backend to switch to: OpenGL is what Windows and Linux will run, and on a Mac it
-    // comes back only in a build made with SYNTHLIB_ALLOW_GL_ON_APPLE.
-    //
-    // What is running now, greyed so it reads as information rather than a control. Without it
-    // there is no way to tell which backend drew the window you are looking at.
-    static char      rendererLine[48];
-
-    snprintf(rendererLine, sizeof(rendererLine), "Renderer: %s",
-             gfx_backend_name(gfx_backend_current()));
-    items[i++] = (tMenuItem){
-        rendererLine, (tRgb)RGB_GREY_5, NULL, 0, NULL, 0, 0.0
-    };
-    items[i]   = (tMenuItem){
-        NULL, (tRgb)RGB_BLACK, NULL, 0, NULL, 0, 0.0
-    };
-
-    open_context_menu(anchor, items, 0, 0.0);
-}
 
 // ── Help menu ─────────────────────────────────────────────────────────────────
 // WHICH BUILD IS THIS. Version, compile time and the render backend in force. The backend is a
@@ -450,7 +426,6 @@ tMenuBarItem gAppMenuBar[] = {
     {"Layouts",      open_layouts_menu     },
     {"Backup",       open_backup_menu      },
     {"Restore",      open_restore_menu     },
-    {"Experimental", open_experimental_menu},
     {"Help",         open_help_menu        },
     {NULL,           NULL                  },
 };

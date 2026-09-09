@@ -43,3 +43,30 @@ WHY IT LOOKS BETTER THAN GENBRIDGE DID: the two-thread split here was designed i
 is commented at the points where it matters, where GenBridge grew its worker and its editor around a
 processor that began single-threaded. The seven races fixed in GenBridge were all in state that
 predated the thread that came to touch it.
+
+2026-09-09  METAL ONLY ON macOS - THE WHOLE PROJECT, NOT JUST THE PLUG-IN
+
+SynthLib's renderBackendSelect.h now defines SYNTHLIB_NO_GL_BACKEND on every Apple target, so the
+OpenGL backend is left out of the build entirely: renderBackendGL.c compiles to nothing (the guard is
+inside the file, because SynthLib/src is a synchronized folder in the Xcode projects and a build
+script cannot exclude it), renderBackend.c does not declare its table, and gfx_backend_available()
+answers false for it. The default backend follows the platform: Metal on Apple, OpenGL elsewhere.
+
+THE MENU ITEM IS GONE with it. "Use Metal Renderer (on restart)" / "Use OpenGL Renderer (on restart)"
+offered a switch to a backend that is no longer linked. Only the greyed "Renderer: <name>" readout
+stays, so there is still a way to see what drew the window.
+
+THE WAY BACK IS A REBUILD, not a preference, and that is a deliberate step down in convenience:
+prefs.txt's renderBackend key cannot select a backend that is not in the binary. SYNTHLIB_ALLOW_GL_ON_APPLE
+restores it. That switch also answers renderBackendGL.c's own argument for staying alive on macOS -
+running the two renderers against each other on one machine is the cheap way to prove the Metal port
+moved no pixel, and it is still possible.
+
+NOTHING IN renderBackendGL.c WAS DELETED and nothing should be. It is the whole renderer for the
+Windows and Linux versions to come, it is OpenGL 1.1 with no platform in it, and it is what #else
+selects everywhere that is not Apple.
+
+AND THE MENU THAT HELD IT WENT TOO (2026-09-09). The Experimental menu existed for one thing - the
+OpenGL/Metal choice - so once macOS became Metal only there was a whole top-level menu carrying a
+single greyed "Renderer: <name>" line. Both are gone; the About box has printed the renderer all
+along (synthlib_about_text()), which is where that information belongs and where it now lives alone.
