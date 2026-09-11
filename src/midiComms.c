@@ -28,8 +28,8 @@
 #include "synthGraphics.h"
 #include "midiComms.h"
 
-static void         (*gWakeCb)(void) = NULL;
-static pthread_t    gMidiThread             = 0;
+static void                    (*gWakeCb)(void) = NULL;
+static pthread_t               gMidiThread             = 0;
 // gSendMutex moved into SynthLib with the send primitive it guarded — see synthlibMidi.c.
 
 // ── Identity replies ──────────────────────────────────────────────────────────
@@ -42,7 +42,13 @@ static pthread_t    gMidiThread             = 0;
 // count/array skew — see msgQueue.h for the over-read that skew could cause.
 
 // Notification from notify thread; polled by the MIDI thread.
-static _Atomic bool gRescanNeeded           = false;
+static _Atomic bool            gRescanNeeded           = false;
+
+// WHAT THE MIDI PORTS DIALOGUE SHOWS, published by this thread for the UI to read. Copies rather than
+// gMidiSource/gMidiDest, which only this thread may touch - see midi_port_status(). A zero source with
+// a non-zero destination is a device connected without an identity reply: heard on any input.
+static _Atomic MIDIEndpointRef gShownSource            = 0;
+static _Atomic MIDIEndpointRef gShownDest              = 0;
 
 // Set by midi_request_reconnect() (any thread — UI menu actions, sleep/wake
 // notifications, the Device-switch menu) and consumed only by midi_thread()
@@ -58,7 +64,7 @@ static _Atomic bool gRescanNeeded           = false;
 // symptom was a device switch sometimes leaving gDevice.connected stuck
 // true with a stale/zeroed gMidiDest, silently dropping every send until
 // the app was restarted (see midi_send_to()'s dest==0 short-circuit above).
-static _Atomic bool gReconnectRequested     = false;
+static _Atomic bool            gReconnectRequested     = false;
 
 // ── State dump request debounce ─────────────────────────────────────────────
 // A Program Change followed immediately by a state dump request works for a
@@ -78,7 +84,7 @@ static _Atomic bool gReconnectRequested     = false;
 // the LAST change in the burst rather than after each individual one.
 #define SYNTH_STATE_DUMP_DEBOUNCE_TICKS    8 // * MIDI_IDLE_TICK_SECONDS below ~= 264ms
 #define MIDI_IDLE_TICK_SECONDS             0.033
-static _Atomic int  gStateDumpDebounceTicks = 0;
+static _Atomic int             gStateDumpDebounceTicks = 0;
 
 // A periodic low-frequency state poll (re-request a Panel Dump every ~5s of
 // quiet, so no-CC dials like Headphone Volume eventually pick up a hardware
@@ -281,10 +287,15 @@ static void discard_queued_identity_replies(void) {
 // and calls synth_on_connected().  All CoreMIDI lookups happen here — no races.
 
 static void process_identity_replies(void) {
-    tMessageContent      msg       = {0};
-    tIdentityReplyData * reply     = &msg.identityReplyData;
-    uint32_t             index     = 0;
-    bool                 connected = false;
+    tMessageContent      msg                                  = {0};
+    tIdentityReplyData * reply                                = &msg.identityReplyData;
+    uint32_t             index                                = 0;
+    bool                 connected                            = false;
+    char                 wantIn[SYNTHLIB_MIDI_PORT_NAME_MAX]  = {0};
+    char                 wantOut[SYNTHLIB_MIDI_PORT_NAME_MAX] = {0};
+
+    // The MIDI Ports dialogue's choice (synthlibMidi.h), read once for the whole batch.
+    synthlib_midi_ports_chosen(wantIn, sizeof(wantIn), wantOut, sizeof(wantOut));
 
     // Drains to empty even after a match: the queue must not carry this scan's leftovers into the
     // next one (the old array got the same effect by resetting gIdReplyCount at the top of every
@@ -311,7 +322,7 @@ static void process_identity_replies(void) {
                   (unsigned)reply->source);
         index++;
 
-        tPanelConfig *  cfg  = synth_panel_config();
+        tPanelConfig *  cfg = synth_panel_config();
 
         if (  connected
            || (reply->mfrIdLen != cfg->manufacturerIdLen)
@@ -320,7 +331,8 @@ static void process_identity_replies(void) {
            || (reply->memberLSB != cfg->memberId)) {
             continue;
         }
-        MIDIEndpointRef src  = (MIDIEndpointRef)reply->source;
+        MIDIEndpointRef src = (MIDIEndpointRef)reply->source;
+
         // find_dest_for_source() assumes send and receive share one physical
         // interface (same entity, or at least matching display names) —
         // true for most single-cable setups but not for a real one this
@@ -338,8 +350,17 @@ static void process_identity_replies(void) {
         // device that actually sets "midiPort <name>", so a normal
         // single-cable setup (empty midiPortName) is unaffected and still
         // goes through the name/entity inference below. Found 2026-07-14.
-        MIDIEndpointRef dest = (cfg->midiPortName[0] != '\0') ? find_destination_by_name(cfg->midiPortName)
-                                                               : find_dest_for_source(src);
+        // A CHOSEN INPUT: the same device answering on another port is the broadcast reaching it by
+        // a route the user did not pick. A CHOSEN OUTPUT beats both of the inferences below - the
+        // layout file's midiPort and the source's entity - since it is the user's own word on the
+        // exact case both exist to guess at.
+        if ((wantIn[0] != '\0') && (src != synthlib_midi_find_port(true, wantIn))) {
+            LOG_DEBUG("Identity reply from a source other than the chosen input '%s' - ignored\n", wantIn);
+            continue;
+        }
+        MIDIEndpointRef dest = (wantOut[0] != '\0') ? synthlib_midi_find_port(false, wantOut)
+                               : (cfg->midiPortName[0] != '\0') ? find_destination_by_name(cfg->midiPortName)
+                               : find_dest_for_source(src);
 
         if (dest == 0) {
             LOG_ERROR("Synth found but no matching destination for src=0x%08X\n", (unsigned)src);
@@ -351,6 +372,8 @@ static void process_identity_replies(void) {
         gDevice.connected = true;
         gMidiSource       = src;
         gMidiDest         = dest;
+        atomic_store(&gShownSource, src);
+        atomic_store(&gShownDest, dest);
 
         LOG_DEBUG("Synth connected: deviceId=0x%02X src=0x%08X dest=0x%08X\n",
                   gDevice.id, (unsigned)src, (unsigned)dest);
@@ -482,15 +505,40 @@ static MIDIEndpointRef find_destination_by_name(const char * substr) {
 // one, since there's nothing to correlate a source from either.
 
 static void connect_without_identity(void) {
-    ItemCount       destCount = MIDIGetNumberOfDestinations();
+    ItemCount       destCount                            = MIDIGetNumberOfDestinations();
 
     if (destCount == 0) {
         return; // nothing to send to yet — caller retries after a short wait
     }
-    tPanelConfig *  cfg       = synth_panel_config();
-    MIDIEndpointRef dest      = 0;
+    tPanelConfig *  cfg                                  = synth_panel_config();
+    MIDIEndpointRef dest                                 = 0;
+    MIDIEndpointRef onlySrc                              = 0;
+    char            wantIn[SYNTHLIB_MIDI_PORT_NAME_MAX]  = {0};
+    char            wantOut[SYNTHLIB_MIDI_PORT_NAME_MAX] = {0};
 
-    if (cfg->midiPortName[0] != '\0') {
+    atomic_store(&gShownSource, 0);
+    atomic_store(&gShownDest, 0);
+
+    // The MIDI Ports dialogue's choice first. Here it matters more than anywhere: with no identity
+    // reply there is nothing to infer a port from, and the fallback below is simply the FIRST
+    // destination CoreMIDI lists. A chosen port that is not plugged in is waited for like midiPort.
+    synthlib_midi_ports_chosen(wantIn, sizeof(wantIn), wantOut, sizeof(wantOut));
+
+    if (wantIn[0] != '\0') {
+        onlySrc = synthlib_midi_find_port(true, wantIn);
+
+        if (onlySrc == 0) {
+            return; // chosen input not visible yet — caller retries after a short wait
+        }
+    }
+
+    if (wantOut[0] != '\0') {
+        dest = synthlib_midi_find_port(false, wantOut);
+
+        if (dest == 0) {
+            return; // chosen output not visible yet — caller retries after a short wait
+        }
+    } else if (cfg->midiPortName[0] != '\0') {
         dest = find_destination_by_name(cfg->midiPortName);
 
         if (dest == 0) {
@@ -502,11 +550,13 @@ static void connect_without_identity(void) {
     connect_all_midi_sources();
 
     gMidiDest         = dest;
-    gMidiSource       = 0;
+    gMidiSource       = onlySrc;   // 0 still means "any source", as below; a chosen input narrows it
     gDevice.id        = (uint8_t)((cfg->midiChannel > 0) ? (cfg->midiChannel - 1) : 0);
     gDevice.family    = 0;
     gDevice.member    = 0;
     gDevice.connected = true;
+    atomic_store(&gShownSource, onlySrc);
+    atomic_store(&gShownDest, dest);
 
     LOG_DEBUG("Synth connected without identity query: channel=%u dest=0x%08X\n",
               (unsigned)(gDevice.id + 1), (unsigned)gMidiDest);
@@ -789,11 +839,36 @@ static int midi_scan_devices(void) {
     gDevice.family    = 0;
     gDevice.member    = 0;
 
+    atomic_store(&gShownSource, 0);
+    atomic_store(&gShownDest, 0);
+
     connect_all_midi_sources();
+
+    // A CHOSEN OUTPUT is the only one asked, and one that is not plugged in is waited for rather than
+    // replaced by whatever else is on the rig - the retry loop in midi_thread() comes back here.
+    // Every source is still connected: the chosen input is applied to the replies, where the source
+    // each one came from is known (process_identity_replies()).
+    char            wantOut[SYNTHLIB_MIDI_PORT_NAME_MAX] = {0};
+    MIDIEndpointRef onlyDest                             = 0;
+
+    synthlib_midi_ports_chosen(NULL, 0, wantOut, sizeof(wantOut));
+
+    if (wantOut[0] != '\0') {
+        onlyDest = synthlib_midi_find_port(false, wantOut);
+
+        if (onlyDest == 0) {
+            LOG_DEBUG("MIDI output '%s' was chosen and is not present - waiting for it\n", wantOut);
+            return EXIT_FAILURE;
+        }
+    }
 
     for (ItemCount i = 0; i < destCount; i++) {
         MIDIEndpointRef dest = MIDIGetDestination(i);
         CFStringRef     name = NULL;
+
+        if ((onlyDest != 0) && (dest != onlyDest)) {
+            continue;
+        }
         MIDIObjectGetStringProperty(dest, kMIDIPropertyDisplayName, &name);
 
         if (name != NULL) {
@@ -843,6 +918,41 @@ static int midi_scan_devices(void) {
 
 void midi_request_reconnect(void) {
     atomic_store(&gReconnectRequested, true);
+}
+
+// ── MIDI Ports dialogue (UI thread) ──────────────────────────────────────────
+
+// The choice is kept PER DEVICE CONFIGURATION: a Z1 and a Voyager are on different interfaces, so a
+// choice made for one must not follow the switch to the other. synth_reload_panel_config() calls
+// this whenever the configuration changes, which includes the first one at start-up - before the
+// MIDI thread exists, so its first scan already sees the right choice.
+void midi_set_port_scope(const char * configFile) {
+    synthlib_midi_ports_set_scope(configFile);
+}
+
+void midi_port_status(char * text, size_t size) {
+    char            wantIn[SYNTHLIB_MIDI_PORT_NAME_MAX]  = {0};
+    char            wantOut[SYNTHLIB_MIDI_PORT_NAME_MAX] = {0};
+    char            srcName[SYNTHLIB_MIDI_PORT_NAME_MAX] = {0};
+    char            dstName[SYNTHLIB_MIDI_PORT_NAME_MAX] = {0};
+    MIDIEndpointRef src                                  = atomic_load(&gShownSource);
+    MIDIEndpointRef dest                                 = atomic_load(&gShownDest);
+
+    synthlib_midi_ports_chosen(wantIn, sizeof(wantIn), wantOut, sizeof(wantOut));
+    synthlib_midi_port_name(src, srcName, sizeof(srcName));
+    synthlib_midi_port_name(dest, dstName, sizeof(dstName));
+
+    if ((dest != 0) && (src != 0)) {
+        snprintf(text, size, "Connected: heard on %s, played through %s", srcName, dstName);
+    } else if (dest != 0) {
+        snprintf(text, size, "Connected: played through %s, heard on any input", dstName);
+    } else if ((wantOut[0] != '\0') && (synthlib_midi_find_port(false, wantOut) == 0)) {
+        snprintf(text, size, "Waiting for %s to be plugged in", wantOut);
+    } else if ((wantIn[0] != '\0') && (synthlib_midi_find_port(true, wantIn) == 0)) {
+        snprintf(text, size, "Waiting for %s to be plugged in", wantIn);
+    } else {
+        snprintf(text, size, "Not connected - still looking");
+    }
 }
 
 // ── Public send ───────────────────────────────────────────────────────────────

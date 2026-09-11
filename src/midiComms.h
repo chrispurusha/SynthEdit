@@ -22,6 +22,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,6 +36,13 @@ int start_midi_thread(void);
 // the (now file-local) scan/connect logic directly, which used to race
 // unsynchronized against the MIDI thread's own ownership of that state.
 void midi_request_reconnect(void);
+
+// UI thread. The MIDI Ports dialogue's choice is kept per device configuration; call this with the
+// configuration's file name whenever it changes (synth_reload_panel_config() does).
+void midi_set_port_scope(const char * configFile);
+
+// UI thread. One line saying what is connected, for the MIDI Ports dialogue's status row.
+void midi_port_status(char * text, size_t size);
 
 // Returns false (and logs why) if the message couldn't be sent — e.g. too
 // large for the internal packet-list buffer (SYSEX_BUF_SIZE, midiComms.c —

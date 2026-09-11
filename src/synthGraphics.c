@@ -444,6 +444,10 @@ static void synth_reload_panel_config(void) {
     if (!load_panel_config(path, &gSynthPanelConfig)) {
         LOG_ERROR("Synth: couldn't load '%s' — dials will not render\n", path);
     }
+    // The MIDI ports chosen for THIS device, which may be on a different interface from the last one
+    // - see midi_set_port_scope(). Here rather than in synth_switch_device_config() because this is
+    // the one path every configuration load takes, the first at start-up included.
+    midi_set_port_scope(gConfigFileName);
     // A page name carried over from whichever device was loaded before
     // generally won't exist in the new config's sections (different device,
     // different page set) — synth_current_page_sections() then matches

@@ -37,6 +37,7 @@ extern "C" {
 #include "utilsGraphics.h"
 #include "synthlibWindow.h"
 #include "synthlibPopups.h"
+#include "midiPortDialog.h"
 #include "synthGraphics.h"
 #include "panelConfig.h"
 #include "mouseHandle.h"
@@ -184,9 +185,11 @@ void init_graphics(void) {
     // draw_power_button()'s "green when on, grey when off" rendered both states as identical black —
     // the toggle's value was changing correctly, only the colour never showed it. Passing it as part
     // of window creation is what stops that being forgettable again.
-    // The coordinator needs the menu bar before the first frame — see synthlibPopups.h. This app
-    // registers no popups of its own: everything it pops up is SynthLib's.
+    // The coordinator needs the menu bar before the first frame — see synthlibPopups.h. Everything
+    // this app pops up is SynthLib's; the one it has to register is the MIDI Ports dialogue, which the
+    // coordinator does not carry itself because it needs CoreMIDI (see midiPortDialog.h).
     synthlib_popups_set_menu_bar(gAppMenuBar, app_menu_bar_rect);
+    synthlib_popups_register(midi_port_dialog_popup(), 1);
 
     synthlib_window_create(&(tSynthLibWindowConfig){
         .title        = title,

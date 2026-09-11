@@ -44,6 +44,7 @@ extern "C" {
 #include "fileBrowser.h"
 #include "alertDialog.h"
 #include "synthlibPersistence.h"
+#include "midiPortDialog.h"
 #include "appMenuBar.h"
 
 // ── File menu ────────────────────────────────────────────────────────────────
@@ -185,7 +186,7 @@ static void open_file_menu(tCoord anchor) {
 }
 
 // ── Device menu ───────────────────────────────────────────────────────────────
-// "Scan Devices" plus a freshly-scanned device list every time this opens (scan_panel_configs(),
+// "MIDI Ports..." plus a freshly-scanned device list every time this opens (scan_panel_configs(),
 // panelConfig.h) — replaces the old NSMenu's cached gDevicesMenu/rebuild_devices_menu() (misc.mm,
 // retired): SynthLib's menu bar already rebuilds each dropdown fresh on every open, so there's no
 // separate rebuild-on-folder-change hook needed any more.
@@ -193,16 +194,31 @@ static void open_file_menu(tCoord anchor) {
 static char gDeviceCandidateFilenames[PANEL_MAX_CANDIDATES][64];
 static char gDeviceCandidateLabels[PANEL_MAX_CANDIDATES][160];
 
-static void action_scan_devices(int index) {
-    (void)index;
+static void rescan_devices(void) {
     midi_request_reconnect();
     wake_glfw();
+}
+
+// SCAN MOVED INTO HERE (2026-09-11): the dialogue has it as a button, beside the input and output
+// lists it now scans within. The choice belongs to the device configuration loaded now, so the title
+// says which device it is for.
+static void action_midi_ports(int index) {
+    static char title[PANEL_LABEL_LEN + 16];
+
+    (void)index;
+    snprintf(title, sizeof(title), "MIDI Ports - %s", synth_panel_config()->deviceName);
+    midi_port_dialog_open(&(tMidiPortDialogHost){
+        .title   = title,
+        .changed = rescan_devices,
+        .scan    = rescan_devices,
+        .status  = midi_port_status,
+    });
 }
 
 static void action_switch_device(int index) {
     // index is this item's POSITION within the dropdown (contextMenu.c's handle_context_menu_click()
     // calls action(index) with the array index it hit-tested against) — NOT the candidate's own
-    // index into gDeviceCandidateFilenames, since "Scan Devices" occupies position 0, shifting every
+    // index into gDeviceCandidateFilenames, since "MIDI Ports..." occupies position 0, shifting every
     // candidate's position one past its actual gDeviceCandidateFilenames slot. Real bug found
     // 2026-07-17 (owner report: device selector picking "the next one in the list") — must read the
     // candidate index back out of gContextMenu.items[index].param instead, same as every other
@@ -221,7 +237,7 @@ static void open_device_menu(tCoord anchor) {
     int                   i       = 0;
 
     items[i++] = (tMenuItem){
-        "Scan Devices", (tRgb)RGB_GREY_3, action_scan_devices, 0, NULL, 0, 0.0
+        "MIDI Ports...", (tRgb)RGB_GREY_3, action_midi_ports, 0, NULL, 0, 0.0
     };
 
     for (uint32_t c = 0; c < count; c++) {
@@ -398,7 +414,6 @@ static void open_restore_menu(tCoord anchor) {
 //
 // If something genuinely experimental turns up again, G2-Edit still has the pattern to copy.
 
-
 // ── Help menu ─────────────────────────────────────────────────────────────────
 // WHICH BUILD IS THIS. Version, compile time and the render backend in force. The backend is a
 // preference now, so "it looks wrong" and "it looks wrong on Metal" are different reports.
@@ -420,14 +435,14 @@ static void open_help_menu(tCoord anchor) {
 }
 
 tMenuBarItem gAppMenuBar[] = {
-    {"File",         open_file_menu        },
-    {"Device",       open_device_menu      },
-    {"Controls",     open_controls_menu    },
-    {"Layouts",      open_layouts_menu     },
-    {"Backup",       open_backup_menu      },
-    {"Restore",      open_restore_menu     },
-    {"Help",         open_help_menu        },
-    {NULL,           NULL                  },
+    {"File",     open_file_menu    },
+    {"Device",   open_device_menu  },
+    {"Controls", open_controls_menu},
+    {"Layouts",  open_layouts_menu },
+    {"Backup",   open_backup_menu  },
+    {"Restore",  open_restore_menu },
+    {"Help",     open_help_menu    },
+    {NULL,       NULL              },
 };
 
 tRectangle app_menu_bar_rect(void) {
