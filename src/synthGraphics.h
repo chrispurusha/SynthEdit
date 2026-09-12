@@ -16,6 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+// Notes: Docs/code-notes/synthGraphics.h.md - "// notes §k" refers there.
 
 #ifndef __SYNTH_GRAPHICS_H__
 #define __SYNTH_GRAPHICS_H__
@@ -46,37 +47,20 @@ void synth_set_layouts_dir(const char * dir);
 const char * synth_layouts_dir(void);
 const char * synth_current_device_config(void);
 
-// Switches to a different <device>.txt already known to be in the current
-// layouts folder (see scan_panel_configs()) — e.g. picked from the native
-// "Devices" menu. No-op if filename is already the one loaded. Resets
-// gDevice.connected first: whatever was connected under the PREVIOUS
-// config's identity means nothing once a different device's protocol is
-// loaded, so the UI shouldn't keep showing it as connected while a fresh
-// identity scan runs — then re-scans MIDI so the newly-loaded device can
-// be (re)detected. Persists the choice (set_saved_device_config(), misc.h)
-// so it's also what synth_init_graphics() defaults to next launch.
+// notes §1
 void synth_switch_device_config(const char * filename);
 
 // The full parsed config, for callers that need named lists (see
 // get_panel_list_item()/get_panel_list_count()) rather than a specific dial.
 tPanelConfig * synth_panel_config(void);
 
-// Every section belonging to whichever page is currently showing on screen
-// (see synth_set_current_page()), in layout-file order — that order is what
-// determines top-to-bottom stacking when rendered (see synth_render()) and
-// the order mouse handling should search when hit-testing/dragging. Writes at
-// most maxSections pointers into outSections and returns how many were
-// written; each section's dial rects stay valid until the next
-// synth_render() call.
+// notes §2
 uint32_t synth_current_page_sections(tPanelSection * outSections[], uint32_t maxSections);
 
 const char * synth_current_page(void);
 void synth_set_current_page(const char * page);
 
-// Hit-tests the page-tab row laid out during the last synth_render() call —
-// returns the tab index under coord, or -1 if none. Pure hit-test, no side
-// effect; used on mouse-down (to arm a tab without actioning it yet) and
-// again on mouse-up (to confirm the release landed back on the same tab).
+// notes §3
 int32_t synth_hit_test_page_tab(tCoord coord);
 
 // Switches to the page at gPageTabs[index] (see synth_hit_test_page_tab()).
@@ -84,28 +68,15 @@ int32_t synth_hit_test_page_tab(tCoord coord);
 // confirmed to land back on the tab that was pressed.
 void synth_action_page_tab(int32_t index);
 
-// Purely cosmetic: which tab (if any) render_page_tabs() should draw in its
-// pressed shade. mouseHandle.c is the source of truth for whether a press
-// actually still counts (see gPressedTab there) — this just mirrors that for
-// rendering. -1 = none pressed.
+// notes §4
 void synth_set_pressed_page_tab(int32_t index);
 
-// Prev/Next patch buttons, laid out on the Program name row during the last
-// synth_render() call (see synth_navigate_preset() in synthComms.h for what
-// they actually do and why "current patch" can be unknown). Mirrors the page
-// tab functions above: hit-test returns 0 for Prev, 1 for Next, -1 for
-// neither; action fires the corresponding synth_navigate_preset() call;
-// pressed-state is cosmetic only, same -1-means-none convention.
+// notes §5
 int32_t synth_hit_test_patch_nav(tCoord coord);
 void synth_action_patch_nav(int32_t index);
 void synth_set_pressed_patch_nav(int32_t index);
 
-// The program name text block, laid out on the Program name row during the
-// last synth_render() call — a click starts inline editing (gProgNameEdit,
-// globalVars.h; see mouseHandle.c). No press/release split the way
-// gPressedValueMenuDial needs (panel_dial_needs_value_menu()'s own comment,
-// mouseHandle.c) — there's no menu here that a same-click release could
-// prematurely dismiss, so entering edit mode happens directly on press.
+// notes §6
 bool synth_hit_test_prog_name(tCoord coord);
 
 #ifdef __cplusplus

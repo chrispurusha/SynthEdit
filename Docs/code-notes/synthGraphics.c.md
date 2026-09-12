@@ -1,0 +1,711 @@
+# synthGraphics.c notes
+
+The longer comments from `synthGraphics.c`, moved here 2026-09-12 so the code reads cleanly. The code points at each as `// notes §k`. Verbatim and in file order; each is titled by what it documents.
+
+## 1. `tPageTab`
+
+── Page tabs ─────────────────────────────────────────────────────────────────
+One tab per distinct "page" value across gSynthPanelConfig's sections (today
+that's "synthesis"/"effects", but nothing here names either specifically —
+add a page to the file and a tab appears for it automatically).
+
+## 2. `gPrevPatchRect`
+
+── Prev/Next/Sync patch buttons ─────────────────────────────────────────────
+See synth_navigate_preset() (synthComms.h) for what a Prev/Next press
+actually does. Laid out on the Program name row (synth_render() below)
+rather than as a separate row, since they act on "whatever's currently
+loaded" — the same thing that row already shows.
+
+Sync (index 2) isn't preset navigation — it re-requests the current state
+dump (synth_request_state_dump(), synthComms.c) so the app's dial values
+can be checked/refreshed against the real hardware's current front-panel
+settings on demand, rather than only ever updating on connect or a preset
+change. Added 2026-07-08 for exactly this kind of manual verification.
+Shares the same generic press-on-mouse-up index scheme as Prev/Next purely
+because it needed nothing more — mouseHandle.c dispatches by index alone
+and doesn't care how many buttons are in this row.
+
+Labelled "Sync from synth", not just "Sync" — renamed 2026-07-10 after a
+real hardware finding: ANY state dump request (this button, the CC-quiet
+auto-refresh, or an abandoned periodic-poll experiment the same day — see
+midi_arm_state_dump_debounce()'s own comment in midiComms.c) kicks the
+Voyager's own front-panel display OUT of whatever menu it's showing (e.g.
+browsing Sound Category) back to normal. A periodic background poll doing
+that as a surprise was unacceptable and got removed; this button doing it
+is fine BECAUSE it's the owner's own deliberate, explicit request — the
+more specific label is so it's obvious in the UI that pressing it talks
+to the hardware and can interrupt whatever it's showing, not just a
+harmless in-app refresh.
+
+## 3. in `synth_hit_test_patch_nav()`
+
+Prev/Next need a known gDevice.currentProgram to mean anything (see
+synth_navigate_preset()'s own comment, synthComms.c) — disabled here
+at the hit-test level, not just cosmetically greyed, so a click
+genuinely does nothing (no press-highlight, no navigation) rather
+than silently guessing a relative step from an assumed slot 0.
+Fixed 2026-07-13 per owner report: with the OLD "default to 0 when
+unknown" behaviour, Prev/Next always jumped to/from slot 0 on a
+fresh connect (since nothing else sets currentProgram — Load Patch
+from Bank wasn't working either), reading as "Prev/Next always
+starts at the first patch." Sync (index 2) is unaffected — it needs
+no known program to mean something.
+draw_button_bounds(): these rects are drawn via draw_button() (which draws
+DRAW_BUTTON_MARGIN larger bottom/right), so hit-test the true drawn bounds.
+
+## 4. in `synth_action_patch_nav()`
+
+Skipped while a dump-only dial change or program-name edit is
+already mid fetch-then-patch (synth_dump_patch_in_flight(),
+synthComms.c) — firing a SECOND request here raced the first
+one's reply, found 2026-07-11 by dragging Headphone Volume then
+immediately pressing this button: the second reply landed after
+the first had already applied+sent the new value, got decoded
+normally (nothing left to skip it), and overwrote the display
+back to the pre-drag value even though the actual write had gone
+out correctly. The in-flight request's own reply already refreshes
+everything this button wants, so there's nothing to gain by
+sending a duplicate — and real hardware next to no cost either way,
+since the outstanding request is seconds away at most.
+
+## 5. `wrap_name_for_display()`
+
+Inserts '\n' every lineWidth characters of `flat` for display — the same
+display-only wrap extract_moog_name() applies when decoding a name off the
+wire (see that function's own comment for why there's no real separator
+byte to hang a break on), applied here to an in-progress edit buffer
+instead of freshly-decoded bytes. Deliberately simpler than
+extract_moog_name(): a user-typed buffer has no whitespace-collapsing or
+hardware line-boundary quirk to undo.
+
+## 6. `synth_decode_hilo_dial()`
+
+Decodes a dialDisplaySignedHiLo dial's raw dump value (an unsigned
+0..2^dumpBitWidth-1 wire value, read normally via the existing generic
+bitfield extraction) into its coarse (HIGH) and fine (LOW) components —
+see that enum value's own long comment (panelConfig.h) for the field this
+was derived against (Voyager's PGM Shaping 1/2 Fixed Value) and the full
+worked examples that validated this exact formula against real hardware,
+2026-07-11/12.
+
+The tricky part isn't the arithmetic itself (adjusted = signed_raw -
+hiLoOffset; HIGH = adjusted / hiLoCoarseScale; LOW = the remainder) — it's
+that a naive floor(adjusted / coarseScale) lands LOW in [0, coarseScale/
+fineScale - 1] (e.g. 0..127), not the SIGNED range the real front panel
+actually shows (-64..+63) — the two ranges disagree by exactly one full
+LOW span (128) for any `adjusted` that would need LOW >= coarseScale/
+fineScale/2. Confirmed empirically: H=0,L=-64 (a real, reachable,
+hardware-verified position) computes as adjusted=-512, naive
+floor(-512/1024)=-1 with remainder 512 -> naive LOW=512/8=64 — a value
+LOW can never actually show (its own confirmed range tops out at +63).
+The fix is the same "if the naive fine value is in the UPPER half of its
+own span, it's really NEGATIVE and the coarse value is one higher" carry
+adjustment the real hardware itself performs when LOW overflows past +63
+into HIGH+1 (owner observed this directly on real hardware, 2026-07-12).
+
+## 7. in `synth_decode_hilo_dial()`
+
+Python-style "always non-negative" remainder, not C's truncate-toward-
+zero one — see this function's own header comment for why a plain `%`
+here would land LOW outside its real -64..+63 range for any negative
+`adjusted`.
+
+## 8. in `render_page_tabs()`
+
+18.0 = 1.5x navBtnHeight (12.0, "Sync from synth"'s own text height,
+see its own comment further down this file) — was a flat 24.0 (2x),
+shrunk 2026-07-13 on owner request so the page tabs read closer in
+scale to the nav/sync buttons on the same row rather than dominating
+them.
+
+## 9. in `render_page_tabs()`
+
+Measure at tabHeight, not an arbitrary font size — draw_button()
+scales rendered text to the full height of the rect it's given
+(internal_render_text: scaleFactor = rectangle.size.h / ...), so
+the width measurement has to match that same height or the box
+ends up too narrow for what actually gets drawn.
+
+## 10. in `render_page_tabs()`
+
+RGB_GREY_7, not RGB_BACKGROUND_GREY — the latter is a dark grey in
+this build, too low-contrast for draw_button's fixed black text.
+Pressed (mouse currently down on this tab) takes priority over
+active — it's transient feedback for the click in progress, shown
+regardless of which page is actually selected right now.
+
+## 11. `BUTTON_TEXT_PADDING`
+
+Shared between section_required_spacing() below and the binary/value-menu
+button-rendering block further down this file (search BUTTON_TEXT_PADDING)
+— both need the EXACT same padding a button's own text gets, not just a
+similar one. Used to be two independently-chosen numbers (8.0 here,
+10.0 there) that quietly drifted apart: an auto-flow section's spacing
+this function widens to fit its own widest button was computed 2px
+narrower than the button that same text actually rendered at, so the
+button's right edge bled into the next dial's slot by that same 2px —
+found 2026-07-13 on the Z1's Porta Mode/Porta Time pair ("FINGERED"
+pushing Porta Time's knob rect partially under Porta Mode's button).
+One named constant instead of two hand-typed literals means this can't
+silently re-drift the next time either call site gets tweaked.
+
+## 12. `MIN_BUTTON_GAP`
+
+Extra clearance section_required_spacing() reserves BETWEEN adjacent
+buttons, on top of BUTTON_TEXT_PADDING — added 2026-07-13 investigating a
+real overlap report on the Z1's Voice/Unison row, AFTER the
+BUTTON_TEXT_PADDING unification above. Live-logged numbers showed no
+actual overlap in the numbers themselves (Voice's own button ended a mere
+~4px before Unison's started, same tight single-digit-pixel margin on
+every other button pair on the page) — get_text_width() sums per-glyph
+advance widths to measure a string, which is a good estimate but not
+guaranteed pixel-identical to whatever the GPU actually rasterizes for
+that exact string (kerning, hinting, antialiasing edge bleed). With only
+~4px of slack, that estimate only has to be off by a couple of percent for
+the drawn button to visually touch or bleed into its neighbour even though
+the measured rects don't overlap. This constant is deliberately NOT added
+to a button's own rect.size (kept snug, matching BUTTON_TEXT_PADDING
+exactly, so an individual button doesn't look oversized on its own — see
+that constant's own comment) — only to the shared PITCH between dials in
+section_required_spacing(), so there's always a visible gap regardless of
+small measurement/rendering discrepancies like this one.
+
+## 13. `section_required_spacing()`
+
+Widens a section's spacing (floor: whatever dialSize/spacing the file gave
+it) to fit its own widest label or discrete-name text — render_text() draws
+unclipped by rectangle width (see internal_render_text() in
+utilsGraphics.cpp), so anything wider than the column it's given visually
+bleeds into the next dial's text. Generic: works for any section from any
+device config, not a fixed value tuned for one device's longest string.
+Idempotent — recomputing against an already-widened spacing yields the
+same result, so calling this every frame is fine.
+
+## 14. in `synth_reload_panel_config()`
+
+A page name carried over from whichever device was loaded before
+generally won't exist in the new config's sections (different device,
+different page set) — synth_current_page_sections() then matches
+nothing and every dial silently vanishes while the page tabs and
+patch name (which don't filter by page) keep rendering normally, only
+fixing itself once the user clicks a tab and picks a page that
+actually exists. Clearing it here lets render_page_tabs()'s existing
+"default to the first page seen" fallback pick a valid one for
+whatever config was just loaded, the same as a fresh app launch.
+
+## 15. in `synth_reload_panel_config()`
+
+Best first guess for a Moog-style device's SysEx Device ID (see the
+tSynthDevice field comment, types.h) — the byte the newly-loaded
+config's own stateRequestSysEx was written with. synth_on_connected()
+(synthComms.c) deliberately does NOT reset this on every reconnect —
+only here, where the config itself just changed, does a previously
+learned value stop being trustworthy (it may describe a completely
+different physical unit now). moog_learn_device_id() overwrites this
+the moment any real dump from whatever's now connected proves
+otherwise; meaningless (but harmless) for a device that isn't
+moogStyleDump, or one whose stateRequestSysEx is too short to carry a
+Device ID byte at all.
+
+## 16. in `synth_reload_panel_config()`
+
+Whichever device's names were cached in memory a moment ago belong to
+the PREVIOUS config, not this one — reset and reload whatever's saved
+on disk for the device just loaded above (see this function's own
+comment, synthBackup.h).
+
+## 17. in `synth_reload_panel_config()`
+
+Candidate list from the multi-candidate branch below, kept around between synth_choose_config_
+file() opening the async picker and on_startup_device_chosen() acting on whatever the user
+picked — open_bank_browser() (bankBrowser.h) copies each item's `name` internally before
+returning, but the callback only gets back (bank1Indexed, location1Indexed), not the original
+tPanelConfigCandidate, so the filename each entry actually corresponds to has to survive here
+instead. Same "app keeps its own menu/dialog context" idea as every other stash-a-static-before-
+opening-then-read-it-back-in-the-callback spot in this codebase family (e.g. G2-Edit's own
+tMenuContext, or this app's synthBackup.c gStoreArmedPresetNumber and friends).
+
+## 18. `on_startup_device_chosen()`
+
+Confirmed callback for the "Choose Device" bank-browser picker below — location1Indexed is the
+1-based index into sPendingChooserCandidates (bank1Indexed is unused, always 1, there's no bank
+concept for a device list). Mirrors what the old synchronous chooser did with its own `chosen`
+return value, PLUS the synth_reload_panel_config() call synth_set_layouts_dir()/
+synth_init_graphics() used to make unconditionally right after synth_choose_config_file()
+returned — now that a multi-candidate pick can be deferred well past that point, THIS is what
+actually loads the chosen config once the user responds, not the caller.
+
+## 19. in `on_startup_device_chosen()`
+
+Reload either way — even a cancelled pick should show whatever gConfigFileName already held
+(the pre-existing "leave it alone rather than blocking startup" behaviour), and the caller
+that opened this picker returned long ago without reloading, deliberately, so nothing else
+will.
+
+## 20. `synth_choose_config_file()`
+
+Scans gLayoutsDir for every <device>.txt it contains; a single match is
+used directly (no prompt — nothing to choose), but more than one first
+tries the persisted "lastDeviceConfig" preference (get_saved_device_
+config(), misc.h) before ever prompting — added 2026-07-13 per owner
+request, so a returning user isn't asked to re-pick every single launch.
+Only falls through to the actual chooser (device name + description, from
+each file's own "device"/"description" lines) if there's no saved choice
+yet, or the saved filename isn't among what's actually here right now
+(e.g. that device.txt was removed/renamed since). If the user cancels the
+chooser, whatever gConfigFileName already held is left alone rather than
+blocking startup. Every path that settles on a filename persists it via
+set_saved_device_config() — including the saved-preference fast path,
+which is a harmless re-write of what's already there.
+
+Zero candidates (no folder ever chosen, or the saved one moved/was
+emptied) instead puts up the same folder picker as the "Choose Layouts
+Folder…" menu item, asynchronously — synth_set_layouts_dir() re-enters
+this whole function once the user actually picks something.
+
+Returns true if it settled on a config synchronously (auto-pick, saved
+preference, or the zero-candidates folder-picker branch — none of those
+need a reload beyond what the caller already does) — false if it opened
+the async multi-candidate picker instead (bankBrowser.h, no native modal
+left anywhere in this app any more — SynthLib's dialogs only resolve via
+a callback fired from the render loop, which on_startup_device_chosen()
+above is; the caller must NOT reload now, since there's nothing to reload
+yet).
+
+## 21. in `synth_choose_config_file()`
+
+No category concept for a device list (categoryNameCount=0 below disables that sort
+mode entirely) — bank1Indexed is always 1 (no bank concept either), location1Indexed is
+this candidate's 1-based index into sPendingChooserCandidates, read back in
+on_startup_device_chosen() above.
+
+## 22. in `synth_switch_device_config()`
+
+Whatever was connected under the PREVIOUS config's SysEx identity
+means nothing once a different device's protocol is loaded — don't
+leave the UI showing a stale "connected" state while the fresh scan
+runs. synth_on_connected() (synthComms.c) does the matching
+dial-state reset already, once/if a real identity reply for the
+NEWLY loaded device actually arrives. gDevice.connected itself is
+MIDI-thread-owned (see gReconnectRequested's comment, midiComms.c) —
+this just flags the request; the MIDI thread clears it and rescans.
+
+## 23. `synth_render_sweep_status_row()`
+
+── Bulk operation progress overlay ─────────────────────────────────────────
+Shown while a Backup > Bank (Individual Files) export or Restore > Bank
+(Individual Files) sweep is running — same idea as G2-Edit's own
+render_bank_backup_progress()/render_bank_restore_progress() (graphics.cpp
+there), collapsed into ONE overlay here since SynthEdit only ever has one
+such sweep active at a time (both directions guard against overlapping —
+see synth_backup_bank_to_folder()/synth_backup_restore_folder()'s own
+comments, synthBackup.h) rather than G2's own backup/restore-can-run-
+independently shape. Purely visual — doesn't block mouse input to
+whatever's underneath, same as G2-Edit's own version; the bulk sweeps
+themselves already refuse to start a second overlapping one, so there's
+nothing unsafe about a stray click elsewhere while this is showing.
+Small, non-blocking status-row indicator for a name sweep (Korg-style
+Load/Store Patch from/to Bank's 256-request sweep, or the equivalent Moog
+batch name sweep) — unlike synth_render_backup_progress() below (a
+blocking, screen-dimming modal, appropriate for a real bank export/
+restore where the user has explicitly asked to wait), a name sweep can
+now also be started silently in the background while the user keeps
+working (synth_backup_flush_background_prefetch(), synthBackup.c) — a
+modal would defeat the entire point. 2026-07-14 user request ("We don't
+necessarily need the live picker at this point... percentage on status
+bar please") also covers the EXPLICIT click case: the native picker now
+opens immediately regardless of sweep progress (korg_sweep_show_picker(),
+synthBackup.c — showing "---" for anything not yet swept), so this row is
+purely informational background-fill progress, not something blocking
+the picker the way the old modal (still used by Bank export/Restore
+below) used to.
+
+## 24. in `synth_render_sweep_status_row()`
+
+Sits to the right of "Sync from synth" rather than along the bottom edge, where it used to
+overlap the lowest row of dials. Falls back to the old bottom-left position if the nav rects
+haven't been laid out yet (no device, so synth_render() never placed them) — otherwise the
+row would render at 0,0 on those frames.
+
+## 25. in `synth_render_backup_progress()`
+
+RGB_GREY_9 (G2-Edit's own track colour) doesn't exist in SynthEdit's
+own synthlibDefs.h palette variant (see the #ifdef G2_EDIT split
+there) — RGB_GREY_2 used instead, darker so it reads clearly against
+both the box's own RGB_GREY_5 and the green fill.
+
+## 26. in `synth_render()`
+
+── Program name ──────────────────────────────────────────────────────────
+While disconnected, show "Not connected" instead of a name. Some
+protocols never send a program name at all once connected (e.g. the
+Voyager's Panel Dump — see extract_moog_panel_info() in synthComms.c),
+so an empty progName after connecting isn't "still loading", it's
+"this device doesn't report one" — show the device name instead.
+
+gDevice.progName may contain embedded '\n's (nameLineWidth in the
+device's .txt — see the tPanelConfig field comment in panelConfig.h),
+one per line of the source device's own multi-line display — rendered
+here as separate rows rather than run together on one line. The space
+reserved below is always the device's worst-case line count (e.g. 2
+for the Voyager, whether or not the current name actually uses both),
+not however many lines happen to be in nm right now — otherwise every
+row beneath this one (dials, Info row, …) would shift up and down as
+patches with a one-line vs. two-line name are selected.
+
+## 27. in `synth_render()`
+
+Click-to-edit (see synth_hit_test_prog_name() above, mouseHandle.c
+for the click/keyboard handling) — while active, render the edit
+buffer (with an inserted '|' cursor marker, same idiom G2-Edit's
+own patch-name field uses) instead of gDevice.progName, wrapped
+for display the same way a decoded name is (wrap_name_for_display()
+above) so it visually matches the read-only view it'll return to
+on commit/cancel.
+
+## 28. in `synth_render()`
+
+Prev/Next patch buttons — see synth_navigate_preset() (synthComms.h)
+for what they send. Prev/Next specifically ALSO need a known
+gDevice.currentProgram (fixed 2026-07-13 — see synth_hit_test_
+patch_nav()'s own comment for the "always jumps to slot 0"
+problem this solves); Sync doesn't need one. navEnabled here only
+covers the "no device at all" case shared by all three buttons —
+prevNextEnabled below adds the extra Prev/Next-only condition on
+top of it. Widths measured the same way render_page_tabs() sizes
+its own buttons — draw_button() doesn't clip text to the rect
+it's given (see internal_render_text()), so an under-measured box
+would bleed.
+
+## 29. in `synth_render()`
+
+12.0, not the old 26.0 * (2.0 / 3.0) (~17px) — matches
+buttonHeight, the size every dial's own value-menu/toggle button
+face and label text renders at elsewhere in this file (2026-07-11
+user request: these three should read at the same size as the
+panel's own dial labels, not a bespoke larger one).
+
+## 30. in `synth_render()`
+
+Prev/Next only register while actually enabled (see
+synth_hit_test_patch_nav()'s own comment on prevNextEnabled) — a
+click there should genuinely do nothing, not just look disabled.
+Sync has no such gating, matches navEnabled alone.
+
+## 31. in `synth_render()`
+
+── Info row: every dial in a `hidden` section, anywhere in the config ────
+(e.g. the Z1's Category/Voice/Unison*, the Voyager's soundCategory —
+see layouts/z1.txt / voyager.txt) — shown as "label: value" text
+rather than a rendered control. Fully generic: this block has no idea
+what any of these dials mean, so a different device with different
+(or no) hidden dials needs no change here.
+
+Each segment is measured and drawn individually (rather than one
+concatenated string, as before 2026-07-11) so its on-screen
+tRectangle can be stored into that dial's own `rect` field —
+registering each segment's rect below (panel_dial_press_click_handler,
+shared with the main grid) then lets a panel_dial_needs_value_menu()
+dial here (e.g. soundCategory) open the same generic dropdown a normal
+grid dial's own click does (open_dial_value_menu(), menus.c), with no
+device-specific code: a numeric-only hidden dial just gets a rect
+nothing ever hit-tests true for a value-menu on, so it stays inert.
+
+Wraps onto additional lines once a segment (plus its leading " | "
+separator) would run past the content area's right edge — added
+2026-07-11 once the Voyager's EDIT-menu sweep grew this row to 8
+entries and the last one or two started rendering off the right edge
+of the window entirely (invisible AND unclickable, since a rect
+outside the visible framebuffer is outside the cursor's reachable
+coordinate space too). A single segment wider than the whole content
+area on its own still bleeds past the edge even after wrapping —
+same "render_text() draws unclipped by rectangle width" limitation
+section_required_spacing()'s own comment above already documents for
+grid dials; not worth a truncation scheme for a case this unlikely.
+
+## 32. in `synth_render()`
+
+Same handler the main per-page grid dials use just below —
+arm_dial_press() already no-ops for readOnly/disabled, and
+the old inline synth_hit_test_info_row() path (removed from
+mouseHandle.c) called it unconditionally too, so no extra
+gating is needed here either.
+
+## 33. in `synth_render()`
+
+── Active page's dials ─────────────────────────────────────────────────────
+Layout, colours, ranges and labels all come from layouts/xxxx.txt via
+panelConfig — this block only supplies the live values and draws. Which
+section(s) render follows the active page tab, not a fixed section
+name. A page can hold several sections (e.g. Oscillator's several
+sections stacked above Filters on the Synthesis page) — each is laid
+out as its own row, in the file's declaration order, one below the
+last — UNLESS the page uses explicit col=/row= grid positioning (see
+tPanelDial.gridCol in panelConfig.h), in which case every section on
+the page shares one fixed origin instead of stacking, so a dial's own
+col/row is all that places it (a column can freely mix dials from
+several sections, e.g. the Voyager's leftmost column carrying both
+LFO's and Global's dials).
+
+## 34. in `synth_render()`
+
+── Column headers ───────────────────────────────────────────────
+Optional per-column title ("columnLabel <col> <text>" in the
+device's own .txt — see tColumnLabel in panelConfig.h). Reserves
+one header row's worth of height above row 0 only if the current
+page declares at least one — a page with none (or a non-grid
+page entirely) advances y by nothing extra here, rendering
+exactly as before this existed. Rendered as an actual title, not
+just another dial label — white and a size up from the 12px
+dial-label text (RGB_GREY_7, matching every OTHER piece of text
+on the panel would read as just one more label, not a header),
+uppercased, with a thin rule underneath to visually cap off the
+column the way a table header separates from its rows.
+
+## 35. in `synth_render()`
+
+First pass: render_text() draws unclipped by rectangle width
+(see section_required_spacing()'s own comment above), and
+unlike a dial's auto-flow spacing, the grid's column pitch
+can't be widened per-column to fit an overlong title without
+shifting every dial in every later column out of alignment —
+so an overlong header can only be fixed by shrinking the
+FONT to fit the fixed width instead. Computed once, as the
+tightest fit across every labelled column on this page, so
+every header reads at the same size rather than each
+shrinking independently to whatever bleeds least.
+
+## 36. in `synth_render()`
+
+See disabledUnlessDialId's own comment in panelConfig.h —
+greyed out and non-interactive (mouseHandle.c) unless the
+gating dial's current value matches. Checked once here so
+both the button and knob render paths below can use it.
+
+## 37. in `synth_render()`
+
+Captured before a binary button below shrinks/recentres
+dial->rect itself — the label text further down still
+needs to sit relative to where a full-size knob would
+have been, not the shrunk button.
+
+## 38. in `synth_render()`
+
+A structurally genuine Off/On pair (panel_dial_is_toggle())
+that's opted into asMenu (panelConfig.h) is styled as a
+value-menu button instead — label+green/grey toggle
+treatment excluded — so every use of "is this a toggle for
+rendering purposes" below (button face text/colour further
+down, and the below-button label line's own toggle
+shortcut near the end of this loop) goes through this one
+flag rather than re-deriving it, so both stay consistent.
+
+## 39. in `synth_render()`
+
+Any 2-position named dial (Off/On, but also Filters' Mode
+"Dual LP"/"HP/LP", Osc 3's Freq Range "Lo"/"Hi", ...)
+renders as a button showing the current state's name,
+rather than a knob — a click still flips it (see
+panel_dial_is_binary()'s own comment in panelConfig.h).
+Purely a function of the dial's own names=, so any
+device's dials get this for free, not just Voyager's —
+shared with mouseHandle.c, which needs the identical test
+to know these take a single click rather than a drag.
+Genuine Off/On dials (panel_dial_is_toggle()) additionally
+get a green background when on — matching gTheme.greenOn
+used elsewhere — since that IS a meaningful on/off state;
+a plain grey background for anything else would wrongly
+imply "HP/LP" or "Lo" mode is somehow "off".
+
+A panel_dial_needs_value_menu() dial (>2 positions, no CC —
+e.g. Filter A/B Pole Select) gets the same textual-button
+treatment, not a knob — 2026-07-08 user call: a menu-select
+control reads as a button you click to open a list, not
+something you'd expect to drag, so it shouldn't look like a
+knob in the first place.
+
+## 40. in `synth_render()`
+
+Genuine Off/On toggles show their own LABEL on the
+button face ("Glide", not "Off"/"On") instead of the
+current state's name — the button's colour (green vs
+grey, below) already carries the on/off state, so
+repeating it as text would be redundant. Everything
+else through this branch (a value-menu button, or a
+binary-but-not-Off/On pair like Filter Mode's Dual
+LP/HP-LP) just shows its own current-value name alone
+— 2026-07-11 user call: names are expected to be
+self-explanatory on their own (bake any needed context
+straight into names=, e.g. Freq Range uses "Freq
+Lo"/"Freq Hi" as its actual names rather than the code
+prefixing a separate label on), so a code-level label
+prefix ("Mode Dual LP", "Filter A Poles 2 Pole") is
+unwanted duplication, not a genuine aid. The separate
+label line beneath the button is still skipped for
+ALL of these (toggle, binary, or value-menu — further
+down this loop), since the button's own face already
+says enough on its own. isToggle itself (declared
+above, alongside disabled/baseY) already excludes an
+asMenu dial.
+
+## 41. in `synth_render()`
+
+draw_button() scales text to fill the WHOLE height of
+the rect it's given (internal_render_text) —
+dial->rect's dialSize-square shape (sized for a round
+knob) scaled text as long as "Dual LP"/"On/Ext" up to
+~36px tall, wildly overrunning a box that width.
+Shrinking the button's height and widening it to fit
+the WIDEST of its own names (not just whichever's
+showing right now, so it doesn't visibly resize as
+the user clicks it) makes it read as a compact
+rectangular button instead — same idea as
+render_page_tabs()'s own width-from-measured-text
+sizing above. A toggle's own label is a single fixed
+string (not one of several names it might cycle
+through), so its own width is simply measured
+directly rather than scanning dial->names. Mutates
+dial->rect itself, not a separate local rect, so the
+clickable hit area (mouseHandle.c) always matches what's
+actually drawn. buttonHeight matches the 12.0 the dial
+label/value text below (further down this loop)
+renders at, so the button's own text reads at the same
+size as every other label on the panel, not an
+arbitrarily bigger one.
+
+## 42. in `synth_render()`
+
+RGB_GREY_7, not RGB_BACKGROUND_GREY — see
+render_page_tabs()'s own identical comment above:
+the latter is a dark grey in this build, too
+low-contrast for draw_button's fixed black text.
+disabled (see panel_dial_is_disabled() above) wins over
+the on/off green — a greyed-out button shouldn't still
+read as "on".
+
+A panel_dial_needs_value_menu() button opens a
+dropdown whose items are backgrounded in dial->colour
+(open_dial_value_menu(), menus.c) — the button itself
+now matches, 2026-07-13 user request, so it visually
+ties to the menu it opens. A plain binary (2-position,
+no dropdown — e.g. Dual LP/HP-LP) has no menu colour to
+match, so it stays RGB_GREY_7 same as an off toggle.
+draw_button() itself now picks black/white label text
+per contrasting_text_colour(), so an arbitrarily dark
+dial->colour here stays readable the same way the
+dropdown's own items do.
+
+## 43. in `synth_render()`
+
+A disabled or readOnly dial takes no interaction at all (see
+arm_dial_press()'s own comment) — simplest to just not
+register a click region for it this frame, rather than
+registering one whose handler is a no-op.
+
+## 44. in `synth_render()`
+
+A button-drawn dial (the draw_button branch above, same
+condition) is drawn DRAW_BUTTON_MARGIN larger bottom/right
+than dial->rect, so register its true drawn bounds or that
+edge strip is visible-but-unclickable. A render_dial dial is
+drawn exactly at dial->rect.
+One definition of the clickable bounds, shared with the hit test and with the
+release check in mouseHandle.c — see panel_dial_hit_rect().
+
+## 45. in `synth_render()`
+
+Always shows BOTH equally-valid High readings, not
+just one — 2026-07-12 finding (see
+dialDisplaySignedHiLo's own panelConfig.h comment):
+EVERY High value has exactly one alias (High and
+High-64, or High and High+64, whichever lands in
+range) that produces bit-for-bit identical wire data,
+not just a narrow subset — so there's no "unambiguous
+case" to silently trust and no way to ever pick the
+definitively "right" one from the dump alone. Rather
+than silently showing one possibly-wrong number (the
+earlier version of this code), or always showing an
+uninformative "?" (equally true for every value, so
+no better), every render honestly shows both.
+
+## 46. in `synth_render()`
+
+See dialDisplaySigned's own comment in panelConfig.h —
+dialVal is the raw unsigned count; displayOffset
+recentres it to the signed range the synth's own
+front panel shows (e.g. 0-198 -> -99..+99).
+
+## 47. in `synth_render()`
+
+"X (Y)" — X is the primary display value (0..max-1,
+the number actually sent/received on the wire — see
+synth_set_panel_dial_value()), Y is a SEPARATE,
+display-only number scaled via dumpNativeMax, purely
+so the on-screen reading matches the synth's own
+front-panel number too (e.g. the Z1's Filter Cutoff:
+wire is 0-127, but the synth's own LCD tops out at 99
+— see f1cut's own comment in z1.txt for the full
+derivation). Computed FRESH from the already-correct
+display value every render, not read from dial->
+nativeValue — that field is only ever populated by
+the nativeMax!=0 branches in apply_dial_wire_value()/
+synth_set_panel_dial_value(), which f1cut and its
+siblings deliberately do NOT use any more (nativeMax
+driving the actual CC byte was the real bug fixed
+2026-07-13); reusing dumpNativeMax here instead keeps
+this purely a cosmetic, read-only second number that
+can never again silently feed back into what gets
+sent on the wire. Falls back to the older nativeValue-
+based reading only for a hypothetical dial that sets
+display=ccnative without dumpNativeMax — none exist in
+any device file as of this writing.
+
+## 48. in `synth_render()`
+
+Skipped for a binary button or a value-menu button — its
+face already shows this exact string, so repeating it just
+below would be a redundant duplicate, not a genuine second
+piece of information the way it is for a knob.
+
+## 49. in `synth_render()`
+
+Skipped for a genuine Off/On toggle unconditionally — its
+button face already shows dial->label, colour conveys the
+state, so this would just repeat the exact same text. For
+any OTHER button-style dial (binary or value-menu), only
+skipped when the file explicitly marks it noLabel=1 (its
+own current-value text is already self-explanatory on its
+own, e.g. Filter A/B Pole Select's "2 Pole") — the DEFAULT
+is to still show the label, since most value-menu buttons
+are NOT self-explanatory without it (e.g. "Lower Key" on
+Voyager's Menu Settings page means nothing without
+knowing it's Keyboard Mode).
+
+## 50. in `synth_render()`
+
+A button-style dial never gets the valRect line above (its
+face already shows the value) — its own label, when shown
+at all, moves up into that now-empty +4.0 slot instead of
+sitting at the lower +18.0 one a knob's label uses (a knob
+needs +18.0 precisely BECAUSE +4.0 is already taken by its
+value line). 2026-07-11 user request: don't leave a blank
+gap above the label just because there's nothing else to
+put there.
+
+## 51. in `synth_render()`
+
+!isToggle, not !panel_dial_is_toggle(dial) — an asMenu
+dial is structurally a genuine Off/On pair but no longer
+shows its label on the button face (its face shows the
+current value instead, see isToggle's own declaration
+above), so it needs this label line same as any other
+value-menu button, unlike a real toggle.
+
+## 52. in `synth_render()`
+
+Explicit here, not left over from the valRect render_text
+above — that one's skipped for a binary button, which
+otherwise left the last colour draw_button() itself set
+(black, for the button's own text) in effect for this
+label too.

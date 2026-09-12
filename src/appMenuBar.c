@@ -16,6 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+// Notes: Docs/code-notes/appMenuBar.c.md - "// notes §k" refers there.
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,10 +48,7 @@ extern "C" {
 #include "midiPortDialog.h"
 #include "appMenuBar.h"
 
-// ── File menu ────────────────────────────────────────────────────────────────
-// Every single-patch operation lives here regardless of whether the other end is a file or a bank
-// slot, matching this menu's own pre-port structure (misc.mm, retired): Open/Load paired, then
-// Save/Store paired, then the three "no edit buffer involved" file<->slot operations.
+// notes §1
 
 static void action_open_file(int index) {
     (void)index;
@@ -82,11 +80,7 @@ static void action_restore_patch_to_bank(int index) {
     synth_backup_restore_patch_to_bank();
 }
 
-// A stale on-disk cache (e.g. one written before a category/sort bug fix)
-// won't self-correct just by relaunching — synth_backup_reload_name_cache_
-// for_device() happily reloads it right back. This is the manual escape
-// hatch: wipe it and let the next Load/Store Patch from Bank… re-sweep the
-// device fresh.
+// notes §2
 static void on_clear_name_cache_confirmed(bool confirmed) {
     if (!confirmed) {
         return;
@@ -102,13 +96,7 @@ static void action_clear_name_cache(int index) {
                  "Clear", on_clear_name_cache_confirmed);
 }
 
-// "Save Patch by Number to File..." flyout — a flat 1-128 (Moog) or A001-B128 (Korg) grid of bare
-// numbers, no names (contrast the richer Load/Store Patch pickers, synthBackup.c, which use
-// SynthLib's bankBrowser.h instead — this one is meant to be quick). Rebuilt fresh every time the
-// File menu itself opens (build_preset_number_items(), called from open_file_menu() below) so it
-// always reflects whichever device is currently connected. Same multi-column-list-of-many-items
-// pattern src/menus.c's own open_dial_value_menu() already uses (12 rows per column before
-// wrapping into more columns) for exactly this shape of problem.
+// notes §3
 #define PRESET_NUMBER_ITEM_COUNT    256 // Korg's 2 banks x 128; a Moog-style device only ever fills the first 128
 static tMenuItem gPresetNumberItems[PRESET_NUMBER_ITEM_COUNT + 1];
 static char      gPresetNumberLabels[PRESET_NUMBER_ITEM_COUNT][8];
@@ -185,11 +173,7 @@ static void open_file_menu(tCoord anchor) {
     open_context_menu(anchor, items, 0, 0.0);
 }
 
-// ── Device menu ───────────────────────────────────────────────────────────────
-// "MIDI Ports..." plus a freshly-scanned device list every time this opens (scan_panel_configs(),
-// panelConfig.h) — replaces the old NSMenu's cached gDevicesMenu/rebuild_devices_menu() (misc.mm,
-// retired): SynthLib's menu bar already rebuilds each dropdown fresh on every open, so there's no
-// separate rebuild-on-folder-change hook needed any more.
+// notes §4
 
 static char gDeviceCandidateFilenames[PANEL_MAX_CANDIDATES][64];
 static char gDeviceCandidateLabels[PANEL_MAX_CANDIDATES][160];
@@ -216,13 +200,7 @@ static void action_midi_ports(int index) {
 }
 
 static void action_switch_device(int index) {
-    // index is this item's POSITION within the dropdown (contextMenu.c's handle_context_menu_click()
-    // calls action(index) with the array index it hit-tested against) — NOT the candidate's own
-    // index into gDeviceCandidateFilenames, since "MIDI Ports..." occupies position 0, shifting every
-    // candidate's position one past its actual gDeviceCandidateFilenames slot. Real bug found
-    // 2026-07-17 (owner report: device selector picking "the next one in the list") — must read the
-    // candidate index back out of gContextMenu.items[index].param instead, same as every other
-    // per-item-data menu action in this codebase (e.g. src/menus.c's own action_set_dial_value()).
+    // notes §5
     uint32_t candidateIndex = gContextMenu.items[index].param;
 
     synth_switch_device_config(gDeviceCandidateFilenames[candidateIndex]);
@@ -323,12 +301,7 @@ static void open_layouts_menu(tCoord anchor) {
     open_context_menu(anchor, items, 0, 0.0);
 }
 
-// ── Backup / Restore menus ────────────────────────────────────────────────────
-// Bulk (whole-bank) operations only — every single-patch operation lives in File above. "Bank..."
-// (a single opaque whole-bank blob, Voyager's own All Presets Dump) has no equivalent on a
-// Korg-style device — greyed out rather than removed from the menu when the connected device isn't
-// Moog-style, same as the pre-port NSMenu's own validateMenuItem: behaviour (misc.mm, retired).
-// "Bank (Individual Files)..." works for both device families, so it's never greyed.
+// notes §6
 
 static void on_backup_folder_chosen(const char * path) {
     if (path == NULL) {
@@ -407,12 +380,7 @@ static void open_restore_menu(tCoord anchor) {
 }
 
 
-// NO EXPERIMENTAL MENU ANY MORE (2026-09-09). It held one thing - the OpenGL/Metal choice - and
-// macOS is Metal only now, so the switch went and the greyed "Renderer: <name>" readout beneath it
-// was the only item left. A whole top-level menu for one line of information is not worth the width,
-// and the About box prints the renderer anyway (see synthlib_about_text()).
-//
-// If something genuinely experimental turns up again, G2-Edit still has the pattern to copy.
+// notes §7
 
 // ── Help menu ─────────────────────────────────────────────────────────────────
 // WHICH BUILD IS THIS. Version, compile time and the render backend in force. The backend is a

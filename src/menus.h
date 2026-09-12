@@ -16,6 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+// Notes: Docs/code-notes/menus.h.md - "// notes §k" refers there.
 
 #ifndef __MENUS_H__
 #define __MENUS_H__
@@ -28,12 +29,7 @@
 extern "C" {
 #endif
 
-// Opens a value-picker menu listing dial's own names[], for a discrete
-// selector with no CC at all (panel_dial_needs_value_menu() in
-// panelConfig.h) — picking an item calls synth_set_panel_dial_value() with
-// that item's display index, same as any other dial change, so it patches
-// the cached dump and resends exactly once with the final value rather than
-// once per intermediate step a drag gesture would otherwise pass through.
+// notes §1
 void open_dial_value_menu(tCoord coord, tPanelDial * dial);
 
 #ifdef __cplusplus

@@ -16,11 +16,9 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+// Notes: Docs/code-notes/menuActions.c.md - "// notes §k" refers there.
 
-// The one menu action with enough of its own logic (and a public misc.h declaration other files
-// call, synthGraphics.cpp's synth_choose_config_file()) to warrant living outside appMenuBar.c —
-// everything else is a thin tMenuItem-signature wrapper and lives there instead, next to the menu
-// structure it serves.
+// notes §1
 
 #include "defs.h"
 #include "synthlibDefs.h"

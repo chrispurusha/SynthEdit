@@ -16,6 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+// Notes: Docs/code-notes/defs.h.md - "// notes §k" refers there.
 
 #ifndef __DEFS_H__
 #define __DEFS_H__
@@ -75,10 +76,7 @@
 #define SYNTH_PARAM_GROUP_PATTERN          0x10
 #define SYNTH_PARAM_GROUP_MULTI            0x11
 
-// Program name length (parameters 1..progNameLen), CC assignments, and every
-// per-control SysEx parameter ID/dump offset all live in <device>.txt
-// (progNameLen/group=/param=/cc=/dumpOffset=), not here — see panelConfig.h
-// and synthComms.c's generic dial dispatch/decode.
+// notes §1
 
 
 // ── Graphics / layout constants (used by utilsGraphics) ──────────────────────

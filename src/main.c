@@ -16,6 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+// Notes: Docs/code-notes/main.c.md - "// notes §k" refers there.
 
 #ifdef __cplusplus
 extern "C" {
@@ -52,10 +53,7 @@ int main(int argc, char ** argv) {
     init_signals();
     register_sleep_wake_notifications();
 
-    // Must run before init_graphics() — its own synth_init_graphics() call (at its tail) reads
-    // get_saved_layouts_dir() (misc.h) to resolve the layouts folder for the very first frame, and
-    // that read needs the prefs file already loaded or it silently falls back to the built-in
-    // default every launch. See init_settings()'s own comment (misc.h) for the bug this fixes.
+    // notes §1
     init_settings();
     init_graphics();
     setup_main_menu();

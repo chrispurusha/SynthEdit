@@ -16,11 +16,9 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+// Notes: Docs/code-notes/persistence.c.md - "// notes §k" refers there.
 
-// Small settings persistence that doesn't need Objective-C/Cocoa — goes
-// through SynthLib's prefs.h (a plain "key=value" text file under a per-OS
-// standard config directory) instead of NSUserDefaults, same reasoning as
-// every other native-Cocoa-mechanism retirement in this pass.
+// notes §1
 
 #include <stdio.h>
 #include <string.h>
@@ -77,10 +75,7 @@ void load_saved_settings(void) {
 // scoping scheme built on top of this.
 static const char *const kLastBackupFolderKeyBase = "lastBackupFolder";
 
-// Builds the actual per-device prefs key — see deviceKey's own comment in
-// misc.h. NULL/empty deviceKey collapses to the bare base key
-// (pre-2026-07-14 behaviour, and the fallback for any caller with no device
-// context).
+// notes §2
 static const char * backup_folder_key(const char * deviceKey) {
     static char buf[128];
 

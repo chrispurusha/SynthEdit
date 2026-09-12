@@ -16,6 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+// Notes: Docs/code-notes/synthComms.c.md - "// notes §k" refers there.
 
 #include <stdint.h>
 #include <string.h>
@@ -30,11 +31,7 @@
 #include "synthComms.h"
 #include "synthBackup.h"
 
-// ── SysEx header helpers ──────────────────────────────────────────────────────
-// Header shape: F0 <manufacturerId: 1 or 3 bytes> <0x30|channel> <familyId>
-// <func> ... F7. manufacturerIdLen (1 for a classic ID like Korg's 0x42, 3 for
-// an extended one like Novation's) shifts every offset after it — nothing
-// here hardcodes "1 byte", so a device with either length works unchanged.
+// notes §1
 
 static bool is_synth_sysex(const uint8_t * data, uint32_t length) {
     tPanelConfig * cfg = synth_panel_config();
@@ -49,11 +46,7 @@ static bool is_synth_sysex(const uint8_t * data, uint32_t length) {
            && (data[n + 2] == cfg->familyId);
 }
 
-// Moog's own dump SysEx header shape (see moogStyleDump in panelConfig.h):
-// F0 <manufacturerId> <productId> <deviceId> <mode> ... F7 — nothing like the
-// Korg-style header above (no "0x30|channel" byte, no familyId in that
-// position). deviceId isn't checked here — it's whatever the unit's own
-// front-panel SysEx ID is set to, not something this app assigns.
+// notes §2
 static bool is_moog_sysex(const uint8_t * data, uint32_t length) {
     tPanelConfig * cfg = synth_panel_config();
 
@@ -65,14 +58,7 @@ static bool is_moog_sysex(const uint8_t * data, uint32_t length) {
            && (data[2] == cfg->productId);
 }
 
-// Keeps gDevice.moogDeviceId (its own comment, types.h) in sync with
-// whatever Device ID the connected unit is ACTUALLY using, learned from its
-// own traffic rather than trusted once from the config file. Called on
-// every message synth_handle_message() already confirmed via is_moog_sysex()
-// (mfrId+productId matched — data[3] is guaranteed present by that check's
-// own length >= 5), regardless of which mode it turns out to be, same as
-// the reference implementation's own onSysex handler checks EVERY incoming
-// message before its own mode-specific branching.
+// notes §3
 static void moog_learn_device_id(const uint8_t * data) {
     if (data[3] != gDevice.moogDeviceId) {
         LOG_DEBUG("Moog device ID learned from traffic: 0x%02X (was 0x%02X) — future requests will use it\n",
@@ -81,43 +67,12 @@ static void moog_learn_device_id(const uint8_t * data) {
     }
 }
 
-// Overwrites the Device ID byte (fixed offset 3 — see is_moog_sysex()'s own
-// header-shape comment) of a Moog dump-request message built from the
-// config's stateRequestSysEx template with the currently-learned
-// gDevice.moogDeviceId, so every outgoing request stays addressed to
-// whatever the hardware is ACTUALLY using even if that's since diverged
-// from the static byte the file was written with (moog_learn_device_id()
-// above is what keeps it current). msg must be at least 4 bytes — every
-// caller already validated stateRequestSysExLen (or its own copy of the
-// same template) well past that.
+// notes §4
 static void moog_apply_device_id(uint8_t * msg) {
     msg[3] = gDevice.moogDeviceId;
 }
 
-// ── 7-to-8 bit decoding ───────────────────────────────────────────────────────
-// Korg packs 7 data bytes into 8 MIDI bytes.
-// Byte 0 of each group holds the MSBs — bit0 = MSB of data byte 7n+0 (the
-// FIRST data byte in the group, right after this MSB byte), bit6 = MSB of
-// data byte 7n+6 (the LAST). Bit index == in-group data-byte index. Fixed
-// 2026-07-13 — was previously (6-j) (mirrored: bit6 for the first data byte,
-// bit0 for the last), confirmed backwards against the MIDI Implementation
-// PDF's own diagram (p.19: MSB byte's boxes read left-to-right as bit6..bit0,
-// labelled "7n+6,5,4,3,2,1,0" — i.e. bit6 pairs with 7n+6, bit0 with 7n+0).
-// Real-world symptom that led here: F1 Mod EG (dumpOffset 319, group n=45,
-// in-group index 4) always read back as A.EG (its max/clamp value) after a
-// GUI write that hardware confirmed took (e.g. wrote EG1, hardware displayed
-// EG1) — root cause was F1 Lo Int's (dumpOffset 317, in-group index 2) own
-// true MSB landing on the WRONG bit under the old mirrored mapping, so
-// whenever Lo Int held a large-magnitude value, its stray MSB got OR'd onto
-// F1 Mod EG's byte instead of its own, pushing Mod EG's raw value past its
-// valid range and clamping it to A.EG. Every dump-decoded byte near another
-// byte needing bit7 (any raw value >=128 — e.g. the "Int" -99..+99 family,
-// stored as 0-198) was equally at risk, not just this one field. Both
-// encode_8to7() below and this function were wrong the same mirrored way, so
-// they round-tripped correctly against EACH OTHER (masking the bug for
-// anything only ever built and read back within this app) — only breaks
-// against the real synth's own byte-for-byte-correct dumps/writes.
-// Returns number of decoded bytes written.
+// notes §5
 static uint32_t decode_7to8(const uint8_t * midi, uint32_t midiLen, uint8_t * out, uint32_t outMax) {
     uint32_t outLen = 0;
 
@@ -132,10 +87,7 @@ static uint32_t decode_7to8(const uint8_t * midi, uint32_t midiLen, uint8_t * ou
     return outLen;
 }
 
-// ── 8-to-7 bit encoding ───────────────────────────────────────────────────────
-// See decode_7to8()'s own comment above — bit index == in-group data-byte
-// index, fixed the same day/same reason (was (6-j), mirrored).
-// Returns number of MIDI bytes written (always ceil(dataLen/7)*8).
+// notes §6
 static uint32_t encode_8to7(const uint8_t * data, uint32_t dataLen, uint8_t * out, uint32_t outMax) {
     uint32_t outLen = 0;
 
@@ -162,14 +114,7 @@ static uint32_t encode_8to7(const uint8_t * data, uint32_t dataLen, uint8_t * ou
     return outLen;
 }
 
-// Reads a value packed continuously across one or more ALREADY-DECODED bytes
-// (regular 8-bit bytes, post decode_7to8() — NOT the raw 7-bit-per-byte wire
-// stream read_bitpacked_field() below reads for Moog) — see dumpBitOffset/
-// dumpBitWidth's own comment, panelConfig.h, for why this needs its own
-// function rather than reusing that one with a different stride. Confirmed
-// 2026-07-14 against real Kronos hardware: set AL-1 Filter A/B Cutoff to
-// known values via synth_send_kronos_parameter_change(), captured a Current
-// Object Dump before/after (tools/kronos_dump_diff.py), decoded bit-for-bit.
+// notes §7
 static uint32_t read_korg_bitpacked_field(const uint8_t * decoded, uint32_t decodedLen,
                                           int32_t byteOffset, uint32_t bitOffset, uint32_t bitWidth) {
     uint32_t value       = 0;
@@ -207,28 +152,7 @@ static uint32_t build_header(uint8_t * buf, uint8_t funcId) {
     return pos;
 }
 
-// ── Generic wire value application ───────────────────────────────────────────
-// Applies a raw value received off the wire (either a decoded program-dump
-// byte or a parameter-change value) to a dial's own storage. If the dial
-// pairs a native value, `rawValue` is the native representation and the
-// storage/CC value is derived from it; otherwise `rawValue` is the storage
-// value directly, clamped to the dial's own [storageOffset,
-// storageOffset+max-1] range. No per-dial knowledge here — it's all driven
-// by the dial's fields, which is what lets any device's dials (not just the
-// ones a particular <device>.txt happens to declare) go through this
-// unchanged.
-// nativeMax is an explicit parameter, not read from dial->nativeMax directly,
-// because a dial can have TWO independent wire representations needing two
-// different native scales: a CC byte (0-127, needs nativeMax=127 threshold
-// quantization down to `max` positions) and a Moog dump bit-field (already a
-// direct 0..2^dumpBitWidth-1 index, 1:1 with `max` positions for a simple
-// toggle — nativeMax=127 would wrongly crush a raw 0/1 down to display 0
-// every time, discovered 2026-07-08 trying to add dumpOffset to an existing
-// CC-driven toggle). extract_moog_panel_info() below passes dial->
-// dumpNativeMax (falling back to dial->nativeMax when that's 0, e.g.
-// Filter A/B Pole Select's own dump-only dials, which only ever have ONE
-// wire path so nativeMax alone already means the right thing) — every other
-// caller keeps passing dial->nativeMax exactly as before this existed.
+// notes §8
 static void apply_dial_wire_value(tPanelDial * dial, uint32_t rawValue, uint32_t nativeMax) {
     if (!dial) {
         return;
@@ -253,71 +177,33 @@ static void apply_dial_wire_value(tPanelDial * dial, uint32_t rawValue, uint32_t
         if (v > hi) {
             v = hi;
         }
-        // dial->value is uint32_t (wide enough for a 14-bit CC pair or a
-        // 16-bit Moog dump field, per its own field comment in
-        // panelConfig.h) — truncating to uint8_t here was a latent bug that
-        // never bit anything before now: Z1's Korg-style dump values and
-        // parameter-change values are always <=255, and the CC-pair path in
-        // synth_handle_cc() below sets dial->value directly rather than
-        // going through this function. Moog's 16-bit bit-packed dump fields
-        // are the first caller that actually needs the width.
+        // notes §9
         dial->value = (uint32_t)v;
     }
 }
 
-// See wireSigned's own comment, panelConfig.h — decodes a live Parameter
-// Change's raw 14-bit wire value for a dial whose real-world value can go
-// negative, where the Z1 transmits a genuine two's-complement signed number
-// (not the plain unsigned-count-plus-displayOffset scheme every other signed
-// dial uses). Confirmed 2026-07-14 on real hardware: PB Int- at a real "-2
-// semitones" state sent wire value 16382 (16384-2). Returns the value
-// pre-added with dial->displayOffset, ready to hand straight to
-// apply_dial_wire_value() the same way an ordinary unsigned raw value would
-// be — re-biasing here means dial->value/get_panel_dial_value()/
-// dialDisplaySigned's own subtraction all keep working completely unchanged.
+// notes §10
 static uint32_t decode_signed_param_wire_value(tPanelDial * dial, uint16_t wireValue) {
     int32_t signedValue = (wireValue >= 8192) ? ((int32_t)wireValue - 16384) : (int32_t)wireValue;
 
     return (uint32_t)(signedValue + dial->displayOffset);
 }
 
-// Inverse of decode_signed_param_wire_value() above — turns dial->value
-// (already re-biased by +displayOffset, per get_panel_dial_value()'s own
-// -storageOffset-only convention) back into the true signed quantity, then
-// re-encodes it as 14-bit two's complement if negative for the outgoing
-// Parameter Change. A positive/zero value passes through unchanged, matching
-// the confirmed PB Int+ case (+2 semitones -> wire value 2).
+// notes §11
 static uint16_t encode_signed_param_wire_value(tPanelDial * dial, uint32_t storageValue) {
     int32_t signedValue = (int32_t)storageValue - dial->displayOffset;
 
     return (uint16_t)((signedValue < 0) ? (signedValue + 16384) : signedValue);
 }
 
-// Dump-side counterpart to decode_signed_param_wire_value() above — a
-// DIFFERENT, NARROWER encoding, confirmed 2026-07-14 via a real Program Dump
-// capture: PB Int- at a real "-2 semitones" state dumped as raw byte 0xFE
-// (254), i.e. plain 8-bit two's complement (256-2=254), not the live path's
-// 14-bit scheme (16384-2=16382) — a Program Dump is a genuinely different
-// wire format from a live Parameter Change, so there was no reason to expect
-// them to share a bit width, and they don't. Only meaningful for a
-// wireSigned dial using the plain single-byte dumpOffset/dumpMask path
-// (dumpBitWidth==0) — every wireSigned dial so far (PB Int+/-) is exactly
-// that shape.
+// notes §12
 static uint32_t decode_signed_dump_byte(tPanelDial * dial, uint32_t rawByte) {
     int32_t signedValue = (rawByte >= 128) ? ((int32_t)rawByte - 256) : (int32_t)rawByte;
 
     return (uint32_t)(signedValue + dial->displayOffset);
 }
 
-// ── Program info extraction ───────────────────────────────────────────────────
-// Everything about what a decoded program dump contains — name length, every
-// other field's byte offset/bit-packing/native scaling — comes from the
-// device's own <device>.txt (progNameLen, and each dial's dumpOffset/
-// dumpShift/dumpMask/nativeMax); nothing device-specific lives here. Category,
-// voice mode, unison and the like aren't special-cased: on the Z1 they're
-// just dials in a `hidden` section (rendered as plain text rather than a
-// circular control — see synth_render()), wired up exactly like Filter's or
-// Oscillator's dials.
+// notes §13
 static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
     tPanelConfig * cfg     = synth_panel_config();
     uint32_t       nameLen = (decodedLen >= cfg->progNameLen) ? cfg->progNameLen : decodedLen;
@@ -337,11 +223,7 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
     }
     gDevice.progName[i] = '\0';
 
-    // Every other value from the decoded program dump — a full-dump byte
-    // buffer, a different wire format from param= change messages. Byte
-    // offsets, bit-packing and native/CC scaling all come from the device's
-    // own <device>.txt (dumpOffset/dumpShift/dumpMask/nativeMax); no per-dial
-    // knowledge lives here. Every section gets scanned, hidden or not.
+    // notes §14
     uint32_t       updated = 0;
 
     for (uint32_t s = 0; s < cfg->sectionCount; s++) {
@@ -351,41 +233,16 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
             tPanelDial * dial = &dumpSection->dials[d];
 
             if ((dial->dumpOffset >= 0) && (decodedLen > (uint32_t)dial->dumpOffset)) {
-                // dumpBitWidth > 0 means this field spans multiple bytes —
-                // Kronos's AL-1 Filter A/B Cutoff (kronos.txt) are the first
-                // dials to need this on the Korg-style path; see
-                // read_korg_bitpacked_field()'s own comment above for why it
-                // reads an 8-bit-per-byte stride here rather than
-                // read_bitpacked_field()'s 7-bit-per-byte Moog stride. Every
-                // dial that leaves dumpBitWidth at its 0 default (every Z1
-                // dial, and any single-byte Kronos field) is unaffected.
+                // notes §15
                 uint32_t raw = (dial->dumpBitWidth > 0)
                               ? read_korg_bitpacked_field(decoded, decodedLen, dial->dumpOffset, dial->dumpBitOffset, dial->dumpBitWidth)
                               : (decoded[dial->dumpOffset] >> dial->dumpShift) & dial->dumpMask;
 
                 if (dial->wireSigned) {
-                    // See decode_signed_dump_byte()'s own comment above — a
-                    // Program Dump byte for one of these dials is 8-bit two's
-                    // complement, a narrower encoding than the live Parameter
-                    // Change path's 14-bit scheme (decode_signed_param_wire_
-                    // value(), used in handle_parameter_change() instead).
+                    // notes §16
                     raw = decode_signed_dump_byte(dial, raw);
                 }
-                // dumpNativeMax falls back to nativeMax exactly like
-                // extract_moog_panel_info()'s own identical fallback already
-                // does (synthComms.c, below) — added here 2026-07-13, a real
-                // gap found live on the Z1's f1cut/f1res/f2cut/f2res: their
-                // CC wire byte genuinely spans the dial's own full 0-127
-                // range (confirmed against real hardware), but the DUMPED
-                // byte is a separate, genuinely-narrower 0-99 native value
-                // per the official parameter table — two different native
-                // scales for the same dial, exactly what dumpNativeMax
-                // exists for, just never wired into this (the Korg-style,
-                // non-Moog) decode path when it was first added for
-                // Voyager. Purely additive: any dial that doesn't set
-                // dumpNativeMax (every Z1 dial except those 4, and any
-                // other device using this same generic decode) falls
-                // through to dial->nativeMax exactly as before.
+                // notes §17
                 apply_dial_wire_value(dial, raw, (dial->dumpNativeMax != 0) ? dial->dumpNativeMax : dial->nativeMax);
                 updated++;
             }
@@ -395,31 +252,12 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
     LOG_DEBUG("Synth prog: \"%s\" — %u dial(s) updated from dump\n", gDevice.progName, (unsigned)updated);
 }
 
-// Public wrapper around the static extract_prog_info() above — for
-// synthBackup.c's Korg-style "Restore Edit Buffer" (restore_edit_buffer_korg_file()),
-// so the local GUI/dial state gets updated from the SAME decoded buffer
-// being replayed to the real device as live Parameter Change messages,
-// instead of depending on a round trip through real hardware to find out
-// what actually landed. Added 2026-07-14 after a real-hardware test found
-// the GUI didn't change at all after a restore (only the wire sends
-// happened, nothing updated dial->value locally) — this fixes that by
-// reusing the exact same apply logic a genuine incoming dump already goes
-// through, guaranteeing local state and "what a fresh Sync from synth would
-// show" can never disagree just because two different code paths did
-// almost-but-not-quite the same thing.
+// notes §18
 void synth_apply_korg_prog_dump_locally(const uint8_t * decoded, uint32_t decodedLen) {
     extract_prog_info(decoded, decodedLen);
 }
 
-// ── Moog-style bit-packed dump extraction ─────────────────────────────────────
-// Moog's Panel/Preset Dump SysEx packs values as a continuous bitstream, 7
-// usable bits per byte (byte's bit 6 done -> next byte's bit 0), rather than
-// Korg's one-value-per-byte layout above. A dial opts into this by setting
-// dumpBitWidth > 0 (see panelConfig.h); dumpOffset is still its first byte,
-// dumpBitOffset (0-6) is which bit of that byte holds the value's LSB.
-// Confirmed byte-for-byte against real Voyager hardware (2026-07-06): set
-// Filter Cutoff/Resonance to known CC values, requested a Panel Dump,
-// decoded — exact match both times.
+// notes §19
 static uint32_t read_bitpacked_field(const uint8_t * payload, uint32_t payloadLen,
                                      int32_t byteOffset, uint32_t bitOffset, uint32_t bitWidth) {
     uint32_t value       = 0;
@@ -440,14 +278,7 @@ static uint32_t read_bitpacked_field(const uint8_t * payload, uint32_t payloadLe
     return value;
 }
 
-// Inverse of read_bitpacked_field() above — same continuous 7-bit-per-byte
-// bitstream addressing, writing bits into an existing captured dump instead
-// of reading them out. Used to patch a single dial's value into a cached
-// live dump before resending the whole thing (see gLastMoogDump / synth_
-// patch_and_resend_moog_dump() below) — the Voyager has no per-parameter
-// "set this one value" SysEx, only a whole-dump load, confirmed 2026-07-08
-// by capturing, patching just Filter A's 2 bits, sending it back, and
-// re-requesting a dump: the patched value round-tripped exactly.
+// notes §20
 static void write_bitpacked_field(uint8_t * payload, uint32_t payloadLen,
                                   int32_t byteOffset, uint32_t bitOffset, uint32_t bitWidth, uint32_t value) {
     uint32_t globalStart = (uint32_t)byteOffset * 7 + bitOffset;
@@ -469,19 +300,7 @@ static void write_bitpacked_field(uint8_t * payload, uint32_t payloadLen,
     }
 }
 
-// Inverse of extract_moog_panel_info()'s own decode (raw -> [dumpInvert] ->
-// apply_dial_wire_value's native/display scaling) — turns a dial's current
-// display value back into the RAW bits its dump field expects. Needed by
-// both synth_apply_pending_dump_patches() (a dump-only dial) and
-// synth_patch_moog_dump_cache()'s CC-side use below (added 2026-07-09,
-// keeping the cached dump in sync with CC changes too) — a dial can have a
-// DIFFERENT native scale on its dump side (dumpNativeMax) than its CC side
-// (nativeMax), same reasoning as apply_dial_wire_value()'s own
-// dumpNativeMax comment, and dumpInvert (bitwise NOT across the field's full
-// width) is its own inverse, so re-applying it here undoes the same flip
-// the decode applied. Checked 2026-07-09 against mwDestination's own
-// hardware-confirmed raw values: display 0 ("Pitch") -> raw 7, display 5
-// ("LFO / PGM") -> raw 2, both round-trip exactly through this formula.
+// notes §21
 static uint32_t synth_encode_dump_raw_value(tPanelDial * dial, uint32_t displayValue) {
     uint32_t totalWidth = dial->dumpBitWidth + dial->dumpBitWidth2;
     uint32_t dumpMax    = (dial->dumpNativeMax != 0) ? dial->dumpNativeMax : dial->nativeMax;
@@ -490,17 +309,7 @@ static uint32_t synth_encode_dump_raw_value(tPanelDial * dial, uint32_t displayV
     if ((dumpMax != 0) && (dial->max > 1)) {
         native = ((displayValue * dumpMax) + ((dial->max - 1) / 2)) / (dial->max - 1);
     } else {
-        // plain continuous/named dial — dump value is the display value,
-        // shifted by storageOffset for a dial whose wire range doesn't
-        // start at 0 (e.g. Voyager tsGateCtrl's 64-127+Off, storageOffset=
-        // 64). Mirrors apply_dial_wire_value()'s decode side and the Z1
-        // param-change encode path below, both of which already add
-        // storageOffset — this branch just never had a dial exercise
-        // BOTH storageOffset and a dump-only Moog field until tsGateCtrl,
-        // 2026-07-13: found live, dragging the dial changed the on-screen
-        // display but never reached the hardware, because the un-offset
-        // displayValue (0-64) was being sent instead of the actual wire
-        // value (64-128) tsGateCtrl's own dumpOffset field expects.
+        // notes §22
         native = (uint32_t)((int32_t)displayValue + dial->storageOffset);
     }
 
@@ -510,69 +319,7 @@ static uint32_t synth_encode_dump_raw_value(tPanelDial * dial, uint32_t displayV
     return native;
 }
 
-// Decodes a name field into gDevice.progName, if `offset` >= 0 (the
-// tPanelConfig field comment explains why Panel Dump and Single Preset Dump
-// each need their own offset/bitOffset/len rather than sharing one). Each
-// character is 8 bits read from the same continuous 7-bit-per-byte
-// bitstream the numeric panel fields use (read_bitpacked_field() above), one
-// after another starting at offset/bitOffset.
-//
-// Reverse-engineered against five real captures (Voyager preset 1, "FILTER
-// BUBBLES"; a Panel Dump, "FROM A DISTANCE"; preset 2, "Really Heavy"; a
-// Panel Dump, "Velocity"/"Temple Bells"; and a Panel Dump, "Floating Mod"/
-// "Steel Guitar"): the raw field is two fixed-width 12-char lines — matching
-// the Voyager's 2-line LCD — with NO dedicated separator byte anywhere in
-// it. Each line's 12th byte (field index 11 and 23) is really just that
-// line's own 12th character, with its high bit set (e.g. 'y' 0x79 -> 0xF9,
-// 's' 0x73 -> 0xF3) — "Really Heavy" and "Temple Bells" are what exposed
-// this: each has a real (non-space) 12th character on one of its lines,
-// which an earlier version of this code/config mistook for a fixed 0xA0
-// separator marker (silently dropped) or ran past the field's then-assumed
-// 20-char length (silently truncated) respectively. "FILTER BUBBLES" and
-// "FROM A DISTANCE" both worked under that wrong model purely by
-// coincidence: neither line runs past 11 real characters, so each line's
-// 12th byte is always plain padding. Masking off bit 7 before checking
-// printability — rather than treating any high-bit byte as whitespace —
-// decodes those four correctly.
-//
-// "Floating Mod"/"Steel Guitar" (both lines exactly 12 real characters, no
-// padding on either) exposed a second problem: with no separator byte and
-// no whitespace at the boundary either, there's nothing byte-level to hang a
-// line break on — decoding straight through produces "Floating ModSteel
-// Guitar" on one line. `lineWidth` (from tPanelConfig.nameLineWidth — 0 for
-// non-Voyager Moog-style devices, meaning "one line, no forced break") fixes
-// that by forcing a '\n' after every lineWidth characters regardless of
-// content, so synth_render() (synthGraphics.cpp) can show gDevice.progName
-// as separate lines matching the device's own display, and
-// synth_backup_capture_dump() (synthBackup.c) can build a filename by just
-// dropping the '\n' (not substituting a space — see that function's own
-// comment for why).
-//
-// The forced '\n' is inserted on top of the SAME whitespace-collapsing this
-// function already does for every other non-printable byte (runs collapse
-// to one space) — it does NOT additionally strip a real trailing space that
-// happens to land right before it. That distinction matters: a short first
-// line like "TIME FOR" (8 real characters) still has 4 bytes of real 0x20
-// padding out to the 12-char line width, and collapsing that run keeps
-// exactly one of those spaces — so the decoded field is "TIME FOR \nSURFIN'",
-// and dropping just the '\n' for a filename correctly yields "TIME FOR
-// SURFIN'". A full first line like "Floating Mod" (exactly 12 real
-// characters, no padding at all) has no such byte to collapse, so nothing
-// survives before its '\n' and the filename is "Floating ModSteel Guitar"
-// — also correct, because that's genuinely what the raw data contains: real
-// hardware capture (2026-07-07) confirms there is no dedicated separator
-// byte anywhere in the field, in either case. An earlier version of this
-// function unconditionally trimmed each line's trailing whitespace down to
-// nothing before its forced '\n', which was fine for on-screen display
-// (trailing whitespace before a line break is invisible either way) but
-// silently discarded the real space "TIME FOR"'s filename needed.
-// outName/outNameSize added 2026-07-11 (was hardcoded to gDevice.progName) —
-// synth_backup_flush_name_sweep() (synthBackup.c) needs to decode a name
-// from a SEPARATE, non-current-live-buffer preset's reply (a Load/Store
-// Patch to Bank picker's own name sweep) without touching gDevice.progName,
-// which is reserved for whatever the live edit buffer actually shows. Every
-// existing call site below still passes gDevice.progName/sizeof(...),
-// unchanged in behaviour.
+// notes §23
 void synth_decode_moog_name(const uint8_t * payload, uint32_t payloadLen, int32_t offset, uint32_t bitOffset, uint32_t len, uint32_t lineWidth, char * outName, size_t outNameSize) {
     if ((offset < 0) || (len == 0) || (outNameSize == 0)) {
         return;
@@ -614,29 +361,7 @@ void synth_decode_moog_name(const uint8_t * payload, uint32_t payloadLen, int32_
     LOG_DEBUG("Decoded name: \"%s\"\n", outName);
 }
 
-// Sanity-checks a captured Single Preset Dump reply BEFORE it's trusted —
-// catches a dropped MIDI byte (a real risk any time other MIDI traffic —
-// a dial drag, another request — lands close enough to collide with this
-// reply's own transmission) shifting the whole 7-bit-packed payload from
-// the gap onward, corrupting every field after it. Same approach an
-// independently-developed third-party Voyager editor (moogvoyagereditor.
-// pistolinstruments.com, reviewed 2026-07-14 — owner: "Might be worth
-// comparing, to see if it's doing anything MIDI-wise that we're not") uses
-// successfully, its own comment explaining the exact same failure mode:
-// "A single MIDI byte dropped on the wire (USB buffer overrun) shifts the
-// whole 7-bit-packed payload from the gap onward, so every field after it
-// decodes to garbage." Checked two ways:
-//   1. Length — the preset name field must fully fit within the message;
-//      a truncated reply couldn't hold a real name (or anything after it)
-//      regardless of what its bytes happen to contain.
-//   2. The name itself — 24 bytes of plain printable ASCII (or NUL/space
-//      padding) on real hardware; a shifted payload scatters control
-//      characters through it, a reliable tripwire for corruption in every
-//      OTHER field too (mixer switches, filter settings, ...), not just
-//      the name. Tolerates a few bad bytes rather than rejecting on any
-//      single oddity — same tolerance the reference implementation uses.
-// A no-op-safe true (nothing to check) if this device doesn't declare a
-// presetNameOffset at all.
+// notes §24
 bool synth_moog_single_preset_dump_intact(const uint8_t * data, uint32_t length) {
     tPanelConfig *  cfg        = synth_panel_config();
 
@@ -673,32 +398,7 @@ bool synth_moog_single_preset_dump_intact(const uint8_t * data, uint32_t length)
     return bad < 4;
 }
 
-// Extracts just the Category value's display name from a captured Moog-style
-// SINGLE PRESET DUMP (mode 0x03) reply — the Moog counterpart to
-// synth_decode_korg_category() (synthComms.h), and the other half of what
-// makes the Load/Store Patch from Bank picker's category column generic
-// across both device families (2026-07-14). Same find_panel_dial_by_label()
-// lookup as the Korg version (matches label="Category" regardless of the
-// dial's own id — Voyager's is `soundCategory`, not `category`) but reads
-// it via read_bitpacked_field() (dumpOffset/dumpBitOffset/dumpBitWidth[2]/
-// dumpInvert), the same bit-packed shape extract_moog_panel_info() above
-// already uses for every other dial — with ONE crucial difference: every
-// dumpOffset in a Moog-style device's own <device>.txt is calibrated
-// against a PANEL DUMP (mode 0x02) capture (see panelNameOffset's own
-// comment in voyager.txt), but this function is only ever called with a
-// SINGLE PRESET DUMP (mode 0x03) reply (name_cache_update_from_preset_dump(),
-// synthBackup.c — never a live Panel Dump). 0x03's own header has one extra
-// byte 0x02's doesn't, shifting every field after it by however many bytes
-// presetNameOffset and panelNameOffset differ by (Voyager: 101-100=1) — the
-// SAME shift for every field, not just the name, since both formats share
-// one continuous payload from that point on. An earlier version of this
-// function skipped this shift entirely (wrongly assumed both dump formats
-// were byte-identical) and decoded every preset's category as "Not
-// Assigned" (index 0) on real Voyager hardware — found 2026-07-14, owner
-// report: "Category on Voyager picker is showing not assigned for
-// everything." outCategory left untouched (caller should default it to ""
-// first) if this device has no such dial, or the decoded value is out of
-// range of that dial's own names= list.
+// notes §25
 void synth_decode_moog_category(const uint8_t * data, uint32_t length, char * outCategory, size_t outCategorySize, uint8_t * outIndex) {
     if (outIndex != NULL) {
         *outIndex = 0xFF; // "no category" (bankBrowser.h) — overwritten below only on a fully successful decode
@@ -747,28 +447,7 @@ void synth_decode_moog_category(const uint8_t * data, uint32_t length, char * ou
     }
 }
 
-// Same role as extract_prog_info() above, but for Moog's bit-packed dump
-// shape — every dial with dumpBitWidth > 0 gets its value from
-// read_bitpacked_field() instead of the single-byte dumpShift/dumpMask path.
-// Also decodes the name field (see extract_moog_name() above) — a Panel
-// Dump IS tied to a name after all (unlike what its own spec comment
-// suggests: it just doesn't call it a "preset" name since Panel Dump
-// reflects the live edit buffer, not necessarily an unmodified stored
-// preset) — confirmed by capture, see panelNameOffset's own comment in
-// panelConfig.h.
-// Same role as a dial's own dumpSendAwaitingFreshData (panelConfig.h), for a
-// pending program-name edit (synth_set_program_name() below) instead of a
-// dial — there's no per-dial struct to hang this off of for something that
-// isn't a dial at all. Unlike a dial's own two-phase debounce-then-fetch
-// (hasPendingDumpSend), a name edit only ever fires once per commit (Enter
-// key, not a drag), so there's no rapid-fire case to debounce — this goes
-// straight to "awaiting fresh data" the moment synth_set_program_name() is
-// called, requesting a fetch immediately (folding into one already in
-// flight via gAwaitingFreshDumpForPatch, same as a dial would). Declared
-// here, above extract_moog_panel_info() (its own first reader) rather than
-// alongside gAwaitingFreshDumpForPatch further down — this file has no
-// header-declared forward prototypes for file-scope statics, so a reader
-// earlier in the file can't see one declared later.
+// notes §26
 static bool     gProgNameAwaitingFreshData                  = false;
 static uint8_t  gPendingProgNameRaw[SYNTH_PROG_NAME_MAXLEN] = {0};
 static uint32_t gPendingProgNameLen                         = 0;
@@ -778,12 +457,7 @@ static void extract_moog_panel_info(const uint8_t * payload, uint32_t payloadLen
     uint32_t       updated = 0;
 
     if (!gProgNameAwaitingFreshData) {
-        // Skip re-decoding the name field while a just-typed edit is queued
-        // to be merged into THIS very dump and sent back (see
-        // gProgNameAwaitingFreshData's own comment above) — same "don't
-        // stomp a pending edit with the old, pre-change value this fresh
-        // reply still carries" reasoning as the per-dial skip below,
-        // applied to the name field instead of a dial's value.
+        // notes §27
         synth_decode_moog_name(payload, payloadLen, cfg->panelNameOffset, cfg->panelNameBitOffset, cfg->panelNameLen, cfg->nameLineWidth, gDevice.progName, sizeof(gDevice.progName));
     }
 
@@ -798,30 +472,7 @@ static void extract_moog_panel_info(const uint8_t * payload, uint32_t payloadLen
             }
 
             if (dial->dumpSendAwaitingFreshData || dial->hasPendingDumpSend) {
-                // A user-set value for this dial is either already queued to
-                // be merged into THIS very dump (dumpSendAwaitingFreshData —
-                // see its own comment, panelConfig.h) or still settling in
-                // the debounce window that precedes that (hasPendingDumpSend
-                // — see its own comment, panelConfig.h) — don't let the
-                // decode below stomp dial->value with the old, pre-change
-                // value this fresh reply still carries for this one field in
-                // EITHER case. A dump can legitimately arrive mid-debounce
-                // (e.g. preset navigation's own state-dump request, or a
-                // manual Sync, landing within the same ~150ms window as an
-                // in-flight dump-only dial edit) — previously only the
-                // second phase was covered here, so that race visibly
-                // reverted the dial on screen even though
-                // pendingDumpRawValue (captured once at edit time,
-                // untouched by this) meant the value eventually SENT to
-                // hardware was always correct regardless. Found 2026-07-11
-                // auditing this mechanism, no hardware repro needed — the
-                // gap was evident from reading the guard against
-                // hasPendingDumpSend's own debounce window. synth_apply_
-                // pending_dump_patches() (called right after this function
-                // returns) is what actually applies the pending value, once
-                // for every dial in the second phase — a dial still only in
-                // the first phase here just keeps waiting for its own
-                // debounce to elapse, unaffected by this dump.
+                // notes §28
                 continue;
             }
             uint32_t raw        = read_bitpacked_field(payload, payloadLen, dial->dumpOffset,
@@ -840,26 +491,10 @@ static void extract_moog_panel_info(const uint8_t * payload, uint32_t payloadLen
             }
 
             if (dial->dumpInvert) {
-                // Some toggles report inverted polarity in the dump vs their
-                // own CC's On/Off sense (e.g. Ext On/Osc On: dump bit 0 means
-                // On) — confirmed against real hardware 2026-07-08, physically
-                // toggling each switch and diffing the dump both ways.
+                // notes §29
                 raw = (~raw) & ((totalWidth < 32) ? ((1u << totalWidth) - 1) : 0xFFFFFFFFu);
             }
-            // dumpNativeMax lets a dial with BOTH a CC and a dump bit use a
-            // different native scale for each — see apply_dial_wire_value()'s
-            // own comment for why nativeMax alone (sized for the CC byte)
-            // would wrongly crush a raw dump bit. 0 (unset) falls back to
-            // nativeMax, unchanged for dump-only dials like Filter A/B Pole
-            // Select that only ever have this one wire path.
-            //
-            // oldValue/oldRaw captured before the decode below overwrites
-            // them — added 2026-07-09 to make it visible when a dial's
-            // last-known CC-tracked value doesn't match what a fresh Panel
-            // Dump says (owner noticed a small drift after turning a
-            // physical knob directly, not present when the GUI itself sends
-            // the CC — logged only when they actually differ, so a normal
-            // Sync with nothing changed stays quiet).
+            // notes §30
             uint32_t oldValue = dial->value;
 
             apply_dial_wire_value(dial, raw, (dial->dumpNativeMax != 0) ? dial->dumpNativeMax : dial->nativeMax);
@@ -902,29 +537,13 @@ static void handle_curr_prog_dump(const uint8_t * data, uint32_t length) {
     extract_prog_info(decoded, decodedLen);
 }
 
-// Format: F0 <mfrId> 3g 46 4C ub pp 00 [7-bit encoded data...] F7 — a
-// SPECIFIC stored preset's data (contrast handle_curr_prog_dump() above,
-// always the live edit buffer). Deliberately does NOT call
-// extract_prog_info() — that writes straight into the live dial state,
-// which would silently corrupt the on-screen edit buffer with some OTHER
-// preset's values every time a name-sweep or by-number backup touches this
-// reply. Just forwards the raw bytes to synth_backup_capture_dump() (a
-// no-op unless a Korg program-by-number fetch is actually pending) — any
-// decoding a caller needs happens on ITS OWN copy of these bytes via
-// synth_decode_korg_name() below, same "forward raw bytes, let the backup
-// layer decode what it needs" split handle_moog_single_preset_dump() (and
-// its own eBackupExpectPreset) already uses for Voyager.
+// notes §31
 static void handle_prog_dump(const uint8_t * data, uint32_t length) {
     synth_backup_capture_dump(data, length, eBackupExpectKorgProgram);
     LOG_DEBUG("Received Program Data Dump (len=%u)\n", (unsigned)length);
 }
 
-// Shared plumbing for synth_decode_korg_name()/synth_decode_korg_category()
-// below — both need the same funcId-dependent header skip and 7-to-8 decode
-// of a captured Program Data Dump (0x4C) or Current Program Dump (0x40)
-// reply before extracting anything from it. Returns false (decoded/
-// *outDecodedLen left untouched) for anything that isn't recognisably one
-// of those two replies.
+// notes §32
 static bool korg_decode_prog_dump(const uint8_t * data, uint32_t length, uint8_t * decoded, uint32_t decodedCap, uint32_t * outDecodedLen) {
     if (!is_synth_sysex(data, length)) {
         return false;
@@ -932,10 +551,7 @@ static bool korg_decode_prog_dump(const uint8_t * data, uint32_t length, uint8_t
     tPanelConfig *  cfg        = synth_panel_config();
     uint32_t        funcPos    = 3 + cfg->manufacturerIdLen;
     uint8_t         funcId     = data[funcPos];
-    // 0x40's own extra sub-byte ("01") is 1 byte; 0x4C's own header (Unit/
-    // Bank byte, Program No. byte, a fixed "00" byte) is 3 — see
-    // handle_curr_prog_dump()/handle_prog_dump()'s own comments above for
-    // the full wire shapes this mirrors.
+    // notes §33
     uint32_t        extra;
 
     if (funcId == SYNTH_FUNC_CURR_PROG_DUMP) {
@@ -957,23 +573,7 @@ static bool korg_decode_prog_dump(const uint8_t * data, uint32_t length, uint8_t
     return true;
 }
 
-// Korg counterpart to synth_moog_single_preset_dump_intact() above — same
-// "sanity-check before trusting a reply" reasoning, for a Korg-style
-// Program Data Dump/Current Program Dump reply instead of a Moog Single
-// Preset Dump. A no-op-safe false (nothing decoded, so nothing to trust)
-// if the message doesn't even parse as one of the two expected function
-// IDs; otherwise checks the decoded name field (the first progNameLen
-// bytes of the unpacked payload) for implausible control characters, same
-// tolerance as the Moog version.
-// Public wrapper around the static korg_decode_prog_dump() above — needed by
-// synthBackup.c's Korg-style "Restore Panel", to update the LOCAL GUI/dial
-// state from a restored file (see synth_apply_korg_prog_dump_locally()
-// below) — the actual wire send now goes out as one whole Current Program
-// Data Dump (func 0x40, synth_send_korg_current_program_dump()) rather than
-// needing this decode for individual Parameter Change values. Thin pass-
-// through, same reasoning synth_decode_korg_name()/synth_decode_korg_
-// category() already follow for exposing this shared decode step without
-// exposing korg_decode_prog_dump() itself.
+// notes §34
 bool synth_decode_korg_prog_dump(const uint8_t * data, uint32_t length, uint8_t * decoded, uint32_t decodedCap, uint32_t * outDecodedLen) {
     return korg_decode_prog_dump(data, length, decoded, decodedCap, outDecodedLen);
 }
@@ -1028,34 +628,13 @@ void synth_decode_korg_name(const uint8_t * data, uint32_t length, char * outNam
 
     outName[i] = '\0';
 
-    // The Z1's name field is fixed-width (cfg->progNameLen), space-padded
-    // for anything shorter than that — trim the trailing padding the same
-    // way synth_decode_moog_name() above already does for Voyager's own
-    // fixed-width field. Left untrimmed before, this padding was invisible
-    // in the Load/Store picker's dropdown labels (trailing spaces in a menu
-    // item don't show) but became visible the moment a name started
-    // landing in a saved FILENAME too (korg_sweep_write_capture_file(),
-    // synthBackup.c) — found 2026-07-14 (owner: trailing whitespace before
-    // ".syx" in exported filenames).
+    // notes §35
     while ((i > 0) && (outName[i - 1] == ' ')) {
         outName[--i] = '\0';
     }
 }
 
-// Extracts just the Category value's display name from a captured Program
-// Data Dump reply — the picker counterpart to synth_decode_korg_name()
-// above, used so Load/Store Patch from Bank can show category alongside
-// each program's name (2026-07-14 user request, later made a common
-// mechanism shared with Voyager — see synth_decode_moog_category() below).
-// Fully generic, same "nothing device-specific lives here" reasoning as
-// extract_prog_info()'s own comment above: looks up whichever dial the
-// connected device's own <device>.txt labels "Category"
-// (find_panel_dial_by_label(), panelConfig.h — matches BOTH the Z1's
-// `dial category label="Category" ...` and, via synth_decode_moog_category(),
-// the Voyager's differently-ID'd `dial soundCategory label="Category" ...`)
-// and reads ITS dumpOffset/dumpShift/dumpMask/names — a device with no such
-// dial (or a Moog-style one, which never reaches this function at all) just
-// leaves outCategory untouched. Caller should default it to "" first.
+// notes §36
 void synth_decode_korg_category(const uint8_t * data, uint32_t length, char * outCategory, size_t outCategorySize, uint8_t * outIndex) {
     if (outIndex != NULL) {
         *outIndex = 0xFF; // "no category" (bankBrowser.h) — overwritten below only on a fully successful decode
@@ -1091,57 +670,18 @@ void synth_decode_korg_category(const uint8_t * data, uint32_t length, char * ou
     }
 }
 
-// Format: F0 <mfrId(1)> <productId> <deviceId> <mode> <payload...> F7 — see
-// moogStyleDump in panelConfig.h. No 7-to-8 decode needed here (unlike Korg's
-// handle_curr_prog_dump() above) — Moog's payload bytes are already usable
-// directly, each one individually 7-bit safe rather than 8 groups of 7 real
-// data bytes plus an MSB-collector byte.
-//
-// skip is 1 (just F0), NOT 5 (F0+mfrId+productId+deviceId+mode) — every
-// dumpOffset/dumpBitOffset in voyager.txt was derived directly from "Voyager
-// System Exclusive Panel Dump Format"'s OWN byte numbering, which counts
-// "byte 1" as the manufacturer ID itself (immediately after F0), so mfrId/
-// productId/deviceId/mode are bytes 1-4 of that scheme, not header bytes to
-// be skipped before it starts. Using skip=5 here silently shifted every
-// field read 4 bytes deeper into the stream than every dumpOffset assumed —
-// found by setting Cutoff/Resonance/Spacing/KB Amount all to hardware
-// maximum and noticing two of the four dials still showed old, unrelated
-// values (reading into a neighboring field's bytes) while the other two
-// only happened to look right because a neighboring field was also
-// coincidentally near-max at the time.
-// Raw bytes of the most recently received Panel Dump (full message, F0..F7
-// inclusive) — kept purely so a single dial change can patch its own bits in
-// and resend the whole thing (synth_apply_pending_dump_patches() below).
-// There's no per-parameter "set this one value" SysEx for a Moog-style
-// device, only a whole-dump load — confirmed against real Voyager hardware
-// (2026-07-08, see tools/moog_send.swift's own use in that investigation).
+// notes §37
 static uint8_t  gLastMoogDump[256];
 static uint32_t gLastMoogDumpLen           = 0;
 
-// True while a fresh Panel Dump has been requested specifically to merge in
-// one or more dials' pending dump-only changes (see
-// dumpSendAwaitingFreshData's own comment, panelConfig.h) — set by
-// synth_flush_pending_dump_sends() below, cleared by
-// synth_apply_pending_dump_patches() once that reply arrives and is
-// processed. Guards against requesting a second overlapping fetch if
-// another dial's own debounce settles while the first fetch is still in
-// flight — every pending dial just gets folded into whichever fetch is
-// already outstanding.
+// notes §38
 static bool     gAwaitingFreshDumpForPatch = false;
 
 bool synth_dump_patch_in_flight(void) {
     return gAwaitingFreshDumpForPatch;
 }
 
-// Patches dial's RAW dump value into the cached Panel Dump (gLastMoogDump)
-// WITHOUT sending anything — used both by synth_apply_pending_dump_patches()
-// below (a dump-only dial, once fresh data has arrived) and by its own
-// CC-side use in synth_set_panel_dial_value() (added 2026-07-09, keeps this
-// cache in sync with CC-driven changes too — see that function's own
-// comment for why: without this, a CC change was invisible to gLastMoogDump,
-// so a later dump-only-dial edit would patch-and-resend a stale snapshot and
-// silently revert the CC change on the hardware). No-ops (returns false) if
-// no dump has been received yet to patch.
+// notes §39
 static bool synth_patch_moog_dump_cache(tPanelDial * dial, uint32_t rawValue) {
     if ((gLastMoogDumpLen == 0) || (dial->dumpBitWidth == 0)) {
         return false;
@@ -1159,18 +699,7 @@ static bool synth_patch_moog_dump_cache(tPanelDial * dial, uint32_t rawValue) {
     return true;
 }
 
-// Applies every dial currently awaiting fresh data (dumpSendAwaitingFreshData
-// — set by synth_flush_pending_dump_sends() once a dump-only dial's value
-// has settled) into the dump that JUST arrived, then sends once for the
-// whole batch — added 2026-07-10, owner's own idea: patching directly into
-// whatever gLastMoogDump happened to hold (possibly stale — only as fresh as
-// the last connect/Sync) risked silently reverting every OTHER field in that
-// cached dump back to old values when a dump-only dial got edited. Fetching
-// fresh data first and merging into THAT means only the field(s) the user
-// actually changed differ from the hardware's own current truth. Called from
-// handle_moog_panel_dump() right after extract_moog_panel_info() — which
-// itself skips re-decoding any dial in this state, so the user's own chosen
-// display value is never overwritten by the fresh (pre-change) reply.
+// notes §40
 static void synth_apply_pending_dump_patches(void) {
     tPanelConfig * cfg        = synth_panel_config();
     bool           anyPatched = false;
@@ -1195,13 +724,7 @@ static void synth_apply_pending_dump_patches(void) {
     }
 
     if (gProgNameAwaitingFreshData) {
-        // Same addressing as extract_moog_name()'s own decode (synthComms.c
-        // above), run in reverse: each character is 8 bits in the same
-        // continuous 7-bit-per-byte bitstream write_bitpacked_field() uses
-        // for every other dump field, starting at panelNameOffset/
-        // panelNameBitOffset and advancing 8 bits per character (NOT 7 —
-        // see extract_moog_name()'s own comment on why a char's 8 bits
-        // straddle byte boundaries in this bitstream).
+        // notes §41
         gProgNameAwaitingFreshData = false;
         uint8_t * payload    = gLastMoogDump + 1;
         uint32_t  payloadLen = gLastMoogDumpLen - 1 - 1;
@@ -1244,26 +767,12 @@ static void handle_moog_panel_dump(const uint8_t * data, uint32_t length) {
                   (unsigned)length, (unsigned)sizeof(gLastMoogDump));
     }
     extract_moog_panel_info(payload, payloadLen);
-    // AFTER extract_moog_panel_info(), not before (as this used to be) — so
-    // gDevice.progName is already decoded by the time synth_backup_capture_dump()
-    // builds a default filename from it, same "decode the name first" order
-    // handle_moog_single_preset_dump() below already uses for the same
-    // reason. No-op unless a live-edit-buffer Backup is pending — see synthBackup.c.
+    // notes §42
     synth_backup_capture_dump(data, length, eBackupExpectLive);
     synth_apply_pending_dump_patches();
 }
 
-// The Moog counterpart of synth_apply_korg_prog_dump_locally() below: take a whole Panel Dump
-// MESSAGE (F0 ... F7, exactly as it sits in a .syx file) and put its values on screen, without
-// anything having to come back from the device.
-//
-// IT EXISTS BECAUSE RE-READING IS NOT ENOUGH ON A VOYAGER. A Panel Dump is what its name says — the
-// state of the PANEL — and for a parameter backed by a physical pot the synth goes on reporting the
-// pot, not the value a patch just loaded into it. Measured 2026-09-02: sending a dump whose only
-// difference was Filter Cutoff changed the SOUND (owner heard it) while every subsequent read still
-// reported the old value, where a dump-only field in the same message (Clock Div, 24 -> 30 -> 24)
-// round-tripped exactly. So the device is the authority on what it will do next, and the FILE is the
-// authority on what was just loaded — and it is the file the user is asking to see.
+// notes §43
 void synth_apply_moog_panel_dump_locally(const uint8_t * data, uint32_t length) {
     const uint32_t skip = 1;    // F0 only, matching handle_moog_panel_dump()
 
@@ -1273,14 +782,7 @@ void synth_apply_moog_panel_dump_locally(const uint8_t * data, uint32_t length) 
     extract_moog_panel_info(data + skip, length - skip - 1);   // trailing F7 excluded
 }
 
-// Format: F0 <mfrId> <productId> <deviceId> 03 <payload...> F7 — the reply to
-// synth_request_single_preset_dump()'s mode 0x06 request. Only decodes the
-// name (extract_moog_name() above, at presetNameOffset rather than
-// panelNameOffset — see the tPanelConfig field comment for why they
-// differ) — Backup > Patch by Number is this reply's only other consumer
-// (synth_backup_capture_dump() below), and that treats the dial data as an
-// opaque blob rather than decoding it into gDevice/the dials, so there's no
-// dumpOffset table to feed it through the way handle_moog_panel_dump() does.
+// notes §44
 static void handle_moog_single_preset_dump(const uint8_t * data, uint32_t length) {
     const uint32_t  skip            = 1; // F0 only — see handle_moog_panel_dump()'s comment on why
 
@@ -1292,16 +794,7 @@ static void handle_moog_single_preset_dump(const uint8_t * data, uint32_t length
     uint32_t        payloadLen      = length - skip - 1; // exclude trailing F7
     tPanelConfig *  cfg             = synth_panel_config();
 
-    // Computed FIRST so the decode below can be skipped entirely, not just
-    // its downstream writes — during a name sweep, name_sweep_capture_name()
-    // (synthBackup.c, called moments later on the main thread once
-    // gBackupBatchReplyReady is processed) decodes this exact same reply's
-    // name AND category independently anyway, so decoding it here too was
-    // pure waste with nothing left to use the result for (both consumers
-    // below are already gated on this same flag). A first pass at this fix
-    // only skipped the WRITES and left this decode call unconditional —
-    // 2026-07-14 owner observation, watching the debug log directly: "Names
-    // are still being decoded twice."
+    // notes §45
     bool            nameSweepActive = synth_backup_export_progress_is_name_sweep();
 
     if (!nameSweepActive) {
@@ -1310,37 +803,11 @@ static void handle_moog_single_preset_dump(const uint8_t * data, uint32_t length
         name[0]                                        = '\0';
         synth_decode_moog_name(payload, payloadLen, cfg->presetNameOffset, cfg->presetNameBitOffset, cfg->presetNameLen, cfg->nameLineWidth, name, sizeof(name));
 
-        // Reflects this onto the live on-screen display — Bank-to-folder
-        // EXPORT mode needs it (backup_batch_write_capture()'s own per-file
-        // naming reads gDevice.progName right after this handler runs), and
-        // so does a genuine standalone Backup > Patch by Number fetch,
-        // which is everything this branch now covers (name-sweep mode is
-        // excluded above). Not done at all during a name sweep — it
-        // already decodes into its own separate cache without ever
-        // touching gDevice.progName, and letting this write through too
-        // used to flicker the live displayed program name through every
-        // OTHER preset's name for the whole ~1.3-2.5 minute sweep
-        // (2026-07-14 owner report: "Voyager is displaying names as they
-        // come in, not the panel name") — masked before today by the sweep
-        // running fast behind a full-screen blocking modal that hid the
-        // edit buffer name display entirely; today's slower, sometimes-
-        // background sweep exposed it. Same "don't disturb the live
-        // display" reasoning handle_prog_dump() already follows for Korg.
+        // notes §46
         strncpy(gDevice.progName, name, sizeof(gDevice.progName) - 1);
         gDevice.progName[sizeof(gDevice.progName) - 1] = '\0';
 
-        // Keeps the Load/Store Patch to Bank name cache (synthBackup.c)
-        // accurate for this ONE slot regardless of why this reply arrived
-        // — Backup > Patch by Number, or anything else that ever requests
-        // a Single Preset Dump outside of a sweep. 2026-07-11 owner
-        // observation: "the gap will be closed if we have to read the
-        // patch in question from the synth for any reason." The preset
-        // number is the same header byte restore_patch_file_chosen()/
-        // synth_load_patch_from_bank() already use (data[5], 0-based on
-        // the wire) — guarded by the length check above, which already
-        // requires at least 2 bytes; a genuinely truncated reply shorter
-        // than 6 bytes couldn't have decoded a real name above either, so
-        // this only ever fires with a real preset number in hand.
+        // notes §47
         if (length > 5) {
             synth_backup_note_preset_name((uint32_t)data[5] + 1, name);
         }
@@ -1348,15 +815,7 @@ static void handle_moog_single_preset_dump(const uint8_t * data, uint32_t length
     synth_backup_capture_dump(data, length, eBackupExpectPreset); // no-op unless a by-number Backup is pending — see synthBackup.c; after the name decode so a by-number backup's default filename can use it
 }
 
-// Format: F0 <mfrId> <productId> <deviceId> 01 <every preset's data...> F7 —
-// the reply to synth_request_all_presets_dump()'s mode 0x04 request. Backup
-// > Bank is this reply's only consumer, and — same as Backup > Patch by
-// Number above — treats the whole thing as an opaque blob to save as-is
-// rather than decoding it (there's no per-preset dumpOffset table to decode
-// 128 presets' worth of dials into even if it wanted to; gDevice only ever
-// holds ONE preset's worth of dial state at a time). No name decode either:
-// unlike a Single Preset Dump, there's no one name to show — it's the whole
-// bank.
+// notes §48
 static void handle_moog_all_presets_dump(const uint8_t * data, uint32_t length) {
     synth_backup_capture_dump(data, length, eBackupExpectBank);
 }
@@ -1385,11 +844,7 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
         gDevice.progName[cfg->progNameLen < sizeof(gDevice.progName) ? cfg->progNameLen : sizeof(gDevice.progName) - 1] = '\0';
         LOG_DEBUG("Program name updated: \"%s\"\n", gDevice.progName);
     } else if (group == SYNTH_PARAM_GROUP_PROG) {
-        // Generic dispatch: whichever dial (if any) is wired to this
-        // group/paramId in xxxx.txt gets the value — no per-param knowledge
-        // of what it controls lives here. Searches every section, hidden or
-        // not (Filters, Oscillator's several sections, Z1's hidden
-        // category/voice/unison section, ...).
+        // notes §49
         tPanelDial * dial = NULL;
 
         for (uint32_t s = 0; (s < cfg->sectionCount) && !dial; s++) {
@@ -1397,21 +852,7 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
         }
 
         if (dial) {
-            // dumpNativeMax falls back to nativeMax exactly like extract_
-            // prog_info()'s own identical fallback (synthComms.c, above) —
-            // an incoming Parameter Change message carries a value in the
-            // parameter's own native units (e.g. Filter Cutoff: 0-99), the
-            // SAME units the full program dump uses, not necessarily the
-            // dial's own CC-side native range if those two differ (f1cut's
-            // own case: CC wire is 0-127, param/dump native is 0-99). Fixed
-            // 2026-07-13 alongside discovering the Z1's own hardware sends
-            // a Parameter Change immediately after every CC when a knob
-            // turns — without this fallback, an incoming param=263 value
-            // of 61 was being stored as display=61 directly (dial->
-            // nativeMax was 0 once f1cut stopped using it for CC-write
-            // scaling), instead of the correctly scaled ~78 matching what
-            // the CC and dump paths both already show for that same
-            // native value.
+            // notes §50
             uint32_t rawForDial = dial->wireSigned ? decode_signed_param_wire_value(dial, value) : value;
 
             apply_dial_wire_value(dial, rawForDial, (dial->dumpNativeMax != 0) ? dial->dumpNativeMax : dial->nativeMax);
@@ -1426,24 +867,9 @@ void synth_on_connected(void) {
     LOG_DEBUG("Synth connected (channel byte 0x%02X)\n", SYNTH_SYSEX_CHANNEL_BYTE(gDevice.id));
     memset(gDevice.progName, 0, sizeof(gDevice.progName));
     gDevice.currentProgram = -1; // unknown until an actual Program Change is seen — see the tSynthDevice field comment in types.h
-    // gDevice.moogDeviceId is DELIBERATELY not reset here — unlike
-    // currentProgram above, a value already learned from real traffic
-    // (moog_learn_device_id()) is still trustworthy after a mere reconnect
-    // to the SAME device (a MIDI dropout/replug doesn't change what Device
-    // ID the hardware's front panel is set to); throwing it away here would
-    // just make every request guess wrong again until another dump happens
-    // to arrive. It's seeded from the config's own default once, when the
-    // config itself first loads (synth_reload_panel_config(), synthGraphics.cpp)
-    // — the point that actually means "this might be a different device now".
+    // notes §51
 
-    // Reset every dial, in every section, to its own display-space default
-    // (0) — apply_dial_wire_value() already knows how to turn that into the
-    // right storage/native representation per dial, so no per-field defaults
-    // here; there's nothing device-specific left to reset in gDevice itself.
-    // Guards against stale values bleeding through from a previous device
-    // (switching devices via the startup chooser reuses the same in-memory
-    // dial structs) — real dials on a fresh launch are already zeroed by C's
-    // own static initialization, so this is a no-op there.
+    // notes §52
     tPanelConfig * cfg = synth_panel_config();
 
     for (uint32_t s = 0; s < cfg->sectionCount; s++) {
@@ -1454,26 +880,7 @@ void synth_on_connected(void) {
         }
     }
 
-    // No gReDraw=true here (2026-07-08 fix) — this reset used to force an
-    // immediate render before the state dump request below even went out,
-    // producing a visible flash to 0 on every connect before the real values
-    // arrived a moment later. The dump reply's own handler already redraws
-    // once real data lands (extract_moog_panel_info()/handle_moog_message()),
-    // so deferring to that is enough — nothing was actually relying on this
-    // reset being visible.
-    //
-    // synth_request_state_dump(), not synth_request_current_program()
-    // directly (was, until 2026-07-14) — this used to unconditionally send
-    // Z1's own func 0x10 CURR_PROG_DUMP_REQ to EVERY connected device
-    // regardless of type, including ones that don't speak it at all
-    // (Kronos — see supportsKorgProgramDump's own comment, panelConfig.h —
-    // and, harmlessly since it's simply ignored, Moog devices too, ahead of
-    // connect_without_identity()'s own separate correct stateRequestSysEx
-    // send right after). synth_request_state_dump() already has the
-    // correct per-device-family branch (Moog blob w/ device-ID patch, this
-    // Kronos-style dedicated sender, or Z1's own func 0x10 fallback) — this
-    // is the ONE place that needs to pick the right one, everything else
-    // (the "Sync from synth" button) already went through it.
+    // notes §53
     synth_request_state_dump();
 }
 
@@ -1488,22 +895,7 @@ void synth_request_current_program(void) {
     LOG_DEBUG("Sent CURR_PROG_DUMP_REQ\n");
 }
 
-// Kronos-style only (supportsKorgProgramDump == false — see its own field
-// comment, panelConfig.h): sends a "Current Object Dump Request" (func
-// 0x74), requesting the contents of the specified object type's EDIT
-// BUFFER — for obj=0x00 (Program), whatever's currently loaded/playing.
-// Per KRONOS_MIDI_SysEx.txt: "F0 42 3g 68 74 <obj> F7". The reply (func
-// 0x75, Current Object Dump) is handled by handle_kronos_message() below.
-// Uses build_header() (dynamic channel byte, via gDevice.id) rather than a
-// static stateRequestSysEx blob — Kronos's own protocol has no per-message
-// device-ID substitution the way Moog's does, but DOES encode MIDI channel
-// into every header the same way Z1's own synth_request_current_program()
-// above does, which a static blob (sent verbatim, no substitution) can't
-// track if the channel is ever anything other than whatever the file was
-// written for. UNCONFIRMED whether obj values other than 0x00 are
-// meaningful here without first doing a "Set Current Object" (func 0x71)
-// for object types that need one (drum kit/wave seq) — only Program is
-// used by this app so far.
+// notes §54
 static void synth_request_kronos_current_object_dump(uint8_t obj) {
     uint8_t  msg[8];
     uint32_t pos = build_header(msg, 0x74);
@@ -1514,29 +906,7 @@ static void synth_request_kronos_current_object_dump(uint8_t obj) {
     LOG_DEBUG("Sent Kronos Current Object Dump Request (obj=0x%02X)\n", (unsigned)obj);
 }
 
-// Kronos-style only: sends a Parameter Change (integer, func 0x43) per
-// KRONOS_MIDI_SysEx.txt — "F0 42 3g 68 43 TYP SOC SUB PID IDX valueH
-// valueM valueL F7". TYP/SOC/SUB/PID/IDX identify the parameter (a dial's
-// own typ=/soc=/sub=/pid=/idx= attributes, kronos.txt — see
-// hasKronosParam's own comment, panelConfig.h, for why this is a
-// completely separate 5-field scheme from Z1's own 2-field group/paramId,
-// not an extension of synth_send_parameter_change() below). value is a
-// 21-bit 2's complement integer (*4 in the doc), split into three 7-bit
-// groups the same way.
-//
-// CONFIRMED against real hardware 2026-07-14: turning kronos.txt's own
-// al1FilterCutoff dial (TYP=11 SOC=20 SUB=0 PID=4 IDX=0, AL-1's "[Filter A]
-// Cutoff") audibly changed a live Kronos's sound (owner: "Cutoff is
-// working for the first synth slot and The Sublime Mariner patch") — a
-// genuine round-trip validation of the address scheme, the 21-bit value
-// encoding, and build_header() reuse for func 0x43. An earlier attempt to
-// self-verify this same send by re-reading the dump and decoding a
-// hand-computed bit offset showed no change and no error Reply either,
-// which in hindsight was almost certainly that ad-hoc bit-offset math
-// being wrong, not the write failing — worth remembering if a future dump-
-// offset-based read-back check for some OTHER Kronos parameter also
-// appears not to be taking effect: verify on the real front panel before
-// concluding the SEND side is broken.
+// notes §55
 static void synth_send_kronos_parameter_change(uint32_t typ, uint32_t soc, uint32_t sub, uint32_t pid, uint32_t idx, int32_t value) {
     uint8_t  msg[14];
     uint32_t pos = build_header(msg, 0x43);
@@ -1560,25 +930,14 @@ void synth_request_state_dump(void) {
     tPanelConfig * cfg = synth_panel_config();
 
     if (!cfg->moogStyleDump && !cfg->supportsKorgProgramDump) {
-        // Kronos-style (or any future device sharing this same header
-        // shape but not Z1's specific function-code set): entirely
-        // different protocol from both the Moog stateRequestSysEx blob
-        // below and Z1's own func 0x10 fallback — see
-        // synth_request_kronos_current_object_dump()'s own comment for why
-        // this needs its own dedicated, channel-aware sender instead of
-        // either. Checked before stateRequestSysExLen below so this
-        // intercepts regardless of whether a device happens to declare one
-        // (kronos.txt deliberately doesn't).
+        // notes §56
         synth_request_kronos_current_object_dump(0x00); // Program
         return;
     }
 
     if (cfg->stateRequestSysExLen > 0) {
         if (cfg->moogStyleDump && (cfg->stateRequestSysExLen > 3)) {
-            // A local copy, not a send-in-place — cfg->stateRequestSysEx
-            // itself stays whatever the file was written with; only the
-            // outgoing byte reflects what's actually been learned (see
-            // moog_apply_device_id()'s own comment).
+            // notes §57
             uint8_t msg[sizeof(cfg->stateRequestSysEx)];
 
             memcpy(msg, cfg->stateRequestSysEx, cfg->stateRequestSysExLen);
@@ -1605,13 +964,7 @@ void synth_request_single_preset_dump(uint32_t presetNumber) {
         LOG_ERROR("Single Preset Dump Request: preset %u out of range\n", (unsigned)presetNumber);
         return;
     }
-    // Built from stateRequestSysEx (the Panel Dump Request Moog-style header —
-    // F0 <mfrId> <productId> <deviceId> 05 F7) rather than a second fixed
-    // constant in the file: same header prefix, just mode 0x06 (Single Preset
-    // Dump REQUEST) instead of 0x05, with the requested preset number
-    // inserted before the trailing F7 — see "byte4 = <SysExMode>" in
-    // voyager.txt's own header comment for where 0x06 + "program number byte"
-    // comes from.
+    // notes §58
     uint8_t        msg[sizeof(cfg->stateRequestSysEx) + 2];
     uint32_t       prefixLen = cfg->stateRequestSysExLen - 1; // everything up to (not including) the trailing F7
 
@@ -1636,12 +989,7 @@ void synth_request_all_presets_dump(void) {
         LOG_ERROR("All Presets Dump Request: no stateRequestSysEx declared\n");
         return;
     }
-    // Same construction as synth_request_single_preset_dump() above — built
-    // from stateRequestSysEx's header, mode byte swapped to 0x04 — but with
-    // no extra data byte before the trailing F7: unlike mode 0x06 (Single
-    // Preset Dump REQUEST), the header comment's mode table doesn't list one
-    // for 0x04, and there'd be nothing to number anyway (this asks for every
-    // preset in the bank, not one).
+    // notes §59
     uint8_t        msg[sizeof(cfg->stateRequestSysEx)];
     uint32_t       prefixLen = cfg->stateRequestSysExLen - 1; // everything up to (not including) the trailing F7
 
@@ -1653,23 +1001,12 @@ void synth_request_all_presets_dump(void) {
     LOG_DEBUG("Sent All Presets Dump Request\n");
 }
 
-// Shared tail for both synth_navigate_preset() and
-// synth_load_patch_from_bank() below — the actual "make this program the
-// live one" mechanism (send Program Change, optimistically record it,
-// debounce a state-dump refresh) is identical either way; only how the
-// destination program number is computed differs (relative delta vs. an
-// absolute 1-based preset number). program is 0-based (0-127), matching
-// midi_send_program_change()'s own wire convention.
+// notes §60
 static void synth_change_program(uint8_t program) {
     midi_send_program_change(gDevice.id, program);
     gDevice.currentProgram = program; // optimistic — see the tSynthDevice field comment in types.h
     LOG_DEBUG("Preset navigation: sent Program Change %d\n", (int)program);
-    // Debounced, not synth_request_state_dump() directly — a rapid burst of
-    // clicks (real hardware capture, 2026-07-07: Program Change 13 then 14
-    // sent less than a MIDI thread tick apart) only ever got ONE Panel Dump
-    // reply back, for whichever program the Voyager had settled on by the
-    // time it got around to answering. See midi_arm_state_dump_debounce()'s
-    // comment (midiComms.h) for the full story.
+    // notes §61
     midi_arm_state_dump_debounce();
 }
 
@@ -1678,21 +1015,7 @@ void synth_navigate_preset(int32_t delta) {
         LOG_ERROR("Preset navigation: no device connected\n");
         return;
     }
-    // A "default to slot 0 when unknown" fallback lived here 2026-07-11 to
-    // 2026-07-13 — removed once synth_hit_test_patch_nav() (synthGraphics.cpp)
-    // started disabling Prev/Next at the hit-test level (not just cosmetic
-    // greying) whenever gDevice.currentProgram is unknown, making this
-    // function uncallable in that state via the button at all. The fallback
-    // itself was the real bug behind the owner's 2026-07-13 report ("Prev/
-    // Next always starts at the first patch") — since Load Patch from Bank
-    // wasn't working either (a separate, still-open issue), currentProgram
-    // routinely stayed unknown for an entire session, so EVERY press
-    // guessed from slot 0 instead of stepping relative to whatever was
-    // actually loaded. Genuinely unreachable with currentProgram<0 now (the
-    // button can't be clicked), so no clamp-to-0 fallback is needed here —
-    // if some OTHER future caller reaches this with currentProgram still
-    // negative, that's a bug at the CALL SITE worth surfacing, not
-    // something to silently paper over here again.
+    // notes §62
     int32_t next = gDevice.currentProgram + delta;
 
     if (next < 0) {
@@ -1716,10 +1039,7 @@ void synth_load_patch_from_bank(uint8_t bank, uint32_t presetNumber) {
         return;
     }
 
-    // bank is Korg-style only — see this function's own comment in
-    // synthComms.h. A Moog-style device (Voyager) has no bank concept the
-    // app knows how to select, so bank is simply ignored there; every
-    // existing Moog-only caller already passes bank=0.
+    // notes §63
     if (synth_panel_config()->moogStyleDump) {
         synth_change_program((uint8_t)(presetNumber - 1));
         return;
@@ -1742,10 +1062,7 @@ void synth_korg_select_program(uint8_t bank, uint32_t progNumber) {
         LOG_ERROR("Select Program: program number %u out of range (1-128)\n", (unsigned)progNumber);
         return;
     }
-    // Standard MIDI Bank Select — CC0 (MSB) always 0, CC32 (LSB) = bank
-    // (0=A, 1=B). The Z1 only ever needs the LSB half; sending an explicit
-    // MSB=0 first matches the standard two-CC convention rather than
-    // relying on the device defaulting it.
+    // notes §64
     midi_send_cc(gDevice.id, 0, 0);
     midi_send_cc(gDevice.id, 32, bank);
     synth_change_program((uint8_t)(progNumber - 1));
@@ -1805,12 +1122,7 @@ void synth_send_korg_program_write_request(uint8_t bank, uint32_t progNumber) {
         LOG_ERROR("Program Write Request: program number %u out of range (1-128)\n", (unsigned)progNumber);
         return;
     }
-    // F0 <mfrId> 3g 46 11 0b pp F7 — 0b: Destination Program Bank(0:A,1:B),
-    // pp: 0-based destination program number, per the Z1 MIDI
-    // Implementation doc's own PROGRAM WRITE REQUEST table. No payload at
-    // all — the device commits whatever's currently in its OWN live edit
-    // buffer, unlike Voyager's fetch+relabel+resend mechanism (see this
-    // function's own comment in synthComms.h).
+    // notes §65
     uint8_t  msg[16];
     uint32_t pos = build_header(msg, SYNTH_FUNC_PROG_WRITE_REQ);
 
@@ -1835,26 +1147,7 @@ void synth_send_parameter_change(uint8_t group, uint16_t paramId, uint16_t value
     midi_send(msg, pos);
 }
 
-// Sends a CURRENT PROGRAM DATA DUMP (func 0x40) — loads rawPayload (the
-// SAME still-7-bit-packed bytes a Program Data Dump file's own payload
-// already contains, no decode/re-encode needed, just a straight copy) into
-// the connected device's LIVE EDIT BUFFER in one message, the Z1's own
-// direct equivalent of a Moog-style device's Panel Dump. Unlike func 0x4C
-// (PROGRAM DATA DUMP, what synth_request_korg_program_dump() reads and what
-// gets saved to a backup file), func 0x40 carries NO bank/program address —
-// per the Z1 MIDI Implementation doc's own func 0x40/0x4C descriptions,
-// that's what makes 0x40 target "whatever's currently live" instead of a
-// specific stored slot. Added 2026-07-14 replacing an earlier, much more
-// fragile approach (replaying every dial as 119 separate Parameter Change
-// messages) that a real-hardware test found produced a near-init-sounding
-// patch every time — almost certainly because most of those dials fall in
-// the Z1's own "-99..+99 Int" family, which has an ALREADY-KNOWN real
-// hardware bug where a live Parameter Change write of a positive value
-// silently clamps to 0 (see feedback memory). A whole-buffer load like this
-// never goes through that per-parameter write path at all, so it can't hit
-// that bug. Device replies with DATA LOAD COMPLETED (func 0x23) or DATA
-// LOAD ERROR (func 0x24) — not currently decoded/surfaced to the user,
-// same as every other fire-and-forget send in this file.
+// notes §66
 void synth_send_korg_current_program_dump(const uint8_t * rawPayload, uint32_t rawPayloadLen) {
     static uint8_t msg[2048];
     uint32_t       pos = build_header(msg, SYNTH_FUNC_CURR_PROG_DUMP);
@@ -1872,21 +1165,7 @@ void synth_send_korg_current_program_dump(const uint8_t * rawPayload, uint32_t r
     LOG_DEBUG("Sent Current Program Data Dump (func 0x40), %u byte payload — loads live edit buffer only\n", (unsigned)rawPayloadLen);
 }
 
-// Sends a PROGRAM DATA DUMP (func 0x4C) addressed to a SPECIFIC bank/program
-// — unlike synth_send_korg_current_program_dump() above (func 0x40, no
-// address, live edit buffer only), this writes DIRECTLY to a stored slot,
-// bypassing the edit buffer entirely — the send-direction mirror of how
-// synth_request_korg_program_dump() already READS a specific stored slot
-// (both func 0x1C-request/0x4C-reply and this share the same Unit/Bank/
-// ProgramNo addressing). Owner's own framing (2026-07-14): "We can already
-// save from a flash slot to a file... this would be the reverse." rawPayload
-// is the SAME still-7-bit-packed bytes a captured file's own payload
-// already contains — no decode/re-encode needed, only the header address
-// changes. Per the Z1 MIDI Implementation doc, Unit=00 (Prog, i.e. a single
-// program, not a whole Bank/All dump) is the only mode this function builds
-// — bank/program dumps are a different, larger operation this app doesn't
-// need. UNCONFIRMED against real Z1 hardware as of this writing — see
-// korg_restore_patch_to_bank_file_chosen()'s own comment, synthBackup.c.
+// notes §67
 void synth_send_korg_program_data_dump(uint8_t bank, uint32_t progNumber, const uint8_t * rawPayload, uint32_t rawPayloadLen) {
     static uint8_t msg[2048];
     uint32_t       pos = build_header(msg, SYNTH_FUNC_PROG_DUMP);
@@ -1907,10 +1186,7 @@ void synth_send_korg_program_data_dump(uint8_t bank, uint32_t progNumber, const 
               bank ? 'B' : 'A', (unsigned)progNumber, (unsigned)rawPayloadLen);
 }
 
-// Real detented switch bounce (confirmed 2026-07-08, Voyager's LFO Sync)
-// stays within this window between transitional messages, while a genuinely
-// separate switch flip is always seconds apart — see hasPendingCc's own
-// comment in panelConfig.h.
+// notes §68
 #define CC_DEBOUNCE_MS    150.0
 
 static double monotonic_ms(void) {
@@ -1928,21 +1204,7 @@ bool synth_handle_cc(uint8_t cc, uint8_t value) {
     }
 
     if (dial->ccLsbNumber == 0) {
-        // A live CC message carries a raw 0-127 byte. For a plain continuous
-        // dial (nativeMax == 0) that byte already IS the storage/display
-        // value, so write it straight through — no debounce, this stream is
-        // a genuine real-time sweep, not switch bounce. But some switches/
-        // selectors are wired as a CC whose hardware only ever sends a
-        // handful of evenly-spaced raw values across that range for their N
-        // positions (nativeMax != 0, display == dialDisplayNames — e.g.
-        // Voyager's Glide switch: CC65, 0-63=Off, 64-127=On) — those need
-        // the same native->display quantization apply_dial_wire_value()
-        // already does for SysEx-sourced raw values, or every position past
-        // the first would render as "?" (index >= nameCount). They ALSO get
-        // debounced (hold the raw byte, defer applying it — see
-        // synth_flush_pending_cc() below) since a real detented switch's own
-        // mechanical bounce sends several transitional bytes within tens of
-        // milliseconds before settling.
+        // notes §69
         if ((dial->nativeMax != 0) && (dial->display == dialDisplayNames)) {
             dial->hasPendingCc    = true;
             dial->pendingRawValue = value;
@@ -1951,49 +1213,18 @@ bool synth_handle_cc(uint8_t cc, uint8_t value) {
             apply_dial_wire_value(dial, value, dial->nativeMax);
         }
     } else if (cc == dial->ccNumber) {
-        // 14-bit CC pair (MIDI's own coarse/fine convention: controller N is
-        // the MSB, N+32 the LSB — see the ccLsbNumber comment in
-        // panelConfig.h). Each half arrives as its own separate CC message —
-        // confirmed against real hardware (2026-07-08, timestamped
-        // dispatch_cc() output turning Cutoff): MSB consistently arrives
-        // ~0.5-0.6ms before its matching LSB, every single step. Recombining
-        // dial->value on EVERY message (the previous behaviour) meant the
-        // MSB's arrival paired a brand-new MSB with the OLD LSB for that
-        // ~0.5ms window — a real torn/wrong value, not just a theoretical
-        // risk, briefly shown and redrawn before the LSB corrected it a
-        // moment later. Only latch the MSB here; the LSB branch below is
-        // what actually recomputes dial->value, so a torn combination is
-        // never computed at all, not just never (usually) seen.
+        // notes §70
         dial->ccMsbLatched = value;
     } else {
         dial->ccLsbLatched = value;
         dial->value        = ((uint32_t)dial->ccMsbLatched << 7) | dial->ccLsbLatched;
     }
-    // Re-arms the existing state-dump-request debounce (midiComms.c, already
-    // used for Program Change/preset navigation) on every genuinely
-    // hardware-originated CC — added 2026-07-09, owner's own idea: a
-    // physical knob's true position can differ slightly from what its CC
-    // message conveys (e.g. Cutoff measured 12928 via CC vs 12936 via a
-    // Panel Dump for the same real turn — two independent quantizations of
-    // one continuous pot, not a decode bug), so requesting a fresh Panel
-    // Dump ~264ms after the LAST CC in a turn
-    // (SYNTH_STATE_DUMP_DEBOUNCE_TICKS, coalesces a whole turn into one
-    // request the same way it already coalesces a burst of Program Changes)
-    // lets the display settle on the dump's own more-precise reading shortly
-    // after the user's hand leaves the knob, without spamming a request per
-    // CC byte while actively turning. Only reachable here for INCOMING CC
-    // (this function is dispatch_cc()'s own handler) — a GUI-driven change
-    // goes out via midi_send_cc() on a separate path that never calls this,
-    // so turning an on-screen dial doesn't also trigger a redundant refresh.
+    // notes §71
     midi_arm_state_dump_debounce();
     return true;
 }
 
-// Commits any dial's debounced CC (see hasPendingCc's own comment in
-// panelConfig.h) once CC_DEBOUNCE_MS have passed since the last raw byte
-// arrived for it. Called once per frame from the render loop
-// (do_graphics_loop()/graphics.cpp) — cheap enough (every dial in every
-// section, a handful of integer comparisons each) to not need its own timer.
+// notes §72
 void synth_flush_pending_cc(void) {
     tPanelConfig * cfg = synth_panel_config();
     double         now = monotonic_ms();
@@ -2013,16 +1244,7 @@ void synth_flush_pending_cc(void) {
     }
 }
 
-// Same trailing-edge debounce as synth_flush_pending_cc() above, but for the
-// OUTGOING side of a dump-only dial (see hasPendingDumpSend's own comment in
-// panelConfig.h) — reuses CC_DEBOUNCE_MS's window (no reason for a different
-// settle time) but is a separate flag/timestamp since it debounces a send,
-// not an apply, and fires at most once per settled value rather than once
-// per drag tick. Once settled, this does NOT patch-and-send directly (see
-// dumpSendAwaitingFreshData's own comment) — it requests a fresh Panel Dump
-// first (unless one's already in flight for this same reason) and hands off
-// to synth_apply_pending_dump_patches(), which does the actual patch+send
-// once that reply arrives.
+// notes §73
 void synth_flush_pending_dump_sends(void) {
     tPanelConfig * cfg = synth_panel_config();
     double         now = monotonic_ms();
@@ -2046,40 +1268,7 @@ void synth_flush_pending_dump_sends(void) {
     }
 }
 
-// Kronos-style dispatch (supportsKorgProgramDump == false — see its own
-// field comment, panelConfig.h) — entirely separate function-code space
-// from Z1's own SYNTH_FUNC_* switch below: Kronos's func codes NUMERICALLY
-// COLLIDE with some of Z1's (e.g. Kronos's 0x24 "Reply" acknowledgement vs
-// Z1's SYNTH_FUNC_DATA_LOAD_ERROR, both 0x24), so this must never share
-// that switch — a real Kronos "Reply" (success or failure of some earlier
-// request) would otherwise get misread as "Data load error" every time.
-//
-// Currently only decodes func 0x75 (Current Object Dump) for obj=0x00
-// (Program), and only as far as the Name field (offset 0-23, common to
-// every Program regardless of engine per Prog_EXi_Common.txt/Prog_HD-1.txt)
-// — enough to prove the request/reply/7-to-8-decode round trip against
-// real hardware (confirmed 2026-07-14: readable names decoded from a live
-// Kronos via the standalone tools/kronos_dump tool before this landed in
-// the app) and show the real current patch name in the existing UI via
-// gDevice.progName, same slot Z1/Moog already populate. Filter/parameter
-// decoding is a deliberately separate, later step — it needs the
-// per-Algorithm-Type (EXi engine — offset 2857, "EXi1 Common Algorithm
-// Type") parameter layout confirmed first, since each of the 8 EXi engines
-// (AL-1/CX-3/EP-1/MOD-7/MS-20EX/PolysixEX/SGX-1/STR-1) has its own
-// completely different one — see kronos.txt's own header comment.
-// Parameter Change (func 0x43) arriving FROM the Kronos, not just a reply to
-// our own synth_send_kronos_parameter_change() writes below — confirmed
-// 2026-07-14 via tools/kronos_monitor (a passive listener, no send) that the
-// hardware also emits this unsolicited whenever a physical front-panel knob
-// is turned. Same wire shape we send it in, so decoding is the exact mirror
-// of synth_send_kronos_parameter_change(): F0 <mfrId> 3g <familyId> 43 typ
-// soc sub pid idx valueH valueM valueL F7, value a 21-bit 2's-complement
-// integer split across three 7-bit groups. Dispatch is generic — whichever
-// dial (if any) is wired to this exact TYP/SOC/SUB/PID/IDX in <device>.txt
-// gets updated, no per-parameter knowledge here (mirrors handle_parameter_
-// change()'s own Z1 group/paramId dispatch above). Re-applying our own echo
-// of a write we just sent is harmless (same value, redundant redraw) since
-// this only ever writes dial->value, never calls back out to send anything.
+// notes §74
 static void handle_kronos_parameter_change(const uint8_t * data, uint32_t length) {
     uint32_t     base  = 4 + synth_panel_config()->manufacturerIdLen;
 
@@ -2123,11 +1312,7 @@ static void handle_kronos_message(const uint8_t * data, uint32_t length, uint8_t
         LOG_DEBUG("Kronos SysEx unhandled func 0x%02X (len=%u)\n", (unsigned)funcId, (unsigned)length);
         return;
     }
-    // F0 <mfrId> 3g <familyId> 75 <obj> <version> <data, 7-bit-packed> F7
-    // — headerLen counts bytes through and including the func byte itself
-    // (same offset synth_handle_message() below already computed funcId
-    // from: data[3 + manufacturerIdLen] is the func byte, so headerLen —
-    // "how many bytes before obj" — is one past that).
+    // notes §75
     uint32_t        headerLen  = 4 + synth_panel_config()->manufacturerIdLen;
 
     if (length < headerLen + 2 + 1) { // +2 (obj, version) +1 (trailing F7)
@@ -2150,26 +1335,14 @@ static void handle_kronos_message(const uint8_t * data, uint32_t length, uint8_t
         LOG_DEBUG("Kronos Program dump too short after decode (decodedLen=%u)\n", (unsigned)decodedLen);
         return;
     }
-    // Reuses the SAME generic scanner z1.txt's own dump decode already goes
-    // through (extract_prog_info() above) — handles the name (progNameLen,
-    // kronos.txt) AND every dial with a dumpOffset (the AL-1 Filter A/B
-    // Cutoff dials, via read_korg_bitpacked_field() above) in one pass, no
-    // per-parameter knowledge here. Replaces an earlier hand-rolled name-only
-    // extraction (2026-07-14) that predated any dial having a dumpOffset to
-    // scan for.
+    // notes §76
     extract_prog_info(decoded, decodedLen);
     LOG_DEBUG("Kronos Current Object Dump decoded: version=%u decodedLen=%u\n", (unsigned)version, (unsigned)decodedLen);
 }
 
 void synth_handle_message(const uint8_t * data, uint32_t length) {
     if (synth_panel_config()->moogStyleDump) {
-        // Entirely separate header shape and dispatch from the Korg-style
-        // path below (see is_moog_sysex()/handle_moog_panel_dump()). Modes
-        // 0x02 (Panel Dump), 0x03 (Single Preset Dump), and 0x01 (All
-        // Presets Dump) are the replies this app requests (see
-        // stateRequestSysEx/"Panel Dump Request", synth_request_single_preset_dump(),
-        // and synth_request_all_presets_dump() respectively) — anything else
-        // is logged and ignored.
+        // notes §77
         if (!is_moog_sysex(data, length)) {
             LOG_DEBUG("Ignoring non-target SysEx (len=%u)\n", (unsigned)length);
             return;
@@ -2235,27 +1408,7 @@ void synth_handle_message(const uint8_t * data, uint32_t length) {
     synthlib_request_redraw();
 }
 
-// Holds at most ONE deferred outgoing send PER WIRE SHAPE (single CC, 14-bit
-// CC pair, Korg Parameter Change) — a single slot each, not per-dial, is
-// enough because only one dial can ever be under an active GUI drag at a
-// time (mouseHandle.c's own gDraggedDial is a single pointer), and a given
-// dial only ever uses exactly one of the three shapes. Set only when
-// synth_backup_sweep_request_in_flight() (synthBackup.h) is true at send
-// time — the mutual-exclusion fix for 2026-07-14's owner report ("seeing
-// some items saying 'No Response', likely due to me tweaking a dial"),
-// generalized the same day to cover Voyager's CC-mapped dials too (owner:
-// "these should be common mechanisms with Voyager and any other device"):
-// rather than sending into the same narrow window a name-sweep reply is
-// expected in, hold it here and let synth_flush_pending_param_send() below
-// send it the moment that window clears. NULL means "nothing pending" —
-// the overwhelmingly common case (no sweep running, or its slow paced gap
-// between requests, not the brief in-flight window), where
-// synth_set_panel_dial_value() below still sends immediately with zero
-// added latency, exactly as before this existed. Only the actual outbound
-// MIDI bytes are deferred — synth_set_panel_dial_value() still updates
-// dial->value/ccMsbLatched/ccLsbLatched/the Moog dump cache immediately
-// either way, so the on-screen dial and internal state never lag; only the
-// wire message does.
+// notes §78
 static tPanelDial * gPendingCcDial     = NULL;
 static uint8_t      gPendingCcValue    = 0;
 
@@ -2301,14 +1454,7 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
         displayValue = dial->max - 1;
     }
 
-    // Linked min/max constraint (see linkedMaxDialId/linkedMinDialId's own
-    // comment in panelConfig.h) — clamps against the OTHER dial's CURRENT
-    // value, resolved fresh here rather than cached, so it always reflects
-    // whatever that dial most recently held (including a change from
-    // earlier in this same user action, e.g. dragging Hi Key down past Lo
-    // Key first). Applied before storageOffset/dedup below so a clamped
-    // value that happens to equal what's already stored correctly takes
-    // the early-return path just like any other unchanged value.
+    // notes §79
     if (dial->linkedMaxDialId[0] != '\0') {
         tPanelDial * other = find_panel_dial_anywhere(synth_panel_config(), dial->linkedMaxDialId);
 
@@ -2339,13 +1485,7 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
     }
     dial->value = storageValue;
 
-    // Computed regardless of ccNumber now — a dump-only dial (no CC at all,
-    // e.g. Voyager's Filter A/B Pole Select) still needs its nativeValue to
-    // patch into a resent dump below, not just a CC-bound one. Previously
-    // this only ran inside the ccNumber!=0 branch, which was fine when every
-    // ccNumber==0 dial was Z1's own paramGroup/paramId path (no native
-    // scaling concept there) — no longer true once a Moog dump-only selector
-    // exists.
+    // notes §80
     if ((dial->nativeMax != 0) && (dial->max > 1)) {
         dial->nativeValue = (uint8_t)(displayValue * dial->nativeMax / (dial->max - 1));
     }
@@ -2370,11 +1510,7 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
                 midi_send_cc(gDevice.id, (uint8_t)dial->ccLsbNumber, dial->ccLsbLatched);
             }
         } else {
-            // nativeMax != 0: the hardware expects its own scaled raw byte
-            // for this display position (e.g. Glide's Off/On sends 0/127,
-            // not 0/1) — nativeValue above was just computed for exactly
-            // this. Without nativeMax, storageValue already IS that byte
-            // (plain continuous CC dial).
+            // notes §81
             uint8_t wireValue = (dial->nativeMax != 0) ? dial->nativeValue : (uint8_t)storageValue;
 
             if (sweepInFlight) {
@@ -2386,50 +1522,19 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
             }
         }
 
-        // Mirror this change into the cached Panel Dump too (added
-        // 2026-07-09) — a dial can have BOTH a CC and a dump field (most of
-        // this file's dials do), and without this the cache only reflected
-        // whatever the LAST full Panel Dump said, going stale the moment a
-        // CC-driven dial changed. A later dump-only-dial edit (e.g.
-        // Headphone Volume) patches-and-resends that cache — if it were
-        // stale, the resend would silently revert this CC change back to
-        // its old value on the hardware. Cache-only, no MIDI send here —
-        // the CC message above already told the hardware.
+        // notes §82
         if (synth_panel_config()->moogStyleDump && (dial->dumpBitWidth > 0)) {
             synth_patch_moog_dump_cache(dial, synth_encode_dump_raw_value(dial, displayValue));
         }
     } else if (synth_panel_config()->moogStyleDump && (dial->dumpBitWidth > 0)) {
-        // No CC exists for this dial (e.g. Voyager's Filter A/B Pole Select)
-        // — patch-and-resend the cached dump instead of falling through to
-        // Z1's Korg-style parameter-change SysEx below, which would send a
-        // meaningless message shaped for an entirely different protocol.
-        // Debounced (see hasPendingDumpSend's own comment in panelConfig.h)
-        // rather than sent immediately — a dragged continuous dial (e.g.
-        // Headphone Volume) can call this many times a second, and unlike a
-        // 3-byte CC each send here resends the whole cached dump.
-        //
-        // synth_encode_dump_raw_value() (not the old nativeValue-or-
-        // storageValue computation) as of 2026-07-09 — the old computation
-        // never applied dumpInvert on the way out, silently wrong for any
-        // dump-only dial with dumpInvert=1 (none existed yet when it was
-        // written, but the CC-side cache-sync above now shares this same
-        // path for dials that DO use it, e.g. mwDestination).
+        // notes §83
         uint32_t rawValue = synth_encode_dump_raw_value(dial, displayValue);
 
         dial->hasPendingDumpSend  = true;
         dial->pendingDumpRawValue = rawValue;
         dial->pendingDumpSinceMs  = monotonic_ms();
     } else if (dial->hasKronosParam) {
-        // Kronos's own Parameter Change (func 0x43) — an entirely
-        // different wire shape from Z1's own synth_send_parameter_change()
-        // below (5 address fields, a 21-bit value, not group/paramId's 2
-        // fields + 14-bit value) — see synth_send_kronos_parameter_change()'s
-        // own comment for what's confirmed and what isn't yet. No
-        // sweep-in-flight defer needed here the way the Z1 branch below
-        // has — synth_backup_sweep_request_in_flight() can never be true
-        // for a Kronos-style device in the first place (its whole
-        // gKorgSweep* mechanism is gated off by supportsKorgProgramDump,
-        // see that field's own comment).
+        // notes §84
         synth_send_kronos_parameter_change(dial->kronosTyp, dial->kronosSoc, dial->kronosSub,
                                            dial->kronosPid, dial->kronosIdx, (int32_t)storageValue);
     } else if (synth_backup_sweep_request_in_flight()) {
@@ -2451,15 +1556,7 @@ uint32_t synth_effective_name_maxlen(void) {
     return (maxLen < (SYNTH_PROG_NAME_MAXLEN - 1)) ? maxLen : (SYNTH_PROG_NAME_MAXLEN - 1);
 }
 
-// Mirrors extract_moog_name()'s own line-wrap-for-display insertion (its own
-// comment above explains why: nameLineWidth is a display-only concept, no
-// real separator exists in the wire format), applied here to the flat name
-// this app is about to send rather than one just decoded — so
-// gDevice.progName reads correctly immediately after a commit, without
-// waiting for the round trip through hardware and back. Deliberately not
-// shared code with extract_moog_name(): that function also collapses
-// whitespace runs and strips a hardware line-boundary quirk out of RAW
-// decoded bytes, neither of which applies to a clean user-typed string.
+// notes §85
 static void set_prog_name_display(const char * flat, uint32_t lineWidth) {
     uint32_t outLen    = 0;
     uint32_t lineChars = 0;
@@ -2504,10 +1601,7 @@ void synth_set_program_name(const char * newName) {
 
     if (cfg->moogStyleDump) {
         if ((cfg->panelNameOffset < 0) || (gLastMoogDumpLen == 0)) {
-            // No dump cached yet to patch into (not connected, or no Panel
-            // Dump received this session) — nothing to send. Matches
-            // synth_patch_moog_dump_cache()'s own no-op guard for the same
-            // reason.
+            // notes §86
             return;
         }
         gPendingProgNameLen        = maxLen;
