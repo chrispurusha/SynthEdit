@@ -265,9 +265,9 @@ static double render_page_tabs(tRectangle origin) {
         // draw_button() draws DRAW_BUTTON_MARGIN larger bottom/right than `rect`
         // and the tab's only other use of this rect is hit-testing — store the
         // true drawn bounds so those edge pixels click (was the small `rect`).
-        gPageTabs[i].rect = draw_button_bounds(rect);
+        gPageTabs[i].rect        = draw_button_bounds(rect);
         register_click_region(gPageTabs[i].rect, eClickLayerPanel, page_tab_click_handler, (void *)(intptr_t)i);
-        x                += width + tabGap;
+        x                       += width + tabGap;
     }
 
     return (gPageTabCount > 0) ? (tabHeight + 12.0) : 0.0;
@@ -277,7 +277,7 @@ static double render_page_tabs(tRectangle origin) {
 #define BUTTON_TEXT_PADDING    10.0
 
 // notes §12
-#define MIN_BUTTON_GAP    8.0
+#define MIN_BUTTON_GAP         8.0
 
 // notes §13
 static double section_required_spacing(tPanelSection * section) {
@@ -567,6 +567,40 @@ static void synth_render_backup_progress(void) {
     render_rectangle(mainArea, (tRectangle){{boxX + margin, barY}, {barW * frac, 8.0}});
 }
 
+// An unavailable button is its label alone, dimmed - no face, no outline. On the dark palette a
+// disabled face is the background grey, and draw_button() then picks white text: brighter than an
+// enabled button's, which is the opposite of unavailable.
+static void draw_nav_button(tRectangle rect, const char * label, bool enabled, tRgb face) {
+    if (enabled) {
+        draw_button(mainArea, rect, label, face);
+        return;
+    }
+    set_rgb_colour((tRgb)RGB_GREY_5);
+    render_text(mainArea, (tRectangle){
+        {rect.coord.x + DRAW_BUTTON_MARGIN, rect.coord.y + DRAW_BUTTON_MARGIN}, {BLANK_SIZE, rect.size.h}
+    }, label);
+}
+
+// Which preset the synth is on, and how sure that is - types.h notes §5.
+static void draw_current_program(double x, double y, double height) {
+    static const char *const kQualifier[] = {
+        [eProgramUnknown]           = "",
+        [eProgramFromProgramChange] = " (unconfirmed)",
+        [eProgramMatchedByName]     = " (by name)",
+        [eProgramConfirmed]         = "",
+    };
+    char                     label[40];
+
+    if (!gDevice.connected || (gDevice.currentProgram < 0) || !synth_panel_config()->moogStyleDump) {
+        return;
+    }
+    snprintf(label, sizeof(label), "Preset %d%s", (int)gDevice.currentProgram + 1, kQualifier[gDevice.programCertainty]);
+    set_rgb_colour((gDevice.programCertainty == eProgramConfirmed) ? (tRgb)RGB_WHITE : (tRgb)RGB_GREY_5);
+    render_text(mainArea, (tRectangle){
+        {x + DRAW_BUTTON_MARGIN, y + DRAW_BUTTON_MARGIN}, {BLANK_SIZE, height}
+    }, label);
+}
+
 void synth_render(tRectangle area) {
     double x = area.coord.x + 30.0;
     double y = area.coord.y + 20.0;
@@ -603,17 +637,17 @@ void synth_render(tRectangle area) {
             nameBuf[sizeof(nameBuf) - 1] = '\0';
             set_rgb_colour((tRgb)RGB_WHITE);
         }
-        tPanelConfig * cfg          = synth_panel_config();
-        uint32_t       maxFieldLen  = (cfg->panelNameLen > cfg->presetNameLen) ? cfg->panelNameLen : cfg->presetNameLen;
-        uint32_t       reservedRows = (cfg->nameLineWidth > 0)
+        tPanelConfig * cfg             = synth_panel_config();
+        uint32_t       maxFieldLen     = (cfg->panelNameLen > cfg->presetNameLen) ? cfg->panelNameLen : cfg->presetNameLen;
+        uint32_t       reservedRows    = (cfg->nameLineWidth > 0)
                                      ? ((maxFieldLen + cfg->nameLineWidth - 1) / cfg->nameLineWidth)
                                      : 1;
 
         if (reservedRows == 0) {
             reservedRows = 1;
         }
-        char *         line         = strtok(nameBuf, "\n");
-        uint32_t       row          = 0;
+        char *         line            = strtok(nameBuf, "\n");
+        uint32_t       row             = 0;
 
         while ((line != NULL) && (row < reservedRows)) {
             tRectangle r = {{x, y + (row * 32.0)}, {450.0, 26.0}};
@@ -632,16 +666,16 @@ void synth_render(tRectangle area) {
         register_click_region(gProgNameRect, eClickLayerPanel, prog_name_click_handler, NULL);
 
         // notes §28
-        bool         navEnabled      = gDevice.connected;
-        bool         prevNextEnabled = navEnabled && (gDevice.currentProgram >= 0);
+        bool           navEnabled      = gDevice.connected;
+        bool           prevNextEnabled = navEnabled && (gDevice.currentProgram >= 0);
         // notes §29
-        const double navBtnHeight    = 12.0;
-        double       prevWidth       = get_text_width("< Prev", navBtnHeight, eNoCache);
-        double       nextWidth       = get_text_width("Next >", navBtnHeight, eNoCache);
-        double       syncWidth       = get_text_width("Sync from synth", navBtnHeight, eNoCache);
-        tRgb         prevColour      = (gPressedPatchNav == 0) ? (tRgb)RGB_GREY_5 : (prevNextEnabled ? (tRgb)RGB_GREY_7 : (tRgb)RGB_GREY_3);
-        tRgb         nextColour      = (gPressedPatchNav == 1) ? (tRgb)RGB_GREY_5 : (prevNextEnabled ? (tRgb)RGB_GREY_7 : (tRgb)RGB_GREY_3);
-        tRgb         syncColour      = (gPressedPatchNav == 2) ? (tRgb)RGB_GREY_5 : (navEnabled ? (tRgb)RGB_GREY_7 : (tRgb)RGB_GREY_3);
+        const double   navBtnHeight    = 12.0;
+        double         prevWidth       = get_text_width("< Prev", navBtnHeight, eNoCache);
+        double         nextWidth       = get_text_width("Next >", navBtnHeight, eNoCache);
+        double         syncWidth       = get_text_width("Sync from synth", navBtnHeight, eNoCache);
+        tRgb           prevColour      = (gPressedPatchNav == 0) ? (tRgb)RGB_GREY_5 : (tRgb)RGB_GREY_7;
+        tRgb           nextColour      = (gPressedPatchNav == 1) ? (tRgb)RGB_GREY_5 : (tRgb)RGB_GREY_7;
+        tRgb           syncColour      = (gPressedPatchNav == 2) ? (tRgb)RGB_GREY_5 : (tRgb)RGB_GREY_7;
 
         gPrevPatchRect   = (tRectangle){{
                                             x + 460.0, y
@@ -661,9 +695,10 @@ void synth_render(tRectangle area) {
                                             syncWidth, navBtnHeight
                                         }
         };
-        draw_button(mainArea, gPrevPatchRect, "< Prev", prevColour);
-        draw_button(mainArea, gNextPatchRect, "Next >", nextColour);
-        draw_button(mainArea, gSyncPatchRect, "Sync from synth", syncColour);
+        draw_nav_button(gPrevPatchRect, "< Prev", prevNextEnabled, prevColour);
+        draw_nav_button(gNextPatchRect, "Next >", prevNextEnabled, nextColour);
+        draw_nav_button(gSyncPatchRect, "Sync from synth", navEnabled, syncColour);
+        draw_current_program(gSyncPatchRect.coord.x + syncWidth + 24.0, y, navBtnHeight);
         gPatchNavLaidOut = true;
 
         // notes §30
@@ -856,7 +891,7 @@ void synth_render(tRectangle area) {
                 // notes §39
                 if (panel_dial_is_binary(dial) || panel_dial_needs_value_menu(dial)) {
                     // notes §40
-                    const char * name = isToggle ? dial->label
+                    const char * name         = isToggle ? dial->label
                                 : (dialVal < dial->nameCount) ? dial->names[dialVal]
                                                                                      : "?";
 
@@ -882,7 +917,7 @@ void synth_render(tRectangle area) {
                     };
 
                     // notes §42
-                    tRgb colour = disabled ? (tRgb)RGB_GREY_3
+                    tRgb         colour       = disabled ? (tRgb)RGB_GREY_3
                                 : (isToggle && (dialVal != 0)) ? (tRgb)RGB_GREEN_ON
                                 : panel_dial_needs_value_menu(dial) ? dial->colour
                                 : (tRgb)RGB_GREY_7;

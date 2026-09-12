@@ -70,6 +70,11 @@ static void action_store_patch_to_bank(int index) {
     synth_backup_start_name_sweep(eNameSweepPurposeStore);
 }
 
+static void action_store_patch_to_current_slot(int index) {
+    (void)index;
+    synth_store_patch_to_current_slot();
+}
+
 static void action_restore_patch(int index) {
     (void)index;
     synth_backup_restore_patch();
@@ -136,7 +141,7 @@ static void build_preset_number_items(uint32_t * outColumns) {
 }
 
 static void open_file_menu(tCoord anchor) {
-    static tMenuItem items[9];
+    static tMenuItem items[10];
     uint32_t         presetColumns;
     int              i = 0;
 
@@ -153,6 +158,9 @@ static void open_file_menu(tCoord anchor) {
     };
     items[i++] = (tMenuItem){
         "Store Patch to Bank...", (tRgb)RGB_GREY_3, action_store_patch_to_bank, 0, NULL, 0, 0.0
+    };
+    items[i++] = (tMenuItem){
+        "Store Patch to Current Slot...", (tRgb)RGB_GREY_3, action_store_patch_to_current_slot, 0, NULL, 0, 0.0
     };
     items[i++] = (tMenuItem){
         "Save Patch by Number to File...", (tRgb)RGB_GREY_3, NULL, 0, gPresetNumberItems, presetColumns, 0.0

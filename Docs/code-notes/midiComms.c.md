@@ -182,6 +182,10 @@ a route the user did not pick. A CHOSEN OUTPUT beats both of the inferences belo
 layout file's midiPort and the source's entity - since it is the user's own word on the
 exact case both exist to guess at.
 
+Since 2026-09-12 a matching reply from another input is not dropped: it is kept as a fallback and
+taken only if nothing answers on the chosen input, and the MIDI Ports status says where it was heard
+(an interface can deliver a port's input under another name - a Cirklon's "Port 2" for its MIDI 2).
+
 ## 15. `handle_identity_reply()`
 
 ── Identity reply callback handler ──────────────────────────────────────────

@@ -64,17 +64,27 @@ typedef struct {
 // notes §1
 #define SYNTH_PROG_NAME_MAXLEN    32
 
+// notes §5
+typedef enum {
+    eProgramUnknown = 0,
+    eProgramFromProgramChange,
+    eProgramMatchedByName,
+    eProgramConfirmed,
+} tProgramCertainty;
+
 typedef struct {
-    bool     connected;
-    uint8_t  id;            // MIDI global channel 0-indexed; SYNTH_SYSEX_CHANNEL_BYTE(id) for header
-    uint16_t family;
-    uint16_t member;
+    bool              connected;
+    uint8_t           id;   // MIDI global channel 0-indexed; SYNTH_SYSEX_CHANNEL_BYTE(id) for header
+    uint16_t          family;
+    uint16_t          member;
     // Program info (decoded from CURR_PROG_DUMP) — see comment above.
-    char     progName[SYNTH_PROG_NAME_MAXLEN];
+    char              progName[SYNTH_PROG_NAME_MAXLEN];
     // notes §2
-    int32_t currentProgram;
+    int32_t           currentProgram;
+    tProgramCertainty programCertainty;
+    char              confirmedSlotName[SYNTH_PROG_NAME_MAXLEN]; // the edit buffer's name when confirmed, whitespace collapsed
     // notes §3
-    uint8_t moogDeviceId;
+    uint8_t           moogDeviceId;
 } tSynthDevice;
 
 // notes §4

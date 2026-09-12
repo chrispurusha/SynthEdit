@@ -103,6 +103,12 @@ void synth_request_all_presets_dump(void);
 // notes §16
 void synth_navigate_preset(int32_t delta);
 
+// A Program Change this app sent (fromSynth false) or heard from the synth - types.h notes §2.
+void synth_note_program_change(uint8_t program, bool fromSynth);
+
+// Program names compared with whitespace collapsed - synthComms.c notes §87.
+bool synth_prog_names_equal(const char * a, const char * b);
+
 // notes §17
 void synth_load_patch_from_bank(uint8_t bank, uint32_t presetNumber);
 

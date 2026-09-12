@@ -125,6 +125,14 @@ void synth_backup_clear_name_cache_for_device(void);
 // notes §30
 void synth_store_patch_to_bank(uint8_t bank, uint32_t presetNumber);
 
+// Overwrites the preset the synth is confirmed to be on (types.h notes §5) with the edit buffer.
+void synth_store_patch_to_current_slot(void);
+
+// The Moog-style name cache looked up by name - synthComms.c notes §88. Presets are 1-based.
+uint32_t synth_backup_unique_preset_named(const char * name);        // 0 = none, or several
+bool synth_backup_cached_name_is(uint32_t presetNumber, const char * name);
+const char * synth_backup_cached_preset_name(uint32_t presetNumber); // "" if out of range
+
 // notes §31
 void synth_backup_flush_store(void);
 

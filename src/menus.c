@@ -47,7 +47,7 @@ void open_dial_value_menu(tCoord coord, tPanelDial * dial) {
     if (!dial) {
         return;
     }
-    uint32_t n = (dial->nameCount < PANEL_MAX_NAMES) ? dial->nameCount : PANEL_MAX_NAMES;
+    uint32_t       n                = (dial->nameCount < PANEL_MAX_NAMES) ? dial->nameCount : PANEL_MAX_NAMES;
 
     for (uint32_t i = 0; i < n; i++) {
         gDialMenuItems[i] = (tMenuItem){

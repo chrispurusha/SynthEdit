@@ -1254,3 +1254,37 @@ No dump cached yet to patch into (not connected, or no Panel
 Dump received this session) — nothing to send. Matches
 synth_patch_moog_dump_cache()'s own no-op guard for the same
 reason.
+
+## 87. `gProgramChangeSeen`
+
+Which preset the synth is on, and how sure we are of it (2026-09-12; the levels are types.h notes §5).
+`gProgramChangeSeen` is the last Program Change either way - sent by Prev/Next, or heard from the
+synth - and `gProgramChangeFromSynth` says which. It is kept after a dump has settled the question, so
+later dumps can still be checked against it; it is cleared only on connect.
+
+Names are compared with whitespace collapsed. synth_decode_moog_name() collapses runs of spaces and
+forces a '\n' every nameLineWidth characters, even mid-word, and the name cache stores those breaks
+as spaces - so "ABCDEFGHIJKL\nMN" and "ABCDEFGHIJKL MN" have to compare equal. An empty name never
+matches anything.
+
+## 88. `reconcile_current_program()`
+
+Runs on every Moog Panel Dump, with the name the synth reported (even while one of our renames is
+pending, when gDevice.progName is showing the new name rather than the synth's). In order:
+
+1. A Program Change was seen and the name agrees with that preset's cached name → Confirmed. If this
+   app sent the Program Change, the name must also be the only one of its kind in the cache: the synth
+   may not have received it, and a same-named preset would then pass for it.
+2. Already Confirmed and the name is still the confirmed one → unchanged (the patch was edited, or
+   renamed in this app, which updates the confirmed name in synth_apply_pending_dump_patches()).
+3. Exactly one cached preset carries this name → MatchedByName. The cache must be complete
+   (gNameCacheValid); two or more matches do not count.
+4. A Program Change was seen → FromProgramChange, unconfirmed. This keeps the behaviour from before
+   name matching: with no name cache at all, a Program Change still enables Prev/Next.
+5. Otherwise Unknown.
+
+A dump already in flight when a Program Change is sent can arrive after it carrying the old patch's
+name. Step 3 then points at the old preset for one dump, and the next dump settles it by step 1.
+
+Only Moog-style devices run this. The Korg devices have two banks and nothing records which one is
+current, so their Program Changes stay FromProgramChange.

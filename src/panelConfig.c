@@ -31,7 +31,7 @@
 #define PANEL_LINE_LEN      1024
 #define PANEL_MAX_TOKENS    16
 // notes §1
-#define PANEL_TOKEN_LEN    1024
+#define PANEL_TOKEN_LEN     1024
 
 // notes §2
 static uint32_t tokenize(const char * line, char tokens[][PANEL_TOKEN_LEN], uint32_t maxTokens) {

@@ -42,52 +42,52 @@
 #include "prefs.h"
 
 // notes §1
-static _Atomic int  gBackupExpect    = eBackupExpectNone;
+static _Atomic int       gBackupExpect                     = eBackupExpectNone;
 
 // Valid only while gBackupExpect == eBackupExpectPreset — which preset number
 // (1-based) the pending request was for, purely so the save dialog can
 // suggest a filename that says so.
-static uint32_t     gBackupPresetNum = 0;
+static uint32_t          gBackupPresetNum                  = 0;
 
 // notes §2
-static uint8_t      gBackupKorgBank  = 0;
-static uint32_t     gBackupKorgProg  = 0;
+static uint8_t           gBackupKorgBank                   = 0;
+static uint32_t          gBackupKorgProg                   = 0;
 
 // notes §3
-static bool         gKorgSweepActive;
+static bool              gKorgSweepActive;
 
 // notes §4
-static uint8_t *    gPendingBackupData                = NULL;
-static uint32_t     gPendingBackupLen                 = 0;
+static uint8_t *         gPendingBackupData                = NULL;
+static uint32_t          gPendingBackupLen                 = 0;
 
 // CoreMIDI-thread-sets/main-thread-opens handoff for the save dialog itself
 // — see gPendingBackupData's own comment just above for why this exists.
-static _Atomic bool gPendingBackupSaveReady           = false;
-static char         gPendingBackupSaveDefaultName[96] = {0};
+static _Atomic bool      gPendingBackupSaveReady           = false;
+static char              gPendingBackupSaveDefaultName[96] = {0};
 
 // notes §5
-static uint32_t     gStoreArmedPresetNumber           = 0;
+static uint32_t          gStoreArmedPresetNumber           = 0;
 
 // notes §6
-static _Atomic bool gStoreReplyReady                  = false;
-static uint8_t *    gStoreReplyData                   = NULL;
-static uint32_t     gStoreReplyLen                    = 0;
-static uint32_t     gStoreReplyPresetNumber           = 0;
+static _Atomic bool      gStoreReplyReady                  = false;
+static uint8_t *         gStoreReplyData                   = NULL;
+static uint32_t          gStoreReplyLen                    = 0;
+static uint32_t          gStoreReplyPresetNumber           = 0;
 
 // notes §7
-static _Atomic bool      gBackupBatchActive         = false;
-static _Atomic bool      gBackupBatchReplyReady     = false;
-static uint8_t *         gBackupBatchReplyData      = NULL; // valid only while gBackupBatchReplyReady
-static uint32_t          gBackupBatchReplyLen       = 0;
+static _Atomic bool      gBackupBatchActive                = false;
+static _Atomic bool      gBackupBatchReplyReady            = false;
+static uint8_t *         gBackupBatchReplyData             = NULL; // valid only while gBackupBatchReplyReady
+static uint32_t          gBackupBatchReplyLen              = 0;
 
-static char              gBackupBatchFolder[1024]   = {0};
-static uint32_t          gBackupBatchCurrentPreset  = 0; // 1-based; which preset the outstanding request is for
-static double            gBackupBatchRequestSinceMs = 0.0;
-static uint32_t          gBackupBatchRepliedCount   = 0;
-static uint32_t          gBackupBatchMissingCount   = 0;
-static uint32_t          gBackupBatchRetryCount     = 0; // resets to 0 whenever gBackupBatchCurrentPreset genuinely advances — see NAME_SWEEP_MAX_RETRIES above. Used by BOTH modes.
+static char              gBackupBatchFolder[1024]          = {0};
+static uint32_t          gBackupBatchCurrentPreset         = 0; // 1-based; which preset the outstanding request is for
+static double            gBackupBatchRequestSinceMs        = 0.0;
+static uint32_t          gBackupBatchRepliedCount          = 0;
+static uint32_t          gBackupBatchMissingCount          = 0;
+static uint32_t          gBackupBatchRetryCount            = 0; // resets to 0 whenever gBackupBatchCurrentPreset genuinely advances — see NAME_SWEEP_MAX_RETRIES above. Used by BOTH modes.
 // notes §8
-static double            gBackupBatchNextRequestMs  = 0.0;
+static double            gBackupBatchNextRequestMs         = 0.0;
 
 // notes §9
 typedef enum {
@@ -95,34 +95,34 @@ typedef enum {
     eBatchModeNameSweep,
 } tBackupBatchMode;
 
-static tBackupBatchMode  gBackupBatchMode           = eBatchModeExportFiles;
-static tNameSweepPurpose gNameSweepPurpose          = eNameSweepPurposeLoad;
+static tBackupBatchMode  gBackupBatchMode                  = eBatchModeExportFiles;
+static tNameSweepPurpose gNameSweepPurpose                 = eNameSweepPurposeLoad;
 
 #define BACKUP_BATCH_PRESET_COUNT    128    // matches misc.mm's own "Patch by Number" range / synth_request_single_preset_dump()'s own range check (synthComms.c) — a base Voyager's single bank
 // notes §10
-#define BACKUP_BATCH_TIMEOUT_MS    1000.0
+#define BACKUP_BATCH_TIMEOUT_MS      1000.0
 // notes §11
-#define NAME_SWEEP_LABEL_LEN    64
+#define NAME_SWEEP_LABEL_LEN         64
 
 // notes §12
-#define NAME_CACHE_JOIN_CHAR    '\x1e'
+#define NAME_CACHE_JOIN_CHAR         '\x1e'
 
 // notes §13
-#define NAME_CACHE_FIELD_CHAR    '\x1f'
+#define NAME_CACHE_FIELD_CHAR        '\x1f'
 
 // notes §14
-#define NAME_SWEEP_PACING_MS    500.0
+#define NAME_SWEEP_PACING_MS         500.0
 
 // notes §15
-#define NAME_SWEEP_MAX_RETRIES    2
+#define NAME_SWEEP_MAX_RETRIES       2
 
-static char    gNameSweepLabels[BACKUP_BATCH_PRESET_COUNT][NAME_SWEEP_LABEL_LEN];
+static char              gNameSweepLabels[BACKUP_BATCH_PRESET_COUNT][NAME_SWEEP_LABEL_LEN];
 
 // notes §16
-static uint8_t gNameSweepCategoryIndex[BACKUP_BATCH_PRESET_COUNT];
+static uint8_t           gNameSweepCategoryIndex[BACKUP_BATCH_PRESET_COUNT];
 
 // notes §17
-static bool gNameCacheValid = false;
+static bool              gNameCacheValid = false;
 
 // notes §18
 static void backup_sanitize_name_for_file(const char * name, char * out, size_t outSize) {
@@ -181,6 +181,9 @@ void synth_backup_current_patch(void) {
 // notes §21
 static uint8_t  gPendingStoreBank         = 0;
 static uint32_t gPendingStorePresetNumber = 0;
+// notes §135
+static bool     gStoreVerifyCurrentSlot   = false;
+static char     gStoreExpectedName[SYNTH_PROG_NAME_MAXLEN];
 
 // notes §22
 static void on_store_patch_to_bank_korg_confirmed(bool confirmed) {
@@ -197,15 +200,20 @@ static void on_store_patch_to_bank_korg_confirmed(bool confirmed) {
 }
 
 // notes §23
+static void arm_moog_store(bool verifyCurrentSlot) {
+    gStoreVerifyCurrentSlot = verifyCurrentSlot;
+    gStoreArmedPresetNumber = gPendingStorePresetNumber;
+    gBackupExpect           = eBackupExpectLive;
+    synth_request_state_dump();
+    LOG_DEBUG("Store: requested a fresh state dump to store as preset %u\n", (unsigned)gPendingStorePresetNumber);
+}
+
 static void on_store_patch_to_bank_moog_confirmed(bool confirmed) {
     if (!confirmed) {
         LOG_DEBUG("Store: cancelled at confirmation\n");
         return;
     }
-    gStoreArmedPresetNumber = gPendingStorePresetNumber;
-    gBackupExpect           = eBackupExpectLive;
-    synth_request_state_dump();
-    LOG_DEBUG("Store: requested a fresh state dump to store as preset %u\n", (unsigned)gPendingStorePresetNumber);
+    arm_moog_store(false);
 }
 
 void synth_store_patch_to_bank(uint8_t bank, uint32_t presetNumber) {
@@ -235,6 +243,94 @@ void synth_store_patch_to_bank(uint8_t bank, uint32_t presetNumber) {
              "This will overwrite Preset %u on the connected device with the CURRENT edit buffer. This cannot be undone.",
              (unsigned)presetNumber);
     show_confirm("Store Patch to Bank", message, "Store...", on_store_patch_to_bank_moog_confirmed);
+}
+
+#define STORE_CURRENT_TITLE    "Store Patch to Current Slot"
+
+static void on_store_to_current_slot_confirmed(bool confirmed) {
+    if (!confirmed) {
+        LOG_DEBUG("Store to current slot: cancelled at confirmation\n");
+        return;
+    }
+    arm_moog_store(true);
+}
+
+// notes §136
+void synth_store_patch_to_current_slot(void) {
+    char     message[320];
+    uint32_t presetNumber = (uint32_t)(gDevice.currentProgram + 1);
+
+    if (!gDevice.connected) {
+        show_alert(STORE_CURRENT_TITLE, "No synth is connected.");
+        return;
+    }
+
+    if (!synth_panel_config()->moogStyleDump) {
+        show_alert(STORE_CURRENT_TITLE, "This device's current bank isn't tracked, so its current slot can't be known for certain. "
+                   "Use Store Patch to Bank... to choose the slot.");
+        return;
+    }
+
+    switch (gDevice.programCertainty) {
+        case eProgramConfirmed:
+            break;
+
+        case eProgramMatchedByName:
+            snprintf(message, sizeof(message), "Preset %u was found by its name alone, which isn't certain enough to overwrite it. "
+                     "Step to it with Prev/Next, or select it on the synth, to confirm it - or use Store Patch to Bank... to choose the slot.",
+                     (unsigned)presetNumber);
+            show_alert(STORE_CURRENT_TITLE, message);
+            return;
+
+        case eProgramFromProgramChange:
+            snprintf(message, sizeof(message), "Preset %u came from a Program Change, but the synth's patch name hasn't confirmed it - "
+                     "the name cache may not hold that preset yet, or another preset has the same name. "
+                     "Use Store Patch to Bank... to choose the slot.", (unsigned)presetNumber);
+            show_alert(STORE_CURRENT_TITLE, message);
+            return;
+
+        default:
+            show_alert(STORE_CURRENT_TITLE, "The synth's current preset isn't known. Select one with Prev/Next or on the synth first - "
+                       "or use Store Patch to Bank... to choose the slot.");
+            return;
+    }
+    const char * slotName = synth_backup_cached_preset_name(presetNumber);
+
+    gPendingStoreBank         = 0;
+    gPendingStorePresetNumber = presetNumber;
+    snprintf(gStoreExpectedName, sizeof(gStoreExpectedName), "%s", gDevice.confirmedSlotName);
+
+    if (synth_prog_names_equal(slotName, gStoreExpectedName)) {
+        snprintf(message, sizeof(message), "This will overwrite Preset %u (\"%s\") with the current edit buffer. This cannot be undone.",
+                 (unsigned)presetNumber, slotName);
+    } else {
+        snprintf(message, sizeof(message), "This will overwrite Preset %u (\"%s\") with the current edit buffer (\"%s\"). This cannot be undone.",
+                 (unsigned)presetNumber, slotName, gStoreExpectedName);
+    }
+    show_confirm(STORE_CURRENT_TITLE, message, "Store...", on_store_to_current_slot_confirmed);
+}
+
+// Checked again on the fresh dump the store is about to write - notes §136.
+static bool store_target_still_current(uint32_t presetNumber, const uint8_t * data, uint32_t length) {
+    tPanelConfig * cfg                            = synth_panel_config();
+    char           name[sizeof(gDevice.progName)] = "";
+    char           message[320];
+
+    if (length > 2) {
+        synth_decode_moog_name(data + 1, length - 2, cfg->panelNameOffset, cfg->panelNameBitOffset, cfg->panelNameLen, cfg->nameLineWidth, name, sizeof(name));
+    }
+
+    if ((gDevice.programCertainty != eProgramConfirmed) || ((uint32_t)(gDevice.currentProgram + 1) != presetNumber)) {
+        snprintf(message, sizeof(message), "Nothing was written: Preset %u is no longer confirmed as the synth's current preset.", (unsigned)presetNumber);
+    } else if (!synth_prog_names_equal(name, gStoreExpectedName)) {
+        snprintf(message, sizeof(message), "Nothing was written: the synth's edit buffer is now \"%s\", not \"%s\" - it may have moved to another preset.",
+                 name, gStoreExpectedName);
+    } else {
+        return true;
+    }
+    LOG_ERROR("Store to current slot: %s\n", message);
+    show_alert(STORE_CURRENT_TITLE, message);
+    return false;
 }
 // notes §25
 
@@ -421,7 +517,7 @@ static void name_cache_set_label(uint32_t presetNumber, const char * name, uint8
     char   cleaned[sizeof(gDevice.progName)];
 
     strncpy(cleaned, name ? name : "", sizeof(cleaned) - 1);
-    cleaned[sizeof(cleaned) - 1] = '\0';
+    cleaned[sizeof(cleaned) - 1]              = '\0';
 
     // notes §40
     for (char * p = cleaned; *p != '\0'; p++) {
@@ -615,12 +711,12 @@ static void backup_batch_folder_chosen(const char * path) {
         fprintf(f, "%u presets requested from device\n\n", (unsigned)BACKUP_BATCH_PRESET_COUNT);
         fclose(f);
     }
-    gBackupBatchActive        = true;
-    gBackupBatchCurrentPreset = 1;
-    gBackupBatchRetryCount    = 0;
-    gBackupBatchNextRequestMs = 0.0;
-    gBackupBatchRepliedCount  = 0;
-    gBackupBatchMissingCount  = 0;
+    gBackupBatchActive                                 = true;
+    gBackupBatchCurrentPreset                          = 1;
+    gBackupBatchRetryCount                             = 0;
+    gBackupBatchNextRequestMs                          = 0.0;
+    gBackupBatchRepliedCount                           = 0;
+    gBackupBatchMissingCount                           = 0;
     backup_batch_request_current();
     LOG_DEBUG("Backup: starting bank-to-folder export of %u presets to %s\n",
               (unsigned)BACKUP_BATCH_PRESET_COUNT, gBackupBatchFolder);
@@ -630,6 +726,42 @@ static void backup_batch_folder_chosen(const char * path) {
 
 void synth_backup_note_preset_name(uint32_t presetNumber, const char * name) {
     name_cache_set_label(presetNumber, name, 0xFF); // no category on hand at this call site — see synth_backup_note_preset_name()'s own comment (synthBackup.h)
+}
+
+static bool name_cache_label_is_a_name(const char * label) {
+    return (label[0] != '\0') && (strcmp(label, "(unnamed)") != 0) && (strcmp(label, "(no response)") != 0);
+}
+
+uint32_t synth_backup_unique_preset_named(const char * name) {
+    uint32_t found = 0;
+
+    if (!gNameCacheValid) {
+        return 0;
+    }
+
+    for (uint32_t i = 0; i < BACKUP_BATCH_PRESET_COUNT; i++) {
+        if (name_cache_label_is_a_name(gNameSweepLabels[i]) && synth_prog_names_equal(gNameSweepLabels[i], name)) {
+            if (found != 0) {
+                return 0;
+            }
+            found = i + 1;
+        }
+    }
+
+    return found;
+}
+
+bool synth_backup_cached_name_is(uint32_t presetNumber, const char * name) {
+    const char * label = synth_backup_cached_preset_name(presetNumber);
+
+    return name_cache_label_is_a_name(label) && synth_prog_names_equal(label, name);
+}
+
+const char * synth_backup_cached_preset_name(uint32_t presetNumber) {
+    if ((presetNumber < 1) || (presetNumber > BACKUP_BATCH_PRESET_COUNT)) {
+        return "";
+    }
+    return gNameSweepLabels[presetNumber - 1];
 }
 
 // notes §48
@@ -683,9 +815,9 @@ bool synth_backup_sweep_request_in_flight(void) {
 // CoreMIDI-thread-copies/main-thread-decodes handoff — same reasoning and
 // shape as gBackupBatchReplyReady/Data/Len above (name decoding isn't safe
 // to do off the main thread; see that block's own comment).
-static _Atomic bool gKorgSweepReplyReady = false;
-static uint8_t *    gKorgSweepReplyData  = NULL;
-static uint32_t     gKorgSweepReplyLen   = 0;
+static _Atomic bool   gKorgSweepReplyReady           = false;
+static uint8_t *      gKorgSweepReplyData            = NULL;
+static uint32_t       gKorgSweepReplyLen             = 0;
 
 static void korg_sweep_request_current(void) {
     uint8_t  bank = (uint8_t)(gKorgSweepIndex / 128);
@@ -1634,15 +1766,21 @@ void synth_backup_flush_store(void) {
     if (!gStoreReplyReady) {
         return;
     }
-    gStoreReplyReady = false;
+    gStoreReplyReady        = false;
 
     uint8_t * data         = gStoreReplyData;
     uint32_t  length       = gStoreReplyLen;
     uint32_t  presetNumber = gStoreReplyPresetNumber;
+    bool      verifySlot   = gStoreVerifyCurrentSlot;
 
-    gStoreReplyData  = NULL;
-    gStoreReplyLen   = 0;
+    gStoreReplyData         = NULL;
+    gStoreReplyLen          = 0;
+    gStoreVerifyCurrentSlot = false;
 
+    if (verifySlot && !store_target_still_current(presetNumber, data, length)) {
+        free(data);
+        return;
+    }
     uint32_t  convertedLen = 0;
     uint8_t * converted    = convert_panel_dump_to_preset_dump(data, length, (uint8_t)(presetNumber - 1), &convertedLen);
 
@@ -1822,8 +1960,8 @@ static void restore_patch_file_chosen(const char * path) {
         LOG_DEBUG("Restore: patch restore cancelled\n");
         return;
     }
-    uint32_t  length = 0;
-    uint8_t * data   = restore_read_file(path, &length);
+    uint32_t  length       = 0;
+    uint8_t * data         = restore_read_file(path, &length);
 
     if (data == NULL) {
         return;
@@ -2150,7 +2288,7 @@ static uint32_t gRestoreFolderSentCount    = 0;
 static uint32_t gRestoreFolderMissingCount = 0;
 
 // notes §114
-#define RESTORE_FOLDER_SEND_PACING_MS    150.0
+#define RESTORE_FOLDER_SEND_PACING_MS         150.0
 
 // notes §115
 #define KORG_RESTORE_FOLDER_SEND_PACING_MS    500.0
@@ -2570,7 +2708,7 @@ void synth_backup_flush_background_prefetch(void) {
         gBackgroundPrefetchEligibleSinceMs = 0.0;
         return;
     }
-    bool moog = synth_panel_config()->moogStyleDump;
+    bool moog    = synth_panel_config()->moogStyleDump;
 
     // notes §133
     if (!moog && !synth_panel_config()->supportsKorgProgramDump) {

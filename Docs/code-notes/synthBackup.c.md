@@ -1651,3 +1651,27 @@ eBackupExpectPreset — those are this very sweep's OWN in-flight
 request once it's running (already excluded above via
 gBackupBatchActive/gKorgSweepActive being false at this point), not a
 conflict from something else.
+
+## 135. `gStoreVerifyCurrentSlot`
+
+Set when the store in flight came from Store Patch to Current Slot rather than Store Patch to Bank,
+so synth_backup_flush_store() checks the slot again before writing (§136). `gStoreExpectedName` is the
+confirmed name at the moment the user asked.
+
+## 136. `synth_store_patch_to_current_slot()`
+
+Owner, 2026-09-12: "Don't allow save to current patch if we're not 100% sure we're on the right
+current index." So it runs only when the current preset is Confirmed (types.h notes §5). Every other
+state is refused with its reason, and Store Patch to Bank... is offered instead. A preset found by name
+alone is not enough, and neither is a Program Change the name has not agreed with.
+
+After the confirm dialog, the store asks for a fresh Panel Dump as Store Patch to Bank does. Before
+that dump is written, store_target_still_current() checks it again: the preset must still be Confirmed
+as the same number, and the dump's own name must still be the name the user saw. If the synth moved to
+another preset in between without a Program Change, its name gives it away, and nothing is written.
+
+The one case this cannot catch: the synth moves silently to a preset with the same name. The rule
+that a Program Change this app sent must match a unique name (synthComms.c notes §88) makes that
+unlikely.
+
+Moog-style devices only. A Korg device's current bank is not tracked (todo.md).

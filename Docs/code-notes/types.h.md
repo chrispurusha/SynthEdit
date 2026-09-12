@@ -20,11 +20,17 @@ Best-known current Program Change number (0-127, MIDI wire numbering),
 or -1 if unknown. There's no reliable way to ask a device "what
 program are you on" — a dump reply (Panel Dump, Current Program Dump)
 reports the live edit buffer's contents, not which stored slot (if
-any) it started from, so this is only ever learned from an actual
-Program Change message: one arriving from elsewhere on the bus
+any) it started from. It is learned from an actual Program Change
+message: one arriving from elsewhere on the bus
 (dispatch_program_change() in midiComms.c), or one this app itself
 just sent (synth_navigate_preset() in synthComms.c, for the Prev/Next
 patch buttons — see synth_hit_test_patch_nav() in synthGraphics.h).
+Since 2026-09-12 a Moog-style device also gets it from its patch name:
+when the edit buffer's name matches exactly one preset in the name
+cache, that preset becomes the current one (`programCertainty`, §5,
+says which way it was learned). Both arrive through
+synth_note_program_change() and reconcile_current_program()
+(synthComms.c notes §87-§88).
 Reset to -1 on every fresh connect (synth_on_connected()): a value
 learned from a previous session/device isn't trustworthy for a new one.
 
@@ -63,3 +69,24 @@ display concern, see wrap_name_for_display() in synthGraphics.cpp),
 capped at SYNTH_PROG_NAME_MAXLEN regardless of which connected device's
 progNameLen/panelNameLen is actually shorter (synth_effective_name_maxlen(),
 synthComms.h, is what enforces the real per-device cap while typing).
+
+## 5. `tProgramCertainty`
+
+How `currentProgram` was learned, added 2026-09-12. It decides two things: whether Prev/Next can step
+from it (any known value), and whether Store Patch to Current Slot may overwrite it (Confirmed only).
+
+- **Unknown** - no Program Change since connecting, and no unique name match.
+- **FromProgramChange** - a Program Change was sent or heard, but the patch name has not confirmed it:
+  no cached name for that preset, the name disagrees, or (for one this app sent) another preset has
+  the same name.
+- **MatchedByName** - no usable Program Change, but the edit buffer's name matches exactly one preset in
+  a complete name cache. Two or more matches leave it Unknown. Good enough to step from; not good
+  enough to overwrite, because a patch loaded from a file, or a stale cache, can carry the same name.
+- **Confirmed** - a Program Change, and then the edit buffer's name agrees with that preset's cached
+  name. For a Program Change this app sent, the name must also be unique in the cache: the synth
+  might not have received it (a wrong channel), and a same-named preset could then pass for it.
+
+`confirmedSlotName` holds the edit buffer's name at confirmation, whitespace collapsed. Later dumps
+carrying the same name keep it Confirmed; a different name (the synth moved without sending a
+Program Change) drops it. A rename made in this app updates it. The rules are in synthComms.c notes
+§88; the store's own re-check in synthBackup.c notes §136.

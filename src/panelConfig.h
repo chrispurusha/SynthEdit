@@ -88,51 +88,51 @@ typedef struct {
     tRectangle   rect;                                    // populated by layout_panel_section(); used for render + hit-test
 
     // notes §6
-    char linkedMaxDialId[PANEL_ID_LEN];
-    char linkedMinDialId[PANEL_ID_LEN];
+    char         linkedMaxDialId[PANEL_ID_LEN];
+    char         linkedMinDialId[PANEL_ID_LEN];
 
     // notes §7
-    char     disabledUnlessDialId[PANEL_ID_LEN];
-    uint32_t disabledUnlessValue;
+    char         disabledUnlessDialId[PANEL_ID_LEN];
+    uint32_t     disabledUnlessValue;
 
     // notes §8
-    int32_t  storageOffset;     // storage_value = display_value + storageOffset (e.g. 1-5 vs 0-4 for "type")
-    int32_t  displayOffset;     // dialDisplaySigned only — shown_value = display_value - displayOffset; see that enum value's own comment above. Unrelated to storageOffset: never touches the wire.
-    uint32_t paramGroup;        // SysEx parameter group
-    uint32_t paramId;           // SysEx parameter ID
+    int32_t      storageOffset; // storage_value = display_value + storageOffset (e.g. 1-5 vs 0-4 for "type")
+    int32_t      displayOffset; // dialDisplaySigned only — shown_value = display_value - displayOffset; see that enum value's own comment above. Unrelated to storageOffset: never touches the wire.
+    uint32_t     paramGroup;    // SysEx parameter group
+    uint32_t     paramId;       // SysEx parameter ID
 
     // notes §9
-    bool wireSigned;
+    bool         wireSigned;
 
     // notes §10
-    bool     hasKronosParam;
-    uint32_t kronosTyp;
-    uint32_t kronosSoc;
-    uint32_t kronosSub;
-    uint32_t kronosPid;
-    uint32_t kronosIdx;
-    uint32_t ccNumber;          // MIDI CC number; 0 = not CC-controlled (send SysEx param change instead)
+    bool         hasKronosParam;
+    uint32_t     kronosTyp;
+    uint32_t     kronosSoc;
+    uint32_t     kronosSub;
+    uint32_t     kronosPid;
+    uint32_t     kronosIdx;
+    uint32_t     ccNumber;      // MIDI CC number; 0 = not CC-controlled (send SysEx param change instead)
     // notes §11
-    uint32_t ccLsbNumber;
-    uint8_t  ccMsbLatched;      // last raw byte seen on ccNumber; only meaningful when ccLsbNumber != 0
-    uint8_t  ccLsbLatched;      // last raw byte seen on ccLsbNumber; only meaningful when ccLsbNumber != 0
-    uint32_t nativeMax;         // native/SysEx value range when paired with a CC (0 = no native pairing)
-    uint32_t value;             // live storage-space value (display_value + storageOffset); wide enough
+    uint32_t     ccLsbNumber;
+    uint8_t      ccMsbLatched;  // last raw byte seen on ccNumber; only meaningful when ccLsbNumber != 0
+    uint8_t      ccLsbLatched;  // last raw byte seen on ccLsbNumber; only meaningful when ccLsbNumber != 0
+    uint32_t     nativeMax;     // native/SysEx value range when paired with a CC (0 = no native pairing)
+    uint32_t     value;         // live storage-space value (display_value + storageOffset); wide enough
                                 // for a 14-bit CC pair, not just a single byte
-    uint8_t  nativeValue;       // live native value, if nativeMax != 0; unused otherwise
+    uint8_t      nativeValue;   // live native value, if nativeMax != 0; unused otherwise
 
     // notes §12
-    bool     hasPendingCc;
-    uint32_t pendingRawValue;
-    double   pendingSinceMs;
+    bool         hasPendingCc;
+    uint32_t     pendingRawValue;
+    double       pendingSinceMs;
 
     // notes §13
-    bool     hasPendingDumpSend;
-    uint32_t pendingDumpRawValue;
-    double   pendingDumpSinceMs;
+    bool         hasPendingDumpSend;
+    uint32_t     pendingDumpRawValue;
+    double       pendingDumpSinceMs;
 
     // notes §14
-    bool dumpSendAwaitingFreshData;
+    bool         dumpSendAwaitingFreshData;
 
     // Where this dial's value lives in a full program-dump byte buffer (a
     // different wire format from individual parameter-change messages, but
@@ -155,20 +155,20 @@ typedef struct {
     bool     dumpInvert;
 
     // notes §18
-    double gridCol;
-    double gridRow;
+    double   gridCol;
+    double   gridRow;
 
     // notes §19
-    bool noLabel;
+    bool     noLabel;
 
     // notes §20
-    bool readOnly;
+    bool     readOnly;
 
     // notes §21
-    bool asDial;
+    bool     asDial;
 
     // notes §22
-    bool asMenu;
+    bool     asMenu;
 
     // notes §23
     int32_t  hiLoOffset;
@@ -192,9 +192,9 @@ typedef struct {
 } tPanelSection;
 
 typedef struct {
-    char deviceName[PANEL_LABEL_LEN];
-    char description[128]; // one-line summary from the file's "description"
-                           // notes §24
+    char     deviceName[PANEL_LABEL_LEN];
+    char     description[128]; // one-line summary from the file's "description"
+                               // notes §24
     uint8_t  manufacturerId[3];
     uint32_t manufacturerIdLen;
     uint32_t familyId;
@@ -205,35 +205,35 @@ typedef struct {
     // scroll nudges when nothing is being dragged; empty = no shortcut
 
     // notes §25
-    bool     supportsIdentity;
-    uint32_t midiChannel;                     // 1-indexed; only meaningful when !supportsIdentity
+    bool          supportsIdentity;
+    uint32_t      midiChannel;                // 1-indexed; only meaningful when !supportsIdentity
     // notes §26
-    char midiPortName[64];
+    char          midiPortName[64];
 
     // notes §27
-    uint8_t  stateRequestSysEx[32];
-    uint32_t stateRequestSysExLen;
+    uint8_t       stateRequestSysEx[32];
+    uint32_t      stateRequestSysExLen;
 
     // notes §28
-    bool    moogStyleDump;
-    uint8_t productId;
+    bool          moogStyleDump;
+    uint8_t       productId;
 
     // notes §29
-    bool supportsKorgProgramDump;
+    bool          supportsKorgProgramDump;
 
     // notes §30
-    int32_t  panelNameOffset;
-    uint32_t panelNameBitOffset;
-    uint32_t panelNameLen;
-    int32_t  presetNameOffset;
-    uint32_t presetNameBitOffset;
-    uint32_t presetNameLen;
+    int32_t       panelNameOffset;
+    uint32_t      panelNameBitOffset;
+    uint32_t      panelNameLen;
+    int32_t       presetNameOffset;
+    uint32_t      presetNameBitOffset;
+    uint32_t      presetNameLen;
 
     // notes §31
-    uint32_t nameLineWidth;
+    uint32_t      nameLineWidth;
 
     // notes §32
-    uint32_t presetBankCount;
+    uint32_t      presetBankCount;
 
     // notes §33
     double        gridColWidth;

@@ -447,25 +447,112 @@ void synth_decode_moog_category(const uint8_t * data, uint32_t length, char * ou
     }
 }
 
+// notes §87
+static int32_t gProgramChangeSeen      = -1;
+static bool    gProgramChangeFromSynth = false;
+
+static void normalise_prog_name(const char * name, char * out, size_t outSize) {
+    size_t o            = 0;
+    bool   spacePending = false;
+
+    for (const char * p = name; (p != NULL) && (*p != '\0'); p++) {
+        if ((*p == ' ') || (*p == '\n')) {
+            spacePending = (o > 0);
+            continue;
+        }
+
+        if (spacePending && ((o + 1) < outSize)) {
+            out[o++] = ' ';
+        }
+        spacePending = false;
+
+        if ((o + 1) < outSize) {
+            out[o++] = *p;
+        }
+    }
+
+    out[o] = '\0';
+}
+
+bool synth_prog_names_equal(const char * a, const char * b) {
+    char na[SYNTH_PROG_NAME_MAXLEN * 2];
+    char nb[SYNTH_PROG_NAME_MAXLEN * 2];
+
+    normalise_prog_name(a, na, sizeof(na));
+    normalise_prog_name(b, nb, sizeof(nb));
+    return (na[0] != '\0') && (strcmp(na, nb) == 0);
+}
+
+static void remember_confirmed_name(const char * name) {
+    normalise_prog_name(name, gDevice.confirmedSlotName, sizeof(gDevice.confirmedSlotName));
+}
+
+static void set_current_program(int32_t program, tProgramCertainty certainty, const char * confirmedName) {
+    if ((gDevice.currentProgram != program) || (gDevice.programCertainty != certainty)) {
+        LOG_DEBUG("Current program %d, certainty %d\n", (int)program, (int)certainty);
+    }
+    gDevice.currentProgram   = program;
+    gDevice.programCertainty = certainty;
+    remember_confirmed_name((certainty == eProgramConfirmed) ? confirmedName : NULL);
+}
+
+void synth_note_program_change(uint8_t program, bool fromSynth) {
+    gProgramChangeSeen      = program;
+    gProgramChangeFromSynth = fromSynth;
+    set_current_program(program, eProgramFromProgramChange, NULL);
+}
+
+// notes §88
+static void reconcile_current_program(const char * editBufferName) {
+    uint32_t uniquePreset = synth_backup_unique_preset_named(editBufferName);
+
+    if (gProgramChangeSeen >= 0) {
+        uint32_t presetNumber = (uint32_t)gProgramChangeSeen + 1;
+
+        if (  synth_backup_cached_name_is(presetNumber, editBufferName)
+           && (gProgramChangeFromSynth || (uniquePreset == presetNumber))) {
+            set_current_program(gProgramChangeSeen, eProgramConfirmed, editBufferName);
+            return;
+        }
+    }
+
+    if ((gDevice.programCertainty == eProgramConfirmed) && synth_prog_names_equal(gDevice.confirmedSlotName, editBufferName)) {
+        return;
+    }
+
+    if (uniquePreset > 0) {
+        set_current_program((int32_t)uniquePreset - 1, eProgramMatchedByName, NULL);
+    } else if (gProgramChangeSeen >= 0) {
+        set_current_program(gProgramChangeSeen, eProgramFromProgramChange, NULL);
+    } else {
+        set_current_program(-1, eProgramUnknown, NULL);
+    }
+}
+
 // notes §26
 static bool     gProgNameAwaitingFreshData                  = false;
 static uint8_t  gPendingProgNameRaw[SYNTH_PROG_NAME_MAXLEN] = {0};
 static uint32_t gPendingProgNameLen                         = 0;
 
 static void extract_moog_panel_info(const uint8_t * payload, uint32_t payloadLen) {
-    tPanelConfig * cfg     = synth_panel_config();
-    uint32_t       updated = 0;
+    tPanelConfig * cfg                                 = synth_panel_config();
+    uint32_t       updated                             = 0;
 
-    if (!gProgNameAwaitingFreshData) {
+    char           synthName[sizeof(gDevice.progName)] = "";
+
+    synth_decode_moog_name(payload, payloadLen, cfg->panelNameOffset, cfg->panelNameBitOffset, cfg->panelNameLen, cfg->nameLineWidth, synthName, sizeof(synthName));
+
+    if (!gProgNameAwaitingFreshData && (cfg->panelNameOffset >= 0) && (cfg->panelNameLen > 0)) {
         // notes §27
-        synth_decode_moog_name(payload, payloadLen, cfg->panelNameOffset, cfg->panelNameBitOffset, cfg->panelNameLen, cfg->nameLineWidth, gDevice.progName, sizeof(gDevice.progName));
+        memcpy(gDevice.progName, synthName, sizeof(gDevice.progName));
     }
+    reconcile_current_program(synthName);
 
     for (uint32_t s = 0; s < cfg->sectionCount; s++) {
         tPanelSection * section = &cfg->sections[s];
 
         for (uint32_t d = 0; d < section->dialCount; d++) {
-            tPanelDial * dial = &section->dials[d];
+            tPanelDial * dial       = &section->dials[d];
 
             if (dial->dumpBitWidth == 0) {
                 continue;
@@ -475,10 +562,10 @@ static void extract_moog_panel_info(const uint8_t * payload, uint32_t payloadLen
                 // notes §28
                 continue;
             }
-            uint32_t raw        = read_bitpacked_field(payload, payloadLen, dial->dumpOffset,
-                                                       dial->dumpBitOffset, dial->dumpBitWidth);
+            uint32_t     raw        = read_bitpacked_field(payload, payloadLen, dial->dumpOffset,
+                                                           dial->dumpBitOffset, dial->dumpBitWidth);
 
-            uint32_t totalWidth = dial->dumpBitWidth;
+            uint32_t     totalWidth = dial->dumpBitWidth;
 
             if (dial->dumpBitWidth2 > 0) {
                 // Non-contiguous field (see dumpBitWidth2's comment in
@@ -495,7 +582,7 @@ static void extract_moog_panel_info(const uint8_t * payload, uint32_t payloadLen
                 raw = (~raw) & ((totalWidth < 32) ? ((1u << totalWidth) - 1) : 0xFFFFFFFFu);
             }
             // notes §30
-            uint32_t oldValue = dial->value;
+            uint32_t     oldValue   = dial->value;
 
             apply_dial_wire_value(dial, raw, (dial->dumpNativeMax != 0) ? dial->dumpNativeMax : dial->nativeMax);
             updated++;
@@ -740,6 +827,13 @@ static void synth_apply_pending_dump_patches(void) {
 
         anyPatched                 = true;
         LOG_DEBUG("Patched program name into freshly-fetched Panel Dump\n");
+
+        if (gDevice.programCertainty == eProgramConfirmed) {
+            char renamed[sizeof(gDevice.progName)] = "";
+
+            synth_decode_moog_name(payload, payloadLen, cfg->panelNameOffset, cfg->panelNameBitOffset, cfg->panelNameLen, cfg->nameLineWidth, renamed, sizeof(renamed));
+            remember_confirmed_name(renamed); // our own rename of the confirmed slot's patch
+        }
     }
 
     if (anyPatched) {
@@ -866,7 +960,8 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
 void synth_on_connected(void) {
     LOG_DEBUG("Synth connected (channel byte 0x%02X)\n", SYNTH_SYSEX_CHANNEL_BYTE(gDevice.id));
     memset(gDevice.progName, 0, sizeof(gDevice.progName));
-    gDevice.currentProgram = -1; // unknown until an actual Program Change is seen — see the tSynthDevice field comment in types.h
+    gProgramChangeSeen = -1;
+    set_current_program(-1, eProgramUnknown, NULL); // types.h notes §2
     // notes §51
 
     // notes §52
@@ -1004,7 +1099,7 @@ void synth_request_all_presets_dump(void) {
 // notes §60
 static void synth_change_program(uint8_t program) {
     midi_send_program_change(gDevice.id, program);
-    gDevice.currentProgram = program; // optimistic — see the tSynthDevice field comment in types.h
+    synth_note_program_change(program, false); // optimistic - types.h notes §2
     LOG_DEBUG("Preset navigation: sent Program Change %d\n", (int)program);
     // notes §61
     midi_arm_state_dump_debounce();
