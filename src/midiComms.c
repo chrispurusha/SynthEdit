@@ -78,6 +78,19 @@ static tMidiChannelParseState gChannelParseState[MAX_MIDI_PARSE_SOURCES] = {0};
 static uint32_t               gChannelParseStateCount                    = 0;
 
 // notes §7
+static bool channel_is_automatic(void) {
+    return synthlib_midi_channel_chosen() == SYNTHLIB_MIDI_CHANNEL_AUTOMATIC;
+}
+
+// 0-based. The MIDI Ports channel when one is chosen, otherwise what the device told us.
+static uint8_t device_channel(uint8_t detected) {
+    return channel_is_automatic() ? detected : (uint8_t)(synthlib_midi_channel_chosen() - 1u);
+}
+
+uint32_t midi_channel_in_use(void) {
+    return gDevice.connected ? ((uint32_t)gDevice.id + 1u) : 0u;
+}
+
 static tMidiChannelParseState * channel_parse_state_for(MIDIEndpointRef src) {
     for (uint32_t i = 0; i < gChannelParseStateCount; i++) {
         if (gChannelParseState[i].src == src) {
@@ -245,7 +258,7 @@ static void process_identity_replies(void) {
             LOG_ERROR("Synth found but no matching destination for src=0x%08X\n", (unsigned)src);
             continue;
         }
-        gDevice.id        = reply->deviceId;
+        gDevice.id        = device_channel(reply->deviceId);
         gDevice.family    = (uint16_t)reply->familyLSB;
         gDevice.member    = (uint16_t)reply->memberLSB;
         gDevice.connected = true;
@@ -402,7 +415,7 @@ static void connect_without_identity(void) {
 
     gMidiDest         = dest;
     gMidiSource       = onlySrc;   // 0 still means "any source", as below; a chosen input narrows it
-    gDevice.id        = (uint8_t)((cfg->midiChannel > 0) ? (cfg->midiChannel - 1) : 0);
+    gDevice.id        = device_channel((uint8_t)((cfg->midiChannel > 0) ? (cfg->midiChannel - 1) : 0));
     gDevice.family    = 0;
     gDevice.member    = 0;
     gDevice.connected = true;
@@ -461,7 +474,7 @@ static void dispatch_cc(uint8_t channel, uint8_t cc, uint8_t value) {
               (unsigned)(channel + 1), (unsigned)cc, (unsigned)value);
 
     // notes §22
-    if (!synth_panel_config()->supportsIdentity && (gDevice.id != channel)) {
+    if (!synth_panel_config()->supportsIdentity && channel_is_automatic() && (gDevice.id != channel)) {
         LOG_DEBUG("Auto-detected device MIDI channel: %u (was %u)\n",
                   (unsigned)(channel + 1), (unsigned)(gDevice.id + 1));
         gDevice.id = channel;
@@ -484,7 +497,7 @@ static void dispatch_program_change(uint8_t channel, uint8_t program) {
     LOG_DEBUG("Program Change ch=%u program=%u — reloading current state\n",
               (unsigned)(channel + 1), (unsigned)program);
 
-    if (!synth_panel_config()->supportsIdentity && (gDevice.id != channel)) {
+    if (!synth_panel_config()->supportsIdentity && channel_is_automatic() && (gDevice.id != channel)) {
         gDevice.id = channel;
     }
     gDevice.currentProgram = program; // see the tSynthDevice field comment in types.h — this is the only way it's ever learned

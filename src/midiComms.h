@@ -41,6 +41,9 @@ void midi_set_port_scope(const char * configFile);
 // UI thread. One line saying what is connected, for the MIDI Ports dialogue's status row.
 void midi_port_status(char * text, size_t size);
 
+// UI thread: the device's channel once connected, 1-16, or 0; for the dialogue's Auto cell.
+uint32_t midi_channel_in_use(void);
+
 // notes §2
 bool midi_send(const uint8_t * data, uint32_t length);
 void midi_send_cc(uint8_t channelIndex, uint8_t cc, uint8_t value);

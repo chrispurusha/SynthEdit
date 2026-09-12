@@ -192,10 +192,11 @@ static void action_midi_ports(int index) {
     (void)index;
     snprintf(title, sizeof(title), "MIDI Ports - %s", synth_panel_config()->deviceName);
     midi_port_dialog_open(&(tMidiPortDialogHost){
-        .title   = title,
-        .changed = rescan_devices,
-        .scan    = rescan_devices,
-        .status  = midi_port_status,
+        .title        = title,
+        .changed      = rescan_devices,
+        .scan         = rescan_devices,
+        .status       = midi_port_status,
+        .channelInUse = midi_channel_in_use,
     });
 }
 
