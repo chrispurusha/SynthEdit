@@ -4,8 +4,8 @@ Things to do. ONE LINE PER ITEM - keep it that way.
 Measurements, reasoning and completed-work narrative go in findings.md, NOT here.
 Built-but-unchecked work goes in to-test.md.
 
-CT
-
+CT (priority order)
+- I've seen corruption on Voyager. random sending of patch change, but also random text corruption. Will keep an eye on it, but if there's anything obvious to check...
 - Ultimately, a plugin similar to Minitaur, which could restore the full state of a synth from Ableton/Cubase project would be great. Long term plan...
 
 Bugs
