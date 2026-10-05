@@ -33,12 +33,16 @@
 # DEVICE INQUIRY REPLY byte table) — 0x05 below is the 61-key, per the
 # owner's own hardware.
 device          Korg Kronos
-description     First pass: live "Sync from synth" + AL-1 Filter A/B Cutoff (both EXi slots, SysEx Parameter Change) — no CC dials, by design (see header)
+description     Live "Sync from synth" + every AL-1 parameter in EXi slot 1 (SysEx Parameter Change), AL-1 Filter A/B Cutoff in slot 2 — no CC dials, by design (see header)
 manufacturerId  0x42
 familyId        0x68
 memberId        0x05
-scrollDial      al1FilterCutoff
+scrollDial      al1_20_0_4_0
 progNameLen     24
+
+# Pitch of the grid the generated AL-1 pages below are laid out on (col=/row=).
+gridColWidth    112
+gridRowHeight   60
 
 # Kronos does NOT speak Z1's own Program Data Dump Request/Program Write
 # Request protocol (func 0x1C/0x11) — it has its own, completely different
@@ -52,6 +56,888 @@ progNameLen     24
 # replies, exactly as found 2026-07-14 connecting a real Kronos for the
 # first time. See supportsKorgProgramDump's own comment, panelConfig.h.
 supportsKorgProgramDump no
+
+# ══ AL-1, EXi slot 1: every parameter (2026-10-05) ═══════════════════════════
+# GENERATED, not hand-written - regenerate rather than edit by hand. One dial
+# per row of the AL-1 table in Korg's Prog_EXi.txt (SysEx Documentation 2.1):
+# TYP/SOC/SUB/PID/IDX, range and dump bits all come from it, the dump offset
+# being 2908 + its OFS (the EXi1 base, see the filter notes above). The
+# table's two fixed-zero rows per EG are left out. Value names, and which
+# two-value dials are switches, come from the Kronos editor's own lists.
+# Pages are the Kronos editor's own eleven, in its order, and each dial sits
+# where the editor puts it: its left-to-right position kept in proportion,
+# the editor's rows taken top to bottom and merged where their columns do not
+# collide (its controls are much smaller than these knobs). Step Seq's table,
+# a row per step there, is turned on its side here (steps 23-32 on a second
+# page). On a page mixing groups, labels start with the group (FltA, P1 =
+# OSC1 Pitch ...).
+# Signed ranges sign-extend the dump field (dumpSigned=1). Pitch intensities
+# are shown as the raw -151..151 the instrument sends; the instrument's own
+# display scales them to -48.00..+48.00.
+# Hardware-checked so far: Filter A/B Cutoff only (same addresses as the
+# filter dials above). Everything else is as documented, untested.
+# ── AL-1, EXi slot 1 — GENERATED (see the header above this block) ──
+list sl750 "Triangle","Saw","Square","Sine","Guitar","Exp Triangle","Exp Saw Down","Exp Saw Up","Step Triangle-4","Step Triangle-6","Step Saw-4","Step Saw-6"
+list sl750 "Random 1(S/h)","Random 2(S/H)","Random 3(S/H)","Random 4(cont)","Random 5(Cont)","Random 6(Cont)"
+list sl752 "Off","AMS Mixer 1","AMS Mixer 2","Step SEQ","Cmn Step SEQ","EG1 (Filter)","EG2 (Pitch)","EG3","EG4","Amp EG","LFO1","LFO2"
+list sl752 "LFO3","LFO4","Cmn LFO","Filter Key Track","Amp Key Track","Cmn Key Track 1","Cmn Key Track 2","Note Number","Velocity","Exp Velocity","Poly After Touch","After Touch"
+list sl752 "JS X","JS+Y","JS-Y","JS+Y & AT/2","JS-Y & AT/2","Foot Pedal","Ribbon","Value Slider","Knob Mod.5","Knob Mod.6","Knob Mod.7","Knob Mod.8"
+list sl752 "Knob Mod.5 [+]","Knob Mod.6 [+]","Knob Mod.7 [+]","Knob Mod.8 [+]","Damper","Porta. SW","Sotenuto","Soft","SW1 Mod.","SW2 Mod.","Foot Switch","Controller"
+list sl752 "YJS +X Mod.","YJS -X Mod.","YJS +Y Mod.","YJS -Y Mod.","Tempo"
+list sl767 "Low Pass","High Pass","Band Pass","Band Reject","LP+BP","LP-BP","LP-HP","BP+HP","BP-HP","Dry+LP","Dry-LP","Dry+BP"
+list sl767 "Dry-BP","Dry+LP-HP","Dry+LP-BP","Dry+BP-LP","Dry+BP-HP","Dry+HP-LP","Dry+HP-BP","LP+BP+HP","All On","Manual 1"
+list sl768 "Low Pass","High Pass","Band Pass","Band Reject","LP+BP","LP-BP","LP-HP","BP+HP","BP-HP","Dry+LP","Dry-LP","Dry+BP"
+list sl768 "Dry-BP","Dry+LP-HP","Dry+LP-BP","Dry+BP-LP","Dry+BP-HP","Dry+HP-LP","Dry+HP-BP","LP+BP+HP","All On","Manual 2"
+
+page       al1 lfo 1/2
+section    lfo10
+dialSize   30
+spacing    60
+color g 0.30 0.60 0.85
+dial al1_6_0_0_0          label="LFO1 Wave" color=g max=18 names=@sl750 typ=11 soc=6 sub=0 pid=0 idx=0 dumpOffset=2909 dumpBitOffset=0 dumpBitWidth=5 col=1 row=0
+dial al1_6_0_1_0          label="LFO1 Start Ph" color=g max=74 offset=-36 display=signed displayOffset=36 typ=11 soc=6 sub=0 pid=1 idx=0 dumpOffset=2909 dumpBitOffset=5 dumpBitWidth=7 dumpSigned=1 col=4 row=0
+dial al1_6_0_2_0          label="LFO1 Shape" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=6 sub=0 pid=2 idx=0 dumpOffset=2910 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=2 row=0
+dial al1_6_0_3_0          label="LFO1 Shape M S" color=g max=53 names=@sl752 typ=11 soc=6 sub=0 pid=3 idx=0 dumpOffset=2911 dumpBitOffset=4 dumpBitWidth=8 col=3 row=0
+dial al1_6_0_4_0          label="LFO1 Shape M I" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=6 sub=0 pid=4 idx=0 dumpOffset=2912 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=4 row=1
+dial al1_6_0_5_0          label="LFO1 Freq" color=g max=100 display=raw typ=11 soc=6 sub=0 pid=5 idx=0 dumpOffset=2913 dumpBitOffset=4 dumpBitWidth=7 col=1 row=1
+dial al1_6_0_6_0          label="LFO1 Freq Fine" color=g max=100 display=raw typ=11 soc=6 sub=0 pid=6 idx=0 dumpOffset=2914 dumpBitOffset=3 dumpBitWidth=7 col=3 row=1
+dial al1_6_0_7_0          label="LFO1 Stop" color=g max=2 names="Off","On" typ=11 soc=6 sub=0 pid=7 idx=0 dumpOffset=2915 dumpBitOffset=2 dumpBitWidth=1 col=5 row=1
+dial al1_6_0_9_0          label="LFO1 Key Sync" color=g max=2 names="Off","On" typ=11 soc=6 sub=0 pid=9 idx=0 dumpOffset=2916 dumpBitOffset=3 dumpBitWidth=1 col=0 row=1
+dial al1_6_0_8_0          label="LFO1 Offset" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=6 sub=0 pid=8 idx=0 dumpOffset=2915 dumpBitOffset=3 dumpBitWidth=8 dumpSigned=1 col=1 row=2
+dial al1_6_0_10_0         label="LFO1 Fade In" color=g max=100 display=raw typ=11 soc=6 sub=0 pid=10 idx=0 dumpOffset=2916 dumpBitOffset=4 dumpBitWidth=7 col=2 row=2
+dial al1_6_0_11_0         label="LFO1 Delay" color=g max=100 display=raw typ=11 soc=6 sub=0 pid=11 idx=0 dumpOffset=2917 dumpBitOffset=3 dumpBitWidth=7 col=4 row=2
+dial al1_6_0_12_0         label="LFO1 Freq M1 S" color=g max=53 names=@sl752 typ=11 soc=6 sub=0 pid=12 idx=0 dumpOffset=2918 dumpBitOffset=2 dumpBitWidth=8 col=1 row=3
+dial al1_6_0_13_0         label="LFO1 Freq M1 I" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=6 sub=0 pid=13 idx=0 dumpOffset=2919 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=4 row=3
+dial al1_6_0_15_0         label="LFO1 Freq M1 IM " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=6 sub=0 pid=15 idx=0 dumpOffset=2921 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=4 row=4
+dial al1_6_0_14_0         label="LFO1 Freq M1 IM " color=g max=53 names=@sl752 typ=11 soc=6 sub=0 pid=14 idx=0 dumpOffset=2920 dumpBitOffset=2 dumpBitWidth=8 col=1 row=4
+dial al1_6_0_16_0         label="LFO1 Freq M2 S" color=g max=53 names=@sl752 typ=11 soc=6 sub=0 pid=16 idx=0 dumpOffset=2922 dumpBitOffset=2 dumpBitWidth=8 col=1 row=5
+dial al1_6_0_17_0         label="LFO1 Freq M2 I" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=6 sub=0 pid=17 idx=0 dumpOffset=2923 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=4 row=5
+dial al1_6_0_18_0         label="LFO1 MIDI Sync" color=g max=2 names="Off","On" typ=11 soc=6 sub=0 pid=18 idx=0 dumpOffset=2924 dumpBitOffset=2 dumpBitWidth=1 col=0 row=5
+dial al1_6_0_19_0         label="LFO1 MIDI Sync B" color=g max=10 display=raw typ=11 soc=6 sub=0 pid=19 idx=0 dumpOffset=2924 dumpBitOffset=3 dumpBitWidth=4 col=1 row=6
+dial al1_6_0_20_0         label="LFO1 MIDI Sync T" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=6 sub=0 pid=20 idx=0 dumpOffset=2924 dumpBitOffset=7 dumpBitWidth=6 col=4 row=6
+
+page       al1 lfo 1/2
+section    lfo20
+dialSize   30
+spacing    60
+color g 0.45 0.75 0.40
+dial al1_7_0_0_0          label="LFO2 Wave" color=g max=18 names=@sl750 typ=11 soc=7 sub=0 pid=0 idx=0 dumpOffset=2926 dumpBitOffset=0 dumpBitWidth=5 col=7 row=0
+dial al1_7_0_1_0          label="LFO2 Start Ph" color=g max=74 offset=-36 display=signed displayOffset=36 typ=11 soc=7 sub=0 pid=1 idx=0 dumpOffset=2926 dumpBitOffset=5 dumpBitWidth=7 dumpSigned=1 col=10 row=0
+dial al1_7_0_2_0          label="LFO2 Shape" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=7 sub=0 pid=2 idx=0 dumpOffset=2927 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=8 row=0
+dial al1_7_0_3_0          label="LFO2 Shape M S" color=g max=53 names=@sl752 typ=11 soc=7 sub=0 pid=3 idx=0 dumpOffset=2928 dumpBitOffset=4 dumpBitWidth=8 col=9 row=0
+dial al1_7_0_4_0          label="LFO2 Shape M I" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=7 sub=0 pid=4 idx=0 dumpOffset=2929 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=10 row=1
+dial al1_7_0_5_0          label="LFO2 Freq" color=g max=100 display=raw typ=11 soc=7 sub=0 pid=5 idx=0 dumpOffset=2930 dumpBitOffset=4 dumpBitWidth=7 col=7 row=1
+dial al1_7_0_6_0          label="LFO2 Freq Fine" color=g max=100 display=raw typ=11 soc=7 sub=0 pid=6 idx=0 dumpOffset=2931 dumpBitOffset=3 dumpBitWidth=7 col=8 row=1
+dial al1_7_0_7_0          label="LFO2 Stop" color=g max=2 names="Off","On" typ=11 soc=7 sub=0 pid=7 idx=0 dumpOffset=2932 dumpBitOffset=2 dumpBitWidth=1 col=9 row=1
+dial al1_7_0_9_0          label="LFO2 Key Sync" color=g max=2 names="Off","On" typ=11 soc=7 sub=0 pid=9 idx=0 dumpOffset=2933 dumpBitOffset=3 dumpBitWidth=1 col=6 row=1
+dial al1_7_0_8_0          label="LFO2 Offset" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=7 sub=0 pid=8 idx=0 dumpOffset=2932 dumpBitOffset=3 dumpBitWidth=8 dumpSigned=1 col=6 row=2
+dial al1_7_0_10_0         label="LFO2 Fade In" color=g max=100 display=raw typ=11 soc=7 sub=0 pid=10 idx=0 dumpOffset=2933 dumpBitOffset=4 dumpBitWidth=7 col=8 row=2
+dial al1_7_0_11_0         label="LFO2 Delay" color=g max=100 display=raw typ=11 soc=7 sub=0 pid=11 idx=0 dumpOffset=2934 dumpBitOffset=3 dumpBitWidth=7 col=10 row=2
+dial al1_7_0_12_0         label="LFO2 Freq M1 S" color=g max=53 names=@sl752 typ=11 soc=7 sub=0 pid=12 idx=0 dumpOffset=2935 dumpBitOffset=2 dumpBitWidth=8 col=7 row=3
+dial al1_7_0_13_0         label="LFO2 Freq M1 I" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=7 sub=0 pid=13 idx=0 dumpOffset=2936 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=10 row=3
+dial al1_7_0_15_0         label="LFO2 Freq M1 IM " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=7 sub=0 pid=15 idx=0 dumpOffset=2938 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=10 row=4
+dial al1_7_0_14_0         label="LFO2 Freq M1 IM " color=g max=53 names=@sl752 typ=11 soc=7 sub=0 pid=14 idx=0 dumpOffset=2937 dumpBitOffset=2 dumpBitWidth=8 col=7 row=4
+dial al1_7_0_16_0         label="LFO2 Freq M2 S" color=g max=53 names=@sl752 typ=11 soc=7 sub=0 pid=16 idx=0 dumpOffset=2939 dumpBitOffset=2 dumpBitWidth=8 col=7 row=5
+dial al1_7_0_17_0         label="LFO2 Freq M2 I" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=7 sub=0 pid=17 idx=0 dumpOffset=2940 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=10 row=5
+dial al1_7_0_18_0         label="LFO2 MIDI Sync" color=g max=2 names="Off","On" typ=11 soc=7 sub=0 pid=18 idx=0 dumpOffset=2941 dumpBitOffset=2 dumpBitWidth=1 col=6 row=5
+dial al1_7_0_19_0         label="LFO2 MIDI Sync B" color=g max=10 display=raw typ=11 soc=7 sub=0 pid=19 idx=0 dumpOffset=2941 dumpBitOffset=3 dumpBitWidth=4 col=7 row=6
+dial al1_7_0_20_0         label="LFO2 MIDI Sync T" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=7 sub=0 pid=20 idx=0 dumpOffset=2941 dumpBitOffset=7 dumpBitWidth=6 col=10 row=6
+
+page       al1 lfo 3/4
+section    lfo30
+dialSize   30
+spacing    60
+color g 0.85 0.70 0.30
+dial al1_8_0_0_0          label="LFO3 Wave" color=g max=18 names=@sl750 typ=11 soc=8 sub=0 pid=0 idx=0 dumpOffset=2943 dumpBitOffset=0 dumpBitWidth=5 col=1 row=0
+dial al1_8_0_1_0          label="LFO3 Start Ph" color=g max=74 offset=-36 display=signed displayOffset=36 typ=11 soc=8 sub=0 pid=1 idx=0 dumpOffset=2943 dumpBitOffset=5 dumpBitWidth=7 dumpSigned=1 col=4 row=0
+dial al1_8_0_2_0          label="LFO3 Shape" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=8 sub=0 pid=2 idx=0 dumpOffset=2944 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=2 row=0
+dial al1_8_0_3_0          label="LFO3 Shape M S" color=g max=53 names=@sl752 typ=11 soc=8 sub=0 pid=3 idx=0 dumpOffset=2945 dumpBitOffset=4 dumpBitWidth=8 col=3 row=0
+dial al1_8_0_4_0          label="LFO3 Shape M I" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=8 sub=0 pid=4 idx=0 dumpOffset=2946 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=4 row=1
+dial al1_8_0_5_0          label="LFO3 Freq" color=g max=100 display=raw typ=11 soc=8 sub=0 pid=5 idx=0 dumpOffset=2947 dumpBitOffset=4 dumpBitWidth=7 col=1 row=1
+dial al1_8_0_6_0          label="LFO3 Freq Fine" color=g max=100 display=raw typ=11 soc=8 sub=0 pid=6 idx=0 dumpOffset=2948 dumpBitOffset=3 dumpBitWidth=7 col=3 row=1
+dial al1_8_0_7_0          label="LFO3 Stop" color=g max=2 names="Off","On" typ=11 soc=8 sub=0 pid=7 idx=0 dumpOffset=2949 dumpBitOffset=2 dumpBitWidth=1 col=5 row=1
+dial al1_8_0_9_0          label="LFO3 Key Sync" color=g max=2 names="Off","On" typ=11 soc=8 sub=0 pid=9 idx=0 dumpOffset=2950 dumpBitOffset=3 dumpBitWidth=1 col=0 row=1
+dial al1_8_0_8_0          label="LFO3 Offset" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=8 sub=0 pid=8 idx=0 dumpOffset=2949 dumpBitOffset=3 dumpBitWidth=8 dumpSigned=1 col=1 row=2
+dial al1_8_0_10_0         label="LFO3 Fade In" color=g max=100 display=raw typ=11 soc=8 sub=0 pid=10 idx=0 dumpOffset=2950 dumpBitOffset=4 dumpBitWidth=7 col=2 row=2
+dial al1_8_0_11_0         label="LFO3 Delay" color=g max=100 display=raw typ=11 soc=8 sub=0 pid=11 idx=0 dumpOffset=2951 dumpBitOffset=3 dumpBitWidth=7 col=4 row=2
+dial al1_8_0_12_0         label="LFO3 Freq M1 S" color=g max=53 names=@sl752 typ=11 soc=8 sub=0 pid=12 idx=0 dumpOffset=2952 dumpBitOffset=2 dumpBitWidth=8 col=1 row=3
+dial al1_8_0_13_0         label="LFO3 Freq M1 I" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=8 sub=0 pid=13 idx=0 dumpOffset=2953 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=4 row=3
+dial al1_8_0_15_0         label="LFO3 Freq M1 IM " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=8 sub=0 pid=15 idx=0 dumpOffset=2955 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=4 row=4
+dial al1_8_0_14_0         label="LFO3 Freq M1 IM " color=g max=53 names=@sl752 typ=11 soc=8 sub=0 pid=14 idx=0 dumpOffset=2954 dumpBitOffset=2 dumpBitWidth=8 col=1 row=4
+dial al1_8_0_16_0         label="LFO3 Freq M2 S" color=g max=53 names=@sl752 typ=11 soc=8 sub=0 pid=16 idx=0 dumpOffset=2956 dumpBitOffset=2 dumpBitWidth=8 col=1 row=5
+dial al1_8_0_17_0         label="LFO3 Freq M2 I" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=8 sub=0 pid=17 idx=0 dumpOffset=2957 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=4 row=5
+dial al1_8_0_18_0         label="LFO3 MIDI Sync" color=g max=2 names="Off","On" typ=11 soc=8 sub=0 pid=18 idx=0 dumpOffset=2958 dumpBitOffset=2 dumpBitWidth=1 col=0 row=5
+dial al1_8_0_19_0         label="LFO3 MIDI Sync B" color=g max=10 display=raw typ=11 soc=8 sub=0 pid=19 idx=0 dumpOffset=2958 dumpBitOffset=3 dumpBitWidth=4 col=1 row=6
+dial al1_8_0_20_0         label="LFO3 MIDI Sync T" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=8 sub=0 pid=20 idx=0 dumpOffset=2958 dumpBitOffset=7 dumpBitWidth=6 col=4 row=6
+
+page       al1 lfo 3/4
+section    lfo40
+dialSize   30
+spacing    60
+color g 0.70 0.45 0.85
+dial al1_9_0_0_0          label="LFO4 Wave" color=g max=18 names=@sl750 typ=11 soc=9 sub=0 pid=0 idx=0 dumpOffset=2960 dumpBitOffset=0 dumpBitWidth=5 col=7 row=0
+dial al1_9_0_1_0          label="LFO4 Start Ph" color=g max=74 offset=-36 display=signed displayOffset=36 typ=11 soc=9 sub=0 pid=1 idx=0 dumpOffset=2960 dumpBitOffset=5 dumpBitWidth=7 dumpSigned=1 col=10 row=0
+dial al1_9_0_2_0          label="LFO4 Shape" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=9 sub=0 pid=2 idx=0 dumpOffset=2961 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=8 row=0
+dial al1_9_0_3_0          label="LFO4 Shape M S" color=g max=53 names=@sl752 typ=11 soc=9 sub=0 pid=3 idx=0 dumpOffset=2962 dumpBitOffset=4 dumpBitWidth=8 col=9 row=0
+dial al1_9_0_4_0          label="LFO4 Shape M I" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=9 sub=0 pid=4 idx=0 dumpOffset=2963 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=10 row=1
+dial al1_9_0_5_0          label="LFO4 Freq" color=g max=100 display=raw typ=11 soc=9 sub=0 pid=5 idx=0 dumpOffset=2964 dumpBitOffset=4 dumpBitWidth=7 col=7 row=1
+dial al1_9_0_6_0          label="LFO4 Freq Fine" color=g max=100 display=raw typ=11 soc=9 sub=0 pid=6 idx=0 dumpOffset=2965 dumpBitOffset=3 dumpBitWidth=7 col=8 row=1
+dial al1_9_0_7_0          label="LFO4 Stop" color=g max=2 names="Off","On" typ=11 soc=9 sub=0 pid=7 idx=0 dumpOffset=2966 dumpBitOffset=2 dumpBitWidth=1 col=9 row=1
+dial al1_9_0_9_0          label="LFO4 Key Sync" color=g max=2 names="Off","On" typ=11 soc=9 sub=0 pid=9 idx=0 dumpOffset=2967 dumpBitOffset=3 dumpBitWidth=1 col=6 row=1
+dial al1_9_0_8_0          label="LFO4 Offset" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=9 sub=0 pid=8 idx=0 dumpOffset=2966 dumpBitOffset=3 dumpBitWidth=8 dumpSigned=1 col=6 row=2
+dial al1_9_0_10_0         label="LFO4 Fade In" color=g max=100 display=raw typ=11 soc=9 sub=0 pid=10 idx=0 dumpOffset=2967 dumpBitOffset=4 dumpBitWidth=7 col=8 row=2
+dial al1_9_0_11_0         label="LFO4 Delay" color=g max=100 display=raw typ=11 soc=9 sub=0 pid=11 idx=0 dumpOffset=2968 dumpBitOffset=3 dumpBitWidth=7 col=10 row=2
+dial al1_9_0_12_0         label="LFO4 Freq M1 S" color=g max=53 names=@sl752 typ=11 soc=9 sub=0 pid=12 idx=0 dumpOffset=2969 dumpBitOffset=2 dumpBitWidth=8 col=7 row=3
+dial al1_9_0_13_0         label="LFO4 Freq M1 I" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=9 sub=0 pid=13 idx=0 dumpOffset=2970 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=10 row=3
+dial al1_9_0_15_0         label="LFO4 Freq M1 IM " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=9 sub=0 pid=15 idx=0 dumpOffset=2972 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=10 row=4
+dial al1_9_0_14_0         label="LFO4 Freq M1 IM " color=g max=53 names=@sl752 typ=11 soc=9 sub=0 pid=14 idx=0 dumpOffset=2971 dumpBitOffset=2 dumpBitWidth=8 col=7 row=4
+dial al1_9_0_16_0         label="LFO4 Freq M2 S" color=g max=53 names=@sl752 typ=11 soc=9 sub=0 pid=16 idx=0 dumpOffset=2973 dumpBitOffset=2 dumpBitWidth=8 col=7 row=5
+dial al1_9_0_17_0         label="LFO4 Freq M2 I" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=9 sub=0 pid=17 idx=0 dumpOffset=2974 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=10 row=5
+dial al1_9_0_18_0         label="LFO4 MIDI Sync" color=g max=2 names="Off","On" typ=11 soc=9 sub=0 pid=18 idx=0 dumpOffset=2975 dumpBitOffset=2 dumpBitWidth=1 col=6 row=5
+dial al1_9_0_19_0         label="LFO4 MIDI Sync B" color=g max=10 display=raw typ=11 soc=9 sub=0 pid=19 idx=0 dumpOffset=2975 dumpBitOffset=3 dumpBitWidth=4 col=7 row=6
+dial al1_9_0_20_0         label="LFO4 MIDI Sync T" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=9 sub=0 pid=20 idx=0 dumpOffset=2975 dumpBitOffset=7 dumpBitWidth=6 col=10 row=6
+
+page       al1 eg 1/2
+section    eg1filter0
+dialSize   30
+spacing    60
+color g 0.85 0.50 0.65
+dial al1_11_0_13_0        label="EG1 Reset Src" color=g max=53 names=@sl752 typ=11 soc=11 sub=0 pid=13 idx=0 dumpOffset=3046 dumpBitOffset=4 dumpBitWidth=8 col=0 row=0
+dial al1_11_0_14_0        label="EG1 Reset Thresh" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=14 idx=0 dumpOffset=3047 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=1 row=0
+dial al1_11_0_0_0         label="EG1 Start Level" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=0 idx=0 dumpOffset=3013 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=3 row=0
+dial al1_11_0_0_1         label="EG1 Attack Lvl" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=0 idx=1 dumpOffset=3014 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=5 row=0
+dial al1_11_0_0_2         label="EG1 Break Level" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=0 idx=2 dumpOffset=3015 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=6 row=0
+dial al1_11_0_0_3         label="EG1 Sustain Lvl" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=0 idx=3 dumpOffset=3016 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=8 row=0
+dial al1_11_0_0_4         label="EG1 Release Lvl" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=0 idx=4 dumpOffset=3017 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=10 row=0
+dial al1_11_0_1_0         label="EG1 Attack Time" color=g max=100 display=raw typ=11 soc=11 sub=0 pid=1 idx=0 dumpOffset=3018 dumpBitOffset=0 dumpBitWidth=7 col=3 row=1
+dial al1_11_0_1_1         label="EG1 Decay Time" color=g max=100 display=raw typ=11 soc=11 sub=0 pid=1 idx=1 dumpOffset=3018 dumpBitOffset=7 dumpBitWidth=7 col=5 row=1
+dial al1_11_0_1_2         label="EG1 Slope Time" color=g max=100 display=raw typ=11 soc=11 sub=0 pid=1 idx=2 dumpOffset=3019 dumpBitOffset=6 dumpBitWidth=7 col=6 row=1
+dial al1_11_0_1_3         label="EG1 Rel Time" color=g max=100 display=raw typ=11 soc=11 sub=0 pid=1 idx=3 dumpOffset=3020 dumpBitOffset=5 dumpBitWidth=7 col=8 row=1
+dial al1_11_0_2_0         label="EG1 Atk Tm EG Cu" color=g max=11 display=raw typ=11 soc=11 sub=0 pid=2 idx=0 dumpOffset=3021 dumpBitOffset=4 dumpBitWidth=4 col=4 row=1
+dial al1_11_0_2_1         label="EG1 Dcy Tm EG Cu" color=g max=11 display=raw typ=11 soc=11 sub=0 pid=2 idx=1 dumpOffset=3022 dumpBitOffset=0 dumpBitWidth=4 col=7 row=1
+dial al1_11_0_2_2         label="EG1 Slope Tm EG " color=g max=11 display=raw typ=11 soc=11 sub=0 pid=2 idx=2 dumpOffset=3022 dumpBitOffset=4 dumpBitWidth=4 col=9 row=1
+dial al1_11_0_2_3         label="EG1 Rel Tm EG Cu" color=g max=11 display=raw typ=11 soc=11 sub=0 pid=2 idx=3 dumpOffset=3023 dumpBitOffset=0 dumpBitWidth=4 col=10 row=1
+dial al1_11_0_3_0         label="EG1 Lvl Mod Src" color=g max=53 names=@sl752 typ=11 soc=11 sub=0 pid=3 idx=0 dumpOffset=3023 dumpBitOffset=4 dumpBitWidth=8 col=0 row=2
+dial al1_11_0_4_0         label="EG1 Lvl M I>Star" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=4 idx=0 dumpOffset=3024 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=3 row=2
+dial al1_11_0_4_1         label="EG1 Lvl M I>Atk " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=4 idx=1 dumpOffset=3025 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=5 row=2
+dial al1_11_0_4_2         label="EG1 Lvl M I>Brk " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=4 idx=2 dumpOffset=3026 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=6 row=2
+dial al1_11_0_7_0         label="EG1 Time M1 Src" color=g max=53 names=@sl752 typ=11 soc=11 sub=0 pid=7 idx=0 dumpOffset=3031 dumpBitOffset=4 dumpBitWidth=8 col=1 row=2
+dial al1_11_0_8_0         label="EG1 Tm M1 I>Atk " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=8 idx=0 dumpOffset=3032 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=4 row=2
+dial al1_11_0_8_1         label="EG1 Tm M1 I>Dcy " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=8 idx=1 dumpOffset=3033 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=7 row=2
+dial al1_11_0_8_2         label="EG1 Tm M1 I>Slop" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=8 idx=2 dumpOffset=3034 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=8 row=2
+dial al1_11_0_8_3         label="EG1 Tm M1 I>Rel " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=8 idx=3 dumpOffset=3035 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=9 row=2
+dial al1_11_0_9_0         label="EG1 Time M2 Src" color=g max=53 names=@sl752 typ=11 soc=11 sub=0 pid=9 idx=0 dumpOffset=3036 dumpBitOffset=4 dumpBitWidth=8 col=0 row=3
+dial al1_11_0_10_0        label="EG1 Tm M2 I>Atk " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=10 idx=0 dumpOffset=3037 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=3 row=3
+dial al1_11_0_10_1        label="EG1 Tm M2 I>Dcy " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=10 idx=1 dumpOffset=3038 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=5 row=3
+dial al1_11_0_10_2        label="EG1 Tm M2 I>Slop" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=10 idx=2 dumpOffset=3039 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=6 row=3
+dial al1_11_0_10_3        label="EG1 Tm M2 I>Rel " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=10 idx=3 dumpOffset=3040 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=8 row=3
+dial al1_11_0_11_0        label="EG1 Time M3 Src" color=g max=53 names=@sl752 typ=11 soc=11 sub=0 pid=11 idx=0 dumpOffset=3041 dumpBitOffset=4 dumpBitWidth=8 col=1 row=3
+dial al1_11_0_12_0        label="EG1 Tm M3 I>Atk " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=12 idx=0 dumpOffset=3042 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=4 row=3
+dial al1_11_0_12_1        label="EG1 Tm M3 I>Dcy " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=12 idx=1 dumpOffset=3043 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=7 row=3
+
+page       al1 eg 1/2
+section    eg1filter1
+dialSize   30
+spacing    60
+color g 0.85 0.50 0.65
+dial al1_11_0_12_2        label="EG1 Tm M3 I>Slop" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=12 idx=2 dumpOffset=3044 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=9 row=3
+dial al1_11_0_12_3        label="EG1 Tm M3 I>Rel " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=12 idx=3 dumpOffset=3045 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=10 row=3
+
+page       al1 eg 1/2
+section    eg2pitch0
+dialSize   30
+spacing    60
+color g 0.60 0.60 0.60
+dial al1_12_0_13_0        label="EG2 Reset Src" color=g max=53 names=@sl752 typ=11 soc=12 sub=0 pid=13 idx=0 dumpOffset=3082 dumpBitOffset=4 dumpBitWidth=8 col=2 row=3
+dial al1_12_0_14_0        label="EG2 Reset Thresh" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=14 idx=0 dumpOffset=3083 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=0 row=4
+dial al1_12_0_0_0         label="EG2 Start Level" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=0 idx=0 dumpOffset=3049 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=3 row=4
+dial al1_12_0_0_1         label="EG2 Attack Lvl" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=0 idx=1 dumpOffset=3050 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=5 row=4
+dial al1_12_0_0_2         label="EG2 Break Level" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=0 idx=2 dumpOffset=3051 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=6 row=4
+dial al1_12_0_0_3         label="EG2 Sustain Lvl" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=0 idx=3 dumpOffset=3052 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=8 row=4
+dial al1_12_0_0_4         label="EG2 Release Lvl" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=0 idx=4 dumpOffset=3053 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=10 row=4
+dial al1_12_0_1_0         label="EG2 Attack Time" color=g max=100 display=raw typ=11 soc=12 sub=0 pid=1 idx=0 dumpOffset=3054 dumpBitOffset=0 dumpBitWidth=7 col=3 row=5
+dial al1_12_0_1_1         label="EG2 Decay Time" color=g max=100 display=raw typ=11 soc=12 sub=0 pid=1 idx=1 dumpOffset=3054 dumpBitOffset=7 dumpBitWidth=7 col=5 row=5
+dial al1_12_0_1_2         label="EG2 Slope Time" color=g max=100 display=raw typ=11 soc=12 sub=0 pid=1 idx=2 dumpOffset=3055 dumpBitOffset=6 dumpBitWidth=7 col=6 row=5
+dial al1_12_0_1_3         label="EG2 Rel Time" color=g max=100 display=raw typ=11 soc=12 sub=0 pid=1 idx=3 dumpOffset=3056 dumpBitOffset=5 dumpBitWidth=7 col=8 row=5
+dial al1_12_0_2_0         label="EG2 Atk Tm EG Cu" color=g max=11 display=raw typ=11 soc=12 sub=0 pid=2 idx=0 dumpOffset=3057 dumpBitOffset=4 dumpBitWidth=4 col=4 row=5
+dial al1_12_0_2_1         label="EG2 Dcy Tm EG Cu" color=g max=11 display=raw typ=11 soc=12 sub=0 pid=2 idx=1 dumpOffset=3058 dumpBitOffset=0 dumpBitWidth=4 col=7 row=5
+dial al1_12_0_2_2         label="EG2 Slope Tm EG " color=g max=11 display=raw typ=11 soc=12 sub=0 pid=2 idx=2 dumpOffset=3058 dumpBitOffset=4 dumpBitWidth=4 col=9 row=5
+dial al1_12_0_2_3         label="EG2 Rel Tm EG Cu" color=g max=11 display=raw typ=11 soc=12 sub=0 pid=2 idx=3 dumpOffset=3059 dumpBitOffset=0 dumpBitWidth=4 col=10 row=5
+dial al1_12_0_3_0         label="EG2 Lvl Mod Src" color=g max=53 names=@sl752 typ=11 soc=12 sub=0 pid=3 idx=0 dumpOffset=3059 dumpBitOffset=4 dumpBitWidth=8 col=0 row=6
+dial al1_12_0_4_0         label="EG2 Lvl M I>Star" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=4 idx=0 dumpOffset=3060 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=3 row=6
+dial al1_12_0_4_1         label="EG2 Lvl M I>Atk " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=4 idx=1 dumpOffset=3061 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=5 row=6
+dial al1_12_0_4_2         label="EG2 Lvl M I>Brk " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=4 idx=2 dumpOffset=3062 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=6 row=6
+dial al1_12_0_7_0         label="EG2 Time M1 Src" color=g max=53 names=@sl752 typ=11 soc=12 sub=0 pid=7 idx=0 dumpOffset=3067 dumpBitOffset=4 dumpBitWidth=8 col=1 row=6
+dial al1_12_0_8_0         label="EG2 Tm M1 I>Atk " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=8 idx=0 dumpOffset=3068 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=4 row=6
+dial al1_12_0_8_1         label="EG2 Tm M1 I>Dcy " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=8 idx=1 dumpOffset=3069 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=7 row=6
+dial al1_12_0_8_2         label="EG2 Tm M1 I>Slop" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=8 idx=2 dumpOffset=3070 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=8 row=6
+dial al1_12_0_8_3         label="EG2 Tm M1 I>Rel " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=8 idx=3 dumpOffset=3071 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=9 row=6
+dial al1_12_0_9_0         label="EG2 Time M2 Src" color=g max=53 names=@sl752 typ=11 soc=12 sub=0 pid=9 idx=0 dumpOffset=3072 dumpBitOffset=4 dumpBitWidth=8 col=0 row=7
+dial al1_12_0_10_0        label="EG2 Tm M2 I>Atk " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=10 idx=0 dumpOffset=3073 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=3 row=7
+dial al1_12_0_10_1        label="EG2 Tm M2 I>Dcy " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=10 idx=1 dumpOffset=3074 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=5 row=7
+dial al1_12_0_10_2        label="EG2 Tm M2 I>Slop" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=10 idx=2 dumpOffset=3075 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=6 row=7
+dial al1_12_0_10_3        label="EG2 Tm M2 I>Rel " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=10 idx=3 dumpOffset=3076 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=8 row=7
+dial al1_12_0_11_0        label="EG2 Time M3 Src" color=g max=53 names=@sl752 typ=11 soc=12 sub=0 pid=11 idx=0 dumpOffset=3077 dumpBitOffset=4 dumpBitWidth=8 col=1 row=7
+dial al1_12_0_12_0        label="EG2 Tm M3 I>Atk " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=12 idx=0 dumpOffset=3078 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=4 row=7
+dial al1_12_0_12_1        label="EG2 Tm M3 I>Dcy " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=12 idx=1 dumpOffset=3079 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=7 row=7
+
+page       al1 eg 1/2
+section    eg2pitch1
+dialSize   30
+spacing    60
+color g 0.60 0.60 0.60
+dial al1_12_0_12_2        label="EG2 Tm M3 I>Slop" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=12 idx=2 dumpOffset=3080 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=9 row=7
+dial al1_12_0_12_3        label="EG2 Tm M3 I>Rel " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=12 idx=3 dumpOffset=3081 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=10 row=7
+
+page       al1 eg 3/4
+section    eg30
+dialSize   30
+spacing    60
+color g 0.85 0.40 0.30
+dial al1_13_0_13_0        label="EG3 Reset Src" color=g max=53 names=@sl752 typ=11 soc=13 sub=0 pid=13 idx=0 dumpOffset=3118 dumpBitOffset=4 dumpBitWidth=8 col=0 row=0
+dial al1_13_0_14_0        label="EG3 Reset Thresh" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=14 idx=0 dumpOffset=3119 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=1 row=0
+dial al1_13_0_0_0         label="EG3 Start Level" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=0 idx=0 dumpOffset=3085 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=3 row=0
+dial al1_13_0_0_1         label="EG3 Attack Lvl" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=0 idx=1 dumpOffset=3086 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=5 row=0
+dial al1_13_0_0_2         label="EG3 Break Level" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=0 idx=2 dumpOffset=3087 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=6 row=0
+dial al1_13_0_0_3         label="EG3 Sustain Lvl" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=0 idx=3 dumpOffset=3088 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=8 row=0
+dial al1_13_0_0_4         label="EG3 Release Lvl" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=0 idx=4 dumpOffset=3089 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=10 row=0
+dial al1_13_0_1_0         label="EG3 Attack Time" color=g max=100 display=raw typ=11 soc=13 sub=0 pid=1 idx=0 dumpOffset=3090 dumpBitOffset=0 dumpBitWidth=7 col=3 row=1
+dial al1_13_0_1_1         label="EG3 Decay Time" color=g max=100 display=raw typ=11 soc=13 sub=0 pid=1 idx=1 dumpOffset=3090 dumpBitOffset=7 dumpBitWidth=7 col=5 row=1
+dial al1_13_0_1_2         label="EG3 Slope Time" color=g max=100 display=raw typ=11 soc=13 sub=0 pid=1 idx=2 dumpOffset=3091 dumpBitOffset=6 dumpBitWidth=7 col=6 row=1
+dial al1_13_0_1_3         label="EG3 Rel Time" color=g max=100 display=raw typ=11 soc=13 sub=0 pid=1 idx=3 dumpOffset=3092 dumpBitOffset=5 dumpBitWidth=7 col=8 row=1
+dial al1_13_0_2_0         label="EG3 Atk Tm EG Cu" color=g max=11 display=raw typ=11 soc=13 sub=0 pid=2 idx=0 dumpOffset=3093 dumpBitOffset=4 dumpBitWidth=4 col=4 row=1
+dial al1_13_0_2_1         label="EG3 Dcy Tm EG Cu" color=g max=11 display=raw typ=11 soc=13 sub=0 pid=2 idx=1 dumpOffset=3094 dumpBitOffset=0 dumpBitWidth=4 col=7 row=1
+dial al1_13_0_2_2         label="EG3 Slope Tm EG " color=g max=11 display=raw typ=11 soc=13 sub=0 pid=2 idx=2 dumpOffset=3094 dumpBitOffset=4 dumpBitWidth=4 col=9 row=1
+dial al1_13_0_2_3         label="EG3 Rel Tm EG Cu" color=g max=11 display=raw typ=11 soc=13 sub=0 pid=2 idx=3 dumpOffset=3095 dumpBitOffset=0 dumpBitWidth=4 col=10 row=1
+dial al1_13_0_3_0         label="EG3 Lvl Mod Src" color=g max=53 names=@sl752 typ=11 soc=13 sub=0 pid=3 idx=0 dumpOffset=3095 dumpBitOffset=4 dumpBitWidth=8 col=0 row=2
+dial al1_13_0_4_0         label="EG3 Lvl M I>Star" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=4 idx=0 dumpOffset=3096 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=3 row=2
+dial al1_13_0_4_1         label="EG3 Lvl M I>Atk " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=4 idx=1 dumpOffset=3097 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=5 row=2
+dial al1_13_0_4_2         label="EG3 Lvl M I>Brk " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=4 idx=2 dumpOffset=3098 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=6 row=2
+dial al1_13_0_7_0         label="EG3 Time M1 Src" color=g max=53 names=@sl752 typ=11 soc=13 sub=0 pid=7 idx=0 dumpOffset=3103 dumpBitOffset=4 dumpBitWidth=8 col=1 row=2
+dial al1_13_0_8_0         label="EG3 Tm M1 I>Atk " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=8 idx=0 dumpOffset=3104 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=4 row=2
+dial al1_13_0_8_1         label="EG3 Tm M1 I>Dcy " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=8 idx=1 dumpOffset=3105 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=7 row=2
+dial al1_13_0_8_2         label="EG3 Tm M1 I>Slop" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=8 idx=2 dumpOffset=3106 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=8 row=2
+dial al1_13_0_8_3         label="EG3 Tm M1 I>Rel " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=8 idx=3 dumpOffset=3107 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=9 row=2
+dial al1_13_0_9_0         label="EG3 Time M2 Src" color=g max=53 names=@sl752 typ=11 soc=13 sub=0 pid=9 idx=0 dumpOffset=3108 dumpBitOffset=4 dumpBitWidth=8 col=0 row=3
+dial al1_13_0_10_0        label="EG3 Tm M2 I>Atk " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=10 idx=0 dumpOffset=3109 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=3 row=3
+dial al1_13_0_10_1        label="EG3 Tm M2 I>Dcy " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=10 idx=1 dumpOffset=3110 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=5 row=3
+dial al1_13_0_10_2        label="EG3 Tm M2 I>Slop" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=10 idx=2 dumpOffset=3111 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=6 row=3
+dial al1_13_0_10_3        label="EG3 Tm M2 I>Rel " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=10 idx=3 dumpOffset=3112 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=8 row=3
+dial al1_13_0_11_0        label="EG3 Time M3 Src" color=g max=53 names=@sl752 typ=11 soc=13 sub=0 pid=11 idx=0 dumpOffset=3113 dumpBitOffset=4 dumpBitWidth=8 col=1 row=3
+dial al1_13_0_12_0        label="EG3 Tm M3 I>Atk " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=12 idx=0 dumpOffset=3114 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=4 row=3
+dial al1_13_0_12_1        label="EG3 Tm M3 I>Dcy " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=12 idx=1 dumpOffset=3115 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=7 row=3
+
+page       al1 eg 3/4
+section    eg31
+dialSize   30
+spacing    60
+color g 0.85 0.40 0.30
+dial al1_13_0_12_2        label="EG3 Tm M3 I>Slop" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=12 idx=2 dumpOffset=3116 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=9 row=3
+dial al1_13_0_12_3        label="EG3 Tm M3 I>Rel " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=12 idx=3 dumpOffset=3117 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=10 row=3
+
+page       al1 eg 3/4
+section    eg40
+dialSize   30
+spacing    60
+color g 0.30 0.60 0.85
+dial al1_14_0_13_0        label="EG4 Reset Src" color=g max=53 names=@sl752 typ=11 soc=14 sub=0 pid=13 idx=0 dumpOffset=3154 dumpBitOffset=4 dumpBitWidth=8 col=2 row=3
+dial al1_14_0_14_0        label="EG4 Reset Thresh" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=14 idx=0 dumpOffset=3155 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=0 row=4
+dial al1_14_0_0_0         label="EG4 Start Level" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=0 idx=0 dumpOffset=3121 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=3 row=4
+dial al1_14_0_0_1         label="EG4 Attack Lvl" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=0 idx=1 dumpOffset=3122 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=5 row=4
+dial al1_14_0_0_2         label="EG4 Break Level" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=0 idx=2 dumpOffset=3123 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=6 row=4
+dial al1_14_0_0_3         label="EG4 Sustain Lvl" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=0 idx=3 dumpOffset=3124 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=8 row=4
+dial al1_14_0_0_4         label="EG4 Release Lvl" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=0 idx=4 dumpOffset=3125 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=10 row=4
+dial al1_14_0_1_0         label="EG4 Attack Time" color=g max=100 display=raw typ=11 soc=14 sub=0 pid=1 idx=0 dumpOffset=3126 dumpBitOffset=0 dumpBitWidth=7 col=3 row=5
+dial al1_14_0_1_1         label="EG4 Decay Time" color=g max=100 display=raw typ=11 soc=14 sub=0 pid=1 idx=1 dumpOffset=3126 dumpBitOffset=7 dumpBitWidth=7 col=5 row=5
+dial al1_14_0_1_2         label="EG4 Slope Time" color=g max=100 display=raw typ=11 soc=14 sub=0 pid=1 idx=2 dumpOffset=3127 dumpBitOffset=6 dumpBitWidth=7 col=6 row=5
+dial al1_14_0_1_3         label="EG4 Rel Time" color=g max=100 display=raw typ=11 soc=14 sub=0 pid=1 idx=3 dumpOffset=3128 dumpBitOffset=5 dumpBitWidth=7 col=8 row=5
+dial al1_14_0_2_0         label="EG4 Atk Tm EG Cu" color=g max=11 display=raw typ=11 soc=14 sub=0 pid=2 idx=0 dumpOffset=3129 dumpBitOffset=4 dumpBitWidth=4 col=4 row=5
+dial al1_14_0_2_1         label="EG4 Dcy Tm EG Cu" color=g max=11 display=raw typ=11 soc=14 sub=0 pid=2 idx=1 dumpOffset=3130 dumpBitOffset=0 dumpBitWidth=4 col=7 row=5
+dial al1_14_0_2_2         label="EG4 Slope Tm EG " color=g max=11 display=raw typ=11 soc=14 sub=0 pid=2 idx=2 dumpOffset=3130 dumpBitOffset=4 dumpBitWidth=4 col=9 row=5
+dial al1_14_0_2_3         label="EG4 Rel Tm EG Cu" color=g max=11 display=raw typ=11 soc=14 sub=0 pid=2 idx=3 dumpOffset=3131 dumpBitOffset=0 dumpBitWidth=4 col=10 row=5
+dial al1_14_0_3_0         label="EG4 Lvl Mod Src" color=g max=53 names=@sl752 typ=11 soc=14 sub=0 pid=3 idx=0 dumpOffset=3131 dumpBitOffset=4 dumpBitWidth=8 col=0 row=6
+dial al1_14_0_4_0         label="EG4 Lvl M I>Star" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=4 idx=0 dumpOffset=3132 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=3 row=6
+dial al1_14_0_4_1         label="EG4 Lvl M I>Atk " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=4 idx=1 dumpOffset=3133 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=5 row=6
+dial al1_14_0_4_2         label="EG4 Lvl M I>Brk " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=4 idx=2 dumpOffset=3134 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=6 row=6
+dial al1_14_0_7_0         label="EG4 Time M1 Src" color=g max=53 names=@sl752 typ=11 soc=14 sub=0 pid=7 idx=0 dumpOffset=3139 dumpBitOffset=4 dumpBitWidth=8 col=1 row=6
+dial al1_14_0_8_0         label="EG4 Tm M1 I>Atk " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=8 idx=0 dumpOffset=3140 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=4 row=6
+dial al1_14_0_8_1         label="EG4 Tm M1 I>Dcy " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=8 idx=1 dumpOffset=3141 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=7 row=6
+dial al1_14_0_8_2         label="EG4 Tm M1 I>Slop" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=8 idx=2 dumpOffset=3142 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=8 row=6
+dial al1_14_0_8_3         label="EG4 Tm M1 I>Rel " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=8 idx=3 dumpOffset=3143 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=9 row=6
+dial al1_14_0_9_0         label="EG4 Time M2 Src" color=g max=53 names=@sl752 typ=11 soc=14 sub=0 pid=9 idx=0 dumpOffset=3144 dumpBitOffset=4 dumpBitWidth=8 col=0 row=7
+dial al1_14_0_10_0        label="EG4 Tm M2 I>Atk " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=10 idx=0 dumpOffset=3145 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=3 row=7
+dial al1_14_0_10_1        label="EG4 Tm M2 I>Dcy " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=10 idx=1 dumpOffset=3146 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=5 row=7
+dial al1_14_0_10_2        label="EG4 Tm M2 I>Slop" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=10 idx=2 dumpOffset=3147 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=6 row=7
+dial al1_14_0_10_3        label="EG4 Tm M2 I>Rel " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=10 idx=3 dumpOffset=3148 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=8 row=7
+dial al1_14_0_11_0        label="EG4 Time M3 Src" color=g max=53 names=@sl752 typ=11 soc=14 sub=0 pid=11 idx=0 dumpOffset=3149 dumpBitOffset=4 dumpBitWidth=8 col=1 row=7
+dial al1_14_0_12_0        label="EG4 Tm M3 I>Atk " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=12 idx=0 dumpOffset=3150 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=4 row=7
+dial al1_14_0_12_1        label="EG4 Tm M3 I>Dcy " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=12 idx=1 dumpOffset=3151 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=7 row=7
+
+page       al1 eg 3/4
+section    eg41
+dialSize   30
+spacing    60
+color g 0.30 0.60 0.85
+dial al1_14_0_12_2        label="EG4 Tm M3 I>Slop" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=12 idx=2 dumpOffset=3152 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=9 row=7
+dial al1_14_0_12_3        label="EG4 Tm M3 I>Rel " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=12 idx=3 dumpOffset=3153 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=10 row=7
+
+page       al1 amp
+section    amplifiereg0
+dialSize   30
+spacing    60
+color g 0.35 0.75 0.75
+dial al1_10_0_13_0        label="AmpEG Reset Src" color=g max=53 names=@sl752 typ=11 soc=10 sub=0 pid=13 idx=0 dumpOffset=3010 dumpBitOffset=4 dumpBitWidth=8 col=0 row=0
+dial al1_10_0_14_0        label="AmpEG Reset Thre" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=10 sub=0 pid=14 idx=0 dumpOffset=3011 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=1 row=0
+dial al1_10_0_0_0         label="AmpEG Start Lvl" color=g max=100 display=raw typ=11 soc=10 sub=0 pid=0 idx=0 dumpOffset=2977 dumpBitOffset=0 dumpBitWidth=8 col=3 row=0
+dial al1_10_0_0_1         label="AmpEG Atk Lvl" color=g max=100 display=raw typ=11 soc=10 sub=0 pid=0 idx=1 dumpOffset=2978 dumpBitOffset=0 dumpBitWidth=8 col=5 row=0
+dial al1_10_0_0_2         label="AmpEG Break Lvl" color=g max=100 display=raw typ=11 soc=10 sub=0 pid=0 idx=2 dumpOffset=2979 dumpBitOffset=0 dumpBitWidth=8 col=6 row=0
+dial al1_10_0_0_3         label="AmpEG Sus Lvl" color=g max=100 display=raw typ=11 soc=10 sub=0 pid=0 idx=3 dumpOffset=2980 dumpBitOffset=0 dumpBitWidth=8 col=8 row=0
+dial al1_10_0_1_0         label="AmpEG Atk Time" color=g max=100 display=raw typ=11 soc=10 sub=0 pid=1 idx=0 dumpOffset=2982 dumpBitOffset=0 dumpBitWidth=7 col=4 row=0
+dial al1_10_0_1_1         label="AmpEG Dcy Time" color=g max=100 display=raw typ=11 soc=10 sub=0 pid=1 idx=1 dumpOffset=2982 dumpBitOffset=7 dumpBitWidth=7 col=7 row=0
+dial al1_10_0_1_2         label="AmpEG Slope Tm" color=g max=100 display=raw typ=11 soc=10 sub=0 pid=1 idx=2 dumpOffset=2983 dumpBitOffset=6 dumpBitWidth=7 col=9 row=0
+dial al1_10_0_1_3         label="AmpEG Rel Time" color=g max=100 display=raw typ=11 soc=10 sub=0 pid=1 idx=3 dumpOffset=2984 dumpBitOffset=5 dumpBitWidth=7 col=10 row=0
+dial al1_10_0_2_0         label="AmpEG Atk Tm EG " color=g max=11 display=raw typ=11 soc=10 sub=0 pid=2 idx=0 dumpOffset=2985 dumpBitOffset=4 dumpBitWidth=4 col=3 row=1
+dial al1_10_0_2_1         label="AmpEG Dcy Tm EG " color=g max=11 display=raw typ=11 soc=10 sub=0 pid=2 idx=1 dumpOffset=2986 dumpBitOffset=0 dumpBitWidth=4 col=5 row=1
+dial al1_10_0_2_2         label="AmpEG Slope Tm E" color=g max=11 display=raw typ=11 soc=10 sub=0 pid=2 idx=2 dumpOffset=2986 dumpBitOffset=4 dumpBitWidth=4 col=6 row=1
+dial al1_10_0_2_3         label="AmpEG Rel Tm EG " color=g max=11 display=raw typ=11 soc=10 sub=0 pid=2 idx=3 dumpOffset=2987 dumpBitOffset=0 dumpBitWidth=4 col=8 row=1
+dial al1_10_0_3_0         label="AmpEG Lvl M Src" color=g max=53 names=@sl752 typ=11 soc=10 sub=0 pid=3 idx=0 dumpOffset=2987 dumpBitOffset=4 dumpBitWidth=8 col=0 row=1
+dial al1_10_0_4_0         label="AmpEG Lvl M I>St" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=10 sub=0 pid=4 idx=0 dumpOffset=2988 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=4 row=1
+dial al1_10_0_4_1         label="AmpEG Lvl M I>At" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=10 sub=0 pid=4 idx=1 dumpOffset=2989 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=7 row=1
+dial al1_10_0_4_2         label="AmpEG Lvl M I>Br" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=10 sub=0 pid=4 idx=2 dumpOffset=2990 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=9 row=1
+dial al1_10_0_7_0         label="AmpEG Tm M1 Src" color=g max=53 names=@sl752 typ=11 soc=10 sub=0 pid=7 idx=0 dumpOffset=2995 dumpBitOffset=4 dumpBitWidth=8 col=0 row=2
+dial al1_10_0_8_0         label="AmpEG Tm M1 I>At" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=10 sub=0 pid=8 idx=0 dumpOffset=2996 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=3 row=2
+dial al1_10_0_8_1         label="AmpEG Tm M1 I>Dc" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=10 sub=0 pid=8 idx=1 dumpOffset=2997 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=5 row=2
+dial al1_10_0_8_2         label="AmpEG Tm M1 I>Sl" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=10 sub=0 pid=8 idx=2 dumpOffset=2998 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=6 row=2
+dial al1_10_0_8_3         label="AmpEG Tm M1 I>Re" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=10 sub=0 pid=8 idx=3 dumpOffset=2999 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=8 row=2
+dial al1_10_0_9_0         label="AmpEG Tm M2 Src" color=g max=53 names=@sl752 typ=11 soc=10 sub=0 pid=9 idx=0 dumpOffset=3000 dumpBitOffset=4 dumpBitWidth=8 col=1 row=2
+dial al1_10_0_10_0        label="AmpEG Tm M2 I>At" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=10 sub=0 pid=10 idx=0 dumpOffset=3001 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=4 row=2
+dial al1_10_0_10_1        label="AmpEG Tm M2 I>Dc" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=10 sub=0 pid=10 idx=1 dumpOffset=3002 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=7 row=2
+dial al1_10_0_10_2        label="AmpEG Tm M2 I>Sl" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=10 sub=0 pid=10 idx=2 dumpOffset=3003 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=9 row=2
+dial al1_10_0_10_3        label="AmpEG Tm M2 I>Re" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=10 sub=0 pid=10 idx=3 dumpOffset=3004 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=10 row=2
+dial al1_10_0_11_0        label="AmpEG Tm M3 Src" color=g max=53 names=@sl752 typ=11 soc=10 sub=0 pid=11 idx=0 dumpOffset=3005 dumpBitOffset=4 dumpBitWidth=8 col=0 row=3
+dial al1_10_0_12_0        label="AmpEG Tm M3 I>At" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=10 sub=0 pid=12 idx=0 dumpOffset=3006 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=3 row=3
+dial al1_10_0_12_1        label="AmpEG Tm M3 I>Dc" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=10 sub=0 pid=12 idx=1 dumpOffset=3007 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=5 row=3
+dial al1_10_0_12_2        label="AmpEG Tm M3 I>Sl" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=10 sub=0 pid=12 idx=2 dumpOffset=3008 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=6 row=3
+
+page       al1 amp
+section    amplifiereg1
+dialSize   30
+spacing    60
+color g 0.35 0.75 0.75
+dial al1_10_0_12_3        label="AmpEG Tm M3 I>Re" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=10 sub=0 pid=12 idx=3 dumpOffset=3009 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=8 row=3
+
+page       al1 amp
+section    drive0
+dialSize   30
+spacing    60
+color g 0.60 0.60 0.60
+dial al1_21_0_0_0         label="Drv Bypass" color=g max=2 names="Off","On" typ=11 soc=21 sub=0 pid=0 idx=0 dumpOffset=3413 dumpBitOffset=0 dumpBitWidth=1 col=9 row=3
+dial al1_21_0_1_0         label="Drv Drive" color=g max=100 display=raw typ=11 soc=21 sub=0 pid=1 idx=0 dumpOffset=3413 dumpBitOffset=1 dumpBitWidth=7 col=8 row=4
+dial al1_21_0_2_0         label="Drv Drive M Src" color=g max=53 names=@sl752 typ=11 soc=21 sub=0 pid=2 idx=0 dumpOffset=3414 dumpBitOffset=0 dumpBitWidth=8 col=7 row=4
+dial al1_21_0_3_0         label="Drv Drive M Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=21 sub=0 pid=3 idx=0 dumpOffset=3415 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=9 row=4
+dial al1_21_0_4_0         label="Drv Boost" color=g max=100 display=raw typ=11 soc=21 sub=0 pid=4 idx=0 dumpOffset=3416 dumpBitOffset=0 dumpBitWidth=7 col=8 row=5
+dial al1_21_0_5_0         label="Drv Boost M Src" color=g max=53 names=@sl752 typ=11 soc=21 sub=0 pid=5 idx=0 dumpOffset=3416 dumpBitOffset=7 dumpBitWidth=8 col=7 row=5
+dial al1_21_0_6_0         label="Drv Boost M Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=21 sub=0 pid=6 idx=0 dumpOffset=3417 dumpBitOffset=7 dumpBitWidth=8 dumpSigned=1 col=10 row=5
+
+page       al1 amp
+section    amplifier0
+dialSize   30
+spacing    60
+color g 0.85 0.40 0.30
+dial al1_22_0_0_0         label="Amp Level" color=g max=128 display=raw typ=11 soc=22 sub=0 pid=0 idx=0 dumpOffset=3419 dumpBitOffset=0 dumpBitWidth=7 col=10 row=4
+dial al1_22_0_1_0         label="Amp Vel Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=22 sub=0 pid=1 idx=0 dumpOffset=3419 dumpBitOffset=7 dumpBitWidth=8 dumpSigned=1 col=1 row=6
+dial al1_22_0_2_0         label="Amp Mod 1 Src" color=g max=53 names=@sl752 typ=11 soc=22 sub=0 pid=2 idx=0 dumpOffset=3420 dumpBitOffset=7 dumpBitWidth=8 col=0 row=6
+dial al1_22_0_3_0         label="Amp Mod 1 Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=22 sub=0 pid=3 idx=0 dumpOffset=3422 dumpBitOffset=7 dumpBitWidth=8 dumpSigned=1 col=3 row=6
+dial al1_22_0_4_0         label="Amp M1 IM Src" color=g max=53 names=@sl752 typ=11 soc=22 sub=0 pid=4 idx=0 dumpOffset=3424 dumpBitOffset=7 dumpBitWidth=8 col=5 row=6
+dial al1_22_0_5_0         label="Amp M1 IM Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=22 sub=0 pid=5 idx=0 dumpOffset=3426 dumpBitOffset=7 dumpBitWidth=8 dumpSigned=1 col=8 row=6
+dial al1_22_0_2_1         label="Amp Mod 2 Src" color=g max=53 names=@sl752 typ=11 soc=22 sub=0 pid=2 idx=1 dumpOffset=3421 dumpBitOffset=7 dumpBitWidth=8 col=2 row=6
+dial al1_22_0_3_1         label="Amp Mod 2 Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=22 sub=0 pid=3 idx=1 dumpOffset=3423 dumpBitOffset=7 dumpBitWidth=8 dumpSigned=1 col=4 row=6
+dial al1_22_0_4_1         label="Amp M2 IM Src" color=g max=53 names=@sl752 typ=11 soc=22 sub=0 pid=4 idx=1 dumpOffset=3425 dumpBitOffset=7 dumpBitWidth=8 col=6 row=6
+dial al1_22_0_5_1         label="Amp M2 IM Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=22 sub=0 pid=5 idx=1 dumpOffset=3427 dumpBitOffset=7 dumpBitWidth=8 dumpSigned=1 col=9 row=6
+
+page       al1 amp
+section    amplifierkeyboardtra0
+dialSize   30
+spacing    60
+color g 0.30 0.60 0.85
+dial al1_22_1_0_0         label="AmpKT Low Key" color=g max=128 display=note typ=11 soc=22 sub=1 pid=0 idx=0 dumpOffset=3429 dumpBitOffset=0 dumpBitWidth=7 col=1 row=5
+dial al1_22_1_1_0         label="AmpKT Ctr Key" color=g max=128 display=note typ=11 soc=22 sub=1 pid=1 idx=0 dumpOffset=3429 dumpBitOffset=7 dumpBitWidth=7 col=3 row=5
+dial al1_22_1_2_0         label="AmpKT High Key" color=g max=128 display=note typ=11 soc=22 sub=1 pid=2 idx=0 dumpOffset=3430 dumpBitOffset=6 dumpBitWidth=7 col=6 row=5
+dial al1_22_1_3_0         label="AmpKT Low Ramp" color=g max=201 offset=-100 display=signed displayOffset=100 typ=11 soc=22 sub=1 pid=3 idx=0 dumpOffset=3431 dumpBitOffset=5 dumpBitWidth=8 dumpSigned=1 col=2 row=5
+dial al1_22_1_4_0         label="AmpKT Ctr Low Ra" color=g max=201 offset=-100 display=signed displayOffset=100 typ=11 soc=22 sub=1 pid=4 idx=0 dumpOffset=3432 dumpBitOffset=5 dumpBitWidth=8 dumpSigned=1 col=4 row=5
+dial al1_22_1_5_0         label="AmpKT Ctr High R" color=g max=201 offset=-100 display=signed displayOffset=100 typ=11 soc=22 sub=1 pid=5 idx=0 dumpOffset=3433 dumpBitOffset=5 dumpBitWidth=8 dumpSigned=1 col=5 row=5
+dial al1_22_1_6_0         label="AmpKT High Ramp" color=g max=201 offset=-100 display=signed displayOffset=100 typ=11 soc=22 sub=1 pid=6 idx=0 dumpOffset=3434 dumpBitOffset=5 dumpBitWidth=8 dumpSigned=1 col=9 row=5
+
+page       al1 seq
+section    stepsequence0
+dialSize   30
+spacing    60
+color g 0.45 0.75 0.40
+dial al1_15_0_0_0         label="Mode" color=g max=2 names="Loop","One Shot" asMenu=1 typ=11 soc=15 sub=0 pid=0 idx=0 dumpOffset=3157 dumpBitOffset=0 dumpBitWidth=1 col=0 row=0
+dial al1_15_0_3_0         label="Start Step M S" color=g max=53 names=@sl752 typ=11 soc=15 sub=0 pid=3 idx=0 dumpOffset=3158 dumpBitOffset=5 dumpBitWidth=8 col=1 row=0
+dial al1_15_0_2_0         label="Start Step" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=2 idx=0 dumpOffset=3157 dumpBitOffset=7 dumpBitWidth=6 col=2 row=0
+dial al1_15_0_4_0         label="Start Step M I" color=g max=65 offset=-32 display=signed displayOffset=32 typ=11 soc=15 sub=0 pid=4 idx=0 dumpOffset=3159 dumpBitOffset=5 dumpBitWidth=7 dumpSigned=1 col=3 row=0
+dial al1_15_0_1_0         label="End Step" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=1 idx=0 dumpOffset=3157 dumpBitOffset=1 dumpBitWidth=6 col=4 row=0
+dial al1_15_0_6_0         label="Key Sync" color=g max=2 names="Off","On" typ=11 soc=15 sub=0 pid=6 idx=0 dumpOffset=3161 dumpBitOffset=3 dumpBitWidth=1 col=5 row=0
+dial al1_15_0_5_0         label="Attack" color=g max=100 display=raw typ=11 soc=15 sub=0 pid=5 idx=0 dumpOffset=3160 dumpBitOffset=4 dumpBitWidth=7 col=6 row=0
+dial al1_15_0_13_0        label="Decay" color=g max=100 display=raw typ=11 soc=15 sub=0 pid=13 idx=0 dumpOffset=3236 dumpBitOffset=4 dumpBitWidth=7 col=7 row=0
+dial al1_15_0_7_0         label="Reset Src" color=g max=53 names=@sl752 typ=11 soc=15 sub=0 pid=7 idx=0 dumpOffset=3161 dumpBitOffset=4 dumpBitWidth=8 col=8 row=0
+dial al1_15_0_8_0         label="Reset Threshold" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=15 sub=0 pid=8 idx=0 dumpOffset=3162 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=9 row=0
+dial al1_15_0_9_0         label="Value Input" color=g max=53 names=@sl752 typ=11 soc=15 sub=0 pid=9 idx=0 dumpOffset=3163 dumpBitOffset=4 dumpBitWidth=8 col=10 row=0
+dial al1_15_0_10_0        label="Step Value1" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=0 dumpOffset=3164 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=0 row=1
+dial al1_15_0_11_0        label="Step Duration1" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=0 dumpOffset=3196 dumpBitOffset=4 dumpBitWidth=4 col=0 row=2
+dial al1_15_0_12_0        label="Step Times1" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=0 dumpOffset=3212 dumpBitOffset=4 dumpBitWidth=6 col=0 row=3
+dial al1_15_0_10_1        label="Step Value2" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=1 dumpOffset=3165 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=1 row=1
+dial al1_15_0_11_1        label="Step Duration2" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=1 dumpOffset=3197 dumpBitOffset=0 dumpBitWidth=4 col=1 row=2
+dial al1_15_0_12_1        label="Step Times2" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=1 dumpOffset=3213 dumpBitOffset=2 dumpBitWidth=6 col=1 row=3
+dial al1_15_0_10_2        label="Step Value3" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=2 dumpOffset=3166 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=2 row=1
+dial al1_15_0_11_2        label="Step Duration3" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=2 dumpOffset=3197 dumpBitOffset=4 dumpBitWidth=4 col=2 row=2
+dial al1_15_0_12_2        label="Step Times3" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=2 dumpOffset=3214 dumpBitOffset=0 dumpBitWidth=6 col=2 row=3
+dial al1_15_0_10_3        label="Step Value4" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=3 dumpOffset=3167 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=3 row=1
+dial al1_15_0_11_3        label="Step Duration4" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=3 dumpOffset=3198 dumpBitOffset=0 dumpBitWidth=4 col=3 row=2
+dial al1_15_0_12_3        label="Step Times4" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=3 dumpOffset=3214 dumpBitOffset=6 dumpBitWidth=6 col=3 row=3
+dial al1_15_0_10_4        label="Step Value5" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=4 dumpOffset=3168 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=4 row=1
+dial al1_15_0_11_4        label="Step Duration5" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=4 dumpOffset=3198 dumpBitOffset=4 dumpBitWidth=4 col=4 row=2
+dial al1_15_0_12_4        label="Step Times5" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=4 dumpOffset=3215 dumpBitOffset=4 dumpBitWidth=6 col=4 row=3
+dial al1_15_0_10_5        label="Step Value6" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=5 dumpOffset=3169 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=5 row=1
+dial al1_15_0_11_5        label="Step Duration6" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=5 dumpOffset=3199 dumpBitOffset=0 dumpBitWidth=4 col=5 row=2
+dial al1_15_0_12_5        label="Step Times6" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=5 dumpOffset=3216 dumpBitOffset=2 dumpBitWidth=6 col=5 row=3
+dial al1_15_0_10_6        label="Step Value7" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=6 dumpOffset=3170 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=6 row=1
+dial al1_15_0_11_6        label="Step Duration7" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=6 dumpOffset=3199 dumpBitOffset=4 dumpBitWidth=4 col=6 row=2
+dial al1_15_0_12_6        label="Step Times7" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=6 dumpOffset=3217 dumpBitOffset=0 dumpBitWidth=6 col=6 row=3
+
+page       al1 seq
+section    stepsequence1
+dialSize   30
+spacing    60
+color g 0.45 0.75 0.40
+dial al1_15_0_10_7        label="Step Value8" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=7 dumpOffset=3171 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=7 row=1
+dial al1_15_0_11_7        label="Step Duration8" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=7 dumpOffset=3200 dumpBitOffset=0 dumpBitWidth=4 col=7 row=2
+dial al1_15_0_12_7        label="Step Times8" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=7 dumpOffset=3217 dumpBitOffset=6 dumpBitWidth=6 col=7 row=3
+dial al1_15_0_10_8        label="Step Value9" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=8 dumpOffset=3172 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=8 row=1
+dial al1_15_0_11_8        label="Step Duration9" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=8 dumpOffset=3200 dumpBitOffset=4 dumpBitWidth=4 col=8 row=2
+dial al1_15_0_12_8        label="Step Times9" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=8 dumpOffset=3218 dumpBitOffset=4 dumpBitWidth=6 col=8 row=3
+dial al1_15_0_10_9        label="Step Value10" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=9 dumpOffset=3173 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=9 row=1
+dial al1_15_0_11_9        label="Step Duration10" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=9 dumpOffset=3201 dumpBitOffset=0 dumpBitWidth=4 col=9 row=2
+dial al1_15_0_12_9        label="Step Times10" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=9 dumpOffset=3219 dumpBitOffset=2 dumpBitWidth=6 col=9 row=3
+dial al1_15_0_10_10       label="Step Value11" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=10 dumpOffset=3174 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=10 row=1
+dial al1_15_0_11_10       label="Step Duration11" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=10 dumpOffset=3201 dumpBitOffset=4 dumpBitWidth=4 col=10 row=2
+dial al1_15_0_12_10       label="Step Times11" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=10 dumpOffset=3220 dumpBitOffset=0 dumpBitWidth=6 col=10 row=3
+dial al1_15_0_10_11       label="Step Value12" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=11 dumpOffset=3175 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=0 row=4
+dial al1_15_0_11_11       label="Step Duration12" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=11 dumpOffset=3202 dumpBitOffset=0 dumpBitWidth=4 col=0 row=5
+dial al1_15_0_12_11       label="Step Times12" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=11 dumpOffset=3220 dumpBitOffset=6 dumpBitWidth=6 col=0 row=6
+dial al1_15_0_10_12       label="Step Value13" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=12 dumpOffset=3176 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=1 row=4
+dial al1_15_0_11_12       label="Step Duration13" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=12 dumpOffset=3202 dumpBitOffset=4 dumpBitWidth=4 col=1 row=5
+dial al1_15_0_12_12       label="Step Times13" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=12 dumpOffset=3221 dumpBitOffset=4 dumpBitWidth=6 col=1 row=6
+dial al1_15_0_10_13       label="Step Value14" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=13 dumpOffset=3177 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=2 row=4
+dial al1_15_0_11_13       label="Step Duration14" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=13 dumpOffset=3203 dumpBitOffset=0 dumpBitWidth=4 col=2 row=5
+dial al1_15_0_12_13       label="Step Times14" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=13 dumpOffset=3222 dumpBitOffset=2 dumpBitWidth=6 col=2 row=6
+dial al1_15_0_10_14       label="Step Value15" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=14 dumpOffset=3178 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=3 row=4
+dial al1_15_0_11_14       label="Step Duration15" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=14 dumpOffset=3203 dumpBitOffset=4 dumpBitWidth=4 col=3 row=5
+dial al1_15_0_12_14       label="Step Times15" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=14 dumpOffset=3223 dumpBitOffset=0 dumpBitWidth=6 col=3 row=6
+dial al1_15_0_10_15       label="Step Value16" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=15 dumpOffset=3179 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=4 row=4
+dial al1_15_0_11_15       label="Step Duration16" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=15 dumpOffset=3204 dumpBitOffset=0 dumpBitWidth=4 col=4 row=5
+dial al1_15_0_12_15       label="Step Times16" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=15 dumpOffset=3223 dumpBitOffset=6 dumpBitWidth=6 col=4 row=6
+dial al1_15_0_10_16       label="Step Value17" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=16 dumpOffset=3180 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=5 row=4
+dial al1_15_0_11_16       label="Step Duration17" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=16 dumpOffset=3204 dumpBitOffset=4 dumpBitWidth=4 col=5 row=5
+dial al1_15_0_12_16       label="Step Times17" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=16 dumpOffset=3224 dumpBitOffset=4 dumpBitWidth=6 col=5 row=6
+dial al1_15_0_10_17       label="Step Value18" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=17 dumpOffset=3181 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=6 row=4
+dial al1_15_0_11_17       label="Step Duration18" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=17 dumpOffset=3205 dumpBitOffset=0 dumpBitWidth=4 col=6 row=5
+
+page       al1 seq
+section    stepsequence2
+dialSize   30
+spacing    60
+color g 0.45 0.75 0.40
+dial al1_15_0_12_17       label="Step Times18" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=17 dumpOffset=3225 dumpBitOffset=2 dumpBitWidth=6 col=6 row=6
+dial al1_15_0_10_18       label="Step Value19" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=18 dumpOffset=3182 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=7 row=4
+dial al1_15_0_11_18       label="Step Duration19" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=18 dumpOffset=3205 dumpBitOffset=4 dumpBitWidth=4 col=7 row=5
+dial al1_15_0_12_18       label="Step Times19" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=18 dumpOffset=3226 dumpBitOffset=0 dumpBitWidth=6 col=7 row=6
+dial al1_15_0_10_19       label="Step Value20" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=19 dumpOffset=3183 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=8 row=4
+dial al1_15_0_11_19       label="Step Duration20" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=19 dumpOffset=3206 dumpBitOffset=0 dumpBitWidth=4 col=8 row=5
+dial al1_15_0_12_19       label="Step Times20" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=19 dumpOffset=3226 dumpBitOffset=6 dumpBitWidth=6 col=8 row=6
+dial al1_15_0_10_20       label="Step Value21" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=20 dumpOffset=3184 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=9 row=4
+dial al1_15_0_11_20       label="Step Duration21" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=20 dumpOffset=3206 dumpBitOffset=4 dumpBitWidth=4 col=9 row=5
+dial al1_15_0_12_20       label="Step Times21" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=20 dumpOffset=3227 dumpBitOffset=4 dumpBitWidth=6 col=9 row=6
+dial al1_15_0_10_21       label="Step Value22" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=21 dumpOffset=3185 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=10 row=4
+dial al1_15_0_11_21       label="Step Duration22" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=21 dumpOffset=3207 dumpBitOffset=0 dumpBitWidth=4 col=10 row=5
+dial al1_15_0_12_21       label="Step Times22" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=21 dumpOffset=3228 dumpBitOffset=2 dumpBitWidth=6 col=10 row=6
+
+page       al1 seq 2
+section    stepsequence0
+dialSize   30
+spacing    60
+color g 0.45 0.75 0.40
+dial al1_15_0_10_22       label="Step Value23" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=22 dumpOffset=3186 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=0 row=0
+dial al1_15_0_11_22       label="Step Duration23" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=22 dumpOffset=3207 dumpBitOffset=4 dumpBitWidth=4 col=0 row=1
+dial al1_15_0_12_22       label="Step Times23" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=22 dumpOffset=3229 dumpBitOffset=0 dumpBitWidth=6 col=0 row=2
+dial al1_15_0_10_23       label="Step Value24" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=23 dumpOffset=3187 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=1 row=0
+dial al1_15_0_11_23       label="Step Duration24" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=23 dumpOffset=3208 dumpBitOffset=0 dumpBitWidth=4 col=1 row=1
+dial al1_15_0_12_23       label="Step Times24" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=23 dumpOffset=3229 dumpBitOffset=6 dumpBitWidth=6 col=1 row=2
+dial al1_15_0_10_24       label="Step Value25" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=24 dumpOffset=3188 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=2 row=0
+dial al1_15_0_11_24       label="Step Duration25" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=24 dumpOffset=3208 dumpBitOffset=4 dumpBitWidth=4 col=2 row=1
+dial al1_15_0_12_24       label="Step Times25" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=24 dumpOffset=3230 dumpBitOffset=4 dumpBitWidth=6 col=2 row=2
+dial al1_15_0_10_25       label="Step Value26" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=25 dumpOffset=3189 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=3 row=0
+dial al1_15_0_11_25       label="Step Duration26" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=25 dumpOffset=3209 dumpBitOffset=0 dumpBitWidth=4 col=3 row=1
+dial al1_15_0_12_25       label="Step Times26" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=25 dumpOffset=3231 dumpBitOffset=2 dumpBitWidth=6 col=3 row=2
+dial al1_15_0_10_26       label="Step Value27" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=26 dumpOffset=3190 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=4 row=0
+dial al1_15_0_11_26       label="Step Duration27" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=26 dumpOffset=3209 dumpBitOffset=4 dumpBitWidth=4 col=4 row=1
+dial al1_15_0_12_26       label="Step Times27" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=26 dumpOffset=3232 dumpBitOffset=0 dumpBitWidth=6 col=4 row=2
+dial al1_15_0_10_27       label="Step Value28" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=27 dumpOffset=3191 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=5 row=0
+dial al1_15_0_11_27       label="Step Duration28" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=27 dumpOffset=3210 dumpBitOffset=0 dumpBitWidth=4 col=5 row=1
+dial al1_15_0_12_27       label="Step Times28" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=27 dumpOffset=3232 dumpBitOffset=6 dumpBitWidth=6 col=5 row=2
+dial al1_15_0_10_28       label="Step Value29" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=28 dumpOffset=3192 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=6 row=0
+dial al1_15_0_11_28       label="Step Duration29" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=28 dumpOffset=3210 dumpBitOffset=4 dumpBitWidth=4 col=6 row=1
+dial al1_15_0_12_28       label="Step Times29" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=28 dumpOffset=3233 dumpBitOffset=4 dumpBitWidth=6 col=6 row=2
+dial al1_15_0_10_29       label="Step Value30" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=29 dumpOffset=3193 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=7 row=0
+dial al1_15_0_11_29       label="Step Duration30" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=29 dumpOffset=3211 dumpBitOffset=0 dumpBitWidth=4 col=7 row=1
+dial al1_15_0_12_29       label="Step Times30" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=29 dumpOffset=3234 dumpBitOffset=2 dumpBitWidth=6 col=7 row=2
+dial al1_15_0_10_30       label="Step Value31" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=30 dumpOffset=3194 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=8 row=0
+dial al1_15_0_11_30       label="Step Duration31" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=30 dumpOffset=3211 dumpBitOffset=4 dumpBitWidth=4 col=8 row=1
+dial al1_15_0_12_30       label="Step Times31" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=30 dumpOffset=3235 dumpBitOffset=0 dumpBitWidth=6 col=8 row=2
+dial al1_15_0_10_31       label="Step Value32" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=31 dumpOffset=3195 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=9 row=0
+dial al1_15_0_11_31       label="Step Duration32" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=31 dumpOffset=3212 dumpBitOffset=0 dumpBitWidth=4 col=9 row=1
+dial al1_15_0_12_31       label="Step Times32" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=31 dumpOffset=3235 dumpBitOffset=6 dumpBitWidth=6 col=9 row=2
+
+page       al1 osc
+section    osc10
+dialSize   30
+spacing    60
+color g 0.85 0.50 0.65
+dial al1_19_0_0_0         label="OSC1 Wave" color=g max=8 names="Saw","Pulse","Saw/Pulse","Double Saw","Detuned Saw 1","Detuned Saw 2","Triangle","saw/Trangle" typ=11 soc=19 sub=0 pid=0 idx=0 dumpOffset=3280 dumpBitOffset=0 dumpBitWidth=3 col=1 row=0
+dial al1_19_0_7_0         label="OSC1 Initial Ph" color=g max=362 offset=-180 display=signed displayOffset=180 typ=11 soc=19 sub=0 pid=7 idx=0 dumpOffset=3286 dumpBitOffset=1 dumpBitWidth=9 dumpSigned=1 col=4 row=0
+dial al1_19_0_1_0         label="OSC1 Wave Morph" color=g max=101 display=raw typ=11 soc=19 sub=0 pid=1 idx=0 dumpOffset=3280 dumpBitOffset=3 dumpBitWidth=7 col=2 row=0
+dial al1_19_0_2_0         label="OSC1 Wave Morph " color=g max=53 names=@sl752 typ=11 soc=19 sub=0 pid=2 idx=0 dumpOffset=3281 dumpBitOffset=2 dumpBitWidth=8 col=5 row=0
+dial al1_19_0_3_0         label="OSC1 Wave Morph " color=g max=201 offset=-100 display=signed displayOffset=100 typ=11 soc=19 sub=0 pid=3 idx=0 dumpOffset=3282 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=4 row=1
+dial al1_19_0_4_0         label="OSC1 Pulse Width" color=g max=101 display=raw typ=11 soc=19 sub=0 pid=4 idx=0 dumpOffset=3283 dumpBitOffset=2 dumpBitWidth=7 col=1 row=1
+dial al1_19_0_5_0         label="OSC1 Pulse Width" color=g max=53 names=@sl752 typ=11 soc=19 sub=0 pid=5 idx=0 dumpOffset=3284 dumpBitOffset=1 dumpBitWidth=8 col=5 row=1
+dial al1_19_0_6_0         label="OSC1 Pulse Width" color=g max=201 offset=-100 display=signed displayOffset=100 typ=11 soc=19 sub=0 pid=6 idx=0 dumpOffset=3285 dumpBitOffset=1 dumpBitWidth=8 dumpSigned=1 col=4 row=2
+dial al1_19_0_8_0         label="OSC1 Freq Ofs" color=g max=201 offset=-100 display=signed displayOffset=100 typ=11 soc=19 sub=0 pid=8 idx=0 dumpOffset=3287 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=4 row=3
+
+page       al1 osc
+section    osc20
+dialSize   30
+spacing    60
+color g 0.60 0.60 0.60
+dial al1_19_0_9_0         label="OSC2 Wave" color=g max=6 names="Saw","Pulse","Saw/Pulse","Double Saw","Detuned Saw 1","Detuned Saw 2" typ=11 soc=19 sub=0 pid=9 idx=0 dumpOffset=3288 dumpBitOffset=2 dumpBitWidth=3 col=7 row=0
+dial al1_19_0_16_0        label="OSC2 Initial Ph" color=g max=362 offset=-180 display=signed displayOffset=180 typ=11 soc=19 sub=0 pid=16 idx=0 dumpOffset=3294 dumpBitOffset=3 dumpBitWidth=9 dumpSigned=1 col=10 row=0
+dial al1_19_0_10_0        label="OSC2 Wave Morph" color=g max=101 display=raw typ=11 soc=19 sub=0 pid=10 idx=0 dumpOffset=3288 dumpBitOffset=5 dumpBitWidth=7 col=8 row=0
+dial al1_19_0_11_0        label="OSC2 Wave Morph " color=g max=53 names=@sl752 typ=11 soc=19 sub=0 pid=11 idx=0 dumpOffset=3289 dumpBitOffset=4 dumpBitWidth=8 col=9 row=0
+dial al1_19_0_12_0        label="OSC2 Wave Morph " color=g max=201 offset=-100 display=signed displayOffset=100 typ=11 soc=19 sub=0 pid=12 idx=0 dumpOffset=3290 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=9 row=1
+dial al1_19_0_13_0        label="OSC2 Pulse Width" color=g max=101 display=raw typ=11 soc=19 sub=0 pid=13 idx=0 dumpOffset=3291 dumpBitOffset=4 dumpBitWidth=7 col=7 row=1
+dial al1_19_0_14_0        label="OSC2 Pulse Width" color=g max=53 names=@sl752 typ=11 soc=19 sub=0 pid=14 idx=0 dumpOffset=3292 dumpBitOffset=3 dumpBitWidth=8 col=10 row=1
+dial al1_19_0_15_0        label="OSC2 Pulse Width" color=g max=201 offset=-100 display=signed displayOffset=100 typ=11 soc=19 sub=0 pid=15 idx=0 dumpOffset=3293 dumpBitOffset=3 dumpBitWidth=8 dumpSigned=1 col=9 row=2
+dial al1_19_0_17_0        label="OSC2 Freq Ofs" color=g max=201 offset=-100 display=signed displayOffset=100 typ=11 soc=19 sub=0 pid=17 idx=0 dumpOffset=3295 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=10 row=3
+dial al1_19_0_18_0        label="OSC2 FM Amount" color=g max=101 display=raw typ=11 soc=19 sub=0 pid=18 idx=0 dumpOffset=3296 dumpBitOffset=4 dumpBitWidth=7 col=3 row=3
+dial al1_19_0_19_0        label="OSC2 FM Amount M" color=g max=53 names=@sl752 typ=11 soc=19 sub=0 pid=19 idx=0 dumpOffset=3297 dumpBitOffset=3 dumpBitWidth=8 col=5 row=3
+dial al1_19_0_20_0        label="OSC2 FM Amount M" color=g max=201 offset=-100 display=signed displayOffset=100 typ=11 soc=19 sub=0 pid=20 idx=0 dumpOffset=3298 dumpBitOffset=3 dumpBitWidth=8 dumpSigned=1 col=6 row=3
+dial al1_19_0_21_0        label="OSC2 Sync" color=g max=2 names="Off","On" typ=11 soc=19 sub=0 pid=21 idx=0 dumpOffset=3299 dumpBitOffset=3 dumpBitWidth=1 col=0 row=3
+
+page       al1 osc
+section    osc1pitch0
+dialSize   30
+spacing    60
+color g 0.70 0.45 0.85
+dial al1_17_0_1_0         label="P1 Octave" color=g max=5 offset=-2 display=signed displayOffset=2 typ=11 soc=17 sub=0 pid=1 idx=0 dumpOffset=3250 dumpBitOffset=5 dumpBitWidth=3 dumpSigned=1 col=1 row=2
+dial al1_17_0_2_0         label="P1 Tune" color=g max=2401 offset=-1200 display=signed displayOffset=1200 typ=11 soc=17 sub=0 pid=2 idx=0 dumpOffset=3251 dumpBitOffset=0 dumpBitWidth=12 dumpSigned=1 col=5 row=2
+dial al1_17_0_0_0         label="P1 Transpose" color=g max=25 offset=-12 display=signed displayOffset=12 typ=11 soc=17 sub=0 pid=0 idx=0 dumpOffset=3250 dumpBitOffset=0 dumpBitWidth=5 dumpSigned=1 col=1 row=3
+
+page       al1 osc
+section    osc2pitch0
+dialSize   30
+spacing    60
+color g 0.35 0.75 0.75
+dial al1_18_0_1_0         label="P2 Octave" color=g max=5 offset=-2 display=signed displayOffset=2 typ=11 soc=18 sub=0 pid=1 idx=0 dumpOffset=3265 dumpBitOffset=5 dumpBitWidth=3 dumpSigned=1 col=7 row=2
+dial al1_18_0_2_0         label="P2 Tune" color=g max=2401 offset=-1200 display=signed displayOffset=1200 typ=11 soc=18 sub=0 pid=2 idx=0 dumpOffset=3266 dumpBitOffset=0 dumpBitWidth=12 dumpSigned=1 col=10 row=2
+dial al1_18_0_0_0         label="P2 Transpose" color=g max=25 offset=-12 display=signed displayOffset=12 typ=11 soc=18 sub=0 pid=0 idx=0 dumpOffset=3265 dumpBitOffset=0 dumpBitWidth=5 dumpSigned=1 col=7 row=3
+
+page       al1 osc
+section    osc0
+dialSize   30
+spacing    60
+color g 0.85 0.40 0.30
+dial al1_19_0_65_0        label="Osc Edge" color=g max=201 offset=-100 display=signed displayOffset=100 typ=11 soc=19 sub=0 pid=65 idx=0 dumpOffset=3331 dumpBitOffset=6 dumpBitWidth=8 dumpSigned=1 col=2 row=3
+dial al1_127_0_0_0        label="Osc Delay Start" color=g max=98 display=raw typ=11 soc=127 sub=0 pid=0 idx=0 dumpOffset=2908 dumpBitOffset=0 dumpBitWidth=7 col=0 row=4
+
+page       al1 osc
+section    subosc0
+dialSize   30
+spacing    60
+color g 0.85 0.40 0.30
+dial al1_19_0_22_0        label="Sub Wave" color=g max=2 names="Square","Triangle" asMenu=1 typ=11 soc=19 sub=0 pid=22 idx=0 dumpOffset=3299 dumpBitOffset=4 dumpBitWidth=1 col=8 row=3
+
+page       al1 osc
+section    ringmodulator0
+dialSize   30
+spacing    60
+color g 0.30 0.60 0.85
+dial al1_19_0_23_0        label="Ring Mode" color=g max=4 names="Ring Mod","A<","Rectify","Clip" typ=11 soc=19 sub=0 pid=23 idx=0 dumpOffset=3299 dumpBitOffset=5 dumpBitWidth=2 col=9 row=3
+dial al1_19_0_24_0        label="Ring Modulator" color=g max=2 names="OSC1","Noise" asMenu=1 typ=11 soc=19 sub=0 pid=24 idx=0 dumpOffset=3299 dumpBitOffset=7 dumpBitWidth=1 col=4 row=4
+dial al1_19_0_25_0        label="Ring Carrier" color=g max=2 names="OSC2","Ext. Input" asMenu=1 typ=11 soc=19 sub=0 pid=25 idx=0 dumpOffset=3300 dumpBitOffset=0 dumpBitWidth=1 col=5 row=4
+
+page       al1 osc
+section    noisegenerator0
+dialSize   30
+spacing    60
+color g 0.45 0.75 0.40
+dial al1_19_0_26_0        label="Noise Saturation" color=g max=100 display=raw typ=11 soc=19 sub=0 pid=26 idx=0 dumpOffset=3300 dumpBitOffset=1 dumpBitWidth=7 col=6 row=4
+dial al1_19_0_27_0        label="Noise Cutoff" color=g max=100 display=raw typ=11 soc=19 sub=0 pid=27 idx=0 dumpOffset=3301 dumpBitOffset=0 dumpBitWidth=7 col=7 row=4
+
+page       al1 mixer
+section    osc10
+dialSize   30
+spacing    60
+color g 0.85 0.50 0.65
+dial al1_19_0_28_0        label="OSC1 Level" color=g max=100 display=raw typ=11 soc=19 sub=0 pid=28 idx=0 dumpOffset=3301 dumpBitOffset=7 dumpBitWidth=7 col=0 row=0
+dial al1_19_0_29_0        label="OSC1 Lvl M Src" color=g max=53 names=@sl752 typ=11 soc=19 sub=0 pid=29 idx=0 dumpOffset=3302 dumpBitOffset=6 dumpBitWidth=8 col=2 row=0
+dial al1_19_0_32_0        label="OSC1 Balance" color=g max=100 display=raw typ=11 soc=19 sub=0 pid=32 idx=0 dumpOffset=3304 dumpBitOffset=7 dumpBitWidth=7 col=5 row=0
+dial al1_19_0_33_0        label="OSC1 Bal M Src" color=g max=53 names=@sl752 typ=11 soc=19 sub=0 pid=33 idx=0 dumpOffset=3305 dumpBitOffset=6 dumpBitWidth=8 col=7 row=0
+dial al1_19_0_30_0        label="OSC1 Lvl M Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=19 sub=0 pid=30 idx=0 dumpOffset=3303 dumpBitOffset=6 dumpBitWidth=8 dumpSigned=1 col=3 row=0
+dial al1_19_0_34_0        label="OSC1 Bal M Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=19 sub=0 pid=34 idx=0 dumpOffset=3306 dumpBitOffset=6 dumpBitWidth=8 dumpSigned=1 col=8 row=0
+dial al1_19_0_31_0        label="OSC1 Ph Invert" color=g max=2 names="Off","On" typ=11 soc=19 sub=0 pid=31 idx=0 dumpOffset=3304 dumpBitOffset=6 dumpBitWidth=1 col=10 row=0
+
+page       al1 mixer
+section    osc20
+dialSize   30
+spacing    60
+color g 0.60 0.60 0.60
+dial al1_19_0_35_0        label="OSC2 Level" color=g max=100 display=raw typ=11 soc=19 sub=0 pid=35 idx=0 dumpOffset=3307 dumpBitOffset=6 dumpBitWidth=7 col=1 row=0
+dial al1_19_0_36_0        label="OSC2 Lvl M Src" color=g max=53 names=@sl752 typ=11 soc=19 sub=0 pid=36 idx=0 dumpOffset=3308 dumpBitOffset=5 dumpBitWidth=8 col=4 row=0
+dial al1_19_0_39_0        label="OSC2 Balance" color=g max=100 display=raw typ=11 soc=19 sub=0 pid=39 idx=0 dumpOffset=3310 dumpBitOffset=6 dumpBitWidth=7 col=6 row=0
+dial al1_19_0_40_0        label="OSC2 Bal M Src" color=g max=53 names=@sl752 typ=11 soc=19 sub=0 pid=40 idx=0 dumpOffset=3311 dumpBitOffset=5 dumpBitWidth=8 col=9 row=0
+dial al1_19_0_37_0        label="OSC2 Lvl M Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=19 sub=0 pid=37 idx=0 dumpOffset=3309 dumpBitOffset=5 dumpBitWidth=8 dumpSigned=1 col=2 row=1
+dial al1_19_0_41_0        label="OSC2 Bal M Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=19 sub=0 pid=41 idx=0 dumpOffset=3312 dumpBitOffset=5 dumpBitWidth=8 dumpSigned=1 col=7 row=1
+dial al1_19_0_38_0        label="OSC2 Ph Invert" color=g max=2 names="Off","On" typ=11 soc=19 sub=0 pid=38 idx=0 dumpOffset=3310 dumpBitOffset=5 dumpBitWidth=1 col=10 row=1
+
+page       al1 mixer
+section    subosc0
+dialSize   30
+spacing    60
+color g 0.85 0.40 0.30
+dial al1_19_0_42_0        label="Sub Level" color=g max=100 display=raw typ=11 soc=19 sub=0 pid=42 idx=0 dumpOffset=3313 dumpBitOffset=5 dumpBitWidth=7 col=0 row=1
+dial al1_19_0_43_0        label="Sub Lvl Mod Src" color=g max=53 names=@sl752 typ=11 soc=19 sub=0 pid=43 idx=0 dumpOffset=3314 dumpBitOffset=4 dumpBitWidth=8 col=3 row=1
+dial al1_19_0_46_0        label="Sub Balance" color=g max=100 display=raw typ=11 soc=19 sub=0 pid=46 idx=0 dumpOffset=3316 dumpBitOffset=5 dumpBitWidth=7 col=5 row=1
+dial al1_19_0_47_0        label="Sub Bal Mod Src" color=g max=53 names=@sl752 typ=11 soc=19 sub=0 pid=47 idx=0 dumpOffset=3317 dumpBitOffset=4 dumpBitWidth=8 col=8 row=1
+dial al1_19_0_44_0        label="Sub Lvl Mod Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=19 sub=0 pid=44 idx=0 dumpOffset=3315 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=2 row=2
+dial al1_19_0_48_0        label="Sub Bal Mod Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=19 sub=0 pid=48 idx=0 dumpOffset=3318 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=7 row=2
+dial al1_19_0_45_0        label="Sub Ph Invert" color=g max=2 names="Off","On" typ=11 soc=19 sub=0 pid=45 idx=0 dumpOffset=3316 dumpBitOffset=4 dumpBitWidth=1 col=10 row=2
+
+page       al1 mixer
+section    osc0
+dialSize   30
+spacing    60
+color g 0.85 0.40 0.30
+dial al1_19_0_63_0        label="Osc Sub OSC/AudI" color=g max=2 names="SubOSC","External Audio Input" asMenu=1 typ=11 soc=19 sub=0 pid=63 idx=0 dumpOffset=3331 dumpBitOffset=2 dumpBitWidth=1 col=3 row=2
+dial al1_19_0_64_0        label="Osc Ext Input Se" color=g max=6 names="Audio Input 1","Audio Input 2","Audio Input 3","Audio Input 4","S/P DIF L","S/P DIF R" typ=11 soc=19 sub=0 pid=64 idx=0 dumpOffset=3331 dumpBitOffset=3 dumpBitWidth=3 col=8 row=2
+
+page       al1 mixer
+section    ringmodulator0
+dialSize   30
+spacing    60
+color g 0.30 0.60 0.85
+dial al1_19_0_49_0        label="Ring Level" color=g max=100 display=raw typ=11 soc=19 sub=0 pid=49 idx=0 dumpOffset=3319 dumpBitOffset=4 dumpBitWidth=7 col=0 row=2
+dial al1_19_0_50_0        label="Ring Lvl M Src" color=g max=53 names=@sl752 typ=11 soc=19 sub=0 pid=50 idx=0 dumpOffset=3320 dumpBitOffset=3 dumpBitWidth=8 col=4 row=2
+dial al1_19_0_53_0        label="Ring Balance" color=g max=100 display=raw typ=11 soc=19 sub=0 pid=53 idx=0 dumpOffset=3322 dumpBitOffset=4 dumpBitWidth=7 col=5 row=2
+dial al1_19_0_54_0        label="Ring Bal M Src" color=g max=53 names=@sl752 typ=11 soc=19 sub=0 pid=54 idx=0 dumpOffset=3323 dumpBitOffset=3 dumpBitWidth=8 col=9 row=2
+dial al1_19_0_51_0        label="Ring Lvl M Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=19 sub=0 pid=51 idx=0 dumpOffset=3321 dumpBitOffset=3 dumpBitWidth=8 dumpSigned=1 col=2 row=3
+dial al1_19_0_55_0        label="Ring Bal M Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=19 sub=0 pid=55 idx=0 dumpOffset=3324 dumpBitOffset=3 dumpBitWidth=8 dumpSigned=1 col=7 row=3
+dial al1_19_0_52_0        label="Ring Ph Invert" color=g max=2 names="Off","On" typ=11 soc=19 sub=0 pid=52 idx=0 dumpOffset=3322 dumpBitOffset=3 dumpBitWidth=1 col=10 row=3
+
+page       al1 mixer
+section    noisegenerator0
+dialSize   30
+spacing    60
+color g 0.45 0.75 0.40
+dial al1_19_0_56_0        label="Noise Level" color=g max=100 display=raw typ=11 soc=19 sub=0 pid=56 idx=0 dumpOffset=3325 dumpBitOffset=3 dumpBitWidth=7 col=0 row=3
+dial al1_19_0_57_0        label="Noise Lvl M Src" color=g max=53 names=@sl752 typ=11 soc=19 sub=0 pid=57 idx=0 dumpOffset=3326 dumpBitOffset=2 dumpBitWidth=8 col=3 row=3
+dial al1_19_0_60_0        label="Noise Balance" color=g max=100 display=raw typ=11 soc=19 sub=0 pid=60 idx=0 dumpOffset=3328 dumpBitOffset=3 dumpBitWidth=7 col=5 row=3
+dial al1_19_0_61_0        label="Noise Bal M Src" color=g max=53 names=@sl752 typ=11 soc=19 sub=0 pid=61 idx=0 dumpOffset=3329 dumpBitOffset=2 dumpBitWidth=8 col=8 row=3
+dial al1_19_0_58_0        label="Noise Lvl M Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=19 sub=0 pid=58 idx=0 dumpOffset=3327 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=2 row=4
+dial al1_19_0_62_0        label="Noise Bal M Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=19 sub=0 pid=62 idx=0 dumpOffset=3330 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=7 row=4
+dial al1_19_0_59_0        label="Noise Ph Invert" color=g max=2 names="Off","On" typ=11 soc=19 sub=0 pid=59 idx=0 dumpOffset=3328 dumpBitOffset=2 dumpBitWidth=1 col=10 row=4
+
+page       al1 pitch
+section    commonpitch0
+dialSize   30
+spacing    60
+color g 0.85 0.70 0.30
+dial al1_16_0_0_0         label="Pitch Pitch Slop" color=g max=301 offset=-100 display=signed displayOffset=100 typ=11 soc=16 sub=0 pid=0 idx=0 dumpOffset=3238 dumpBitOffset=0 dumpBitWidth=9 dumpSigned=1 col=2 row=0
+dial al1_16_0_1_0         label="Pitch Pitch Bend" color=g max=121 offset=-60 display=signed displayOffset=60 typ=11 soc=16 sub=0 pid=1 idx=0 dumpOffset=3239 dumpBitOffset=1 dumpBitWidth=7 dumpSigned=1 col=3 row=0
+dial al1_16_0_2_0         label="Pitch Pitch Bend" color=g max=121 offset=-60 display=signed displayOffset=60 typ=11 soc=16 sub=0 pid=2 idx=0 dumpOffset=3240 dumpBitOffset=0 dumpBitWidth=7 dumpSigned=1 col=4 row=0
+dial al1_16_0_3_0         label="Pitch Pitch Bend" color=g max=121 offset=-60 display=signed displayOffset=60 typ=11 soc=16 sub=0 pid=3 idx=0 dumpOffset=3240 dumpBitOffset=7 dumpBitWidth=7 dumpSigned=1 col=5 row=0
+dial al1_16_0_4_0         label="Pitch Porta Sw" color=g max=2 names="Off","On" typ=11 soc=16 sub=0 pid=4 idx=0 dumpOffset=3241 dumpBitOffset=6 dumpBitWidth=1 col=0 row=0
+dial al1_16_0_6_0         label="Pitch Porta Mode" color=g max=2 names="Constant Rate","Constant Time" asMenu=1 typ=11 soc=16 sub=0 pid=6 idx=0 dumpOffset=3242 dumpBitOffset=0 dumpBitWidth=1 col=6 row=0
+dial al1_16_0_10_0        label="Pitch LFO Sel" color=g max=5 names="LFO 1","LFO 2","LFO 3","LFO 4","Cmn LFO" typ=11 soc=16 sub=0 pid=10 idx=0 dumpOffset=3245 dumpBitOffset=0 dumpBitWidth=3 col=7 row=0
+dial al1_16_0_5_0         label="Pitch Porta Fing" color=g max=2 names="Off","On" typ=11 soc=16 sub=0 pid=5 idx=0 dumpOffset=3241 dumpBitOffset=7 dumpBitWidth=1 col=1 row=0
+dial al1_16_0_11_0        label="Pitch LFO Int" color=g max=303 offset=-151 display=signed displayOffset=151 typ=11 soc=16 sub=0 pid=11 idx=0 dumpOffset=3245 dumpBitOffset=3 dumpBitWidth=9 dumpSigned=1 col=8 row=0
+dial al1_16_0_13_0        label="Pitch LFO IM S" color=g max=53 names=@sl752 typ=11 soc=16 sub=0 pid=13 idx=0 dumpOffset=3247 dumpBitOffset=5 dumpBitWidth=8 col=9 row=0
+dial al1_16_0_7_0         label="Pitch Porta Tm F" color=g max=128 display=raw typ=11 soc=16 sub=0 pid=7 idx=0 dumpOffset=3242 dumpBitOffset=1 dumpBitWidth=7 col=1 row=1
+dial al1_16_0_8_0         label="Pitch Porta M S" color=g max=53 names=@sl752 typ=11 soc=16 sub=0 pid=8 idx=0 dumpOffset=3243 dumpBitOffset=0 dumpBitWidth=8 col=3 row=1
+dial al1_16_0_12_0        label="Pitch LFO JS(+Y)" color=g max=303 offset=-151 display=signed displayOffset=151 typ=11 soc=16 sub=0 pid=12 idx=0 dumpOffset=3246 dumpBitOffset=4 dumpBitWidth=9 dumpSigned=1 col=7 row=1
+dial al1_16_0_14_0        label="Pitch LFO IM I" color=g max=303 offset=-151 display=signed displayOffset=151 typ=11 soc=16 sub=0 pid=14 idx=0 dumpOffset=3248 dumpBitOffset=5 dumpBitWidth=9 dumpSigned=1 col=9 row=1
+dial al1_16_0_9_0         label="Pitch Porta M I" color=g max=255 offset=-127 display=signed displayOffset=127 typ=11 soc=16 sub=0 pid=9 idx=0 dumpOffset=3244 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=4 row=1
+
+page       al1 pitch
+section    osc1pitch0
+dialSize   30
+spacing    60
+color g 0.70 0.45 0.85
+dial al1_17_0_3_0         label="P1 EG Select" color=g max=5 names="EG1 (Filter)","EG2 (Pitch)","EG3","EG4","Amp EG" typ=11 soc=17 sub=0 pid=3 idx=0 dumpOffset=3252 dumpBitOffset=4 dumpBitWidth=3 col=2 row=1
+dial al1_17_0_4_0         label="P1 EG Int" color=g max=303 offset=-151 display=signed displayOffset=151 typ=11 soc=17 sub=0 pid=4 idx=0 dumpOffset=3252 dumpBitOffset=7 dumpBitWidth=9 dumpSigned=1 col=1 row=2
+dial al1_17_0_5_0         label="P1 EG IM Src" color=g max=53 names=@sl752 typ=11 soc=17 sub=0 pid=5 idx=0 dumpOffset=3254 dumpBitOffset=0 dumpBitWidth=8 col=3 row=2
+dial al1_17_0_6_0         label="P1 EG IM Int" color=g max=303 offset=-151 display=signed displayOffset=151 typ=11 soc=17 sub=0 pid=6 idx=0 dumpOffset=3255 dumpBitOffset=0 dumpBitWidth=9 dumpSigned=1 col=4 row=2
+dial al1_17_0_7_0         label="P1 Mod 1 Src" color=g max=53 names=@sl752 typ=11 soc=17 sub=0 pid=7 idx=0 dumpOffset=3256 dumpBitOffset=1 dumpBitWidth=8 col=2 row=2
+dial al1_17_0_8_0         label="P1 Mod 1 Int" color=g max=303 offset=-151 display=signed displayOffset=151 typ=11 soc=17 sub=0 pid=8 idx=0 dumpOffset=3258 dumpBitOffset=1 dumpBitWidth=9 dumpSigned=1 col=5 row=2
+dial al1_17_0_9_0         label="P1 M1 IM Src" color=g max=53 names=@sl752 typ=11 soc=17 sub=0 pid=9 idx=0 dumpOffset=3260 dumpBitOffset=3 dumpBitWidth=8 col=8 row=2
+dial al1_17_0_10_0        label="P1 M1 IM Int" color=g max=303 offset=-151 display=signed displayOffset=151 typ=11 soc=17 sub=0 pid=10 idx=0 dumpOffset=3262 dumpBitOffset=3 dumpBitWidth=9 dumpSigned=1 col=10 row=3
+dial al1_17_0_7_1         label="P1 Mod 2 Src" color=g max=53 names=@sl752 typ=11 soc=17 sub=0 pid=7 idx=1 dumpOffset=3257 dumpBitOffset=1 dumpBitWidth=8 col=1 row=3
+dial al1_17_0_8_1         label="P1 Mod 2 Int" color=g max=303 offset=-151 display=signed displayOffset=151 typ=11 soc=17 sub=0 pid=8 idx=1 dumpOffset=3259 dumpBitOffset=2 dumpBitWidth=9 dumpSigned=1 col=4 row=3
+dial al1_17_0_9_1         label="P1 M2 IM Src" color=g max=53 names=@sl752 typ=11 soc=17 sub=0 pid=9 idx=1 dumpOffset=3261 dumpBitOffset=3 dumpBitWidth=8 col=8 row=3
+dial al1_17_0_10_1        label="P1 M2 IM Int" color=g max=303 offset=-151 display=signed displayOffset=151 typ=11 soc=17 sub=0 pid=10 idx=1 dumpOffset=3263 dumpBitOffset=4 dumpBitWidth=9 dumpSigned=1 col=10 row=4
+
+page       al1 pitch
+section    osc2pitch0
+dialSize   30
+spacing    60
+color g 0.35 0.75 0.75
+dial al1_18_0_3_0         label="P2 EG Select" color=g max=5 names="EG1 (Filter)","EG2 (Pitch)","EG3","EG4","Amp EG" typ=11 soc=18 sub=0 pid=3 idx=0 dumpOffset=3267 dumpBitOffset=4 dumpBitWidth=3 col=8 row=1
+dial al1_18_0_4_0         label="P2 EG Int" color=g max=303 offset=-151 display=signed displayOffset=151 typ=11 soc=18 sub=0 pid=4 idx=0 dumpOffset=3267 dumpBitOffset=7 dumpBitWidth=9 dumpSigned=1 col=7 row=2
+dial al1_18_0_5_0         label="P2 EG IM Src" color=g max=53 names=@sl752 typ=11 soc=18 sub=0 pid=5 idx=0 dumpOffset=3269 dumpBitOffset=0 dumpBitWidth=8 col=9 row=2
+dial al1_18_0_6_0         label="P2 EG IM Int" color=g max=303 offset=-151 display=signed displayOffset=151 typ=11 soc=18 sub=0 pid=6 idx=0 dumpOffset=3270 dumpBitOffset=0 dumpBitWidth=9 dumpSigned=1 col=10 row=2
+dial al1_18_0_7_0         label="P2 Mod 1 Src" color=g max=53 names=@sl752 typ=11 soc=18 sub=0 pid=7 idx=0 dumpOffset=3271 dumpBitOffset=1 dumpBitWidth=8 col=1 row=4
+dial al1_18_0_8_0         label="P2 Mod 1 Int" color=g max=303 offset=-151 display=signed displayOffset=151 typ=11 soc=18 sub=0 pid=8 idx=0 dumpOffset=3273 dumpBitOffset=1 dumpBitWidth=9 dumpSigned=1 col=4 row=4
+dial al1_18_0_9_0         label="P2 M1 IM Src" color=g max=53 names=@sl752 typ=11 soc=18 sub=0 pid=9 idx=0 dumpOffset=3275 dumpBitOffset=3 dumpBitWidth=8 col=8 row=4
+dial al1_18_0_10_0        label="P2 M1 IM Int" color=g max=303 offset=-151 display=signed displayOffset=151 typ=11 soc=18 sub=0 pid=10 idx=0 dumpOffset=3277 dumpBitOffset=3 dumpBitWidth=9 dumpSigned=1 col=10 row=5
+dial al1_18_0_7_1         label="P2 Mod 2 Src" color=g max=53 names=@sl752 typ=11 soc=18 sub=0 pid=7 idx=1 dumpOffset=3272 dumpBitOffset=1 dumpBitWidth=8 col=1 row=5
+dial al1_18_0_8_1         label="P2 Mod 2 Int" color=g max=303 offset=-151 display=signed displayOffset=151 typ=11 soc=18 sub=0 pid=8 idx=1 dumpOffset=3274 dumpBitOffset=2 dumpBitWidth=9 dumpSigned=1 col=4 row=5
+dial al1_18_0_9_1         label="P2 M2 IM Src" color=g max=53 names=@sl752 typ=11 soc=18 sub=0 pid=9 idx=1 dumpOffset=3276 dumpBitOffset=3 dumpBitWidth=8 col=8 row=5
+dial al1_18_0_10_1        label="P2 M2 IM Int" color=g max=303 offset=-151 display=signed displayOffset=151 typ=11 soc=18 sub=0 pid=10 idx=1 dumpOffset=3278 dumpBitOffset=4 dumpBitWidth=9 dumpSigned=1 col=10 row=6
+
+page       al1 filter
+section    filter0
+dialSize   30
+spacing    60
+color g 0.85 0.70 0.30
+dial al1_20_0_0_0         label="Flt Routing" color=g max=4 names="Single","Serial","Parallel","24dB(4-Pole)" typ=11 soc=20 sub=0 pid=0 idx=0 dumpOffset=3333 dumpBitOffset=0 dumpBitWidth=2 col=0 row=0
+
+page       al1 filter
+section    filtera0
+dialSize   30
+spacing    60
+color g 0.70 0.45 0.85
+dial al1_20_0_2_0         label="FltA Type" color=g max=5 names="Low Pass (12dB/oct)","High Pass (12dB/oct)","Band Pass (6dB/oct)","Band Reject (6dB/oct)","Multi Filter" typ=11 soc=20 sub=0 pid=2 idx=0 dumpOffset=3333 dumpBitOffset=3 dumpBitWidth=3 col=1 row=0
+dial al1_20_0_1_0         label="FltA Bypass" color=g max=2 names="Off","On" typ=11 soc=20 sub=0 pid=1 idx=0 dumpOffset=3333 dumpBitOffset=2 dumpBitWidth=1 col=4 row=0
+dial al1_20_0_4_0         label="FltA Cutoff" color=g max=100 display=raw typ=11 soc=20 sub=0 pid=4 idx=0 dumpOffset=3334 dumpBitOffset=5 dumpBitWidth=7 col=1 row=1
+dial al1_20_0_5_0         label="FltA Cutoff Fine" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=5 idx=0 dumpOffset=3335 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=2 row=1
+dial al1_20_0_3_0         label="FltA Trim" color=g max=100 display=raw typ=11 soc=20 sub=0 pid=3 idx=0 dumpOffset=3333 dumpBitOffset=6 dumpBitWidth=7 col=4 row=1
+dial al1_20_0_78_0        label="FltA Reso Type" color=g max=2 names="Standard","High" asMenu=1 typ=11 soc=20 sub=0 pid=78 idx=0 dumpOffset=3400 dumpBitOffset=1 dumpBitWidth=1 col=1 row=2
+dial al1_20_0_6_0         label="FltA Reso" color=g max=100 display=raw typ=11 soc=20 sub=0 pid=6 idx=0 dumpOffset=3336 dumpBitOffset=4 dumpBitWidth=7 col=2 row=2
+dial al1_20_0_7_0         label="FltA Reso M Src" color=g max=53 names=@sl752 typ=11 soc=20 sub=0 pid=7 idx=0 dumpOffset=3337 dumpBitOffset=3 dumpBitWidth=8 col=3 row=2
+dial al1_20_0_12_0        label="FltA Reso Bass" color=g max=2 names="Full","Tight" asMenu=1 typ=11 soc=20 sub=0 pid=12 idx=0 dumpOffset=3342 dumpBitOffset=2 dumpBitWidth=1 col=1 row=3
+dial al1_20_0_8_0         label="FltA Reso M Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=8 idx=0 dumpOffset=3338 dumpBitOffset=3 dumpBitWidth=8 dumpSigned=1 col=3 row=3
+dial al1_20_0_9_0         label="FltA Output" color=g max=100 display=raw typ=11 soc=20 sub=0 pid=9 idx=0 dumpOffset=3339 dumpBitOffset=3 dumpBitWidth=7 col=0 row=3
+dial al1_20_0_10_0        label="FltA Output M S" color=g max=53 names=@sl752 typ=11 soc=20 sub=0 pid=10 idx=0 dumpOffset=3340 dumpBitOffset=2 dumpBitWidth=8 col=2 row=3
+dial al1_20_0_11_0        label="FltA Output M I" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=11 idx=0 dumpOffset=3341 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=4 row=3
+dial al1_20_0_79_0        label="FltA Panpot" color=g max=128 display=raw typ=11 soc=20 sub=0 pid=79 idx=0 dumpOffset=3400 dumpBitOffset=2 dumpBitWidth=7 col=0 row=4
+dial al1_20_0_80_0        label="FltA Panpot M S" color=g max=53 names=@sl752 typ=11 soc=20 sub=0 pid=80 idx=0 dumpOffset=3401 dumpBitOffset=1 dumpBitWidth=8 col=2 row=4
+dial al1_20_0_81_0        label="FltA Panpot Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=81 idx=0 dumpOffset=3402 dumpBitOffset=1 dumpBitWidth=8 dumpSigned=1 col=4 row=4
+dial al1_20_0_31_0        label="FltA Mode1" color=g max=22 names=@sl767 typ=11 soc=20 sub=0 pid=31 idx=0 dumpOffset=3359 dumpBitOffset=1 dumpBitWidth=5 col=1 row=4
+dial al1_20_0_32_0        label="FltA Mode2" color=g max=22 names=@sl768 typ=11 soc=20 sub=0 pid=32 idx=0 dumpOffset=3359 dumpBitOffset=6 dumpBitWidth=5 col=8 row=4
+dial al1_20_0_33_0        label="FltA Mode1>2 XFa" color=g max=100 display=raw typ=11 soc=20 sub=0 pid=33 idx=0 dumpOffset=3360 dumpBitOffset=3 dumpBitWidth=7 col=3 row=4
+dial al1_20_0_34_0        label="FltA Mode XFade " color=g max=53 names=@sl752 typ=11 soc=20 sub=0 pid=34 idx=0 dumpOffset=3361 dumpBitOffset=2 dumpBitWidth=8 col=5 row=4
+dial al1_20_0_35_0        label="FltA Mode XFade " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=35 idx=0 dumpOffset=3362 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=5 row=5
+dial al1_20_0_36_0        label="FltA Mode XFade " color=g max=53 names=@sl752 typ=11 soc=20 sub=0 pid=36 idx=0 dumpOffset=3363 dumpBitOffset=2 dumpBitWidth=8 col=9 row=5
+dial al1_20_0_37_0        label="FltA Mode XFade " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=37 idx=0 dumpOffset=3364 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=10 row=5
+dial al1_20_0_38_0        label="FltA Mode1 LP" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=38 idx=0 dumpOffset=3365 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=1 row=5
+dial al1_20_0_42_0        label="FltA Mode2 LP" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=42 idx=0 dumpOffset=3369 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=4 row=5
+dial al1_20_0_39_0        label="FltA Mode1 HP" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=39 idx=0 dumpOffset=3366 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=2 row=5
+dial al1_20_0_43_0        label="FltA Mode2 HP" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=43 idx=0 dumpOffset=3370 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=6 row=5
+dial al1_20_0_40_0        label="FltA Mode1 BP" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=40 idx=0 dumpOffset=3367 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=3 row=5
+dial al1_20_0_44_0        label="FltA Mode2 BP" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=44 idx=0 dumpOffset=3371 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=7 row=5
+dial al1_20_0_41_0        label="FltA Mode1 Dry" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=41 idx=0 dumpOffset=3368 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=1 row=6
+dial al1_20_0_45_0        label="FltA Mode2 Dry" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=45 idx=0 dumpOffset=3372 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=4 row=6
+
+page       al1 filter
+section    filterb0
+dialSize   30
+spacing    60
+color g 0.35 0.75 0.75
+dial al1_20_0_47_0        label="FltB Type" color=g max=4 names="Low Pass (12dB/oct)","High Pass (12dB/oct)","Band Pass (6dB/oct)","Band Reject (6dB/oct)" typ=11 soc=20 sub=0 pid=47 idx=0 dumpOffset=3373 dumpBitOffset=3 dumpBitWidth=2 col=6 row=0
+dial al1_20_0_46_0        label="FltB Bypass" color=g max=2 names="Off","On" typ=11 soc=20 sub=0 pid=46 idx=0 dumpOffset=3373 dumpBitOffset=2 dumpBitWidth=1 col=10 row=0
+dial al1_20_0_49_0        label="FltB Cutoff" color=g max=100 display=raw typ=11 soc=20 sub=0 pid=49 idx=0 dumpOffset=3374 dumpBitOffset=4 dumpBitWidth=7 col=6 row=1
+dial al1_20_0_50_0        label="FltB Cutoff Fine" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=50 idx=0 dumpOffset=3375 dumpBitOffset=3 dumpBitWidth=8 dumpSigned=1 col=8 row=1
+dial al1_20_0_48_0        label="FltB Trim" color=g max=100 display=raw typ=11 soc=20 sub=0 pid=48 idx=0 dumpOffset=3373 dumpBitOffset=5 dumpBitWidth=7 col=10 row=1
+dial al1_20_0_76_0        label="FltB Link" color=g max=2 names="Off","On" typ=11 soc=20 sub=0 pid=76 idx=0 dumpOffset=3399 dumpBitOffset=0 dumpBitWidth=1 col=5 row=2
+dial al1_20_0_77_0        label="FltB Link Cutoff" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=77 idx=0 dumpOffset=3399 dumpBitOffset=1 dumpBitWidth=8 dumpSigned=1 col=10 row=2
+dial al1_20_0_51_0        label="FltB Reso" color=g max=100 display=raw typ=11 soc=20 sub=0 pid=51 idx=0 dumpOffset=3376 dumpBitOffset=3 dumpBitWidth=7 col=6 row=2
+dial al1_20_0_52_0        label="FltB Reso M Src" color=g max=53 names=@sl752 typ=11 soc=20 sub=0 pid=52 idx=0 dumpOffset=3377 dumpBitOffset=2 dumpBitWidth=8 col=9 row=2
+dial al1_20_0_57_0        label="FltB Reso Bass" color=g max=2 names="Full","Tight" asMenu=1 typ=11 soc=20 sub=0 pid=57 idx=0 dumpOffset=3382 dumpBitOffset=1 dumpBitWidth=1 col=6 row=3
+dial al1_20_0_53_0        label="FltB Reso M Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=53 idx=0 dumpOffset=3378 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=9 row=3
+dial al1_20_0_54_0        label="FltB Output" color=g max=100 display=raw typ=11 soc=20 sub=0 pid=54 idx=0 dumpOffset=3379 dumpBitOffset=2 dumpBitWidth=7 col=7 row=3
+dial al1_20_0_55_0        label="FltB Output M S" color=g max=53 names=@sl752 typ=11 soc=20 sub=0 pid=55 idx=0 dumpOffset=3380 dumpBitOffset=1 dumpBitWidth=8 col=8 row=3
+dial al1_20_0_56_0        label="FltB Output M I" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=56 idx=0 dumpOffset=3381 dumpBitOffset=1 dumpBitWidth=8 dumpSigned=1 col=10 row=3
+dial al1_20_0_82_0        label="FltB Panpot" color=g max=128 display=raw typ=11 soc=20 sub=0 pid=82 idx=0 dumpOffset=3403 dumpBitOffset=1 dumpBitWidth=7 col=6 row=4
+dial al1_20_0_83_0        label="FltB Panpot M S" color=g max=53 names=@sl752 typ=11 soc=20 sub=0 pid=83 idx=0 dumpOffset=3404 dumpBitOffset=0 dumpBitWidth=8 col=7 row=4
+dial al1_20_0_84_0        label="FltB Panpot Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=84 idx=0 dumpOffset=3405 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=10 row=4
+
+page       al1 filter mod
+section    filtera0
+dialSize   30
+spacing    60
+color g 0.70 0.45 0.85
+dial al1_20_0_13_0        label="FltA KeyTrk" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=13 idx=0 dumpOffset=3342 dumpBitOffset=3 dumpBitWidth=8 dumpSigned=1 col=1 row=0
+dial al1_20_0_15_0        label="FltA EG Select" color=g max=5 names="EG1 (Filter)","EG2 (Pitch)","EG3","EG4","Amp EG" typ=11 soc=20 sub=0 pid=15 idx=0 dumpOffset=3344 dumpBitOffset=3 dumpBitWidth=3 col=1 row=1
+dial al1_20_0_16_0        label="FltA EG Vel Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=16 idx=0 dumpOffset=3344 dumpBitOffset=6 dumpBitWidth=8 dumpSigned=1 col=4 row=1
+dial al1_20_0_17_0        label="FltA EG Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=17 idx=0 dumpOffset=3345 dumpBitOffset=6 dumpBitWidth=8 dumpSigned=1 col=6 row=1
+dial al1_20_0_18_0        label="FltA EG IM Src" color=g max=53 names=@sl752 typ=11 soc=20 sub=0 pid=18 idx=0 dumpOffset=3346 dumpBitOffset=6 dumpBitWidth=8 col=7 row=1
+dial al1_20_0_19_0        label="FltA EG IM Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=19 idx=0 dumpOffset=3347 dumpBitOffset=6 dumpBitWidth=8 dumpSigned=1 col=10 row=1
+dial al1_20_0_20_0        label="FltA Cutoff M1 S" color=g max=53 names=@sl752 typ=11 soc=20 sub=0 pid=20 idx=0 dumpOffset=3348 dumpBitOffset=6 dumpBitWidth=8 col=0 row=2
+dial al1_20_0_21_0        label="FltA Cutoff M1 I" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=21 idx=0 dumpOffset=3349 dumpBitOffset=6 dumpBitWidth=8 dumpSigned=1 col=5 row=2
+dial al1_20_0_22_0        label="FltA Cutoff M1 I" color=g max=53 names=@sl752 typ=11 soc=20 sub=0 pid=22 idx=0 dumpOffset=3350 dumpBitOffset=6 dumpBitWidth=8 col=2 row=3
+dial al1_20_0_23_0        label="FltA Cutoff M1 I" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=23 idx=0 dumpOffset=3351 dumpBitOffset=6 dumpBitWidth=8 dumpSigned=1 col=4 row=3
+dial al1_20_0_24_0        label="FltA Cutoff M2 S" color=g max=53 names=@sl752 typ=11 soc=20 sub=0 pid=24 idx=0 dumpOffset=3352 dumpBitOffset=6 dumpBitWidth=8 col=0 row=3
+dial al1_20_0_25_0        label="FltA Cutoff M2 I" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=25 idx=0 dumpOffset=3353 dumpBitOffset=6 dumpBitWidth=8 dumpSigned=1 col=5 row=3
+dial al1_20_0_26_0        label="FltA LFO Select" color=g max=5 names="LFO 1","LFO 2","LFO 3","LFO 4","Cmn LFO" typ=11 soc=20 sub=0 pid=26 idx=0 dumpOffset=3354 dumpBitOffset=6 dumpBitWidth=3 col=1 row=3
+dial al1_20_0_27_0        label="FltA LFO Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=27 idx=0 dumpOffset=3355 dumpBitOffset=1 dumpBitWidth=8 dumpSigned=1 col=1 row=4
+dial al1_20_0_29_0        label="FltA LFO IM Src" color=g max=53 names=@sl752 typ=11 soc=20 sub=0 pid=29 idx=0 dumpOffset=3357 dumpBitOffset=1 dumpBitWidth=8 col=3 row=4
+dial al1_20_0_28_0        label="FltA LFO JS(-Y) " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=28 idx=0 dumpOffset=3356 dumpBitOffset=1 dumpBitWidth=8 dumpSigned=1 col=2 row=4
+dial al1_20_0_30_0        label="FltA LFO IM Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=30 idx=0 dumpOffset=3358 dumpBitOffset=1 dumpBitWidth=8 dumpSigned=1 col=4 row=4
+
+page       al1 filter mod
+section    filterb0
+dialSize   30
+spacing    60
+color g 0.35 0.75 0.75
+dial al1_20_0_58_0        label="FltB KeyTrk" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=58 idx=0 dumpOffset=3382 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=2 row=0
+dial al1_20_0_60_0        label="FltB EG Select" color=g max=5 names="EG1 (Filter)","EG2 (Pitch)","EG3","EG4","Amp EG" typ=11 soc=20 sub=0 pid=60 idx=0 dumpOffset=3384 dumpBitOffset=2 dumpBitWidth=3 col=1 row=2
+dial al1_20_0_61_0        label="FltB EG Vel Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=61 idx=0 dumpOffset=3384 dumpBitOffset=5 dumpBitWidth=8 dumpSigned=1 col=4 row=2
+dial al1_20_0_62_0        label="FltB EG Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=62 idx=0 dumpOffset=3385 dumpBitOffset=5 dumpBitWidth=8 dumpSigned=1 col=6 row=2
+dial al1_20_0_63_0        label="FltB EG IM Src" color=g max=53 names=@sl752 typ=11 soc=20 sub=0 pid=63 idx=0 dumpOffset=3386 dumpBitOffset=5 dumpBitWidth=8 col=7 row=2
+dial al1_20_0_64_0        label="FltB EG IM Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=64 idx=0 dumpOffset=3387 dumpBitOffset=5 dumpBitWidth=8 dumpSigned=1 col=10 row=2
+dial al1_20_0_65_0        label="FltB Cutoff M1 S" color=g max=53 names=@sl752 typ=11 soc=20 sub=0 pid=65 idx=0 dumpOffset=3388 dumpBitOffset=5 dumpBitWidth=8 col=8 row=2
+dial al1_20_0_66_0        label="FltB Cutoff M1 I" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=66 idx=0 dumpOffset=3389 dumpBitOffset=5 dumpBitWidth=8 dumpSigned=1 col=9 row=2
+dial al1_20_0_67_0        label="FltB Cutoff M1 I" color=g max=53 names=@sl752 typ=11 soc=20 sub=0 pid=67 idx=0 dumpOffset=3390 dumpBitOffset=5 dumpBitWidth=8 col=7 row=3
+dial al1_20_0_68_0        label="FltB Cutoff M1 I" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=68 idx=0 dumpOffset=3391 dumpBitOffset=5 dumpBitWidth=8 dumpSigned=1 col=9 row=3
+dial al1_20_0_69_0        label="FltB Cutoff M2 S" color=g max=53 names=@sl752 typ=11 soc=20 sub=0 pid=69 idx=0 dumpOffset=3392 dumpBitOffset=5 dumpBitWidth=8 col=6 row=3
+dial al1_20_0_70_0        label="FltB Cutoff M2 I" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=70 idx=0 dumpOffset=3393 dumpBitOffset=5 dumpBitWidth=8 dumpSigned=1 col=10 row=3
+dial al1_20_0_71_0        label="FltB LFO Select" color=g max=5 names="LFO 1","LFO 2","LFO 3","LFO 4","Cmn LFO" typ=11 soc=20 sub=0 pid=71 idx=0 dumpOffset=3394 dumpBitOffset=5 dumpBitWidth=3 col=8 row=3
+dial al1_20_0_72_0        label="FltB LFO Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=72 idx=0 dumpOffset=3395 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=7 row=4
+dial al1_20_0_74_0        label="FltB LFO IM Src" color=g max=53 names=@sl752 typ=11 soc=20 sub=0 pid=74 idx=0 dumpOffset=3397 dumpBitOffset=0 dumpBitWidth=8 col=9 row=4
+dial al1_20_0_73_0        label="FltB LFO JS(-Y) " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=73 idx=0 dumpOffset=3396 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=8 row=4
+dial al1_20_0_75_0        label="FltB LFO IM Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=75 idx=0 dumpOffset=3398 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=10 row=4
+
+page       al1 filter mod
+section    filterkeyboardtrack0
+dialSize   30
+spacing    60
+color g 0.85 0.50 0.65
+dial al1_20_1_0_0         label="FltKT Low Key" color=g max=128 display=note typ=11 soc=20 sub=1 pid=0 idx=0 dumpOffset=3406 dumpBitOffset=0 dumpBitWidth=7 col=3 row=0
+dial al1_20_1_1_0         label="FltKT Ctr Key" color=g max=128 display=note typ=11 soc=20 sub=1 pid=1 idx=0 dumpOffset=3406 dumpBitOffset=7 dumpBitWidth=7 col=5 row=0
+dial al1_20_1_2_0         label="FltKT High Key" color=g max=128 display=note typ=11 soc=20 sub=1 pid=2 idx=0 dumpOffset=3407 dumpBitOffset=6 dumpBitWidth=7 col=8 row=0
+dial al1_20_1_3_0         label="FltKT Low Ramp" color=g max=201 offset=-100 display=signed displayOffset=100 typ=11 soc=20 sub=1 pid=3 idx=0 dumpOffset=3408 dumpBitOffset=5 dumpBitWidth=8 dumpSigned=1 col=4 row=0
+dial al1_20_1_4_0         label="FltKT Ctr Low Ra" color=g max=201 offset=-100 display=signed displayOffset=100 typ=11 soc=20 sub=1 pid=4 idx=0 dumpOffset=3409 dumpBitOffset=5 dumpBitWidth=8 dumpSigned=1 col=6 row=0
+dial al1_20_1_5_0         label="FltKT Ctr High R" color=g max=201 offset=-100 display=signed displayOffset=100 typ=11 soc=20 sub=1 pid=5 idx=0 dumpOffset=3410 dumpBitOffset=5 dumpBitWidth=8 dumpSigned=1 col=7 row=0
+dial al1_20_1_6_0         label="FltKT High Ramp" color=g max=201 offset=-100 display=signed displayOffset=100 typ=11 soc=20 sub=1 pid=6 idx=0 dumpOffset=3411 dumpBitOffset=5 dumpBitWidth=8 dumpSigned=1 col=10 row=0
 
 # ── AL-1 filter section ──────────────────────────────────────────────────────
 # Parameter Change (SysEx), not CC — CONFIRMED WORKING against real hardware
@@ -135,14 +1021,14 @@ supportsKorgProgramDump no
 # from the doc's relative-offset arithmetic alone, given the doc's own
 # "edit buffer" description turned out to need the empirical double-check
 # above once already.
-page       filters
+page       al1 exi2
 section    al1
 dialSize   50
 spacing    60
 
 color al1 0.85 0.4 0.3
 
-dial al1FilterCutoff   label="AL-1 Filter A Cutoff (EXi1)" color=al1 max=100 typ=11 soc=20 sub=0 pid=4  idx=0 dumpOffset=3334 dumpBitOffset=5 dumpBitWidth=7
+# The EXi1 pair moved into the generated pages below (al1_20_0_4_0 and
+# al1_20_0_49_0 carry the same addresses and dump bits); only EXi2 stays here.
 dial al1FilterCutoff2  label="AL-1 Filter A Cutoff (EXi2)" color=al1 max=100 typ=12 soc=20 sub=0 pid=4  idx=0 dumpOffset=4386 dumpBitOffset=5 dumpBitWidth=7
-dial al1FilterBCutoff  label="AL-1 Filter B Cutoff (EXi1)" color=al1 max=100 typ=11 soc=20 sub=0 pid=49 idx=0 dumpOffset=3374 dumpBitOffset=4 dumpBitWidth=7
 dial al1FilterBCutoff2 label="AL-1 Filter B Cutoff (EXi2)" color=al1 max=100 typ=12 soc=20 sub=0 pid=49 idx=0 dumpOffset=4426 dumpBitOffset=4 dumpBitWidth=7

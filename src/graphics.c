@@ -583,6 +583,18 @@ static void backdoor_dispatch(const char * cmd, const char * arg, GLFWwindow * w
 }
 
 static void backdoor_poll(GLFWwindow * win) {
+    // notes §19
+    static int   enabled   = -1;
+
+    if (enabled < 0) {
+        const char * env = getenv("SYNTHEDIT_BACKDOOR");
+
+        enabled = (env && (strcmp(env, "1") == 0)) ? 1 : 0;
+    }
+
+    if (!enabled) {
+        return;
+    }
     const char * cmdPath   = backdoor_cmd_path();
 
     if (access(cmdPath, F_OK) != 0) {

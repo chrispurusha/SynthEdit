@@ -692,3 +692,12 @@ Returns the index into section->dials[] under `point`, or -1 if none.
 Call after layout_panel_section() has populated the dials' rects.
 The rectangle a dial can actually be clicked in — larger than dial->rect for one drawn as a
 button. Use this rather than dial->rect anywhere a click is being tested; see the definition.
+
+## 45. `dumpSigned`
+
+The packed dump field (dumpBitOffset/dumpBitWidth) holds a two's-complement
+number dumpBitWidth bits wide. It is sign-extended before the dial sees it, so a
+range such as -99..99 is written `storageOffset=-99 max=199 display=signed
+displayOffset=99`, the same way the dial's Parameter Change value is signed.
+Kronos dump tables give these as hex ranges like `9D~63`. Unlike `wireSigned`
+(synthComms.c notes §12, §16), this adds no displayOffset of its own.

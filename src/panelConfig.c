@@ -29,7 +29,7 @@
 #include "panelConfig.h"
 
 #define PANEL_LINE_LEN      1024
-#define PANEL_MAX_TOKENS    16
+#define PANEL_MAX_TOKENS    32
 // notes §1
 #define PANEL_TOKEN_LEN     1024
 
@@ -138,6 +138,29 @@ static uint32_t split_csv(const char * value, char names[][PANEL_LABEL_LEN], uin
     return count;
 }
 
+static int32_t find_list_index(const tPanelConfig * config, const char * name) {
+    for (uint32_t i = 0; i < config->listCount; i++) {
+        if (strcmp(config->lists[i].name, name) == 0) {
+            return (int32_t)i;
+        }
+    }
+
+    return -1;
+}
+
+static uint32_t copy_list_items(const tPanelConfig * config, const char * listName, char names[][PANEL_LABEL_LEN], uint32_t maxNames) {
+    int32_t  index = find_list_index(config, listName);
+    uint32_t count = 0;
+
+    if (index >= 0) {
+        const tPanelList * list = &config->lists[index];
+
+        count = (list->itemCount < maxNames) ? list->itemCount : maxNames;
+        memcpy(names, list->items, (size_t)count * PANEL_LABEL_LEN);
+    }
+    return count;
+}
+
 static bool find_section_colour(tPanelSection * section, const char * name, tRgb * outColour) {
     for (uint32_t i = 0; i < section->colourCount; i++) {
         if (strcmp(section->colours[i].name, name) == 0) {
@@ -150,7 +173,7 @@ static bool find_section_colour(tPanelSection * section, const char * name, tRgb
 }
 
 // ── "dial <id> key=value ..." ────────────────────────────────────────────────
-static void parse_dial_line(tPanelSection * section, double * pendingGap, char tokens[][PANEL_TOKEN_LEN], uint32_t tokenCount, uint32_t lineNo) {
+static void parse_dial_line(const tPanelConfig * config, tPanelSection * section, double * pendingGap, char tokens[][PANEL_TOKEN_LEN], uint32_t tokenCount, uint32_t lineNo) {
     if (tokenCount < 2) {
         LOG_ERROR("panelConfig line %u: 'dial' with no id\n", lineNo);
         return;
@@ -193,8 +216,17 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
         } else if (strcmp(key, "max") == 0) {
             dial->max = (uint32_t)strtoul(val, NULL, 0);
         } else if (strcmp(key, "names") == 0) {
-            dial->nameCount = split_csv(val, dial->names, PANEL_MAX_NAMES);
-            dial->display   = dialDisplayNames;
+            if (val[0] == '@') {
+                // notes §9
+                dial->nameCount = copy_list_items(config, val + 1, dial->names, PANEL_MAX_NAMES);
+
+                if (dial->nameCount == 0) {
+                    LOG_ERROR("panelConfig line %u: unknown or empty list '%s'\n", lineNo, val + 1);
+                }
+            } else {
+                dial->nameCount = split_csv(val, dial->names, PANEL_MAX_NAMES);
+            }
+            dial->display = dialDisplayNames;
         } else if (strcmp(key, "display") == 0) {
             if (strcmp(val, "raw") == 0) {
                 dial->display = dialDisplayRaw;
@@ -254,6 +286,8 @@ static void parse_dial_line(tPanelSection * section, double * pendingGap, char t
             dial->dumpNativeMax = (uint32_t)strtoul(val, NULL, 0);
         } else if (strcmp(key, "dumpInvert") == 0) {
             dial->dumpInvert = (strtoul(val, NULL, 0) != 0);
+        } else if (strcmp(key, "dumpSigned") == 0) {
+            dial->dumpSigned = (strtoul(val, NULL, 0) != 0);
         } else if (strcmp(key, "col") == 0) {
             dial->gridCol = strtod(val, NULL);
         } else if (strcmp(key, "row") == 0) {
@@ -405,15 +439,19 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
             LOG_ERROR("panelConfig line %u: expected 'list <name> <items>'\n", lineNo);
             return;
         }
+        // notes §10
+        int32_t      index = find_list_index(config, tokens[1]);
+        tPanelList * list  = (index >= 0) ? &config->lists[index] : NULL;
 
-        if (config->listCount >= PANEL_MAX_LISTS) {
-            LOG_ERROR("panelConfig line %u: too many lists (max %u)\n", lineNo, (unsigned)PANEL_MAX_LISTS);
-            return;
+        if (!list) {
+            if (config->listCount >= PANEL_MAX_LISTS) {
+                LOG_ERROR("panelConfig line %u: too many lists (max %u)\n", lineNo, (unsigned)PANEL_MAX_LISTS);
+                return;
+            }
+            list = &config->lists[config->listCount++];
+            strncpy(list->name, tokens[1], sizeof(list->name) - 1);
         }
-        tPanelList * list = &config->lists[config->listCount++];
-
-        strncpy(list->name, tokens[1], sizeof(list->name) - 1);
-        list->itemCount = split_csv(tokens[2], list->items, PANEL_MAX_LIST_ITEMS);
+        list->itemCount += split_csv(tokens[2], list->items + list->itemCount, PANEL_MAX_LIST_ITEMS - list->itemCount);
     } else if (strcmp(keyword, "page") == 0) {
         if (config->sectionCount >= PANEL_MAX_SECTIONS) {
             LOG_ERROR("panelConfig line %u: too many sections (max %u)\n", lineNo, (unsigned)PANEL_MAX_SECTIONS);
@@ -453,7 +491,7 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
             LOG_ERROR("panelConfig line %u: 'dial' with no preceding 'page'\n", lineNo);
             return;
         }
-        parse_dial_line(*currentSection, pendingGap, tokens, tokenCount, lineNo);
+        parse_dial_line(config, *currentSection, pendingGap, tokens, tokenCount, lineNo);
     } else if (strcmp(keyword, "columnLabel") == 0) {
         if (!*currentSection) {
             LOG_ERROR("panelConfig line %u: 'columnLabel' with no preceding 'page'\n", lineNo);

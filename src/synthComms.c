@@ -215,6 +215,10 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
 
     for (i = 0; i < nameLen; i++) {
         char c = (char)decoded[i];
+
+        if (c == '\0') {
+            break; // the Kronos pads its name with NULs, the Z1 with spaces
+        }
         gDevice.progName[i] = ((c >= 0x20) && (c <= 0x7F)) ? c : '?';
     }
 
@@ -237,6 +241,10 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
                 uint32_t raw = (dial->dumpBitWidth > 0)
                               ? read_korg_bitpacked_field(decoded, decodedLen, dial->dumpOffset, dial->dumpBitOffset, dial->dumpBitWidth)
                               : (decoded[dial->dumpOffset] >> dial->dumpShift) & dial->dumpMask;
+
+                if (dial->dumpSigned && (dial->dumpBitWidth > 0) && (dial->dumpBitWidth < 32) && (raw >> (dial->dumpBitWidth - 1))) {
+                    raw |= ~0u << dial->dumpBitWidth;
+                }
 
                 if (dial->wireSigned) {
                     // notes §16

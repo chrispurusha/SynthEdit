@@ -36,9 +36,9 @@ extern "C" {
 #define PANEL_MAX_NAMES            65 // raised from 20 to 32 2026-07-10 (Voyager's soundCategory, a full 32-value enum, 0-31); raised from 32 to 48 2026-07-11 — Voyager's pgmShaping1Src/pgmShaping2Src are 43-value enums (0-42), values >= the old 32 cap silently had no stored name and rendered as "?"; raised from 48 to 65 2026-07-13 — Voyager's tsGateCtrl uses storageOffset to give TS Gate's MIDI Ctrl No (64-127 plus a distinct Off state) a proper named 65-value enum instead of a raw 0-128 dial with an unlabeled dead zone below 64
 #define PANEL_MAX_COLOURS          16
 #define PANEL_MAX_DIALS            32
-#define PANEL_MAX_SECTIONS         64 // raised 32->48 2026-07-13 (Amp/EG pages split narrow enough to hit the old ceiling at 34 sections — see panelConfig.c's own "too many sections" error for the actual failure mode, dials silently landing in the wrong section rather than a page just going missing); 48->64 same day adding LFO1-4 pushed close to 48 again — Z1's own remaining unbuilt pages (Effects, OSC-type sub-pages) will need more still, so raised with real headroom this time rather than tuning to the exact count again
-#define PANEL_MAX_LIST_ITEMS       32
-#define PANEL_MAX_LISTS            8
+#define PANEL_MAX_SECTIONS         64              // raised 32->48 2026-07-13 (Amp/EG pages split narrow enough to hit the old ceiling at 34 sections — see panelConfig.c's own "too many sections" error for the actual failure mode, dials silently landing in the wrong section rather than a page just going missing); 48->64 same day adding LFO1-4 pushed close to 48 again — Z1's own remaining unbuilt pages (Effects, OSC-type sub-pages) will need more still, so raised with real headroom this time rather than tuning to the exact count again
+#define PANEL_MAX_LIST_ITEMS       PANEL_MAX_NAMES // a list can feed a dial's names=@list
+#define PANEL_MAX_LISTS            32
 #define PANEL_MAX_COLUMN_LABELS    32
 
 typedef enum {
@@ -153,6 +153,7 @@ typedef struct {
     // notes §17
     uint32_t dumpNativeMax;
     bool     dumpInvert;
+    bool     dumpSigned;         // dumpBitWidth-bit two's complement - notes §45
 
     // notes §18
     double   gridCol;

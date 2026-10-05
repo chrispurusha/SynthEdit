@@ -93,3 +93,17 @@ nameCount>2 OR asMenu — asMenu (see its own comment in panelConfig.h)
 opts a 2-name dial (otherwise panel_dial_is_binary()'s territory) into
 this same value-menu path, e.g. the Z1's Porta on/off wanting its
 section colour instead of a flat grey/green.
+
+## 9. in `parse_dial_line()`
+
+`names=@<list>` takes a dial's value names from a `list` line instead of
+spelling them out inline. A long enum shared by many dials is written once
+that way: the Kronos AL-1's 53-entry modulation-source list is used by ~150
+dials, and on its own it is longer than one token (PANEL_TOKEN_LEN, §1).
+The list has to appear earlier in the file than any dial that names it.
+
+## 10. in `process_line()`
+
+A `list` line whose name has already appeared appends to that list rather than
+starting a new one, so a list too long for a single line (PANEL_LINE_LEN) can be
+split across several. Items beyond PANEL_MAX_LIST_ITEMS are dropped.

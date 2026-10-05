@@ -244,3 +244,12 @@ Every registered popup's hover/dwell update in one call, so the host cannot forg
 which this app did twice, its own comments recording handlers that were "never actually
 called anywhere until now". Cheap no-ops when nothing is open, and unconditional every
 frame so a hover-dwell timer elapses while the mouse sits still. See synthlibPopups.h.
+
+## 19. in `backdoor_poll()`
+
+The command channel is live only in a process launched with `SYNTHEDIT_BACKDOOR=1` (2026-10-05). Every
+instance on the machine resolves the same temp directory, so with the channel always on, a test
+instance and the owner's own Xcode session took turns consuming each other's commands: a `DEVICE`
+meant for the test instance switched the owner's live session to another synth. G2-Edit's channel
+has been gated the same way (`G2_EDIT_BACKDOOR=1`) from the start. Read once; the check costs
+nothing per frame after that.
