@@ -33,6 +33,12 @@ extern "C" {
 
 #define PANEL_ID_LEN               24 // raised from 16 2026-07-13 — discovered via the backdoor DUMP command (graphics.cpp): 19 real Z1 Amp/EG/LFO dial ids (e.g. "ampegnodetimemodsrc", 19 chars) silently truncated to 15+NUL on load (parse_dial_line()'s strncpy() in panelConfig.c has no length check/warning), losing up to 4 trailing characters with no error at all. No two truncated ids happened to collide this time (checked: `grep dial layouts/z1.txt | awk '{print substr($2,1,15)}' | sort | uniq -d` was empty) — pure luck, not a guarantee for any future id added to any device file. 24 gives real headroom over the current worst case (19) rather than tuning to the exact number again.
 #define PANEL_LABEL_LEN            32
+#define PANEL_PAGE_LEN             64 // a page is a path of up to PANEL_PAGE_LEVELS names - notes §46
+#define PANEL_PAGE_LEVELS          3
+#define PANEL_PAGE_SEPARATOR       '|'
+#define PANEL_MAX_MODE_TABS        16
+#define PANEL_MAX_PAGE_VARIANTS    8
+#define PANEL_MAX_TAB_LABELS       8
 #define PANEL_MAX_NAMES            65 // raised from 20 to 32 2026-07-10 (Voyager's soundCategory, a full 32-value enum, 0-31); raised from 32 to 48 2026-07-11 — Voyager's pgmShaping1Src/pgmShaping2Src are 43-value enums (0-42), values >= the old 32 cap silently had no stored name and rendered as "?"; raised from 48 to 65 2026-07-13 — Voyager's tsGateCtrl uses storageOffset to give TS Gate's MIDI Ctrl No (64-127 plus a distinct Off state) a proper named 65-value enum instead of a raw 0-128 dial with an unlabeled dead zone below 64
 #define PANEL_MAX_COLOURS          16
 #define PANEL_MAX_DIALS            32
@@ -70,7 +76,7 @@ typedef struct {
 
 // notes §5
 typedef struct {
-    char    page[PANEL_ID_LEN];
+    char    page[PANEL_PAGE_LEN];
     int32_t col;
     char    label[PANEL_LABEL_LEN];
 } tColumnLabel;
@@ -178,11 +184,13 @@ typedef struct {
 } tPanelDial;
 
 typedef struct {
-    char   page[PANEL_ID_LEN];
-    char   section[PANEL_ID_LEN];
-    double dialSize;
-    double spacing;
-    bool   hidden;               // true: not a rendered control/page-tab target, just named
+    char     page[PANEL_PAGE_LEN];
+    char     section[PANEL_ID_LEN];
+    double   dialSize;
+    double   spacing;
+    int32_t  showIfOffset;       // notes §49: shown only while this dump byte (-1 = always) ...
+    uint32_t showIfValue;        // ... holds this value
+    bool     hidden;             // true: not a rendered control/page-tab target, just named
                                  // device state (e.g. program category, voice mode, unison) —
                                  // shown as plain "label: value" text instead of a dial widget.
                                  // Still parsed/bound/dump-scanned exactly like any other section.
@@ -191,6 +199,27 @@ typedef struct {
     tPanelDial   dials[PANEL_MAX_DIALS];
     uint32_t     dialCount;
 } tPanelSection;
+
+typedef struct {
+    uint32_t mode;
+    char     tab[PANEL_ID_LEN];
+} tModeTab;
+
+// notes §48
+typedef struct {
+    char    variant[PANEL_PAGE_LEN]; // e.g. "Prog|EXi 2"
+    char    base[PANEL_PAGE_LEN];    // e.g. "Prog|EXi 1"
+    int32_t typDelta;
+    int32_t dumpDelta;
+} tPageVariant;
+
+// notes §50
+typedef struct {
+    char     tab[PANEL_PAGE_LEN];
+    int32_t  dumpOffset;
+    char     names[PANEL_MAX_NAMES][PANEL_LABEL_LEN];
+    uint32_t nameCount;
+} tTabLabel;
 
 typedef struct {
     char     deviceName[PANEL_LABEL_LEN];
@@ -245,7 +274,26 @@ typedef struct {
     uint32_t      listCount;
     tColumnLabel  columnLabels[PANEL_MAX_COLUMN_LABELS];
     uint32_t      columnLabelCount;
+    // notes §47
+    tModeTab      modeTabs[PANEL_MAX_MODE_TABS];
+    uint32_t      modeTabCount;
+    tPageVariant  pageVariants[PANEL_MAX_PAGE_VARIANTS];
+    uint32_t      pageVariantCount;
+    tTabLabel     tabLabels[PANEL_MAX_TAB_LABELS];
+    uint32_t      tabLabelCount;
 } tPanelConfig;
+
+// True if `page` is `prefix` or a page below it in the path.
+bool panel_page_is_under(const char * page, const char * prefix);
+
+// The section holding `dial`, or NULL.
+tPanelSection * panel_section_of_dial(tPanelConfig * config, const tPanelDial * dial);
+
+// The top-level page tab ("modeTab" lines) for a device-reported mode, or NULL.
+const char * panel_mode_tab_name(const tPanelConfig * config, uint32_t mode);
+
+// The device mode whose "modeTab" names this top-level tab, or -1.
+int32_t panel_mode_for_tab(const tPanelConfig * config, const char * tab);
 
 // Parses the file at `path` into `config` (which is zeroed first). Malformed
 // lines are logged via LOG_ERROR and skipped rather than aborting the parse.

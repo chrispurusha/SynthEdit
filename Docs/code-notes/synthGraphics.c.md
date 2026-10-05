@@ -5,9 +5,11 @@ The longer comments from `synthGraphics.c`, moved here 2026-09-12 so the code re
 ## 1. `tPageTab`
 
 ── Page tabs ─────────────────────────────────────────────────────────────────
-One tab per distinct "page" value across gSynthPanelConfig's sections (today
-that's "synthesis"/"effects", but nothing here names either specifically —
-add a page to the file and a tab appears for it automatically).
+One tab per distinct "page" value across gSynthPanelConfig's sections - nothing
+here names any page specifically; add a page to the file and a tab appears for
+it automatically. Since 2026-10-05 a page may be a `|`-separated path, each level
+its own row of tabs (panelConfig.h notes §46); a tab is then identified by the
+path down to it (`prefix`), not by a whole page name.
 
 ## 2. `gPrevPatchRect`
 
@@ -709,3 +711,37 @@ above — that one's skipped for a binary button, which
 otherwise left the last colour draw_button() itself set
 (black, for the button's own text) in effect for this
 label too.
+
+## 53. `tLastPageUnder`
+
+Which page was last shown under each tab, so clicking "EXi 1" again returns to the page last open there
+rather than the first one. One entry per path prefix of every page shown; cleared on a configuration load.
+
+## 54. in `synth_action_page_tab()`
+
+A top-level tab with a `modeTab` line also switches the instrument's mode, as the Kronos's own mode
+buttons and Korg's editor do. See synthComms.c notes §89.
+
+## 55. mode tabs
+
+Every `modeTab` line is a top-row tab, in the order the lines are written, whether or not any page
+lives under it yet - the top row is the instrument's mode switches, and they all exist. A mode with no
+pages is a valid current page in itself: the panel shows "Nothing to edit here yet (Combi)", and the instrument
+still changes mode when the tab is clicked (or the tab follows it when its mode switch is pressed).
+Top-level names that only pages use come after the modeTab ones.
+
+## 56. `gPages`
+
+Every page a tab can open: each section's page, plus each pageVariant's copies of the pages under its
+base (panelConfig.h notes §48), built once per configuration load. Tabs, "does this page exist" and
+"first page under this tab" all walk this list, so a variant's pages behave exactly like written ones.
+resolve_page() maps a variant page back to the written page whose sections it shows; opening a page
+tells synthComms which variant is now active (synth_set_active_page_variant()).
+
+## 57. section visibility
+
+A section with `showIf` (panelConfig.h notes §49) may be hidden by the current dump, and a page whose
+sections are all hidden is not a tab in its own row - but it still makes the tabs above it, so the EXi 2
+tab stays when its slot holds an engine with no pages yet. That tab then opens to itself: an empty
+panel with "Nothing to edit here yet (EXi 2: MOD-7)". Only a real (listed) page that turns hidden - a program change
+swapped the engine under it - moves to the first page still showing under its parent tab.

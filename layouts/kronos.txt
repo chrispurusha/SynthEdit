@@ -57,6 +57,31 @@ gridRowHeight   60
 # first time. See supportsKorgProgramDump's own comment, panelConfig.h.
 supportsKorgProgramDump no
 
+# Page tabs come in three rows - mode, area, page - as on the Kronos itself:
+# a page is named "Mode | Area | Page". The top row follows the instrument's
+# mode (it reports Mode Change whenever a mode switch is pressed), and
+# clicking a top-row tab switches the instrument to that mode. These lines
+# tie the Kronos's mode numbers (KRONOS_MIDI_SysEx.txt *5) to top-row tabs,
+# named and ordered as its mode buttons; every one shows, pages or not.
+modeTab 9 Set List
+modeTab 0 Combi
+modeTab 2 Prog
+modeTab 4 Seq
+modeTab 6 Sampling
+modeTab 7 Global
+modeTab 8 Disk
+
+# EXi 2 shows EXi 1's pages with every dial retargeted to the second EXi
+# slot: TYP 12 instead of 11, dump block at 3960 instead of 2908 (+1052,
+# Prog_EXi_Common.txt). Each slot keeps its own values.
+pageVariant "Prog | EXi 2" "Prog | EXi 1" 1 1052
+
+# The EXi tab names the engine in its slot, from the slot's Algorithm Type
+# byte (Prog_EXi_Common.txt, EXi1 at 2857, EXi2 at 3909 via the variant's
+# +1052); each engine's pages carry "showIf 2857 <its number>", so a slot only
+# shows the pages of the engine actually loaded in it.
+tabLabel "Prog | EXi 1" 2857 Off,HD-1,AL-1,CX-3,STR-1,MS-20EX,PolysixEX,MOD-7,SGX-1,EP-1
+
 # ══ AL-1, EXi slot 1: every parameter (2026-10-05) ═══════════════════════════
 # GENERATED, not hand-written - regenerate rather than edit by hand. One dial
 # per row of the AL-1 table in Korg's Prog_EXi.txt (SysEx Documentation 2.1):
@@ -89,8 +114,9 @@ list sl767 "Dry-BP","Dry+LP-HP","Dry+LP-BP","Dry+BP-LP","Dry+BP-HP","Dry+HP-LP",
 list sl768 "Low Pass","High Pass","Band Pass","Band Reject","LP+BP","LP-BP","LP-HP","BP+HP","BP-HP","Dry+LP","Dry-LP","Dry+BP"
 list sl768 "Dry-BP","Dry+LP-HP","Dry+LP-BP","Dry+BP-LP","Dry+BP-HP","Dry+HP-LP","Dry+HP-BP","LP+BP+HP","All On","Manual 2"
 
-page       al1 lfo 1/2
+page       Prog | EXi 1 | LFO 1/2
 section    lfo10
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.30 0.60 0.85
@@ -116,8 +142,9 @@ dial al1_6_0_18_0         label="LFO1 MIDI Sync" color=g max=2 names="Off","On" 
 dial al1_6_0_19_0         label="LFO1 MIDI Sync B" color=g max=10 display=raw typ=11 soc=6 sub=0 pid=19 idx=0 dumpOffset=2924 dumpBitOffset=3 dumpBitWidth=4 col=1 row=6
 dial al1_6_0_20_0         label="LFO1 MIDI Sync T" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=6 sub=0 pid=20 idx=0 dumpOffset=2924 dumpBitOffset=7 dumpBitWidth=6 col=4 row=6
 
-page       al1 lfo 1/2
+page       Prog | EXi 1 | LFO 1/2
 section    lfo20
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.45 0.75 0.40
@@ -143,8 +170,9 @@ dial al1_7_0_18_0         label="LFO2 MIDI Sync" color=g max=2 names="Off","On" 
 dial al1_7_0_19_0         label="LFO2 MIDI Sync B" color=g max=10 display=raw typ=11 soc=7 sub=0 pid=19 idx=0 dumpOffset=2941 dumpBitOffset=3 dumpBitWidth=4 col=7 row=6
 dial al1_7_0_20_0         label="LFO2 MIDI Sync T" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=7 sub=0 pid=20 idx=0 dumpOffset=2941 dumpBitOffset=7 dumpBitWidth=6 col=10 row=6
 
-page       al1 lfo 3/4
+page       Prog | EXi 1 | LFO 3/4
 section    lfo30
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.85 0.70 0.30
@@ -170,8 +198,9 @@ dial al1_8_0_18_0         label="LFO3 MIDI Sync" color=g max=2 names="Off","On" 
 dial al1_8_0_19_0         label="LFO3 MIDI Sync B" color=g max=10 display=raw typ=11 soc=8 sub=0 pid=19 idx=0 dumpOffset=2958 dumpBitOffset=3 dumpBitWidth=4 col=1 row=6
 dial al1_8_0_20_0         label="LFO3 MIDI Sync T" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=8 sub=0 pid=20 idx=0 dumpOffset=2958 dumpBitOffset=7 dumpBitWidth=6 col=4 row=6
 
-page       al1 lfo 3/4
+page       Prog | EXi 1 | LFO 3/4
 section    lfo40
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.70 0.45 0.85
@@ -197,8 +226,9 @@ dial al1_9_0_18_0         label="LFO4 MIDI Sync" color=g max=2 names="Off","On" 
 dial al1_9_0_19_0         label="LFO4 MIDI Sync B" color=g max=10 display=raw typ=11 soc=9 sub=0 pid=19 idx=0 dumpOffset=2975 dumpBitOffset=3 dumpBitWidth=4 col=7 row=6
 dial al1_9_0_20_0         label="LFO4 MIDI Sync T" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=9 sub=0 pid=20 idx=0 dumpOffset=2975 dumpBitOffset=7 dumpBitWidth=6 col=10 row=6
 
-page       al1 eg 1/2
+page       Prog | EXi 1 | EG 1/2
 section    eg1filter0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.85 0.50 0.65
@@ -235,16 +265,18 @@ dial al1_11_0_11_0        label="EG1 Time M3 Src" color=g max=53 names=@sl752 ty
 dial al1_11_0_12_0        label="EG1 Tm M3 I>Atk " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=12 idx=0 dumpOffset=3042 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=4 row=3
 dial al1_11_0_12_1        label="EG1 Tm M3 I>Dcy " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=12 idx=1 dumpOffset=3043 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=7 row=3
 
-page       al1 eg 1/2
+page       Prog | EXi 1 | EG 1/2
 section    eg1filter1
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.85 0.50 0.65
 dial al1_11_0_12_2        label="EG1 Tm M3 I>Slop" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=12 idx=2 dumpOffset=3044 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=9 row=3
 dial al1_11_0_12_3        label="EG1 Tm M3 I>Rel " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=11 sub=0 pid=12 idx=3 dumpOffset=3045 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=10 row=3
 
-page       al1 eg 1/2
+page       Prog | EXi 1 | EG 1/2
 section    eg2pitch0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.60 0.60 0.60
@@ -281,16 +313,18 @@ dial al1_12_0_11_0        label="EG2 Time M3 Src" color=g max=53 names=@sl752 ty
 dial al1_12_0_12_0        label="EG2 Tm M3 I>Atk " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=12 idx=0 dumpOffset=3078 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=4 row=7
 dial al1_12_0_12_1        label="EG2 Tm M3 I>Dcy " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=12 idx=1 dumpOffset=3079 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=7 row=7
 
-page       al1 eg 1/2
+page       Prog | EXi 1 | EG 1/2
 section    eg2pitch1
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.60 0.60 0.60
 dial al1_12_0_12_2        label="EG2 Tm M3 I>Slop" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=12 idx=2 dumpOffset=3080 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=9 row=7
 dial al1_12_0_12_3        label="EG2 Tm M3 I>Rel " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=12 sub=0 pid=12 idx=3 dumpOffset=3081 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=10 row=7
 
-page       al1 eg 3/4
+page       Prog | EXi 1 | EG 3/4
 section    eg30
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.85 0.40 0.30
@@ -327,16 +361,18 @@ dial al1_13_0_11_0        label="EG3 Time M3 Src" color=g max=53 names=@sl752 ty
 dial al1_13_0_12_0        label="EG3 Tm M3 I>Atk " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=12 idx=0 dumpOffset=3114 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=4 row=3
 dial al1_13_0_12_1        label="EG3 Tm M3 I>Dcy " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=12 idx=1 dumpOffset=3115 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=7 row=3
 
-page       al1 eg 3/4
+page       Prog | EXi 1 | EG 3/4
 section    eg31
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.85 0.40 0.30
 dial al1_13_0_12_2        label="EG3 Tm M3 I>Slop" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=12 idx=2 dumpOffset=3116 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=9 row=3
 dial al1_13_0_12_3        label="EG3 Tm M3 I>Rel " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=13 sub=0 pid=12 idx=3 dumpOffset=3117 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=10 row=3
 
-page       al1 eg 3/4
+page       Prog | EXi 1 | EG 3/4
 section    eg40
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.30 0.60 0.85
@@ -373,16 +409,18 @@ dial al1_14_0_11_0        label="EG4 Time M3 Src" color=g max=53 names=@sl752 ty
 dial al1_14_0_12_0        label="EG4 Tm M3 I>Atk " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=12 idx=0 dumpOffset=3150 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=4 row=7
 dial al1_14_0_12_1        label="EG4 Tm M3 I>Dcy " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=12 idx=1 dumpOffset=3151 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=7 row=7
 
-page       al1 eg 3/4
+page       Prog | EXi 1 | EG 3/4
 section    eg41
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.30 0.60 0.85
 dial al1_14_0_12_2        label="EG4 Tm M3 I>Slop" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=12 idx=2 dumpOffset=3152 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=9 row=7
 dial al1_14_0_12_3        label="EG4 Tm M3 I>Rel " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=14 sub=0 pid=12 idx=3 dumpOffset=3153 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=10 row=7
 
-page       al1 amp
+page       Prog | EXi 1 | AMP
 section    amplifiereg0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.35 0.75 0.75
@@ -419,15 +457,17 @@ dial al1_10_0_12_0        label="AmpEG Tm M3 I>At" color=g max=199 offset=-99 di
 dial al1_10_0_12_1        label="AmpEG Tm M3 I>Dc" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=10 sub=0 pid=12 idx=1 dumpOffset=3007 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=5 row=3
 dial al1_10_0_12_2        label="AmpEG Tm M3 I>Sl" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=10 sub=0 pid=12 idx=2 dumpOffset=3008 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=6 row=3
 
-page       al1 amp
+page       Prog | EXi 1 | AMP
 section    amplifiereg1
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.35 0.75 0.75
 dial al1_10_0_12_3        label="AmpEG Tm M3 I>Re" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=10 sub=0 pid=12 idx=3 dumpOffset=3009 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=8 row=3
 
-page       al1 amp
+page       Prog | EXi 1 | AMP
 section    drive0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.60 0.60 0.60
@@ -439,8 +479,9 @@ dial al1_21_0_4_0         label="Drv Boost" color=g max=100 display=raw typ=11 s
 dial al1_21_0_5_0         label="Drv Boost M Src" color=g max=53 names=@sl752 typ=11 soc=21 sub=0 pid=5 idx=0 dumpOffset=3416 dumpBitOffset=7 dumpBitWidth=8 col=7 row=5
 dial al1_21_0_6_0         label="Drv Boost M Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=21 sub=0 pid=6 idx=0 dumpOffset=3417 dumpBitOffset=7 dumpBitWidth=8 dumpSigned=1 col=10 row=5
 
-page       al1 amp
+page       Prog | EXi 1 | AMP
 section    amplifier0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.85 0.40 0.30
@@ -455,8 +496,9 @@ dial al1_22_0_3_1         label="Amp Mod 2 Int" color=g max=199 offset=-99 displ
 dial al1_22_0_4_1         label="Amp M2 IM Src" color=g max=53 names=@sl752 typ=11 soc=22 sub=0 pid=4 idx=1 dumpOffset=3425 dumpBitOffset=7 dumpBitWidth=8 col=6 row=6
 dial al1_22_0_5_1         label="Amp M2 IM Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=22 sub=0 pid=5 idx=1 dumpOffset=3427 dumpBitOffset=7 dumpBitWidth=8 dumpSigned=1 col=9 row=6
 
-page       al1 amp
+page       Prog | EXi 1 | AMP
 section    amplifierkeyboardtra0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.30 0.60 0.85
@@ -468,8 +510,9 @@ dial al1_22_1_4_0         label="AmpKT Ctr Low Ra" color=g max=201 offset=-100 d
 dial al1_22_1_5_0         label="AmpKT Ctr High R" color=g max=201 offset=-100 display=signed displayOffset=100 typ=11 soc=22 sub=1 pid=5 idx=0 dumpOffset=3433 dumpBitOffset=5 dumpBitWidth=8 dumpSigned=1 col=5 row=5
 dial al1_22_1_6_0         label="AmpKT High Ramp" color=g max=201 offset=-100 display=signed displayOffset=100 typ=11 soc=22 sub=1 pid=6 idx=0 dumpOffset=3434 dumpBitOffset=5 dumpBitWidth=8 dumpSigned=1 col=9 row=5
 
-page       al1 seq
+page       Prog | EXi 1 | Step Seq
 section    stepsequence0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.45 0.75 0.40
@@ -506,8 +549,9 @@ dial al1_15_0_10_6        label="Step Value7" color=g max=204 offset=-100 displa
 dial al1_15_0_11_6        label="Step Duration7" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=6 dumpOffset=3199 dumpBitOffset=4 dumpBitWidth=4 col=6 row=2
 dial al1_15_0_12_6        label="Step Times7" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=6 dumpOffset=3217 dumpBitOffset=0 dumpBitWidth=6 col=6 row=3
 
-page       al1 seq
+page       Prog | EXi 1 | Step Seq
 section    stepsequence1
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.45 0.75 0.40
@@ -544,8 +588,9 @@ dial al1_15_0_12_16       label="Step Times17" color=g max=32 offset=1 display=s
 dial al1_15_0_10_17       label="Step Value18" color=g max=204 offset=-100 display=signed displayOffset=100 typ=11 soc=15 sub=0 pid=10 idx=17 dumpOffset=3181 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=6 row=4
 dial al1_15_0_11_17       label="Step Duration18" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=17 dumpOffset=3205 dumpBitOffset=0 dumpBitWidth=4 col=6 row=5
 
-page       al1 seq
+page       Prog | EXi 1 | Step Seq
 section    stepsequence2
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.45 0.75 0.40
@@ -563,8 +608,9 @@ dial al1_15_0_10_21       label="Step Value22" color=g max=204 offset=-100 displ
 dial al1_15_0_11_21       label="Step Duration22" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=21 dumpOffset=3207 dumpBitOffset=0 dumpBitWidth=4 col=10 row=5
 dial al1_15_0_12_21       label="Step Times22" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=21 dumpOffset=3228 dumpBitOffset=2 dumpBitWidth=6 col=10 row=6
 
-page       al1 seq 2
+page       Prog | EXi 1 | Step Seq 2
 section    stepsequence0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.45 0.75 0.40
@@ -599,8 +645,9 @@ dial al1_15_0_10_31       label="Step Value32" color=g max=204 offset=-100 displ
 dial al1_15_0_11_31       label="Step Duration32" color=g max=10 display=raw typ=11 soc=15 sub=0 pid=11 idx=31 dumpOffset=3212 dumpBitOffset=0 dumpBitWidth=4 col=9 row=1
 dial al1_15_0_12_31       label="Step Times32" color=g max=32 offset=1 display=signed displayOffset=-1 typ=11 soc=15 sub=0 pid=12 idx=31 dumpOffset=3235 dumpBitOffset=6 dumpBitWidth=6 col=9 row=2
 
-page       al1 osc
+page       Prog | EXi 1 | OSC Basic
 section    osc10
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.85 0.50 0.65
@@ -614,8 +661,9 @@ dial al1_19_0_5_0         label="OSC1 Pulse Width" color=g max=53 names=@sl752 t
 dial al1_19_0_6_0         label="OSC1 Pulse Width" color=g max=201 offset=-100 display=signed displayOffset=100 typ=11 soc=19 sub=0 pid=6 idx=0 dumpOffset=3285 dumpBitOffset=1 dumpBitWidth=8 dumpSigned=1 col=4 row=2
 dial al1_19_0_8_0         label="OSC1 Freq Ofs" color=g max=201 offset=-100 display=signed displayOffset=100 typ=11 soc=19 sub=0 pid=8 idx=0 dumpOffset=3287 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=4 row=3
 
-page       al1 osc
+page       Prog | EXi 1 | OSC Basic
 section    osc20
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.60 0.60 0.60
@@ -633,8 +681,9 @@ dial al1_19_0_19_0        label="OSC2 FM Amount M" color=g max=53 names=@sl752 t
 dial al1_19_0_20_0        label="OSC2 FM Amount M" color=g max=201 offset=-100 display=signed displayOffset=100 typ=11 soc=19 sub=0 pid=20 idx=0 dumpOffset=3298 dumpBitOffset=3 dumpBitWidth=8 dumpSigned=1 col=6 row=3
 dial al1_19_0_21_0        label="OSC2 Sync" color=g max=2 names="Off","On" typ=11 soc=19 sub=0 pid=21 idx=0 dumpOffset=3299 dumpBitOffset=3 dumpBitWidth=1 col=0 row=3
 
-page       al1 osc
+page       Prog | EXi 1 | OSC Basic
 section    osc1pitch0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.70 0.45 0.85
@@ -642,8 +691,9 @@ dial al1_17_0_1_0         label="P1 Octave" color=g max=5 offset=-2 display=sign
 dial al1_17_0_2_0         label="P1 Tune" color=g max=2401 offset=-1200 display=signed displayOffset=1200 typ=11 soc=17 sub=0 pid=2 idx=0 dumpOffset=3251 dumpBitOffset=0 dumpBitWidth=12 dumpSigned=1 col=5 row=2
 dial al1_17_0_0_0         label="P1 Transpose" color=g max=25 offset=-12 display=signed displayOffset=12 typ=11 soc=17 sub=0 pid=0 idx=0 dumpOffset=3250 dumpBitOffset=0 dumpBitWidth=5 dumpSigned=1 col=1 row=3
 
-page       al1 osc
+page       Prog | EXi 1 | OSC Basic
 section    osc2pitch0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.35 0.75 0.75
@@ -651,23 +701,26 @@ dial al1_18_0_1_0         label="P2 Octave" color=g max=5 offset=-2 display=sign
 dial al1_18_0_2_0         label="P2 Tune" color=g max=2401 offset=-1200 display=signed displayOffset=1200 typ=11 soc=18 sub=0 pid=2 idx=0 dumpOffset=3266 dumpBitOffset=0 dumpBitWidth=12 dumpSigned=1 col=10 row=2
 dial al1_18_0_0_0         label="P2 Transpose" color=g max=25 offset=-12 display=signed displayOffset=12 typ=11 soc=18 sub=0 pid=0 idx=0 dumpOffset=3265 dumpBitOffset=0 dumpBitWidth=5 dumpSigned=1 col=7 row=3
 
-page       al1 osc
+page       Prog | EXi 1 | OSC Basic
 section    osc0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.85 0.40 0.30
 dial al1_19_0_65_0        label="Osc Edge" color=g max=201 offset=-100 display=signed displayOffset=100 typ=11 soc=19 sub=0 pid=65 idx=0 dumpOffset=3331 dumpBitOffset=6 dumpBitWidth=8 dumpSigned=1 col=2 row=3
 dial al1_127_0_0_0        label="Osc Delay Start" color=g max=98 display=raw typ=11 soc=127 sub=0 pid=0 idx=0 dumpOffset=2908 dumpBitOffset=0 dumpBitWidth=7 col=0 row=4
 
-page       al1 osc
+page       Prog | EXi 1 | OSC Basic
 section    subosc0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.85 0.40 0.30
 dial al1_19_0_22_0        label="Sub Wave" color=g max=2 names="Square","Triangle" asMenu=1 typ=11 soc=19 sub=0 pid=22 idx=0 dumpOffset=3299 dumpBitOffset=4 dumpBitWidth=1 col=8 row=3
 
-page       al1 osc
+page       Prog | EXi 1 | OSC Basic
 section    ringmodulator0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.30 0.60 0.85
@@ -675,16 +728,18 @@ dial al1_19_0_23_0        label="Ring Mode" color=g max=4 names="Ring Mod","A<",
 dial al1_19_0_24_0        label="Ring Modulator" color=g max=2 names="OSC1","Noise" asMenu=1 typ=11 soc=19 sub=0 pid=24 idx=0 dumpOffset=3299 dumpBitOffset=7 dumpBitWidth=1 col=4 row=4
 dial al1_19_0_25_0        label="Ring Carrier" color=g max=2 names="OSC2","Ext. Input" asMenu=1 typ=11 soc=19 sub=0 pid=25 idx=0 dumpOffset=3300 dumpBitOffset=0 dumpBitWidth=1 col=5 row=4
 
-page       al1 osc
+page       Prog | EXi 1 | OSC Basic
 section    noisegenerator0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.45 0.75 0.40
 dial al1_19_0_26_0        label="Noise Saturation" color=g max=100 display=raw typ=11 soc=19 sub=0 pid=26 idx=0 dumpOffset=3300 dumpBitOffset=1 dumpBitWidth=7 col=6 row=4
 dial al1_19_0_27_0        label="Noise Cutoff" color=g max=100 display=raw typ=11 soc=19 sub=0 pid=27 idx=0 dumpOffset=3301 dumpBitOffset=0 dumpBitWidth=7 col=7 row=4
 
-page       al1 mixer
+page       Prog | EXi 1 | Osc Mixer
 section    osc10
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.85 0.50 0.65
@@ -696,8 +751,9 @@ dial al1_19_0_30_0        label="OSC1 Lvl M Int" color=g max=199 offset=-99 disp
 dial al1_19_0_34_0        label="OSC1 Bal M Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=19 sub=0 pid=34 idx=0 dumpOffset=3306 dumpBitOffset=6 dumpBitWidth=8 dumpSigned=1 col=8 row=0
 dial al1_19_0_31_0        label="OSC1 Ph Invert" color=g max=2 names="Off","On" typ=11 soc=19 sub=0 pid=31 idx=0 dumpOffset=3304 dumpBitOffset=6 dumpBitWidth=1 col=10 row=0
 
-page       al1 mixer
+page       Prog | EXi 1 | Osc Mixer
 section    osc20
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.60 0.60 0.60
@@ -709,8 +765,9 @@ dial al1_19_0_37_0        label="OSC2 Lvl M Int" color=g max=199 offset=-99 disp
 dial al1_19_0_41_0        label="OSC2 Bal M Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=19 sub=0 pid=41 idx=0 dumpOffset=3312 dumpBitOffset=5 dumpBitWidth=8 dumpSigned=1 col=7 row=1
 dial al1_19_0_38_0        label="OSC2 Ph Invert" color=g max=2 names="Off","On" typ=11 soc=19 sub=0 pid=38 idx=0 dumpOffset=3310 dumpBitOffset=5 dumpBitWidth=1 col=10 row=1
 
-page       al1 mixer
+page       Prog | EXi 1 | Osc Mixer
 section    subosc0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.85 0.40 0.30
@@ -722,16 +779,18 @@ dial al1_19_0_44_0        label="Sub Lvl Mod Int" color=g max=199 offset=-99 dis
 dial al1_19_0_48_0        label="Sub Bal Mod Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=19 sub=0 pid=48 idx=0 dumpOffset=3318 dumpBitOffset=4 dumpBitWidth=8 dumpSigned=1 col=7 row=2
 dial al1_19_0_45_0        label="Sub Ph Invert" color=g max=2 names="Off","On" typ=11 soc=19 sub=0 pid=45 idx=0 dumpOffset=3316 dumpBitOffset=4 dumpBitWidth=1 col=10 row=2
 
-page       al1 mixer
+page       Prog | EXi 1 | Osc Mixer
 section    osc0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.85 0.40 0.30
 dial al1_19_0_63_0        label="Osc Sub OSC/AudI" color=g max=2 names="SubOSC","External Audio Input" asMenu=1 typ=11 soc=19 sub=0 pid=63 idx=0 dumpOffset=3331 dumpBitOffset=2 dumpBitWidth=1 col=3 row=2
 dial al1_19_0_64_0        label="Osc Ext Input Se" color=g max=6 names="Audio Input 1","Audio Input 2","Audio Input 3","Audio Input 4","S/P DIF L","S/P DIF R" typ=11 soc=19 sub=0 pid=64 idx=0 dumpOffset=3331 dumpBitOffset=3 dumpBitWidth=3 col=8 row=2
 
-page       al1 mixer
+page       Prog | EXi 1 | Osc Mixer
 section    ringmodulator0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.30 0.60 0.85
@@ -743,8 +802,9 @@ dial al1_19_0_51_0        label="Ring Lvl M Int" color=g max=199 offset=-99 disp
 dial al1_19_0_55_0        label="Ring Bal M Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=19 sub=0 pid=55 idx=0 dumpOffset=3324 dumpBitOffset=3 dumpBitWidth=8 dumpSigned=1 col=7 row=3
 dial al1_19_0_52_0        label="Ring Ph Invert" color=g max=2 names="Off","On" typ=11 soc=19 sub=0 pid=52 idx=0 dumpOffset=3322 dumpBitOffset=3 dumpBitWidth=1 col=10 row=3
 
-page       al1 mixer
+page       Prog | EXi 1 | Osc Mixer
 section    noisegenerator0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.45 0.75 0.40
@@ -756,8 +816,9 @@ dial al1_19_0_58_0        label="Noise Lvl M Int" color=g max=199 offset=-99 dis
 dial al1_19_0_62_0        label="Noise Bal M Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=19 sub=0 pid=62 idx=0 dumpOffset=3330 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=7 row=4
 dial al1_19_0_59_0        label="Noise Ph Invert" color=g max=2 names="Off","On" typ=11 soc=19 sub=0 pid=59 idx=0 dumpOffset=3328 dumpBitOffset=2 dumpBitWidth=1 col=10 row=4
 
-page       al1 pitch
+page       Prog | EXi 1 | Pitch
 section    commonpitch0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.85 0.70 0.30
@@ -777,8 +838,9 @@ dial al1_16_0_12_0        label="Pitch LFO JS(+Y)" color=g max=303 offset=-151 d
 dial al1_16_0_14_0        label="Pitch LFO IM I" color=g max=303 offset=-151 display=signed displayOffset=151 typ=11 soc=16 sub=0 pid=14 idx=0 dumpOffset=3248 dumpBitOffset=5 dumpBitWidth=9 dumpSigned=1 col=9 row=1
 dial al1_16_0_9_0         label="Pitch Porta M I" color=g max=255 offset=-127 display=signed displayOffset=127 typ=11 soc=16 sub=0 pid=9 idx=0 dumpOffset=3244 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=4 row=1
 
-page       al1 pitch
+page       Prog | EXi 1 | Pitch
 section    osc1pitch0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.70 0.45 0.85
@@ -795,8 +857,9 @@ dial al1_17_0_8_1         label="P1 Mod 2 Int" color=g max=303 offset=-151 displ
 dial al1_17_0_9_1         label="P1 M2 IM Src" color=g max=53 names=@sl752 typ=11 soc=17 sub=0 pid=9 idx=1 dumpOffset=3261 dumpBitOffset=3 dumpBitWidth=8 col=8 row=3
 dial al1_17_0_10_1        label="P1 M2 IM Int" color=g max=303 offset=-151 display=signed displayOffset=151 typ=11 soc=17 sub=0 pid=10 idx=1 dumpOffset=3263 dumpBitOffset=4 dumpBitWidth=9 dumpSigned=1 col=10 row=4
 
-page       al1 pitch
+page       Prog | EXi 1 | Pitch
 section    osc2pitch0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.35 0.75 0.75
@@ -813,15 +876,17 @@ dial al1_18_0_8_1         label="P2 Mod 2 Int" color=g max=303 offset=-151 displ
 dial al1_18_0_9_1         label="P2 M2 IM Src" color=g max=53 names=@sl752 typ=11 soc=18 sub=0 pid=9 idx=1 dumpOffset=3276 dumpBitOffset=3 dumpBitWidth=8 col=8 row=5
 dial al1_18_0_10_1        label="P2 M2 IM Int" color=g max=303 offset=-151 display=signed displayOffset=151 typ=11 soc=18 sub=0 pid=10 idx=1 dumpOffset=3278 dumpBitOffset=4 dumpBitWidth=9 dumpSigned=1 col=10 row=6
 
-page       al1 filter
+page       Prog | EXi 1 | Filter + LFO
 section    filter0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.85 0.70 0.30
 dial al1_20_0_0_0         label="Flt Routing" color=g max=4 names="Single","Serial","Parallel","24dB(4-Pole)" typ=11 soc=20 sub=0 pid=0 idx=0 dumpOffset=3333 dumpBitOffset=0 dumpBitWidth=2 col=0 row=0
 
-page       al1 filter
+page       Prog | EXi 1 | Filter + LFO
 section    filtera0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.70 0.45 0.85
@@ -857,8 +922,9 @@ dial al1_20_0_44_0        label="FltA Mode2 BP" color=g max=199 offset=-99 displ
 dial al1_20_0_41_0        label="FltA Mode1 Dry" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=41 idx=0 dumpOffset=3368 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=1 row=6
 dial al1_20_0_45_0        label="FltA Mode2 Dry" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=45 idx=0 dumpOffset=3372 dumpBitOffset=2 dumpBitWidth=8 dumpSigned=1 col=4 row=6
 
-page       al1 filter
+page       Prog | EXi 1 | Filter + LFO
 section    filterb0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.35 0.75 0.75
@@ -880,8 +946,9 @@ dial al1_20_0_82_0        label="FltB Panpot" color=g max=128 display=raw typ=11
 dial al1_20_0_83_0        label="FltB Panpot M S" color=g max=53 names=@sl752 typ=11 soc=20 sub=0 pid=83 idx=0 dumpOffset=3404 dumpBitOffset=0 dumpBitWidth=8 col=7 row=4
 dial al1_20_0_84_0        label="FltB Panpot Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=84 idx=0 dumpOffset=3405 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=10 row=4
 
-page       al1 filter mod
+page       Prog | EXi 1 | Filter Mod
 section    filtera0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.70 0.45 0.85
@@ -903,8 +970,9 @@ dial al1_20_0_29_0        label="FltA LFO IM Src" color=g max=53 names=@sl752 ty
 dial al1_20_0_28_0        label="FltA LFO JS(-Y) " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=28 idx=0 dumpOffset=3356 dumpBitOffset=1 dumpBitWidth=8 dumpSigned=1 col=2 row=4
 dial al1_20_0_30_0        label="FltA LFO IM Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=30 idx=0 dumpOffset=3358 dumpBitOffset=1 dumpBitWidth=8 dumpSigned=1 col=4 row=4
 
-page       al1 filter mod
+page       Prog | EXi 1 | Filter Mod
 section    filterb0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.35 0.75 0.75
@@ -926,8 +994,9 @@ dial al1_20_0_74_0        label="FltB LFO IM Src" color=g max=53 names=@sl752 ty
 dial al1_20_0_73_0        label="FltB LFO JS(-Y) " color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=73 idx=0 dumpOffset=3396 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=8 row=4
 dial al1_20_0_75_0        label="FltB LFO IM Int" color=g max=199 offset=-99 display=signed displayOffset=99 typ=11 soc=20 sub=0 pid=75 idx=0 dumpOffset=3398 dumpBitOffset=0 dumpBitWidth=8 dumpSigned=1 col=10 row=4
 
-page       al1 filter mod
+page       Prog | EXi 1 | Filter Mod
 section    filterkeyboardtrack0
+showIf     2857 2
 dialSize   30
 spacing    60
 color g 0.85 0.50 0.65
@@ -1021,14 +1090,9 @@ dial al1_20_1_6_0         label="FltKT High Ramp" color=g max=201 offset=-100 di
 # from the doc's relative-offset arithmetic alone, given the doc's own
 # "edit buffer" description turned out to need the empirical double-check
 # above once already.
-page       al1 exi2
-section    al1
-dialSize   50
-spacing    60
-
-color al1 0.85 0.4 0.3
-
-# The EXi1 pair moved into the generated pages below (al1_20_0_4_0 and
-# al1_20_0_49_0 carry the same addresses and dump bits); only EXi2 stays here.
-dial al1FilterCutoff2  label="AL-1 Filter A Cutoff (EXi2)" color=al1 max=100 typ=12 soc=20 sub=0 pid=4  idx=0 dumpOffset=4386 dumpBitOffset=5 dumpBitWidth=7
-dial al1FilterBCutoff2 label="AL-1 Filter B Cutoff (EXi2)" color=al1 max=100 typ=12 soc=20 sub=0 pid=49 idx=0 dumpOffset=4426 dumpBitOffset=4 dumpBitWidth=7
+#
+# Since 2026-10-05 these filter dials are part of the generated AL-1 pages
+# above: al1_20_0_4_0 / al1_20_0_49_0 carry the EXi1 addresses and dump bits
+# confirmed here, and the EXi 2 tab (pageVariant, near the top of this file)
+# reaches the EXi2 ones confirmed here - TYP 12, dump offset +1052, i.e.
+# 3334 -> 4386 and 3374 -> 4426, exactly the values tested on the hardware.

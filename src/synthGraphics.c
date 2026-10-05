@@ -49,9 +49,9 @@ extern "C" {
 #define SYNTH_LAYOUTS_DIR_DEFAULT    "layouts"    // relative to cwd, used until a folder is chosen/persisted
 #define SYNTH_MAX_PAGE_TABS          PANEL_MAX_SECTIONS
 
-static char         gLayoutsDir[1024]              = SYNTH_LAYOUTS_DIR_DEFAULT;
+static char           gLayoutsDir[1024]                   = SYNTH_LAYOUTS_DIR_DEFAULT;
 
-static tPanelConfig gSynthPanelConfig              = {0};
+static tPanelConfig   gSynthPanelConfig                   = {0};
 
 tPanelConfig * synth_panel_config(void) {
     return &gSynthPanelConfig;
@@ -59,34 +59,257 @@ tPanelConfig * synth_panel_config(void) {
 
 // notes §1
 typedef struct {
-    char       page[PANEL_ID_LEN];
+    char       prefix[PANEL_PAGE_LEN]; // the page path down to this tab, e.g. "Program|EXi 1"
+    uint32_t   level;                  // 0 = top row
     tRectangle rect;
 } tPageTab;
 
-static tPageTab     gPageTabs[SYNTH_MAX_PAGE_TABS] = {0};
-static uint32_t     gPageTabCount                  = 0;
-static char         gCurrentPage[PANEL_ID_LEN]     = {0};
-static int32_t      gPressedTabIndex               = -1; // cosmetic only — see synth_set_pressed_page_tab()
+// notes §53
+typedef struct {
+    char prefix[PANEL_PAGE_LEN];
+    char page[PANEL_PAGE_LEN];
+} tLastPageUnder;
+
+static tPageTab       gPageTabs[SYNTH_MAX_PAGE_TABS]      = {0};
+static uint32_t       gPageTabCount                       = 0;
+static char           gCurrentPage[PANEL_PAGE_LEN]        = {0};
+static tLastPageUnder gLastPageUnder[SYNTH_MAX_PAGE_TABS] = {0};
+static uint32_t       gLastPageUnderCount                 = 0;
+static int32_t        gPressedTabIndex                    = -1; // cosmetic only — see synth_set_pressed_page_tab()
 
 const char * synth_current_page(void) {
     return gCurrentPage;
+}
+
+// The first `level` + 1 names of `page`'s path; false if it has fewer.
+static bool page_path_prefix(const char * page, uint32_t level, char * out, size_t outSize) {
+    const char * end = page;
+
+    for (uint32_t l = 0; ; l++) {
+        while ((*end != '\0') && (*end != PANEL_PAGE_SEPARATOR)) {
+            end++;
+        }
+
+        if (l == level) {
+            break;
+        }
+
+        if (*end == '\0') {
+            return false;
+        }
+        end++;
+    }
+
+    size_t       len = (size_t)(end - page);
+
+    if (len >= outSize) {
+        len = outSize - 1;
+    }
+    memcpy(out, page, len);
+    out[len] = '\0';
+    return true;
+}
+
+
+// notes §56
+#define SYNTH_MAX_PAGES    (PANEL_MAX_SECTIONS * 2)
+static char     gPages[SYNTH_MAX_PAGES][PANEL_PAGE_LEN];
+static uint32_t gPageCount = 0;
+
+static void add_page(const char * page) {
+    for (uint32_t i = 0; i < gPageCount; i++) {
+        if (strcmp(gPages[i], page) == 0) {
+            return;
+        }
+    }
+
+    if (gPageCount < SYNTH_MAX_PAGES) {
+        strncpy(gPages[gPageCount], page, PANEL_PAGE_LEN - 1);
+        gPages[gPageCount][PANEL_PAGE_LEN - 1] = '\0';
+        gPageCount++;
+    }
+}
+
+static void build_page_list(void) {
+    gPageCount = 0;
+
+    for (uint32_t i = 0; i < gSynthPanelConfig.sectionCount; i++) {
+        const char * page = gSynthPanelConfig.sections[i].page;
+
+        add_page(page);
+
+        for (uint32_t v = 0; v < gSynthPanelConfig.pageVariantCount; v++) {
+            const tPageVariant * variant = &gSynthPanelConfig.pageVariants[v];
+
+            if (panel_page_is_under(page, variant->base)) {
+                char mapped[PANEL_PAGE_LEN];
+
+                snprintf(mapped, sizeof(mapped), "%s%s", variant->variant, page + strlen(variant->base));
+                add_page(mapped);
+            }
+        }
+    }
+}
+
+// The page whose sections `page` shows (itself, or its base for a variant page); returns the variant, or -1.
+static int32_t resolve_page(const char * page, char * out, size_t outSize) {
+    for (uint32_t v = 0; v < gSynthPanelConfig.pageVariantCount; v++) {
+        const tPageVariant * variant = &gSynthPanelConfig.pageVariants[v];
+
+        if (panel_page_is_under(page, variant->variant)) {
+            snprintf(out, outSize, "%s%s", variant->base, page + strlen(variant->variant));
+            return (int32_t)v;
+        }
+    }
+
+    snprintf(out, outSize, "%s", page);
+    return -1;
+}
+
+// notes §57
+static int32_t variant_dump_delta(const tPanelSection * section, int32_t variant) {
+    if ((variant < 0) || !panel_page_is_under(section->page, gSynthPanelConfig.pageVariants[variant].base)) {
+        return 0;
+    }
+    return gSynthPanelConfig.pageVariants[variant].dumpDelta;
+}
+
+static bool section_shown(const tPanelSection * section, int32_t variant) {
+    if (section->showIfOffset < 0) {
+        return true;
+    }
+    int32_t value = synth_dump_byte(section->showIfOffset + variant_dump_delta(section, variant));
+
+    return (value < 0) || ((uint32_t)value == section->showIfValue);
+}
+
+// A page with at least one section showing.
+static bool page_shown(const char * page) {
+    char    base[PANEL_PAGE_LEN];
+    int32_t variant = resolve_page(page, base, sizeof(base));
+
+    for (uint32_t i = 0; i < gSynthPanelConfig.sectionCount; i++) {
+        const tPanelSection * section = &gSynthPanelConfig.sections[i];
+
+        if (!section->hidden && (strcmp(section->page, base) == 0) && section_shown(section, variant)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// A tab's text: its own name, plus the value its tabLabel line reads from the dump ("EXi 1: AL-1").
+static void tab_label(const char * prefix, char * out, size_t outSize) {
+    const char * name    = strrchr(prefix, PANEL_PAGE_SEPARATOR);
+    char         base[PANEL_PAGE_LEN];
+    int32_t      variant = resolve_page(prefix, base, sizeof(base));
+
+    snprintf(out, outSize, "%s", name ? name + 1 : prefix);
+
+    for (uint32_t i = 0; i < gSynthPanelConfig.tabLabelCount; i++) {
+        const tTabLabel * label = &gSynthPanelConfig.tabLabels[i];
+
+        if (strcmp(label->tab, base) == 0) {
+            int32_t delta = (variant >= 0) ? gSynthPanelConfig.pageVariants[variant].dumpDelta : 0;
+            int32_t value = synth_dump_byte(label->dumpOffset + delta);
+
+            if ((value >= 0) && ((uint32_t)value < label->nameCount)) {
+                size_t len = strlen(out);
+
+                snprintf(out + len, outSize - len, ": %s", label->names[value]);
+            }
+        }
+    }
+}
+
+static bool page_is_listed(const char * page) {
+    for (uint32_t i = 0; i < gPageCount; i++) {
+        if (strcmp(gPages[i], page) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static bool page_exists(const char * page) {
+    for (uint32_t i = 0; i < gPageCount; i++) {
+        if (strcmp(gPages[i], page) == 0) {
+            return true;
+        }
+    }
+
+    for (uint32_t i = 0; i < gPageCount; i++) {
+        if (panel_page_is_under(gPages[i], page)) {
+            return true; // a tab whose pages are all hidden (notes §57)
+        }
+    }
+
+    return panel_mode_for_tab(&gSynthPanelConfig, page) >= 0; // notes §55
+}
+
+// The page a click on the tab for `prefix` opens: the one last shown under it, else the first under it.
+static const char * page_for_prefix(const char * prefix) {
+    for (uint32_t i = 0; i < gLastPageUnderCount; i++) {
+        if ((strcmp(gLastPageUnder[i].prefix, prefix) == 0) && page_shown(gLastPageUnder[i].page)) {
+            return gLastPageUnder[i].page;
+        }
+    }
+
+    for (uint32_t i = 0; i < gPageCount; i++) {
+        if (panel_page_is_under(gPages[i], prefix) && page_shown(gPages[i])) {
+            return gPages[i];
+        }
+    }
+
+    return page_exists(prefix) ? prefix : NULL;
+}
+
+static void remember_page(const char * page) {
+    char prefix[PANEL_PAGE_LEN];
+
+    for (uint32_t level = 0; page_path_prefix(page, level, prefix, sizeof(prefix)); level++) {
+        uint32_t i = 0;
+
+        while ((i < gLastPageUnderCount) && (strcmp(gLastPageUnder[i].prefix, prefix) != 0)) {
+            i++;
+        }
+
+        if (i == gLastPageUnderCount) {
+            if (gLastPageUnderCount >= SYNTH_MAX_PAGE_TABS) {
+                return;
+            }
+            gLastPageUnderCount++;
+            strncpy(gLastPageUnder[i].prefix, prefix, sizeof(gLastPageUnder[i].prefix) - 1);
+        }
+        strncpy(gLastPageUnder[i].page, page, sizeof(gLastPageUnder[i].page) - 1);
+    }
 }
 
 void synth_set_current_page(const char * page) {
     if (page && (page[0] != '\0')) {
         strncpy(gCurrentPage, page, sizeof(gCurrentPage) - 1);
         gCurrentPage[sizeof(gCurrentPage) - 1] = '\0';
+        remember_page(gCurrentPage);
+
+        char base[PANEL_PAGE_LEN];
+
+        synth_set_active_page_variant(resolve_page(gCurrentPage, base, sizeof(base)));
         synthlib_request_redraw();
     }
 }
 
 uint32_t synth_current_page_sections(tPanelSection * outSections[], uint32_t maxSections) {
-    uint32_t count = 0;
+    uint32_t count   = 0;
+    char     page[PANEL_PAGE_LEN];
+
+    int32_t  variant = resolve_page(gCurrentPage, page, sizeof(page));
 
     for (uint32_t i = 0; (i < gSynthPanelConfig.sectionCount) && (count < maxSections); i++) {
         tPanelSection * section = &gSynthPanelConfig.sections[i];
 
-        if (!section->hidden && (strcmp(section->page, gCurrentPage) == 0)) {
+        if (!section->hidden && (strcmp(section->page, page) == 0) && section_shown(section, variant)) {
             outSections[count++] = section;
         }
     }
@@ -106,7 +329,18 @@ int32_t synth_hit_test_page_tab(tCoord coord) {
 
 void synth_action_page_tab(int32_t index) {
     if ((index >= 0) && ((uint32_t)index < gPageTabCount)) {
-        synth_set_current_page(gPageTabs[index].page);
+        tPageTab * tab = &gPageTabs[index];
+
+        synth_set_current_page(page_for_prefix(tab->prefix));
+
+        if (tab->level == 0) {
+            // notes §54
+            int32_t mode = panel_mode_for_tab(&gSynthPanelConfig, tab->prefix);
+
+            if (mode >= 0) {
+                synth_send_device_mode((uint32_t)mode);
+            }
+        }
     }
 }
 
@@ -213,64 +447,125 @@ static void synth_decode_hilo_dial(const tPanelDial * dial, uint32_t rawValue, i
     }
 }
 
-// Rebuilds gPageTabs from the config's distinct page names and renders them
-// as a button row at `origin`, returning the height consumed. Defaults
-// gCurrentPage to the first page seen if it isn't set (or no longer exists).
+// Rebuilds gPageTabs from the config's page paths and renders one button row per level - the top row
+// always, each row below it only for the tab selected above. Returns the height consumed. Defaults
+// gCurrentPage to the first page seen if it isn't set (or no longer exists), and follows a mode the
+// device reported (synth_take_reported_mode()) to that mode's top-level tab.
 static double render_page_tabs(tRectangle origin) {
     gPageTabCount = 0;
 
-    for (uint32_t i = 0; i < gSynthPanelConfig.sectionCount; i++) {
-        const char * page  = gSynthPanelConfig.sections[i].page;
-        bool         known = false;
+    if ((gPageCount > 0) && !page_exists(gCurrentPage)) {
+        synth_set_current_page(gPages[0]);
+    }
+    char                parentTab[PANEL_PAGE_LEN];
+    char                lastLevel[PANEL_PAGE_LEN];
+    uint32_t            depth                         = 0;
 
-        for (uint32_t t = 0; t < gPageTabCount; t++) {
-            if (strcmp(gPageTabs[t].page, page) == 0) {
-                known = true;
-                break;
+    while (page_path_prefix(gCurrentPage, depth + 1, lastLevel, sizeof(lastLevel))) {
+        depth++;
+    }
+
+    // notes §57
+    if (  (depth > 0) && page_is_listed(gCurrentPage) && !page_shown(gCurrentPage) && page_path_prefix(gCurrentPage, depth - 1, parentTab, sizeof(parentTab))
+       && (strcmp(gCurrentPage, parentTab) != 0)) {
+        const char * page = page_for_prefix(parentTab);
+
+        if (page && (strcmp(page, gCurrentPage) != 0)) {
+            synth_set_current_page(page);
+        }
+    }
+    int32_t             reported                      = synth_take_reported_mode();
+
+    if (reported >= 0) {
+        const char * tab  = panel_mode_tab_name(&gSynthPanelConfig, (uint32_t)reported);
+        const char * page = tab ? page_for_prefix(tab) : NULL;
+
+        if (page) {
+            synth_set_current_page(page);
+        }
+    }
+    // notes §8
+    static const double kTabHeight[PANEL_PAGE_LEVELS] = {18.0, 15.0, 13.0};
+    const double        tabGap                        = 6.0;
+    double              y                             = origin.coord.y;
+
+    for (uint32_t level = 0; level < PANEL_PAGE_LEVELS; level++) {
+        char     parent[PANEL_PAGE_LEN] = "";
+        uint32_t rowStart               = gPageTabCount;
+
+        if ((level > 0) && !page_path_prefix(gCurrentPage, level - 1, parent, sizeof(parent))) {
+            break;
+        }
+
+        // notes §55
+        for (uint32_t m = 0; (level == 0) && (m < gSynthPanelConfig.modeTabCount) && (gPageTabCount < SYNTH_MAX_PAGE_TABS); m++) {
+            strncpy(gPageTabs[gPageTabCount].prefix, gSynthPanelConfig.modeTabs[m].tab, sizeof(gPageTabs[gPageTabCount].prefix) - 1);
+            gPageTabs[gPageTabCount].level = 0;
+            gPageTabCount++;
+        }
+
+        for (uint32_t i = 0; i < gPageCount; i++) {
+            const char * page  = gPages[i];
+            char         prefix[PANEL_PAGE_LEN];
+            bool         known = false;
+
+            if (((level > 0) && !panel_page_is_under(page, parent)) || !page_path_prefix(page, level, prefix, sizeof(prefix))) {
+                continue;
+            }
+
+            if ((strcmp(prefix, page) == 0) && !page_shown(page)) {
+                continue; // notes §57
+            }
+
+            for (uint32_t t = rowStart; t < gPageTabCount; t++) {
+                if (strcmp(gPageTabs[t].prefix, prefix) == 0) {
+                    known = true;
+                    break;
+                }
+            }
+
+            if (!known && (gPageTabCount < SYNTH_MAX_PAGE_TABS)) {
+                strncpy(gPageTabs[gPageTabCount].prefix, prefix, sizeof(gPageTabs[gPageTabCount].prefix) - 1);
+                gPageTabs[gPageTabCount].level = level;
+                gPageTabCount++;
             }
         }
 
-        if (!known && (gPageTabCount < SYNTH_MAX_PAGE_TABS)) {
-            strncpy(gPageTabs[gPageTabCount].page, page, sizeof(gPageTabs[gPageTabCount].page) - 1);
-            gPageTabCount++;
+        if (gPageTabCount == rowStart) {
+            break;
         }
-    }
+        double tabHeight = kTabHeight[level];
+        double x         = origin.coord.x;
 
-    if ((gCurrentPage[0] == '\0') && (gPageTabCount > 0)) {
-        synth_set_current_page(gPageTabs[0].page);
-    }
-    // notes §8
-    const double tabHeight = 18.0;
-    const double tabGap    = 6.0;
-    double       x         = origin.coord.x;
+        for (uint32_t i = rowStart; i < gPageTabCount; i++) {
+            char       label[PANEL_LABEL_LEN];
 
-    for (uint32_t i = 0; i < gPageTabCount; i++) {
-        char       label[PANEL_LABEL_LEN];
+            tab_label(gPageTabs[i].prefix, label, sizeof(label));
 
-        strncpy(label, gPageTabs[i].page, sizeof(label) - 1);
-        label[sizeof(label) - 1] = '\0';
+            if (label[0] != '\0') {
+                label[0] = (char)toupper((unsigned char)label[0]);
+            }
+            // notes §9
+            double     width   = get_text_width(label, tabHeight, eNoCache);   // ~8px padding each side
+            tRectangle rect    = {{x, y}, {width, tabHeight}};
+            bool       active  = panel_page_is_under(gCurrentPage, gPageTabs[i].prefix);
+            bool       pressed = (int32_t)i == gPressedTabIndex;
 
-        if (label[0] != '\0') {
-            label[0] = (char)toupper((unsigned char)label[0]);
+            // notes §10
+            tRgb       colour  = pressed ? (tRgb)RGB_GREY_5 : (active ? (tRgb)RGB_GREEN_ON : (tRgb)RGB_GREY_7);
+            draw_button(mainArea, rect, label, colour);
+            // draw_button() draws DRAW_BUTTON_MARGIN larger bottom/right than `rect`
+            // and the tab's only other use of this rect is hit-testing — store the
+            // true drawn bounds so those edge pixels click (was the small `rect`).
+            gPageTabs[i].rect = draw_button_bounds(rect);
+            register_click_region(gPageTabs[i].rect, eClickLayerPanel, page_tab_click_handler, (void *)(intptr_t)i);
+            x                += width + tabGap;
         }
-        // notes §9
-        double     width   = get_text_width(label, tabHeight, eNoCache); // ~8px padding each side
-        tRectangle rect    = {{x, origin.coord.y}, {width, tabHeight}};
-        bool       active  = strcmp(gPageTabs[i].page, gCurrentPage) == 0;
-        bool       pressed = (int32_t)i == gPressedTabIndex;
 
-        // notes §10
-        tRgb       colour  = pressed ? (tRgb)RGB_GREY_5 : (active ? (tRgb)RGB_GREEN_ON : (tRgb)RGB_GREY_7);
-        draw_button(mainArea, rect, label, colour);
-        // draw_button() draws DRAW_BUTTON_MARGIN larger bottom/right than `rect`
-        // and the tab's only other use of this rect is hit-testing — store the
-        // true drawn bounds so those edge pixels click (was the small `rect`).
-        gPageTabs[i].rect        = draw_button_bounds(rect);
-        register_click_region(gPageTabs[i].rect, eClickLayerPanel, page_tab_click_handler, (void *)(intptr_t)i);
-        x                       += width + tabGap;
+        y += tabHeight + tabGap;
     }
 
-    return (gPageTabCount > 0) ? (tabHeight + 12.0) : 0.0;
+    return (gPageTabCount > 0) ? (y - origin.coord.y - tabGap + 12.0) : 0.0;
 }
 
 // notes §11
@@ -322,7 +617,10 @@ static void synth_reload_panel_config(void) {
     // the one path every configuration load takes, the first at start-up included.
     midi_set_port_scope(gConfigFileName);
     // notes §14
-    gCurrentPage[0] = '\0';
+    gCurrentPage[0]     = '\0';
+    gLastPageUnderCount = 0;
+    build_page_list();
+    synth_set_active_page_variant(-1);
 
     // notes §15
     if (gSynthPanelConfig.stateRequestSysExLen > 3) {
@@ -790,6 +1088,16 @@ void synth_render(tRectangle area) {
     {
         tPanelSection * sections[PANEL_MAX_SECTIONS];
         uint32_t        sectionCount = synth_current_page_sections(sections, PANEL_MAX_SECTIONS);
+
+        if ((sectionCount == 0) && (gCurrentPage[0] != '\0')) {
+            char label[PANEL_LABEL_LEN * 2];
+            char note[sizeof(label) + 32];
+
+            tab_label(gCurrentPage, label, sizeof(label));
+            snprintf(note, sizeof(note), "Nothing to edit here yet (%s)", label);
+            set_rgb_colour((tRgb)RGB_GREY_7);
+            render_text(mainArea, (tRectangle){{x, y + 20.0}, {400.0, 14.0}}, note);
+        }
         tPanelConfig *  cfg          = synth_panel_config();
         bool            pageIsGrid   = false;
 

@@ -88,6 +88,19 @@ void synth_flush_pending_param_send(void);
 // Request the currently loaded program from the synth
 void synth_request_current_program(void);
 
+// notes §24
+void synth_send_device_mode(uint32_t mode);
+
+// The pageVariant (panelConfig.h) now shown, -1 for none; dials re-read their values for it. UI thread.
+void synth_set_active_page_variant(int32_t variant);
+
+// Byte `offset` of the cached Program dump, or -1 before one has arrived. Any thread.
+int32_t synth_dump_byte(int32_t offset);
+
+// The device mode last reported (Mode Data / Mode Change), -1 if none since the last call. Called from the
+// UI thread; the MIDI thread posts it.
+int32_t synth_take_reported_mode(void);
+
 // notes §12
 void synth_request_state_dump(void);
 

@@ -1288,3 +1288,34 @@ name. Step 3 then points at the old preset for one dump, and the next dump settl
 
 Only Moog-style devices run this. The Korg devices have two banks and nothing records which one is
 current, so their Program Changes stay FromProgramChange.
+
+## 89. `gReportedMode`
+
+The Kronos's mode (Combination 0, Program 2, Sequencer 4, Sampling 6, Global 7, Disk 8, Set List 9 -
+KRONOS_MIDI_SysEx.txt *5). It arrives as Mode Data (func 42), the reply to the Mode Request (func 12)
+sent with every state dump request, and as Mode Change (func 4E), which the instrument sends by itself
+whenever a mode switch on its front panel is pressed. The MIDI thread only posts the number here; the
+UI thread takes it in render_page_tabs() and moves to that mode's top-level tab (`modeTab` lines), so
+the tab state has one owner. Clicking a top-level tab with a `modeTab` sends Mode Change the other way
+(synth_send_device_mode()); the instrument answers that with func 24, not another 4E, so there is no loop.
+A front-panel Mode Change also arms the same debounced state-dump refresh a program change does, because
+the object being edited changed with the mode; Mode Data (the reply to our own request) does not, or
+the refresh's own Mode Request would re-arm it for ever.
+The instrument only accepts parameter edits for its current mode, which is the other reason to follow it.
+
+## 90. `gProgCache`
+
+The last Program dump the Kronos sent, decoded, kept as SynthEdit's copy of the edit buffer. Every dial
+edit and every incoming Parameter Change writes its value back into it, so it stays current - which the
+instrument's own dump does not (a Parameter Change is not reflected in a later Current Object Dump; see
+project notes). Switching pageVariant (EXi 1 <-> EXi 2) re-reads every dial from it at the new offsets,
+so each slot shows its own values with one set of dials. Guarded by gProgCacheLock: the MIDI thread
+writes it (dumps, incoming changes), the UI thread too (edits, variant switches). gActiveVariant is the
+variant the UI is showing; a dial is retargeted only if its section lies under that variant's base.
+
+## 91. in `handle_kronos_parameter_change()`
+
+A change for a TYP no dial carries may still be one of a pageVariant's: TYP 12 is the EXi 2 copy of an
+EXi 1 dial (TYP 11, typDelta 1). It always goes into the cache at that variant's offset; the dial on
+screen only moves if that variant is the one being shown, so a slot-1 knob turned on the Kronos while
+EXi 2 is open does not drag the slot-2 display with it.

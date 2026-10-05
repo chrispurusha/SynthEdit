@@ -18,6 +18,8 @@
  */
 // Notes: Docs/code-notes/synthComms.c.md - "// notes §k" refers there.
 
+#include <pthread.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <string.h>
 #include <time.h>
@@ -135,6 +137,69 @@ static uint32_t read_korg_bitpacked_field(const uint8_t * decoded, uint32_t deco
     return value;
 }
 
+static void write_korg_bitpacked_field(uint8_t * decoded, uint32_t decodedLen,
+                                       int32_t byteOffset, uint32_t bitOffset, uint32_t bitWidth, uint32_t value) {
+    uint32_t globalStart = ((uint32_t)byteOffset * 8) + bitOffset;
+
+    for (uint32_t k = 0; k < bitWidth; k++) {
+        uint32_t globalBit = globalStart + k;
+        uint32_t byteIdx   = globalBit / 8;
+        uint8_t  mask      = (uint8_t)(1u << (globalBit % 8));
+
+        if (byteIdx >= decodedLen) {
+            break;
+        }
+        decoded[byteIdx] = (uint8_t)(((value >> k) & 1u) ? (decoded[byteIdx] | mask) : (decoded[byteIdx] & ~mask));
+    }
+}
+
+// notes §90
+static pthread_mutex_t gProgCacheLock = PTHREAD_MUTEX_INITIALIZER;
+static uint8_t         gProgCache[8192];
+static uint32_t        gProgCacheLen  = 0;
+static _Atomic int32_t gActiveVariant = -1;
+
+// The pageVariant `variant` applies to `section` (its pages are under the variant's base), or NULL.
+static const tPageVariant * section_variant(const tPanelSection * section, int32_t variant) {
+    const tPanelConfig * cfg = synth_panel_config();
+
+    if (  (variant < 0) || ((uint32_t)variant >= cfg->pageVariantCount) || !section
+       || !panel_page_is_under(section->page, cfg->pageVariants[variant].base)) {
+        return NULL;
+    }
+    return &cfg->pageVariants[variant];
+}
+
+// The pageVariant in force for `section` right now: the active one if it covers the section, else -1.
+static int32_t section_active_variant(const tPanelSection * section) {
+    int32_t active = atomic_load(&gActiveVariant);
+
+    return section_variant(section, active) ? active : -1;
+}
+
+static int32_t section_dump_delta(const tPanelSection * section, int32_t variant) {
+    const tPageVariant * v = section_variant(section, variant);
+
+    return v ? v->dumpDelta : 0;
+}
+
+// Records a dial's value in the cached dump at the place `variant` reads it from, so switching variant or
+// re-reading the cache shows it.
+static void cache_store_dial_value(const tPanelDial * dial, const tPanelSection * section, int32_t variant, int32_t value) {
+    if ((dial->dumpOffset < 0) || (dial->dumpBitWidth == 0) || (dial->dumpBitWidth >= 32)) {
+        return;
+    }
+    uint32_t bits = (uint32_t)value & ((1u << dial->dumpBitWidth) - 1u);
+
+    pthread_mutex_lock(&gProgCacheLock);
+
+    if (gProgCacheLen > 0) {
+        write_korg_bitpacked_field(gProgCache, gProgCacheLen, dial->dumpOffset + section_dump_delta(section, variant),
+                                   dial->dumpBitOffset, dial->dumpBitWidth, bits);
+    }
+    pthread_mutex_unlock(&gProgCacheLock);
+}
+
 // ── Build outgoing synth SysEx header ───────────────────────────────────────────
 static uint32_t build_header(uint8_t * buf, uint8_t funcId) {
     tPanelConfig * cfg = synth_panel_config();
@@ -234,13 +299,17 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
         tPanelSection * dumpSection = &cfg->sections[s];
 
         for (uint32_t d = 0; d < dumpSection->dialCount; d++) {
-            tPanelDial * dial = &dumpSection->dials[d];
+            tPanelDial * dial       = &dumpSection->dials[d];
 
-            if ((dial->dumpOffset >= 0) && (decodedLen > (uint32_t)dial->dumpOffset)) {
+            int32_t      dumpOffset = (dial->dumpOffset >= 0)
+                                          ? dial->dumpOffset + section_dump_delta(dumpSection, section_active_variant(dumpSection))
+                                          : -1;
+
+            if ((dumpOffset >= 0) && (decodedLen > (uint32_t)dumpOffset)) {
                 // notes §15
                 uint32_t raw = (dial->dumpBitWidth > 0)
-                              ? read_korg_bitpacked_field(decoded, decodedLen, dial->dumpOffset, dial->dumpBitOffset, dial->dumpBitWidth)
-                              : (decoded[dial->dumpOffset] >> dial->dumpShift) & dial->dumpMask;
+                              ? read_korg_bitpacked_field(decoded, decodedLen, dumpOffset, dial->dumpBitOffset, dial->dumpBitWidth)
+                              : (decoded[dumpOffset] >> dial->dumpShift) & dial->dumpMask;
 
                 if (dial->dumpSigned && (dial->dumpBitWidth > 0) && (dial->dumpBitWidth < 32) && (raw >> (dial->dumpBitWidth - 1))) {
                     raw |= ~0u << dial->dumpBitWidth;
@@ -1029,11 +1098,69 @@ static void synth_send_kronos_parameter_change(uint32_t typ, uint32_t soc, uint3
               (unsigned)typ, (unsigned)soc, (unsigned)sub, (unsigned)pid, (unsigned)idx, (int)value);
 }
 
+int32_t synth_dump_byte(int32_t offset) {
+    int32_t value = -1;
+
+    pthread_mutex_lock(&gProgCacheLock);
+
+    if ((offset >= 0) && ((uint32_t)offset < gProgCacheLen)) {
+        value = gProgCache[offset];
+    }
+    pthread_mutex_unlock(&gProgCacheLock);
+    return value;
+}
+
+void synth_set_active_page_variant(int32_t variant) {
+    if (atomic_exchange(&gActiveVariant, variant) == variant) {
+        return;
+    }
+    pthread_mutex_lock(&gProgCacheLock);
+
+    if (gProgCacheLen > 0) {
+        extract_prog_info(gProgCache, gProgCacheLen);
+    }
+    pthread_mutex_unlock(&gProgCacheLock);
+    synthlib_request_redraw();
+}
+
+// notes §89
+static _Atomic int32_t gReportedMode = -1;
+
+int32_t synth_take_reported_mode(void) {
+    return atomic_exchange(&gReportedMode, -1);
+}
+
+static bool synth_speaks_kronos_protocol(void) {
+    return !synth_panel_config()->moogStyleDump && !synth_panel_config()->supportsKorgProgramDump;
+}
+
+void synth_send_device_mode(uint32_t mode) {
+    if (!synth_speaks_kronos_protocol()) {
+        return;
+    }
+    uint8_t  msg[8];
+    uint32_t pos = build_header(msg, 0x4E); // Mode Change
+
+    msg[pos++] = (uint8_t)(mode & 0x0F);
+    msg[pos++] = MIDI_SYSEX_END;
+    midi_send(msg, pos);
+    LOG_DEBUG("Sent Kronos Mode Change (mode=%u)\n", (unsigned)mode);
+}
+
+static void synth_request_kronos_mode(void) {
+    uint8_t  msg[8];
+    uint32_t pos = build_header(msg, 0x12); // Mode Request
+
+    msg[pos++] = MIDI_SYSEX_END;
+    midi_send(msg, pos);
+}
+
 void synth_request_state_dump(void) {
     tPanelConfig * cfg = synth_panel_config();
 
     if (!cfg->moogStyleDump && !cfg->supportsKorgProgramDump) {
         // notes §56
+        synth_request_kronos_mode();
         synth_request_kronos_current_object_dump(0x00); // Program
         return;
     }
@@ -1373,29 +1500,47 @@ void synth_flush_pending_dump_sends(void) {
 
 // notes §74
 static void handle_kronos_parameter_change(const uint8_t * data, uint32_t length) {
-    uint32_t     base  = 4 + synth_panel_config()->manufacturerIdLen;
+    uint32_t       base    = 4 + synth_panel_config()->manufacturerIdLen;
 
     if (length < base + 8 + 1) { // 5 addressing bytes + 3 value bytes + trailing F7
         LOG_DEBUG("Kronos Parameter Change too short (len=%u)\n", (unsigned)length);
         return;
     }
-    uint32_t     typ   = data[base] & 0x7F;
-    uint32_t     soc   = data[base + 1] & 0x7F;
-    uint32_t     sub   = data[base + 2] & 0x7F;
-    uint32_t     pid   = data[base + 3] & 0x7F;
-    uint32_t     idx   = data[base + 4] & 0x7F;
-    uint32_t     v21   = ((uint32_t)(data[base + 5] & 0x7F) << 14)
-                         | ((uint32_t)(data[base + 6] & 0x7F) << 7)
-                         | (uint32_t)(data[base + 7] & 0x7F);
+    uint32_t       typ     = data[base] & 0x7F;
+    uint32_t       soc     = data[base + 1] & 0x7F;
+    uint32_t       sub     = data[base + 2] & 0x7F;
+    uint32_t       pid     = data[base + 3] & 0x7F;
+    uint32_t       idx     = data[base + 4] & 0x7F;
+    uint32_t       v21     = ((uint32_t)(data[base + 5] & 0x7F) << 14)
+                             | ((uint32_t)(data[base + 6] & 0x7F) << 7)
+                             | (uint32_t)(data[base + 7] & 0x7F);
 
     if (v21 & 0x100000) {
         v21 |= 0xFFE00000; // sign-extend 21-bit two's complement
     }
-    int32_t      value = (int32_t)v21;
-    tPanelDial * dial  = find_panel_dial_by_kronos_param(synth_panel_config(), typ, soc, sub, pid, idx);
+    int32_t        value   = (int32_t)v21;
+    tPanelConfig * cfg     = synth_panel_config();
+    tPanelDial *   dial    = find_panel_dial_by_kronos_param(cfg, typ, soc, sub, pid, idx);
+    int32_t        variant = -1;
+
+    // notes §91
+    for (uint32_t v = 0; !dial && (v < cfg->pageVariantCount); v++) {
+        tPanelDial * base = find_panel_dial_by_kronos_param(cfg, typ - (uint32_t)cfg->pageVariants[v].typDelta, soc, sub, pid, idx);
+
+        if (base && section_variant(panel_section_of_dial(cfg, base), (int32_t)v)) {
+            dial    = base;
+            variant = (int32_t)v;
+        }
+    }
 
     if (dial) {
-        apply_dial_wire_value(dial, (uint32_t)value, dial->nativeMax);
+        tPanelSection * section = panel_section_of_dial(cfg, dial);
+
+        cache_store_dial_value(dial, section, variant, value);
+
+        if (variant == section_active_variant(section)) {
+            apply_dial_wire_value(dial, (uint32_t)value, dial->nativeMax);
+        }
         synthlib_request_redraw();
         LOG_DEBUG("Kronos Parameter Change: TYP=%u SOC=%u SUB=%u PID=%u IDX=%u value=%d -> dial \"%s\"\n",
                   (unsigned)typ, (unsigned)soc, (unsigned)sub, (unsigned)pid, (unsigned)idx, (int)value, dial->label);
@@ -1408,6 +1553,20 @@ static void handle_kronos_parameter_change(const uint8_t * data, uint32_t length
 static void handle_kronos_message(const uint8_t * data, uint32_t length, uint8_t funcId) {
     if (funcId == 0x43) {
         handle_kronos_parameter_change(data, length);
+        return;
+    }
+
+    if ((funcId == 0x42) || (funcId == 0x4E)) { // Mode Data (our request) / Mode Change (front panel)
+        uint32_t modeAt = 4 + synth_panel_config()->manufacturerIdLen;
+
+        if (length > modeAt + 1) {
+            atomic_store(&gReportedMode, (int32_t)(data[modeAt] & 0x0F));
+            LOG_DEBUG("Kronos mode %u\n", (unsigned)(data[modeAt] & 0x0F));
+
+            if (funcId == 0x4E) {
+                midi_arm_state_dump_debounce(); // the edit object changed with the mode
+            }
+        }
         return;
     }
 
@@ -1439,7 +1598,11 @@ static void handle_kronos_message(const uint8_t * data, uint32_t length, uint8_t
         return;
     }
     // notes §76
-    extract_prog_info(decoded, decodedLen);
+    pthread_mutex_lock(&gProgCacheLock);
+    memcpy(gProgCache, decoded, decodedLen);
+    gProgCacheLen = decodedLen;
+    extract_prog_info(gProgCache, gProgCacheLen);
+    pthread_mutex_unlock(&gProgCacheLock);
     LOG_DEBUG("Kronos Current Object Dump decoded: version=%u decodedLen=%u\n", (unsigned)version, (unsigned)decodedLen);
 }
 
@@ -1638,8 +1801,13 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
         dial->pendingDumpSinceMs  = monotonic_ms();
     } else if (dial->hasKronosParam) {
         // notes §84
-        synth_send_kronos_parameter_change(dial->kronosTyp, dial->kronosSoc, dial->kronosSub,
+        tPanelSection *      section = panel_section_of_dial(synth_panel_config(), dial);
+        int32_t              variant = section_active_variant(section);
+        const tPageVariant * v       = section_variant(section, variant);
+
+        synth_send_kronos_parameter_change(dial->kronosTyp + (uint32_t)(v ? v->typDelta : 0), dial->kronosSoc, dial->kronosSub,
                                            dial->kronosPid, dial->kronosIdx, (int32_t)storageValue);
+        cache_store_dial_value(dial, section, variant, (int32_t)storageValue);
     } else if (synth_backup_sweep_request_in_flight()) {
         // Defer — see gPendingParamDial's own comment above.
         gPendingParamDial  = dial;

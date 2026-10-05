@@ -138,6 +138,28 @@ static uint32_t split_csv(const char * value, char names[][PANEL_LABEL_LEN], uin
     return count;
 }
 
+// "Program | EXi 1 | LFO 1/2" -> "Program|EXi 1|LFO 1/2": the spaces either side of a separator are layout only.
+static void normalise_page_path(char * page) {
+    char * out = page;
+
+    for (const char * in = page; *in != '\0'; in++) {
+        if (*in == PANEL_PAGE_SEPARATOR) {
+            while ((out > page) && (out[-1] == ' ')) {
+                out--;
+            }
+            *out++ = *in;
+
+            while (in[1] == ' ') {
+                in++;
+            }
+        } else {
+            *out++ = *in;
+        }
+    }
+
+    *out = '\0';
+}
+
 static int32_t find_list_index(const tPanelConfig * config, const char * name) {
     for (uint32_t i = 0; i < config->listCount; i++) {
         if (strcmp(config->lists[i].name, name) == 0) {
@@ -441,25 +463,68 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
         }
         // notes §10
         int32_t      index = find_list_index(config, tokens[1]);
-        tPanelList * list  = (index >= 0) ? &config->lists[index] : NULL;
 
-        if (!list) {
+        if (index < 0) {
             if (config->listCount >= PANEL_MAX_LISTS) {
                 LOG_ERROR("panelConfig line %u: too many lists (max %u)\n", lineNo, (unsigned)PANEL_MAX_LISTS);
                 return;
             }
-            list = &config->lists[config->listCount++];
-            strncpy(list->name, tokens[1], sizeof(list->name) - 1);
+            index = (int32_t)config->listCount++;
+            strncpy(config->lists[index].name, tokens[1], sizeof(config->lists[index].name) - 1);
         }
+        tPanelList * list  = &config->lists[index];
+
         list->itemCount += split_csv(tokens[2], list->items + list->itemCount, PANEL_MAX_LIST_ITEMS - list->itemCount);
     } else if (strcmp(keyword, "page") == 0) {
         if (config->sectionCount >= PANEL_MAX_SECTIONS) {
             LOG_ERROR("panelConfig line %u: too many sections (max %u)\n", lineNo, (unsigned)PANEL_MAX_SECTIONS);
             return;
         }
-        *currentSection = &config->sections[config->sectionCount++];
-        *pendingGap     = 0.0;
+        *currentSection                 = &config->sections[config->sectionCount++];
+        *pendingGap                     = 0.0;
+        (*currentSection)->showIfOffset = -1;
         join_tokens(tokens, 1, tokenCount, (*currentSection)->page, sizeof((*currentSection)->page));
+        normalise_page_path((*currentSection)->page);
+    } else if (strcmp(keyword, "modeTab") == 0) {
+        if ((tokenCount < 3) || (config->modeTabCount >= PANEL_MAX_MODE_TABS)) {
+            LOG_ERROR("panelConfig line %u: expected 'modeTab <mode> <top-level tab>' (max %u)\n", lineNo, (unsigned)PANEL_MAX_MODE_TABS);
+            return;
+        }
+        tModeTab * modeTab = &config->modeTabs[config->modeTabCount++];
+
+        modeTab->mode = (uint32_t)strtoul(tokens[1], NULL, 0);
+        join_tokens(tokens, 2, tokenCount, modeTab->tab, sizeof(modeTab->tab));
+    } else if (strcmp(keyword, "showIf") == 0) {
+        if (!*currentSection || (tokenCount < 3)) {
+            LOG_ERROR("panelConfig line %u: expected 'showIf <dumpOffset> <value>' inside a page\n", lineNo);
+            return;
+        }
+        (*currentSection)->showIfOffset = (int32_t)strtol(tokens[1], NULL, 0);
+        (*currentSection)->showIfValue  = (uint32_t)strtoul(tokens[2], NULL, 0);
+    } else if (strcmp(keyword, "tabLabel") == 0) {
+        if ((tokenCount < 4) || (config->tabLabelCount >= PANEL_MAX_TAB_LABELS)) {
+            LOG_ERROR("panelConfig line %u: expected 'tabLabel \"<tab>\" <dumpOffset> <names>' (max %u)\n", lineNo, (unsigned)PANEL_MAX_TAB_LABELS);
+            return;
+        }
+        tTabLabel * tabLabel = &config->tabLabels[config->tabLabelCount++];
+
+        strncpy(tabLabel->tab, tokens[1], sizeof(tabLabel->tab) - 1);
+        normalise_page_path(tabLabel->tab);
+        tabLabel->dumpOffset = (int32_t)strtol(tokens[2], NULL, 0);
+        tabLabel->nameCount  = split_csv(tokens[3], tabLabel->names, PANEL_MAX_NAMES);
+    } else if (strcmp(keyword, "pageVariant") == 0) {
+        if ((tokenCount < 5) || (config->pageVariantCount >= PANEL_MAX_PAGE_VARIANTS)) {
+            LOG_ERROR("panelConfig line %u: expected 'pageVariant \"<variant>\" \"<base>\" <typDelta> <dumpDelta>' (max %u)\n", lineNo, (unsigned)PANEL_MAX_PAGE_VARIANTS);
+            return;
+        }
+        tPageVariant * variant = &config->pageVariants[config->pageVariantCount++];
+
+        strncpy(variant->variant, tokens[1], sizeof(variant->variant) - 1);
+        strncpy(variant->base, tokens[2], sizeof(variant->base) - 1);
+        normalise_page_path(variant->variant);
+        normalise_page_path(variant->base);
+        variant->typDelta  = (int32_t)strtol(tokens[3], NULL, 0);
+        variant->dumpDelta = (int32_t)strtol(tokens[4], NULL, 0);
     } else if (strcmp(keyword, "section") == 0) {
         if (!*currentSection) {
             LOG_ERROR("panelConfig line %u: 'section' with no preceding 'page'\n", lineNo);
@@ -807,4 +872,42 @@ uint32_t scan_panel_configs(const char * dir, tPanelConfigCandidate * outCandida
     }
     closedir(dp);
     return count;
+}
+
+const char * panel_mode_tab_name(const tPanelConfig * config, uint32_t mode) {
+    for (uint32_t i = 0; i < config->modeTabCount; i++) {
+        if (config->modeTabs[i].mode == mode) {
+            return config->modeTabs[i].tab;
+        }
+    }
+
+    return NULL;
+}
+
+int32_t panel_mode_for_tab(const tPanelConfig * config, const char * tab) {
+    for (uint32_t i = 0; i < config->modeTabCount; i++) {
+        if (strcmp(config->modeTabs[i].tab, tab) == 0) {
+            return (int32_t)config->modeTabs[i].mode;
+        }
+    }
+
+    return -1;
+}
+
+bool panel_page_is_under(const char * page, const char * prefix) {
+    size_t len = strlen(prefix);
+
+    return (strncmp(page, prefix, len) == 0) && ((page[len] == '\0') || (page[len] == PANEL_PAGE_SEPARATOR));
+}
+
+tPanelSection * panel_section_of_dial(tPanelConfig * config, const tPanelDial * dial) {
+    for (uint32_t s = 0; s < config->sectionCount; s++) {
+        tPanelSection * section = &config->sections[s];
+
+        if ((dial >= &section->dials[0]) && (dial < &section->dials[section->dialCount])) {
+            return section;
+        }
+    }
+
+    return NULL;
 }

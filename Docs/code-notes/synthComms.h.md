@@ -322,3 +322,8 @@ synth_navigate_preset()'s own comment) so the UI reflects the new name
 without waiting for a round trip. A no-op if synth_effective_name_maxlen()
 is 0 (connected device's config declares no name field), or — Moog-style
 only — if no Panel Dump has been received yet this session to patch into.
+
+## 24. `synth_send_device_mode()`
+
+Switches the connected device to `mode` (a "modeTab" number). Only the Kronos protocol has a mode
+message today (func 4E); for every other device this does nothing. See synthComms.c notes §89.

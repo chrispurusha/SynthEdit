@@ -701,3 +701,39 @@ range such as -99..99 is written `storageOffset=-99 max=199 display=signed
 displayOffset=99`, the same way the dial's Parameter Change value is signed.
 Kronos dump tables give these as hex ranges like `9D~63`. Unlike `wireSigned`
 (synthComms.c notes §12, §16), this adds no displayOffset of its own.
+
+## 46. `PANEL_PAGE_LEN`
+
+A page name may be a path of up to PANEL_PAGE_LEVELS names separated by `|`, written with or without
+spaces round the separator (`page Program | EXi 1 | LFO 1/2`; stored as `Program|EXi 1|LFO 1/2`). Each
+level is a row of tabs, and a row below the top shows only the children of the tab selected above it -
+the Kronos's own Mode > area > page structure. `|` and not `/` because page names already contain `/`
+("LFO 1/2"). A file whose page names have no separator gets the single row of tabs it always had.
+
+## 47. `modeTabs`
+
+"modeTab <mode> <top-level tab>" ties a device-reported mode number to a top-level page tab, both ways:
+when the device reports the mode the editor moves to that tab, and clicking the tab sets the device's
+mode. Kronos only so far - see synthComms.c notes §89.
+
+## 48. `tPageVariant`
+
+`pageVariant "<variant>" "<base>" <typDelta> <dumpDelta>` makes the tab `<variant>` show the pages under
+`<base>` again, with every dial on them retargeted: its Kronos TYP plus typDelta, its dump offset plus
+dumpDelta. The Kronos's two EXi slots are the case: one set of AL-1 pages written for slot 1 (TYP 11,
+dump block at 2908) serves slot 2 too (TYP 12, block at 3960, so dumpDelta 1052). The dials keep one
+value each; switching variant re-reads them from the cached dump, which edits and incoming changes for
+either slot keep current - see synthComms.c notes §90.
+
+## 49. `showIfOffset`
+
+`showIf <dumpOffset> <value>` inside a page shows that section only while the cached dump's byte at
+dumpOffset holds value (before any dump has arrived, it shows). On a pageVariant's tab the offset moves
+with the variant's dumpDelta. The Kronos case: the AL-1 sections carry `showIf 2857 2`, EXi 1's
+Algorithm Type being AL-1, and on the EXi 2 tab that reads 3909, EXi 2's - so AL-1 dials never show,
+reading another engine's bytes as AL-1 parameters, for a slot holding MOD-7 or nothing.
+
+## 50. `tTabLabel`
+
+`tabLabel "<tab>" <dumpOffset> <name,name,...>` appends ": <name>" to that tab's text, indexed by the
+cached dump's byte at dumpOffset (moved by dumpDelta on a pageVariant's tab): "EXi 1: AL-1".
