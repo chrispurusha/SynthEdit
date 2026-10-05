@@ -26,3 +26,18 @@ Bugs
 - CHECK ON HARDWARE (built 2026-09-12): change preset on the Voyager, or with Prev/Next - the label turns white 'Preset N' once the dump's name agrees with the cache; Store Patch to Current Slot... is refused in every other state, with the reason
 - CHECK ON HARDWARE (built 2026-09-12, ONE flash write): Store Patch to Current Slot... on a confirmed preset, after an edit and after a rename in SynthEdit - confirm dialog names the slot, the write lands, the cache takes the new name
 - Store Patch to Current Slot... for the Korg devices: needs the current bank tracked (Bank Select before the Program Change), which nothing records yet
+
+Kronos
+
+- CHECK ON HARDWARE: press COMBI / PROG on the Kronos - the top tab row should follow (Mode Change, func 4E); clicking a top tab should switch the Kronos's mode
+- CHECK ON HARDWARE: AL-1 dials beyond Filter A/B Cutoff (only those two are hardware-confirmed); try a few per page, both EXi slots
+- CHECK ON HARDWARE: turn a slot-1 knob on the Kronos while the EXi 2 tab is open - slot 2's display must not move; switching back shows the new slot-1 value
+- Graphical envelopes: a generic `graph type=envelope` layout element built from existing dial ids, drag handles editing those dials (model: G2-Edit render_envelope_graph); AL-1 EG pages (one row tall, across the top, dials down a row), AMP, and the Z1 EGs
+- Step Seq: a draggable 32-bar graph for the step values (room on the Step Seq 2 page)
+- LFO waveform, keyboard-track curve and filter-routing pictures as simple line drawings
+- Note-length values (LFO MIDI Sync Base Note, Step Duration: 0..9 = 1/32..1/1) show as numbers - find the names
+- Pitch intensities show the raw -151..151 sent; the Kronos displays -48.00..+48.00 - scale the display
+- Global pages: request + decode the Global dump (Current Object Dump obj 3, 24620 bytes) into its own cache, dials tied to it; generate ~220 params (TYP 15) from Korg's Global table, laid out on the Korg editor's own 13 Global pages
+- Remaining EXi engines' pages (MOD-7, CX-3, STR-1, MS-20EX, PolysixEX, SGX-1, EP-1, HD-1), then Combi and Global
+- Raise PANEL_MAX_SECTIONS (64; 45 used) before more engines - first move each dial's own copy of its value names to shared names=@list references, as the memory cost scales with it
+- Store Patch / bank operations for the Kronos (Object Dump protocol), not just the edit buffer
