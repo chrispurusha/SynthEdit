@@ -128,6 +128,9 @@ void synth_note_bank_select(uint8_t cc, uint8_t value);
 // Asks a device whose layout declares bankMapRequest for its bank map (and Program Change Transmit).
 void synth_request_bank_map(void);
 
+// Asks for every dumpBlock the layout declares (panelConfig.h notes §58).
+void synth_request_dump_blocks(void);
+
 // Program names compared with whitespace collapsed - synthComms.c notes §87.
 bool synth_prog_names_equal(const char * a, const char * b);
 

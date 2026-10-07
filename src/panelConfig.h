@@ -45,6 +45,7 @@ extern "C" {
 #define PANEL_MAX_SECTIONS         256             // notes §54
 #define PANEL_MAX_LIST_ITEMS       PANEL_MAX_NAMES // a list can feed a dial's names=@list
 #define PANEL_MAX_BANKS            8               // notes §55
+#define PANEL_MAX_DUMP_BLOCKS      8               // notes §58
 #define PANEL_MAX_LISTS            128             // notes §53 (the Z1's value tables are shared lists)
 #define PANEL_MAX_COLUMN_LABELS    32
 
@@ -228,6 +229,7 @@ typedef struct {
     tPanelDial   dials[PANEL_MAX_DIALS];
     uint32_t     dialCount;
     tPanelGraph  graph;          // notes §56
+    int32_t      dumpBlock;      // notes §58: the dump block its dials read from, -1 = the program dump
 } tPanelSection;
 
 typedef struct {
@@ -246,6 +248,15 @@ typedef struct {
     int32_t showIfMin;    // ... is within min..max
     int32_t showIfMax;
 } tPageVariant;
+
+// notes §58
+typedef struct {
+    char     name[PANEL_ID_LEN];
+    uint8_t  request[16];   // after the SysEx header, without F7
+    uint32_t requestLen;
+    int32_t  replyFunc;
+    int32_t  replySub;
+} tDumpBlock;
 
 // notes §55
 typedef struct {
@@ -319,6 +330,8 @@ typedef struct {
     int32_t       pcTransmitOffset;        // -1 = not known; else byte in the bank-map reply ...
     uint32_t      pcTransmitShift;         // ... >> shift & mask, 0 = the device sends no Program Change
     uint32_t      pcTransmitMask;
+    tDumpBlock    dumpBlocks[PANEL_MAX_DUMP_BLOCKS];
+    uint32_t      dumpBlockCount;
     int32_t       startupSlot;             // notes §55: the program a device powers up on (bank * 128 + program), -1 = none
 
     // notes §33

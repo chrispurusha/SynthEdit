@@ -1389,3 +1389,16 @@ A bank whose map values are both Off is one the device *transmits* no Bank Selec
 to be selected from outside. Checked on a Z1 (2026-10-07, map A Off/Off, B 0/1): from B005 a bare Program
 Change 5 stayed in B; Bank Select 0/0 then Program Change 5 went to A005. So for a silent bank the layout's
 own declared values are sent instead (`declaredMsb/Lsb`, kept when the map replaces msb/lsb).
+
+## 103. Dump blocks
+
+`read_dial_from_dump()` is the one place a dial is set from a decoded dump, shared by the program dump and
+the dump blocks (panelConfig.h notes §58), so both read fields, signs and native ranges the same way. A reply
+whose function and sub byte match a block sets only the dials of sections that read from it; the program
+dump skips those sections. A reply can be both a block and the bank map (the Z1's MIDI dump is) - both
+handlers see it.
+
+## 104. Parameter Change for other groups
+
+Group Program keeps its own handling (the name characters, pageVariants). Any other group - the Z1's Global
+and MIDI settings are group 0 - finds its dial by group and ID across all sections and sets it.

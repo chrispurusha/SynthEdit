@@ -550,6 +550,45 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
             config->banks[b].msbDumpOffset = (int32_t)strtol(tokens[3 + (b * 2)], NULL, 0);
             config->banks[b].lsbDumpOffset = (int32_t)strtol(tokens[4 + (b * 2)], NULL, 0);
         }
+    } else if (strcmp(keyword, "dumpBlock") == 0) {
+        // notes §14
+        uint32_t     replyAt = 0;
+
+        for (uint32_t t = 2; t < tokenCount; t++) {
+            if (strcmp(tokens[t], "reply") == 0) {
+                replyAt = t;
+            }
+        }
+
+        if ((tokenCount < 6) || (replyAt < 3) || (replyAt + 2 >= tokenCount) || (config->dumpBlockCount >= PANEL_MAX_DUMP_BLOCKS)) {
+            LOG_ERROR("panelConfig line %u: expected 'dumpBlock <name> <request bytes> reply <func> <sub>' (max %u)\n", lineNo, (unsigned)PANEL_MAX_DUMP_BLOCKS);
+            return;
+        }
+        tDumpBlock * block   = &config->dumpBlocks[config->dumpBlockCount++];
+
+        strncpy(block->name, tokens[1], sizeof(block->name) - 1);
+
+        for (uint32_t t = 2; (t < replyAt) && (block->requestLen < sizeof(block->request)); t++) {
+            block->request[block->requestLen++] = (uint8_t)strtoul(tokens[t], NULL, 16);
+        }
+
+        block->replyFunc = (int32_t)strtol(tokens[replyAt + 1], NULL, 16);
+        block->replySub  = (int32_t)strtol(tokens[replyAt + 2], NULL, 16);
+    } else if (strcmp(keyword, "fromDump") == 0) {
+        if (!*currentSection || (tokenCount < 2)) {
+            LOG_ERROR("panelConfig line %u: expected 'fromDump <dump block>' inside a page\n", lineNo);
+            return;
+        }
+
+        for (uint32_t b = 0; b < config->dumpBlockCount; b++) {
+            if (strcmp(config->dumpBlocks[b].name, tokens[1]) == 0) {
+                (*currentSection)->dumpBlock = (int32_t)b;
+            }
+        }
+
+        if ((*currentSection)->dumpBlock < 0) {
+            LOG_ERROR("panelConfig line %u: no earlier dumpBlock named '%s'\n", lineNo, tokens[1]);
+        }
     } else if (strcmp(keyword, "startupProgram") == 0) {
         if (tokenCount < 3) {
             LOG_ERROR("panelConfig line %u: expected 'startupProgram <bank index> <program 0-127>'\n", lineNo);
@@ -622,6 +661,7 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
         *currentSection                 = &config->sections[config->sectionCount++];
         *pendingGap                     = 0.0;
         (*currentSection)->showIfOffset = -1;
+        (*currentSection)->dumpBlock    = -1;
         join_tokens(tokens, 1, tokenCount, (*currentSection)->page, sizeof((*currentSection)->page));
         normalise_page_path((*currentSection)->page);
     } else if (strcmp(keyword, "modeTab") == 0) {

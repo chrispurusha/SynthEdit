@@ -124,3 +124,8 @@ come first. panelConfig.h notes §55 has the meaning.
 The `points` value is one token (quoted in the file so its `;` and `,` survive tokenising); unknown parts
 are logged and skipped. A section may have dials as well, but the renderer draws a graph section's graph
 only - put the dials in the next section.
+
+## 14. `dumpBlock` parsing
+
+The word `reply` divides the request bytes from the reply's function and sub byte, so a request of any length
+fits on one line. `fromDump` must name a block declared above it.

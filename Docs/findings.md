@@ -26,6 +26,11 @@ Checked on the owner's Z1, edit buffer only, A005 "Digital Dulcimer" reloaded af
   means "not transmitted" and a silent bank is still selected with the declared default.
 - CURRENT PROGRAM. Found by name at connect (A005, B005), confirmed after each program change.
 
+- GLOBAL AND MIDI. Read from their own dumps (dumpBlock, 51 00 / 51 01): Master Tune 440.0, Global MIDI
+  Channel 4 (matching the 0x33 SysEx channel), Program Change Transmit on. Not written to.
+- ENVELOPES AND KEY TRACKING draw from the dump's values (graph sections): EG 1-4, Amp EG, filter and amp
+  key tracking, OSC pitch slope.
+
 Built, not yet seen on hardware: Prev/Next across A127/B000, Store Patch to Current Slot on a confirmed
 Korg slot, the A000 startup check on a freshly powered Z1, envelope-graph dragging (todo.md).
 

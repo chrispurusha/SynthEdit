@@ -83,13 +83,12 @@ scrollDial      f1cut
 # (CC0/CC32) and Program Change - if its Program Change Transmit (MIDI param
 # 424) is on - so the current program is known exactly from the first change.
 # The Bank Select values are the user's own Program Bank Select Map (MIDI
-# params 426-429), read from the MIDI half of the Global/MIDI dump at connect;
+# params 426-429), read from the MIDI dump (the 'midi' dumpBlock) at connect;
 # the defaults below are what SynthEdit sends until that dump arrives. Before
 # the first change, a name match decides, and the program the Z1 powers up on
 # (A000) is checked against the edit buffer's name with one Program Dump.
 bankSelect            A 0 0
 bankSelect            B 0 1
-bankMapRequest        0E 01
 bankMapReply          51 01 3 4 5 6
 programChangeTransmit 2 0 0x0F
 startupProgram        0 0
@@ -182,6 +181,18 @@ list v4f4c98 "[EG2] Start Level","[EG2] Attack Time","[EG2] Attack Level","[EG2]
 list v4f4c98 "[LFO4] Freq.","[LFO4] Freq.Mod.1 Int.","[LFO4] Freq.Mod.2 Int.","[LFO4] Fade In","[Output] Panpot","[Output] Panpot Mod.Int.","[Output] Output Level","[Effect] Effect Send","[Effect] Effect Send Mod.Int.","[2BandEQ] Low Freq.","[2BandEQ] Low Gain","[2BandEQ] High Freq.","[2BandEQ] High Gain","Unison Type","Unison Detune","OSC Model 1","OSC Model 2","OSC Model 3","OSC Model 4","OSC Model 5","OSC Model 6","OSC Model 7","OSC Model 8","OSC Model 9","OSC Model 10","OSC Model 11","OSC Model 12","OSC Model 13","OSC Model 14","OSC Model 15","OSC Model 16","OSC Model 17","OSC Model 18","OSC Model 19","OSC Model 20","OSC Model 21","OSC Model 22","OSC Model 23","OSC Model 24","OSC Model 25","OSC Model 26","OSC Model 27","OSC Model 28","OSC Model 29","OSC Model 30","OSC Model 31","OSC Model 32","OSC Model 33","OSC Model 34","OSC Model 35","OSC Model 36","OSC Model 37","OSC Model 38"
 list v4f4c98 "OSC Model 39","OSC Model 40","OSC Model 41","OSC Model 42","OSC Model 43","OSC Model 44","OSC Model 45","OSC Model 46","OSC Model 47","OSC Model 48","OSC Model 49","OSC Model 50","OSC Model 51","OSC Model 52","OSC Model 53","OSC Model 54","OSC Model 55","OSC Model 56","OSC Model 57","OSC Model 58","OSC Model 59","OSC Model 60","OSC Model 61","OSC Model 62","OSC Model 63","OSC Model 64","OSC Model 65","OSC Model 66","OSC Model 67","OSC Model 68","OSC Model 69","OSC Model 70","OSC Model 71","OSC Model 72","OSC Model 73"
 list v2400cb Linear,Exp,Log,SW
+list v93d920 430.0,430.1,430.2,430.3,430.4,430.5,430.6,430.7,430.8,430.9,431.0,431.1,431.2,431.3,431.4,431.5,431.6,431.7,431.8,431.9,432.0,432.1,432.2,432.3,432.4,432.5,432.6,432.7,432.8,432.9,433.0,433.1,433.2,433.3,433.4,433.5,433.6,433.7,433.8,433.9,434.0,434.1,434.2,434.3,434.4,434.5,434.6,434.7,434.8,434.9,435.0,435.1,435.2,435.3,435.4,435.5,435.6,435.7,435.8,435.9,436.0,436.1,436.2,436.3,436.4,436.5,436.6,436.7,436.8,436.9,437.0,437.1,437.2,437.3,437.4,437.5,437.6,437.7,437.8,437.9,438.0,438.1,438.2,438.3,438.4,438.5,438.6,438.7,438.8,438.9,439.0,439.1,439.2,439.3,439.4,439.5,439.6,439.7,439.8,439.9,440.0,440.1,440.2,440.3,440.4,440.5,440.6,440.7,440.8,440.9,441.0,441.1,441.2,441.3,441.4,441.5,441.6,441.7,441.8,441.9,442.0,442.1,442.2,442.3,442.4,442.5,442.6,442.7,442.8,442.9,443.0,443.1,443.2,443.3,443.4,443.5,443.6,443.7,443.8,443.9,444.0,444.1,444.2,444.3,444.4,444.5,444.6
+list v93d920 444.7,444.8,444.9,445.0,445.1,445.2,445.3,445.4,445.5,445.6,445.7,445.8,445.9,446.0,446.1,446.2,446.3,446.4,446.5,446.6,446.7,446.8,446.9,447.0,447.1,447.2,447.3,447.4,447.5,447.6,447.7,447.8,447.9,448.0,448.1,448.2,448.3,448.4,448.5,448.6,448.7,448.8,448.9,449.0,449.1,449.2,449.3,449.4,449.5,449.6,449.7,449.8,449.9,450.0
+list v28f97a +,-
+list v31ed19 PostKBD,PreTG
+list vc9a742 CURVE1,CURVE2,CURVE3,CURVE4,CURVE5,CURVE6,CURVE7,CURVE8
+list vf1ad97 CURVE1,CURVE2,CURVE3,CURVE4,CURVE5,CURVE6,CURVE7,CURVE8,(Fixed:64),(Fixed:80),(Fixed:100),(Fixed:115),(Fixed:127)
+list veacfec Internal,External
+list vac8fa2 Avail,Bypass
+list vba3a98 Stereo,Monaural
+list vb14a9e Disable,Enable
+list v5be088 Disable,Enable,Program
+list v594ea0 Off,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127
 list v3ffa0b "Group 1","Group 2","Group 3","Group 4","Group 5","Group 6","Group 7","Group 8","Group 9","Group 10","Group 11","Group 12","Group 13","Group 14","Group 15","Group 16"
 list ve099f0 Last,Low,High
 list v601b3c 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127
@@ -2784,6 +2795,141 @@ dial p461     label="4 Left Value" color=ctl max=101 display=raw group=1 param=4
 dial p462     label="4 Right Value" color=ctl max=101 display=raw group=1 param=462 dumpOffset=574
 dial p463     label="4 Curve" color=ctl max=4 names=@v2400cb group=1 param=463 dumpOffset=575
 # ══ END GENERATED Control
+
+# ══ BEGIN GENERATED Global and MIDI
+# ── Global and MIDI ───────────────────────────────────────────────────────────
+# GENERATED from the Z1's parameter tables - regenerate rather than edit by hand.
+# Their own dumps (51 00 Global, 51 01 MIDI), edited with Parameter Change group 0.
+dumpBlock global 0E 00 reply 51 00
+dumpBlock midi   0E 01 reply 51 01
+
+page       Global | Global | Common
+section    glcommon1
+fromDump   global
+dialSize   40
+spacing    50
+
+color gl 0.75 0.75 0.85
+
+dial g1       label="Master Tune" color=gl max=201 displayOffset=100 wireSigned=1 names=@v93d920 asDial=1 group=0 param=1 dumpOffset=0
+dial g9       label="Damper Polarity" color=gl max=2 names=@v28f97a group=0 param=9 dumpOffset=7 dumpShift=7 dumpMask=0x1
+dial g2       label="Transpose" color=gl max=25 displayOffset=12 wireSigned=1 display=signed group=0 param=2 dumpOffset=1
+dial g10      label="Assignable SW Polarity" color=gl max=2 names=@v28f97a group=0 param=10 dumpOffset=7 dumpShift=6 dumpMask=0x1
+dial g3       label="Transpose Position" color=gl max=2 names=@v31ed19 group=0 param=3 dumpOffset=2
+dial g11      label="Assignable Pedal Polarity" color=gl max=2 names=@v28f97a group=0 param=11 dumpOffset=7 dumpShift=5 dumpMask=0x1
+dial g12      label="Volume Pedal Polarity" color=gl max=2 names=@v28f97a group=0 param=12 dumpOffset=7 dumpShift=4 dumpMask=0x1
+
+page       Global | Global | Common
+section    glcommon1w1
+fromDump   global
+dialSize   40
+spacing    50
+
+color gl 0.75 0.75 0.85
+
+dial g5       label="After Touch Curve" color=gl max=8 names=@vc9a742 group=0 param=5 dumpOffset=3 dumpShift=0 dumpMask=0x7
+dial g4       label="Vel Curve" color=gl max=13 names=@vf1ad97 group=0 param=4 dumpOffset=3 dumpShift=3 dumpMask=0x1F
+dial g17      label="Memory Protect" color=gl max=2 names=@v7bf299 group=0 param=17 dumpOffset=8 dumpShift=0 dumpMask=0x1
+dial g6       label="After Touch Sensitivity" color=gl max=100 display=raw group=0 param=6 dumpOffset=4
+dial g18      label="Page Memory" color=gl max=2 names=@v7bf299 group=0 param=18 dumpOffset=8 dumpShift=1 dumpMask=0x1
+dial g19      label="Card Area Select" color=gl max=16 display=raw group=0 param=19 dumpOffset=8 dumpShift=4 dumpMask=0xF
+
+page       Global | Global | Common
+section    glcommon1w2
+fromDump   global
+dialSize   40
+spacing    50
+
+color gl 0.75 0.75 0.85
+
+dial g13      label="Program Auto Arpeggio Settin" color=gl max=2 names=@v7bf299 group=0 param=13 dumpOffset=7 dumpShift=3 dumpMask=0x1
+dial g16      label="Digital I/F Clock Src" color=gl max=2 names=@veacfec group=0 param=16 dumpOffset=7 dumpShift=0 dumpMask=0x1
+dial g14      label="Multi Auto Arpeggio Setting" color=gl max=2 names=@v7bf299 group=0 param=14 dumpOffset=7 dumpShift=2 dumpMask=0x1
+dial g15      label="Master Effect" color=gl max=2 names=@vac8fa2 group=0 param=15 dumpOffset=7 dumpShift=1 dumpMask=0x1
+dial g7       label="Output Mode" color=gl max=2 names=@vba3a98 group=0 param=7 dumpOffset=5
+
+page       Global | Global | User Scale 1
+section    glscale11
+fromDump   global
+dialSize   40
+spacing    50
+
+color gl 0.75 0.75 0.85
+
+dial g276     label="Scale 1 C" color=gl max=201 displayOffset=100 wireSigned=1 display=signed group=0 param=276 dumpOffset=265
+dial g277     label="Scale 1 C#" color=gl max=201 displayOffset=100 wireSigned=1 display=signed group=0 param=277 dumpOffset=266
+dial g278     label="Scale 1 D" color=gl max=201 displayOffset=100 wireSigned=1 display=signed group=0 param=278 dumpOffset=267
+dial g279     label="Scale 1 D#" color=gl max=201 displayOffset=100 wireSigned=1 display=signed group=0 param=279 dumpOffset=268
+dial g280     label="Scale 1 E" color=gl max=201 displayOffset=100 wireSigned=1 display=signed group=0 param=280 dumpOffset=269
+dial g281     label="Scale 1 F" color=gl max=201 displayOffset=100 wireSigned=1 display=signed group=0 param=281 dumpOffset=270
+dial g282     label="Scale 1 F#" color=gl max=201 displayOffset=100 wireSigned=1 display=signed group=0 param=282 dumpOffset=271
+dial g283     label="Scale 1 G" color=gl max=201 displayOffset=100 wireSigned=1 display=signed group=0 param=283 dumpOffset=272
+dial g284     label="Scale 1 G#" color=gl max=201 displayOffset=100 wireSigned=1 display=signed group=0 param=284 dumpOffset=273
+dial g285     label="Scale 1 A" color=gl max=201 displayOffset=100 wireSigned=1 display=signed group=0 param=285 dumpOffset=274
+dial g286     label="Scale 1 A#" color=gl max=201 displayOffset=100 wireSigned=1 display=signed group=0 param=286 dumpOffset=275
+dial g287     label="Scale 1 B" color=gl max=201 displayOffset=100 wireSigned=1 display=signed group=0 param=287 dumpOffset=276
+
+page       Global | MIDI | Common
+section    midicommon1
+fromDump   midi
+dialSize   40
+spacing    50
+
+color gl 0.75 0.75 0.85
+
+dial g417     label="Global MIDI Channel" color=gl max=16 names=@va0aefd group=0 param=417 dumpOffset=0 dumpShift=0 dumpMask=0xF
+dial g418     label="Local Ctrl" color=gl max=2 names=@v7bf299 group=0 param=418 dumpOffset=0 dumpShift=4 dumpMask=0x1
+dial g419     label="Omni Mode" color=gl max=2 names=@v7bf299 group=0 param=419 dumpOffset=0 dumpShift=5 dumpMask=0x1
+dial g420     label="Clock Src" color=gl max=2 names=@veacfec group=0 param=420 dumpOffset=0 dumpShift=6 dumpMask=0x1
+dial g421     label="Realtime Command Receive" color=gl max=2 names=@vb14a9e group=0 param=421 dumpOffset=0 dumpShift=7 dumpMask=0x1
+dial g422     label="System Exclusive Transmit" color=gl max=2 names=@vb14a9e group=0 param=422 dumpOffset=1 dumpShift=0 dumpMask=0xF
+dial g423     label="System Exclusive Receive" color=gl max=2 names=@vb14a9e group=0 param=423 dumpOffset=1 dumpShift=4 dumpMask=0xF
+
+page       Global | MIDI | Common
+section    midicommon1w1
+fromDump   midi
+dialSize   40
+spacing    50
+
+color gl 0.75 0.75 0.85
+
+dial g424     label="Program Change Transmit" color=gl max=3 names=@v5be088 group=0 param=424 dumpOffset=2 dumpShift=0 dumpMask=0xF
+dial g425     label="Program Change Receive" color=gl max=3 names=@v5be088 group=0 param=425 dumpOffset=2 dumpShift=4 dumpMask=0xF
+
+page       Global | MIDI | Bank Maps
+section    midibank1
+fromDump   midi
+dialSize   40
+spacing    50
+
+color gl 0.75 0.75 0.85
+
+dial g426     label="Prog Int A (MSB)" color=gl max=129 displayOffset=1 wireSigned=1 names=@v594ea0 asDial=1 group=0 param=426 dumpOffset=3
+dial g427     label="Prog Int A (LSB)" color=gl max=129 displayOffset=1 wireSigned=1 names=@v594ea0 asDial=1 group=0 param=427 dumpOffset=4
+dial g428     label="Prog Int B (MSB)" color=gl max=129 displayOffset=1 wireSigned=1 names=@v594ea0 asDial=1 group=0 param=428 dumpOffset=5
+dial g429     label="Prog Int B (LSB)" color=gl max=129 displayOffset=1 wireSigned=1 names=@v594ea0 asDial=1 group=0 param=429 dumpOffset=6
+dial g430     label="Prog Card A (MSB)" color=gl max=129 displayOffset=1 wireSigned=1 names=@v594ea0 asDial=1 group=0 param=430 dumpOffset=7
+dial g431     label="Prog Card A (LSB)" color=gl max=129 displayOffset=1 wireSigned=1 names=@v594ea0 asDial=1 group=0 param=431 dumpOffset=8
+dial g432     label="Prog Card B (MSB)" color=gl max=129 displayOffset=1 wireSigned=1 names=@v594ea0 asDial=1 group=0 param=432 dumpOffset=9
+dial g433     label="Prog Card B (LSB)" color=gl max=129 displayOffset=1 wireSigned=1 names=@v594ea0 asDial=1 group=0 param=433 dumpOffset=10
+dial g434     label="Multi Int A (MSB)" color=gl max=129 displayOffset=1 wireSigned=1 names=@v594ea0 asDial=1 group=0 param=434 dumpOffset=11
+dial g435     label="Multi Int A (LSB)" color=gl max=129 displayOffset=1 wireSigned=1 names=@v594ea0 asDial=1 group=0 param=435 dumpOffset=12
+
+page       Global | MIDI | Bank Maps
+section    midibank1w1
+fromDump   midi
+dialSize   40
+spacing    50
+
+color gl 0.75 0.75 0.85
+
+dial g436     label="Multi Int B (MSB)" color=gl max=129 displayOffset=1 wireSigned=1 names=@v594ea0 asDial=1 group=0 param=436 dumpOffset=13
+dial g437     label="Multi Int B (LSB)" color=gl max=129 displayOffset=1 wireSigned=1 names=@v594ea0 asDial=1 group=0 param=437 dumpOffset=14
+dial g438     label="Multi Card A (MSB)" color=gl max=129 displayOffset=1 wireSigned=1 names=@v594ea0 asDial=1 group=0 param=438 dumpOffset=15
+dial g439     label="Multi Card A (LSB)" color=gl max=129 displayOffset=1 wireSigned=1 names=@v594ea0 asDial=1 group=0 param=439 dumpOffset=16
+dial g440     label="Multi Card B (MSB)" color=gl max=129 displayOffset=1 wireSigned=1 names=@v594ea0 asDial=1 group=0 param=440 dumpOffset=17
+dial g441     label="Multi Card B (LSB)" color=gl max=129 displayOffset=1 wireSigned=1 names=@v594ea0 asDial=1 group=0 param=441 dumpOffset=18
+# ══ END GENERATED Global and MIDI
 
 # ══ BEGIN GENERATED Remaining parameters of the areas above
 # ── Remaining parameters of the areas above ───────────────────────────────────

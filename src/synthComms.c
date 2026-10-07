@@ -306,6 +306,29 @@ static uint32_t decode_signed_dump_byte(tPanelDial * dial, uint32_t rawByte) {
     return (uint32_t)(signedValue + dial->displayOffset);
 }
 
+// Sets `dial` from its field at `dumpOffset` in a decoded dump; false if the dump does not reach it.
+static bool read_dial_from_dump(tPanelDial * dial, int32_t dumpOffset, const uint8_t * decoded, uint32_t decodedLen) {
+    if ((dumpOffset < 0) || (decodedLen <= (uint32_t)dumpOffset)) {
+        return false;
+    }
+    // notes §15
+    uint32_t raw = (dial->dumpBitWidth > 0)
+                  ? read_korg_bitpacked_field(decoded, decodedLen, dumpOffset, dial->dumpBitOffset, dial->dumpBitWidth)
+                  : (decoded[dumpOffset] >> dial->dumpShift) & dial->dumpMask;
+
+    if (dial->dumpSigned && (dial->dumpBitWidth > 0) && (dial->dumpBitWidth < 32) && (raw >> (dial->dumpBitWidth - 1))) {
+        raw |= ~0u << dial->dumpBitWidth;
+    }
+
+    if (dial->wireSigned) {
+        // notes §16
+        raw = decode_signed_dump_byte(dial, raw);
+    }
+    // notes §17
+    apply_dial_wire_value(dial, raw, (dial->dumpNativeMax != 0) ? dial->dumpNativeMax : dial->nativeMax);
+    return true;
+}
+
 // notes §13
 static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
     tPanelConfig * cfg     = synth_panel_config();
@@ -336,6 +359,10 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
     for (uint32_t s = 0; s < cfg->sectionCount; s++) {
         tPanelSection * dumpSection = &cfg->sections[s];
 
+        if (dumpSection->dumpBlock >= 0) {
+            continue; // its dials read another dump - notes §103
+        }
+
         for (uint32_t d = 0; d < dumpSection->dialCount; d++) {
             tPanelDial * dial       = &dumpSection->dials[d];
 
@@ -343,24 +370,7 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
                                           ? dial->dumpOffset + section_dump_delta(dumpSection, section_active_variant(dumpSection))
                                           : -1;
 
-            if ((dumpOffset >= 0) && (decodedLen > (uint32_t)dumpOffset)) {
-                // notes §15
-                uint32_t raw = (dial->dumpBitWidth > 0)
-                              ? read_korg_bitpacked_field(decoded, decodedLen, dumpOffset, dial->dumpBitOffset, dial->dumpBitWidth)
-                              : (decoded[dumpOffset] >> dial->dumpShift) & dial->dumpMask;
-
-                if (dial->dumpSigned && (dial->dumpBitWidth > 0) && (dial->dumpBitWidth < 32) && (raw >> (dial->dumpBitWidth - 1))) {
-                    raw |= ~0u << dial->dumpBitWidth;
-                }
-
-                if (dial->wireSigned) {
-                    // notes §16
-                    raw = decode_signed_dump_byte(dial, raw);
-                }
-                // notes §17
-                apply_dial_wire_value(dial, raw, (dial->dumpNativeMax != 0) ? dial->dumpNativeMax : dial->nativeMax);
-                updated++;
-            }
+            updated += read_dial_from_dump(dial, dumpOffset, decoded, decodedLen) ? 1 : 0;
         }
     }
 
@@ -1228,6 +1238,19 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
             synthlib_request_redraw();
             LOG_DEBUG("Param %u (%s) = %u\n", (unsigned)paramId, dial->label, (unsigned)value);
         }
+    } else {
+        // notes §104
+        tPanelDial * dial = NULL;
+
+        for (uint32_t s = 0; (s < cfg->sectionCount) && !dial; s++) {
+            dial = find_panel_dial_by_param(&cfg->sections[s], group, paramId);
+        }
+
+        if (dial) {
+            apply_dial_wire_value(dial, dial->wireSigned ? decode_signed_param_wire_value(dial, value) : value,
+                                  (dial->dumpNativeMax != 0) ? dial->dumpNativeMax : dial->nativeMax);
+            synthlib_request_redraw();
+        }
     }
 }
 
@@ -1261,6 +1284,7 @@ void synth_on_connected(void) {
     // notes §53
     synth_request_state_dump();
     synth_request_bank_map();
+    synth_request_dump_blocks();
 }
 
 void synth_request_current_program(void) {
@@ -1550,6 +1574,57 @@ void synth_request_bank_map(void) {
     msg[pos++] = MIDI_SYSEX_END;
     midi_send(msg, pos);
     LOG_DEBUG("Sent bank map request\n");
+}
+
+// notes §103
+void synth_request_dump_blocks(void) {
+    const tPanelConfig * cfg = synth_panel_config();
+
+    for (uint32_t b = 0; gDevice.connected && (b < cfg->dumpBlockCount); b++) {
+        const tDumpBlock * block = &cfg->dumpBlocks[b];
+        uint8_t            msg[32];
+
+        if ((block->requestLen == 0) || (block->requestLen > 12)) {
+            continue;
+        }
+        uint32_t           pos   = build_header(msg, block->request[0]);
+
+        for (uint32_t i = 1; i < block->requestLen; i++) {
+            msg[pos++] = block->request[i];
+        }
+
+        msg[pos++] = MIDI_SYSEX_END;
+        midi_send(msg, pos);
+    }
+}
+
+// The reply to a dump block's request: its sections' dials. True if it was one.
+static bool handle_dump_block_reply(const uint8_t * data, uint32_t length, uint8_t funcId) {
+    tPanelConfig * cfg     = synth_panel_config();
+    uint32_t       skip    = 5 + cfg->manufacturerIdLen; // header + func + sub
+    bool           matched = false;
+
+    for (uint32_t b = 0; (b < cfg->dumpBlockCount) && (length > skip + 1); b++) {
+        if ((cfg->dumpBlocks[b].replyFunc != funcId) || ((int32_t)data[skip - 1] != cfg->dumpBlocks[b].replySub)) {
+            continue;
+        }
+        static uint8_t decoded[4096];
+        uint32_t       decodedLen = decode_7to8(data + skip, length - skip - 1, decoded, sizeof(decoded));
+        uint32_t       updated    = 0;
+
+        for (uint32_t s = 0; s < cfg->sectionCount; s++) {
+            tPanelSection * section = &cfg->sections[s];
+
+            for (uint32_t d = 0; (section->dumpBlock == (int32_t)b) && (d < section->dialCount); d++) {
+                updated += read_dial_from_dump(&section->dials[d], section->dials[d].dumpOffset, decoded, decodedLen) ? 1 : 0;
+            }
+        }
+
+        LOG_DEBUG("Dump block %s: %u dial(s) updated\n", cfg->dumpBlocks[b].name, (unsigned)updated);
+        matched = true;
+    }
+
+    return matched;
 }
 
 static void handle_bank_map_reply(const uint8_t * data, uint32_t length) {
@@ -1953,13 +2028,19 @@ void synth_handle_message(const uint8_t * data, uint32_t length) {
             LOG_ERROR("Data format error\n");
             break;
         default:
+        {
+            bool handled = handle_dump_block_reply(data, length, funcId);
 
             if ((synth_panel_config()->bankMapReplyFunc >= 0) && (funcId == (uint8_t)synth_panel_config()->bankMapReplyFunc)) {
                 handle_bank_map_reply(data, length);
-                break;
+                handled = true;
             }
-            LOG_DEBUG("Synth unhandled func 0x%02X\n", (unsigned)funcId);
+
+            if (!handled) {
+                LOG_DEBUG("Synth unhandled func 0x%02X\n", (unsigned)funcId);
+            }
             break;
+        }
     }
     synthlib_request_redraw();
 }

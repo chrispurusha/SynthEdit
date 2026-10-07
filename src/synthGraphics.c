@@ -437,6 +437,7 @@ void synth_action_patch_nav(int32_t index) {
         // notes §4
         if (!synth_dump_patch_in_flight()) {
             synth_request_state_dump();
+            synth_request_dump_blocks();
         }
     }
 }

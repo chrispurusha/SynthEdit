@@ -510,6 +510,7 @@ static void backdoor_dispatch(const char * cmd, const char * arg, GLFWwindow * w
         // notes §9
         if (!synth_dump_patch_in_flight()) {
             synth_request_state_dump();
+            synth_request_dump_blocks();
         }
         backdoor_write_result("OK\n");
     } else if (strcmp(cmd, "ALERT") == 0) {

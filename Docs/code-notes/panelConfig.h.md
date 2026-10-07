@@ -822,3 +822,12 @@ SynthLib's (breakpointGraph.h); the binding is panelGraph.c.
 (synthGraphics.c notes §58). The Z1 is the case: OSC 2 exists only while OSC 1 is not a physical model
 (byte 154 within 0..8), Effect 2 only while Effect 1 is a single-size type (byte 410 within 0..10). Sending
 to the missing slot does nothing on the device, so the tab should not be there to edit.
+
+## 58. Dump blocks: `dumpBlock` and `fromDump`
+
+Not every parameter lives in the program dump. `dumpBlock <name> <request bytes> reply <func> <sub>`
+declares another dump: the request (after the SysEx header, without F7) and the function and sub byte its
+reply carries. A section that says `fromDump <name>` reads its dials' dumpOffsets from that reply instead of
+the program dump. Every block is requested at connect and by Sync from synth. The Z1 is the case: its Global
+settings come in `51 00` (asked with `0E 00`), its MIDI settings in `51 01` (`0E 01`), both edited with
+Parameter Change group 0.
