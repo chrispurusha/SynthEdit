@@ -257,18 +257,30 @@ static void on_store_to_current_slot_confirmed(bool confirmed) {
 
 // notes §136
 void synth_store_patch_to_current_slot(void) {
-    char     message[320];
-    uint32_t presetNumber = (uint32_t)(gDevice.currentProgram + 1);
+    char                 message[320];
+    char                 slot[24];
+    uint32_t             presetNumber = (uint32_t)(gDevice.currentProgram + 1);
+    const tPanelConfig * cfg          = synth_panel_config();
+    bool                 korg         = !cfg->moogStyleDump;
 
     if (!gDevice.connected) {
         show_alert(STORE_CURRENT_TITLE, "No synth is connected.");
         return;
     }
 
-    if (!synth_panel_config()->moogStyleDump) {
+    if (korg && (cfg->bankCount == 0)) {
         show_alert(STORE_CURRENT_TITLE, "This device's current bank isn't tracked, so its current slot can't be known for certain. "
                    "Use Store Patch to Bank... to choose the slot.");
         return;
+    }
+
+    // notes §138
+    if (korg && (gDevice.currentProgram >= 0)) {
+        uint32_t bank = (uint32_t)gDevice.currentProgram / 128;
+
+        snprintf(slot, sizeof(slot), "%s%03u", (bank < cfg->bankCount) ? cfg->banks[bank].name : "?", (unsigned)(gDevice.currentProgram % 128));
+    } else {
+        snprintf(slot, sizeof(slot), "Preset %u", (unsigned)presetNumber);
     }
 
     switch (gDevice.programCertainty) {
@@ -276,16 +288,16 @@ void synth_store_patch_to_current_slot(void) {
             break;
 
         case eProgramMatchedByName:
-            snprintf(message, sizeof(message), "Preset %u was found by its name alone, which isn't certain enough to overwrite it. "
+            snprintf(message, sizeof(message), "%s was found by its name alone, which isn't certain enough to overwrite it. "
                      "Step to it with Prev/Next, or select it on the synth, to confirm it - or use Store Patch to Bank... to choose the slot.",
-                     (unsigned)presetNumber);
+                     slot);
             show_alert(STORE_CURRENT_TITLE, message);
             return;
 
         case eProgramFromProgramChange:
-            snprintf(message, sizeof(message), "Preset %u came from a Program Change, but the synth's patch name hasn't confirmed it - "
+            snprintf(message, sizeof(message), "%s came from a Program Change, but the synth's patch name hasn't confirmed it - "
                      "the name cache may not hold that preset yet, or another preset has the same name. "
-                     "Use Store Patch to Bank... to choose the slot.", (unsigned)presetNumber);
+                     "Use Store Patch to Bank... to choose the slot.", slot);
             show_alert(STORE_CURRENT_TITLE, message);
             return;
 
@@ -293,6 +305,15 @@ void synth_store_patch_to_current_slot(void) {
             show_alert(STORE_CURRENT_TITLE, "The synth's current preset isn't known. Select one with Prev/Next or on the synth first - "
                        "or use Store Patch to Bank... to choose the slot.");
             return;
+    }
+
+    if (korg) {
+        gPendingStoreBank         = (uint8_t)(gDevice.currentProgram / 128);
+        gPendingStorePresetNumber = (uint32_t)(gDevice.currentProgram % 128) + 1;
+        snprintf(message, sizeof(message), "This will overwrite %s (\"%s\") on the connected device with the CURRENT edit buffer. "
+                 "This cannot be undone.", slot, synth_backup_cached_preset_name(presetNumber));
+        show_confirm(STORE_CURRENT_TITLE, message, "Store...", on_store_patch_to_bank_korg_confirmed);
+        return;
     }
     const char * slotName = synth_backup_cached_preset_name(presetNumber);
 
@@ -732,8 +753,16 @@ static bool name_cache_label_is_a_name(const char * label) {
     return (label[0] != '\0') && (strcmp(label, "(unnamed)") != 0) && (strcmp(label, "(no response)") != 0);
 }
 
+// notes §137
+static uint32_t korg_unique_slot_named(const char * name);
+static const char * korg_cached_slot_name(uint32_t slotNumber);
+
 uint32_t synth_backup_unique_preset_named(const char * name) {
     uint32_t found = 0;
+
+    if (!synth_panel_config()->moogStyleDump) {
+        return korg_unique_slot_named(name);
+    }
 
     if (!gNameCacheValid) {
         return 0;
@@ -758,6 +787,10 @@ bool synth_backup_cached_name_is(uint32_t presetNumber, const char * name) {
 }
 
 const char * synth_backup_cached_preset_name(uint32_t presetNumber) {
+    if (!synth_panel_config()->moogStyleDump) {
+        return korg_cached_slot_name(presetNumber);
+    }
+
     if ((presetNumber < 1) || (presetNumber > BACKUP_BATCH_PRESET_COUNT)) {
         return "";
     }
@@ -907,6 +940,29 @@ static void korg_sweep_write_capture_file(uint8_t bank, uint32_t prog, const cha
 }
 
 // notes §57
+static uint32_t korg_unique_slot_named(const char * name) {
+    uint32_t found = 0;
+
+    if (!gKorgNameCacheValid) {
+        return 0;
+    }
+
+    for (uint32_t i = 0; i < KORG_SWEEP_PRESET_COUNT; i++) {
+        if (name_cache_label_is_a_name(gKorgSweepLabels[i]) && synth_prog_names_equal(gKorgSweepLabels[i], name)) {
+            if (found != 0) {
+                return 0;
+            }
+            found = i + 1;
+        }
+    }
+
+    return found;
+}
+
+static const char * korg_cached_slot_name(uint32_t slotNumber) {
+    return ((slotNumber >= 1) && (slotNumber <= KORG_SWEEP_PRESET_COUNT)) ? gKorgSweepLabels[slotNumber - 1] : "";
+}
+
 static void korg_sweep_set_label(uint8_t bank, uint32_t prog, const char * name, uint8_t categoryIndex) {
     if ((prog < 1) || (prog > 128)) {
         return;

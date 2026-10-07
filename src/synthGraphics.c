@@ -39,6 +39,7 @@ extern "C" {
 #include "utilsGraphics.h"
 #include "panelConfig.h"
 #include "synthComms.h"
+#include "panelGraph.h"
 #include "synthBackup.h"
 #include "midiComms.h"
 #include "misc.h"
@@ -174,19 +175,68 @@ static int32_t variant_dump_delta(const tPanelSection * section, int32_t variant
     return gSynthPanelConfig.pageVariants[variant].dumpDelta;
 }
 
+// notes §58
+static int32_t show_if_dial_value(int32_t dumpOffset) {
+    for (uint32_t i = 0; i < gSynthPanelConfig.sectionCount; i++) {
+        tPanelSection * section = &gSynthPanelConfig.sections[i];
+
+        for (uint32_t d = 0; d < section->dialCount; d++) {
+            const tPanelDial * dial = &section->dials[d];
+
+            if ((dial->dumpOffset == dumpOffset) && (dial->dumpShift == 0) && (dial->dumpBitWidth == 0)) {
+                return (int32_t)get_panel_dial_value(dial) + dial->storageOffset;
+            }
+        }
+    }
+
+    return -1;
+}
+
 static bool section_shown(const tPanelSection * section, int32_t variant) {
     if (section->showIfOffset < 0) {
         return true;
     }
     int32_t value = synth_dump_byte(section->showIfOffset + variant_dump_delta(section, variant));
 
+    if (value < 0) {
+        value = show_if_dial_value(section->showIfOffset);
+    }
     return (value < 0) || ((uint32_t)value == section->showIfValue);
+}
+
+// notes §61
+static bool variant_absent(int32_t variant) {
+    if ((variant < 0) || (gSynthPanelConfig.pageVariants[variant].showIfOffset < 0)) {
+        return false;
+    }
+    const tPageVariant * v     = &gSynthPanelConfig.pageVariants[variant];
+    int32_t              value = synth_dump_byte(v->showIfOffset);
+
+    if (value < 0) {
+        value = show_if_dial_value(v->showIfOffset);
+    }
+    return (value >= 0) && ((value < v->showIfMin) || (value > v->showIfMax));
+}
+
+// The tab `prefix` names a pageVariant whose slot is absent.
+static bool variant_tab_absent(const char * prefix) {
+    for (uint32_t v = 0; v < gSynthPanelConfig.pageVariantCount; v++) {
+        if (strcmp(gSynthPanelConfig.pageVariants[v].variant, prefix) == 0) {
+            return variant_absent((int32_t)v);
+        }
+    }
+
+    return false;
 }
 
 // A page with at least one section showing.
 static bool page_shown(const char * page) {
     char    base[PANEL_PAGE_LEN];
     int32_t variant = resolve_page(page, base, sizeof(base));
+
+    if (variant_absent(variant)) {
+        return false;
+    }
 
     for (uint32_t i = 0; i < gSynthPanelConfig.sectionCount; i++) {
         const tPanelSection * section = &gSynthPanelConfig.sections[i];
@@ -515,6 +565,10 @@ static double render_page_tabs(tRectangle origin) {
 
             if ((strcmp(prefix, page) == 0) && !page_shown(page)) {
                 continue; // notes §57
+            }
+
+            if (variant_tab_absent(prefix)) {
+                continue; // notes §61
             }
 
             for (uint32_t t = rowStart; t < gPageTabCount; t++) {
@@ -887,12 +941,26 @@ static void draw_current_program(double x, double y, double height) {
         [eProgramMatchedByName]     = " (by name)",
         [eProgramConfirmed]         = "",
     };
-    char                     label[40];
+    char                     label[64];
+    const tPanelConfig *     cfg          = synth_panel_config();
 
-    if (!gDevice.connected || (gDevice.currentProgram < 0) || !synth_panel_config()->moogStyleDump) {
+    if (!gDevice.connected || (!cfg->moogStyleDump && (cfg->bankCount == 0))) {
         return;
     }
-    snprintf(label, sizeof(label), "Preset %d%s", (int)gDevice.currentProgram + 1, kQualifier[gDevice.programCertainty]);
+
+    if (gDevice.currentProgram < 0) {
+        if (!gDevice.programChangeTransmitOff) {
+            return;
+        }
+        snprintf(label, sizeof(label), "Program Change Transmit is off on the synth"); // notes §59
+    } else if (cfg->bankCount > 0) {
+        uint32_t bank = (uint32_t)gDevice.currentProgram / 128;
+
+        snprintf(label, sizeof(label), "%s%03d%s", (bank < cfg->bankCount) ? cfg->banks[bank].name : "?",
+                 (int)(gDevice.currentProgram % 128), kQualifier[gDevice.programCertainty]);
+    } else {
+        snprintf(label, sizeof(label), "Preset %d%s", (int)gDevice.currentProgram + 1, kQualifier[gDevice.programCertainty]);
+    }
     set_rgb_colour((gDevice.programCertainty == eProgramConfirmed) ? (tRgb)RGB_WHITE : (tRgb)RGB_GREY_5);
     render_text(mainArea, (tRectangle){
         {x + DRAW_BUTTON_MARGIN, y + DRAW_BUTTON_MARGIN}, {BLANK_SIZE, height}
@@ -1183,6 +1251,11 @@ void synth_render(tRectangle area) {
         for (uint32_t sIdx = 0; sIdx < sectionCount; sIdx++) {
             tPanelSection * section = sections[sIdx];
 
+            // notes §60
+            if (section->graph.present) {
+                y += panel_graph_render(mainArea, section, (tCoord){x, y}) + 24.0;
+                continue;
+            }
             section->spacing = section_required_spacing(section);
             layout_panel_section(section, (tRectangle){{x, y}, {0, 0}}, cfg->gridColWidth, cfg->gridRowHeight);
 
@@ -1231,7 +1304,7 @@ void synth_render(tRectangle area) {
                                 : (tRgb)RGB_GREY_7;
                     draw_button(mainArea, dial->rect, name, colour);
                 } else {
-                    render_dial(mainArea, dial->rect, dialVal, dial->max, 0, disabled ? (tRgb)RGB_GREY_3 : dial->colour);
+                    render_dial(mainArea, dial->rect, dialVal, synth_dial_max(dial), 0, disabled ? (tRgb)RGB_GREY_3 : dial->colour);
                 }
 
                 // notes §43

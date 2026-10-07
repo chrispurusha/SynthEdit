@@ -725,6 +725,12 @@ dump block at 2908) serves slot 2 too (TYP 12, block at 3960, so dumpDelta 1052)
 value each; switching variant re-reads them from the cached dump, which edits and incoming changes for
 either slot keep current - see synthComms.c notes §90.
 
+An optional fifth field, `paramDelta`, does the same for the Korg Parameter Change ID of a
+`group=/param=` dial (2026-10-07). The Z1 is the case: its oscillator-model and effect parameters carry
+their slot in the ID's top bits (ExID, bits 11-13: 1/2 = OSC1/OSC2, 3/4 = Effect 1/2, 5 = Master), so
+OSC 2 is OSC 1's pages with every model ID +2048 and every dump offset +52, and Effect 2 is Effect 1's
+with +2048 and +23. A section whose step differs says so with `variantParamDelta` (§52).
+
 ## 49. `showIfOffset`
 
 `showIf <dumpOffset> <value>` inside a page shows that section only while the cached dump's byte at
@@ -737,3 +743,82 @@ reading another engine's bytes as AL-1 parameters, for a slot holding MOD-7 or n
 
 `tabLabel "<tab>" <dumpOffset> <name,name,...>` appends ": <name>" to that tab's text, indexed by the
 cached dump's byte at dumpOffset (moved by dumpDelta on a pageVariant's tab): "EXi 1: AL-1".
+
+## 51. `variantMax`
+
+`variantMax=<n>` on a dial is the count of positions it offers while its page is shown as a pageVariant
+(§48), where its base slot offers `max`. The Z1's OSC 2 offers 9 of OSC 1's 13 oscillator types and
+Effect 2 11 of Effect 1's 15, so the type dials on the OSC 1 and Effect 1 pages carry `variantMax=9` and
+`variantMax=11`. `synth_dial_max()` (synthComms.h) is the one place that decides; the drag range, the
+clamps, the dial's sweep and the value menu all ask it.
+
+## 52. `variantParamDelta`
+
+`variantParamDelta <n>` inside a page overrides the pageVariant's paramDelta (§48) for that section.
+On the Z1's OSC page the model sections move by ExID (+2048), but the pitch section moves to OSC 2's own
+plain IDs, 14 further on (Oscillator Type 174 -> 188); Effect Select moves by 1 (359 -> 360).
+
+## 53. `PANEL_MAX_NAMES` and the dial's `names`
+
+A dial's value names live on the heap, exactly `nameCount` of them, allocated as the line is parsed
+(panelConfig.c notes §11). Until 2026-10-07 every dial carried a fixed `[PANEL_MAX_NAMES][PANEL_LABEL_LEN]`
+array, 2,080 of its 2,496 bytes whether it had names or not, which made the cap expensive to raise (it went
+20 -> 32 -> 48 -> 65 for the Voyager) and every added section cost 80 KB. The Z1's formatted value tables
+need up to 252 entries (delay times, LFO frequency, EQ frequency), so the cap is now 256 and costs nothing
+until used. `names[i]` reads as before; a dial with none has `names == NULL` and `nameCount == 0`, which every
+reader already checks. Reloading a configuration leaks the previous names (a few kilobytes) rather than
+freeing them, because `load_panel_config()` is also handed uninitialised scratch structs to scan with.
+
+## 54. `PANEL_MAX_SECTIONS`
+
+256 since 2026-10-07. Raised 32 -> 48 -> 64 in July as the Z1's Amp/EG/LFO pages were split, each time
+for a real failure: past the cap, dials land silently in the wrong section (panelConfig.c's "too many
+sections" error). The Z1's complete program needs about 175 - a section per row of every oscillator model
+and effect type, each shown only while selected. A section is about 14.5 KB since the dial names moved to
+the heap (§53), so the whole configuration stays under 4 MB.
+
+## 55. Banks: `bankSelect`, `bankMapRequest`, `bankMapReply`, `programChangeTransmit`, `startupProgram`
+
+A device with more than one bank of 128 programs declares them, in bank order, as
+`bankSelect <name> <msb> <lsb>`: the name prefixes the program number in the current-program label
+("A042"), and msb/lsb are the Bank Select (CC0/CC32) values that pick the bank, -1 for one not sent. The
+current program is then a slot, bank x 128 + program - the same numbering as the Korg name cache.
+
+Where the device keeps its Bank Select values as a user setting, `bankMapRequest <bytes>` is the request to
+send after the SysEx header at connect, and `bankMapReply <func> <sub> <msb offset> <lsb offset> ...` says
+where the reply holds each declared bank's values (signed bytes, -1 = Off), replacing the defaults.
+`programChangeTransmit <offset> <shift> <mask>` names the field in that reply which is 0 when the device
+sends no Program Change; the label then says so instead of leaving the program blank.
+
+`startupProgram <bank index> <program>` is the program the device powers up on. If nothing else has
+settled the current program after the first edit-buffer dump, that one program is requested and its name
+compared with the edit buffer's (synthComms.c notes §101).
+
+The Z1 is the case: banks A and B, its Program Bank Select Map in the MIDI half of the Global/MIDI dump,
+and A000 at power-up.
+
+## 56. `graph` - a breakpoint graph bound to dials
+
+A section may hold one `graph` line instead of dials:
+
+    graph width=420 height=110 segments=5 points="x=0,y=eg1startlvl;t=eg1atk,y=eg1atklvl;...;x=4,y=eg1suslvl;..."
+
+`points` lists the points left to right, `;` between points, `,` between parts:
+- `x=<n>` - at n segments from the left (a fixed point, e.g. an envelope's sustain end)
+- `t=<dial>` - the previous point's x plus this dial's share of one segment (an envelope time)
+- `X=<dial>` - this dial's share of the whole width (a key-tracking break point)
+- `y=<dial>` - this dial's share of the height; `y=<number>` - a fixed height, 0 to 1
+
+A dial's share is its position over its range (value / (positions - 1)), so a bipolar level puts its zero
+in the middle, where the graph draws a reference line. A point moves sideways if it has `t=` or `X=`, up
+and down if it has `y=<dial>`; dragging it sets those dials exactly as turning them would, sending to the
+device. `readOnly=1` makes every point fixed - a graph that shows, not edits. The drawing and picking are
+SynthLib's (breakpointGraph.h); the binding is panelGraph.c.
+
+## 57. `variantShowIf`
+
+`variantShowIf "<variant>" <dumpOffset> <min> <max>` shows a pageVariant's tab only while that dump byte
+(the base's, not moved) is within min..max; before any dump, the dial that edits the byte decides
+(synthGraphics.c notes §58). The Z1 is the case: OSC 2 exists only while OSC 1 is not a physical model
+(byte 154 within 0..8), Effect 2 only while Effect 1 is a single-size type (byte 410 within 0..10). Sending
+to the missing slot does nothing on the device, so the tab should not be there to edit.

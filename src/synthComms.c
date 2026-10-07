@@ -183,9 +183,47 @@ static int32_t section_dump_delta(const tPanelSection * section, int32_t variant
     return v ? v->dumpDelta : 0;
 }
 
+// notes §92
+static int32_t section_param_delta(const tPanelSection * section, int32_t variant) {
+    const tPageVariant * v = section_variant(section, variant);
+
+    if (!v) {
+        return 0;
+    }
+    return section->hasVariantParamDelta ? section->variantParamDelta : v->paramDelta;
+}
+
+// The Parameter Change ID `dial` edits right now: its own, moved by the active pageVariant.
+static uint32_t dial_param_id(const tPanelDial * dial) {
+    const tPanelSection * section = panel_section_of_dial(synth_panel_config(), dial);
+
+    return (uint32_t)((int32_t)dial->paramId + section_param_delta(section, section_active_variant(section)));
+}
+
+uint32_t synth_dial_max(const tPanelDial * dial) {
+    const tPanelSection * section = panel_section_of_dial(synth_panel_config(), dial);
+
+    return ((dial->variantMax != 0) && (section_active_variant(section) >= 0)) ? dial->variantMax : dial->max;
+}
+
 // Records a dial's value in the cached dump at the place `variant` reads it from, so switching variant or
 // re-reading the cache shows it.
 static void cache_store_dial_value(const tPanelDial * dial, const tPanelSection * section, int32_t variant, int32_t value) {
+    if ((dial->dumpOffset >= 0) && (dial->dumpBitWidth == 0) && !dial->wireSigned) {
+        // notes §93
+        uint32_t at = (uint32_t)(dial->dumpOffset + section_dump_delta(section, variant));
+
+        pthread_mutex_lock(&gProgCacheLock);
+
+        if (at < gProgCacheLen) {
+            uint32_t mask = (uint32_t)dial->dumpMask << dial->dumpShift;
+
+            gProgCache[at] = (uint8_t)((gProgCache[at] & ~mask) | (((uint32_t)value << dial->dumpShift) & mask));
+        }
+        pthread_mutex_unlock(&gProgCacheLock);
+        return;
+    }
+
     if ((dial->dumpOffset < 0) || (dial->dumpBitWidth == 0) || (dial->dumpBitWidth >= 32)) {
         return;
     }
@@ -573,10 +611,86 @@ static void set_current_program(int32_t program, tProgramCertainty certainty, co
     remember_confirmed_name((certainty == eProgramConfirmed) ? confirmedName : NULL);
 }
 
+// notes §96
+static int32_t gBankSelectMsb       = -1; // CC0 / CC32 received since the last Program Change
+static int32_t gBankSelectLsb       = -1;
+static int32_t gCurrentBank         = -1; // the bank the last Program Change landed in
+static int32_t gProgramChangeInBank = -1; // its number within the bank, when the bank is not known
+
+static int32_t bank_from_select(int32_t msb, int32_t lsb) {
+    const tPanelConfig * cfg = synth_panel_config();
+
+    if ((msb < 0) && (lsb < 0)) {
+        return -1;
+    }
+
+    for (uint32_t b = 0; b < cfg->bankCount; b++) {
+        const tBankSelect * bank = &cfg->banks[b];
+
+        if (  ((bank->msb >= 0) || (bank->lsb >= 0))
+           && ((bank->msb < 0) || (msb < 0) || (bank->msb == msb))
+           && ((bank->lsb < 0) || (lsb < 0) || (bank->lsb == lsb))) {
+            return (int32_t)b;
+        }
+    }
+
+    return -1;
+}
+
+// The one bank the device selects with no Bank Select at all (both its values Off), or -1.
+static int32_t silent_bank(void) {
+    const tPanelConfig * cfg   = synth_panel_config();
+    int32_t              found = -1;
+
+    for (uint32_t b = 0; b < cfg->bankCount; b++) {
+        if ((cfg->banks[b].msb < 0) && (cfg->banks[b].lsb < 0)) {
+            if (found >= 0) {
+                return -1;
+            }
+            found = (int32_t)b;
+        }
+    }
+
+    return found;
+}
+
+void synth_note_bank_select(uint8_t cc, uint8_t value) {
+    if (cc == 0) {
+        gBankSelectMsb = value;
+    } else if (cc == 32) {
+        gBankSelectLsb = value;
+    }
+}
+
 void synth_note_program_change(uint8_t program, bool fromSynth) {
-    gProgramChangeSeen      = program;
+    int32_t slot = program;
+
     gProgramChangeFromSynth = fromSynth;
-    set_current_program(program, eProgramFromProgramChange, NULL);
+    gProgramChangeInBank    = -1;
+
+    if (synth_panel_config()->bankCount > 0) {
+        int32_t bank = bank_from_select(gBankSelectMsb, gBankSelectLsb);
+
+        if ((bank < 0) && (gBankSelectMsb < 0) && (gBankSelectLsb < 0)) {
+            bank = silent_bank(); // a bank picked by sending no Bank Select at all
+        }
+
+        if (bank < 0) {
+            bank = gCurrentBank; // no Bank Select and none silent: the device stayed in its bank
+        }
+
+        if (bank >= 0) {
+            gCurrentBank = bank;
+            slot         = (bank * 128) + program;
+        } else {
+            gProgramChangeInBank = program; // reconcile_current_program() looks for its bank by name
+            slot                 = -1;
+        }
+    }
+    gBankSelectMsb     = -1;
+    gBankSelectLsb     = -1;
+    gProgramChangeSeen = slot;
+    set_current_program(slot, eProgramFromProgramChange, NULL);
 }
 
 // notes §88
@@ -595,6 +709,18 @@ static void reconcile_current_program(const char * editBufferName) {
 
     if ((gDevice.programCertainty == eProgramConfirmed) && synth_prog_names_equal(gDevice.confirmedSlotName, editBufferName)) {
         return;
+    }
+
+    // notes §97
+    for (uint32_t b = 0; (gProgramChangeInBank >= 0) && (b < synth_panel_config()->bankCount); b++) {
+        uint32_t slot = (b * 128) + (uint32_t)gProgramChangeInBank;
+
+        if (synth_backup_cached_name_is(slot + 1, editBufferName)) {
+            gCurrentBank       = (int32_t)b;
+            gProgramChangeSeen = (int32_t)slot;
+            set_current_program((int32_t)slot, eProgramConfirmed, editBufferName);
+            return;
+        }
     }
 
     if (uniquePreset > 0) {
@@ -677,6 +803,9 @@ static void extract_moog_panel_info(const uint8_t * payload, uint32_t payloadLen
 
 // ── Message handlers ──────────────────────────────────────────────────────────
 
+static void probe_startup_program(void);
+static bool korg_decode_prog_dump(const uint8_t * data, uint32_t length, uint8_t * decoded, uint32_t decodedCap, uint32_t * outDecodedLen);
+
 static void handle_curr_prog_dump(const uint8_t * data, uint32_t length) {
     // Format: F0 <mfrId> 3g 46 40 01 [7-bit encoded data...] F7
     // Payload starts right after the header (F0+mfrId+chan+fam+func = 4+n
@@ -698,12 +827,62 @@ static void handle_curr_prog_dump(const uint8_t * data, uint32_t length) {
     LOG_DEBUG("CURR_PROG_DUMP: %u MIDI bytes → %u decoded bytes\n",
               (unsigned)payloadLen, (unsigned)decodedLen);
 
-    extract_prog_info(decoded, decodedLen);
+    // notes §95
+    pthread_mutex_lock(&gProgCacheLock);
+    memcpy(gProgCache, decoded, decodedLen);
+    gProgCacheLen = decodedLen;
+    extract_prog_info(gProgCache, gProgCacheLen);
+    pthread_mutex_unlock(&gProgCacheLock);
+    reconcile_current_program(gDevice.progName); // notes §98
+    probe_startup_program();
 }
 
 // notes §31
+// notes §101
+static bool gStartupProbeSent    = false;
+static bool gStartupProbePending = false;
+
+static void probe_startup_program(void) {
+    const tPanelConfig * cfg = synth_panel_config();
+
+    if ((cfg->startupSlot < 0) || gStartupProbeSent || (gDevice.currentProgram >= 0) || (gDevice.progName[0] == '\0')) {
+        return;
+    }
+    gStartupProbeSent    = true;
+    gStartupProbePending = true;
+    synth_request_korg_program_dump((uint8_t)(cfg->startupSlot / 128), (uint32_t)(cfg->startupSlot % 128) + 1);
+}
+
+static void check_startup_probe(const uint8_t * data, uint32_t length) {
+    const tPanelConfig * cfg                          = synth_panel_config();
+    uint32_t             funcPos                      = 3 + cfg->manufacturerIdLen;
+    static uint8_t       decoded[4096];
+    uint32_t             decodedLen;
+
+    if (  !gStartupProbePending || (length < funcPos + 3)
+       || ((int32_t)((data[funcPos + 1] & 0x0F) * 128 + data[funcPos + 2]) != cfg->startupSlot)) {
+        return;
+    }
+    gStartupProbePending = false;
+
+    if (!korg_decode_prog_dump(data, length, decoded, sizeof(decoded), &decodedLen) || (decodedLen < cfg->progNameLen)) {
+        return;
+    }
+    char                 name[SYNTH_PROG_NAME_MAXLEN] = "";
+    uint32_t             n                            = (cfg->progNameLen < sizeof(name) - 1) ? cfg->progNameLen : (uint32_t)sizeof(name) - 1;
+
+    memcpy(name, decoded, n);
+
+    if ((gDevice.currentProgram < 0) && synth_prog_names_equal(name, gDevice.progName)) {
+        gCurrentBank = cfg->startupSlot / 128;
+        set_current_program(cfg->startupSlot, eProgramMatchedByName, NULL);
+        LOG_DEBUG("Current program is the startup program by name\n");
+    }
+}
+
 static void handle_prog_dump(const uint8_t * data, uint32_t length) {
     synth_backup_capture_dump(data, length, eBackupExpectKorgProgram);
+    check_startup_probe(data, length);
     LOG_DEBUG("Received Program Data Dump (len=%u)\n", (unsigned)length);
 }
 
@@ -1016,17 +1195,37 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
         LOG_DEBUG("Program name updated: \"%s\"\n", gDevice.progName);
     } else if (group == SYNTH_PARAM_GROUP_PROG) {
         // notes §49
-        tPanelDial * dial = NULL;
+        tPanelDial * dial    = NULL;
+
+        int32_t      variant = -1;
 
         for (uint32_t s = 0; (s < cfg->sectionCount) && !dial; s++) {
             dial = find_panel_dial_by_param(&cfg->sections[s], group, paramId);
         }
 
+        // notes §94
+        for (uint32_t v = 0; !dial && (v < cfg->pageVariantCount); v++) {
+            for (uint32_t s = 0; (s < cfg->sectionCount) && !dial; s++) {
+                tPanelSection * section = &cfg->sections[s];
+
+                if (section_variant(section, (int32_t)v)) {
+                    dial    = find_panel_dial_by_param(section, group, (uint32_t)((int32_t)paramId - section_param_delta(section, (int32_t)v)));
+                    variant = dial ? (int32_t)v : -1;
+                }
+            }
+        }
+
         if (dial) {
             // notes §50
-            uint32_t rawForDial = dial->wireSigned ? decode_signed_param_wire_value(dial, value) : value;
+            uint32_t        rawForDial = dial->wireSigned ? decode_signed_param_wire_value(dial, value) : value;
+            tPanelSection * section    = panel_section_of_dial(cfg, dial);
 
-            apply_dial_wire_value(dial, rawForDial, (dial->dumpNativeMax != 0) ? dial->dumpNativeMax : dial->nativeMax);
+            cache_store_dial_value(dial, section, variant, (int32_t)rawForDial);
+
+            if (variant == section_active_variant(section)) {
+                apply_dial_wire_value(dial, rawForDial, (dial->dumpNativeMax != 0) ? dial->dumpNativeMax : dial->nativeMax);
+            }
+            synthlib_request_redraw();
             LOG_DEBUG("Param %u (%s) = %u\n", (unsigned)paramId, dial->label, (unsigned)value);
         }
     }
@@ -1037,7 +1236,14 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
 void synth_on_connected(void) {
     LOG_DEBUG("Synth connected (channel byte 0x%02X)\n", SYNTH_SYSEX_CHANNEL_BYTE(gDevice.id));
     memset(gDevice.progName, 0, sizeof(gDevice.progName));
-    gProgramChangeSeen = -1;
+    gProgramChangeSeen               = -1;
+    gProgramChangeInBank             = -1;
+    gCurrentBank                     = -1;
+    gBankSelectMsb                   = -1;
+    gBankSelectLsb                   = -1;
+    gDevice.programChangeTransmitOff = false;
+    gStartupProbeSent                = false;
+    gStartupProbePending             = false;
     set_current_program(-1, eProgramUnknown, NULL); // types.h notes §2
     // notes §51
 
@@ -1054,6 +1260,7 @@ void synth_on_connected(void) {
 
     // notes §53
     synth_request_state_dump();
+    synth_request_bank_map();
 }
 
 void synth_request_current_program(void) {
@@ -1248,6 +1455,14 @@ void synth_navigate_preset(int32_t delta) {
     // notes §62
     int32_t next = gDevice.currentProgram + delta;
 
+    if (!synth_panel_config()->moogStyleDump && (synth_panel_config()->bankCount > 0)) {
+        int32_t last = ((int32_t)synth_panel_config()->bankCount * 128) - 1; // notes §99
+
+        next = (next < 0) ? 0 : (next > last) ? last : next;
+        synth_korg_select_program((uint8_t)(next / 128), (uint32_t)(next % 128) + 1);
+        return;
+    }
+
     if (next < 0) {
         next = 0;
     }
@@ -1293,9 +1508,77 @@ void synth_korg_select_program(uint8_t bank, uint32_t progNumber) {
         return;
     }
     // notes §64
-    midi_send_cc(gDevice.id, 0, 0);
-    midi_send_cc(gDevice.id, 32, bank);
+    const tPanelConfig * cfg = synth_panel_config();
+
+    if (bank < cfg->bankCount) {
+        const tBankSelect * b   = &cfg->banks[bank];
+        bool                off = (b->msb < 0) && (b->lsb < 0);
+        int32_t             msb = off ? b->declaredMsb : b->msb; // notes §102
+        int32_t             lsb = off ? b->declaredLsb : b->lsb;
+
+        if (msb >= 0) {
+            midi_send_cc(gDevice.id, 0, (uint8_t)msb);
+        }
+
+        if (lsb >= 0) {
+            midi_send_cc(gDevice.id, 32, (uint8_t)lsb);
+        }
+    } else {
+        midi_send_cc(gDevice.id, 0, 0);
+        midi_send_cc(gDevice.id, 32, bank);
+    }
+    gCurrentBank   = bank;
+    gBankSelectMsb = (bank < cfg->bankCount) ? cfg->banks[bank].msb : 0;    // what went out, read back by
+    gBankSelectLsb = (bank < cfg->bankCount) ? cfg->banks[bank].lsb : bank; // synth_note_program_change()
     synth_change_program((uint8_t)(progNumber - 1));
+}
+
+// notes §100
+void synth_request_bank_map(void) {
+    const tPanelConfig * cfg = synth_panel_config();
+
+    if (!gDevice.connected || (cfg->bankMapRequestLen == 0) || (cfg->bankMapRequestLen > 12)) {
+        return;
+    }
+    uint8_t              msg[32];
+    uint32_t             pos = build_header(msg, cfg->bankMapRequest[0]);
+
+    for (uint32_t b = 1; b < cfg->bankMapRequestLen; b++) {
+        msg[pos++] = cfg->bankMapRequest[b];
+    }
+
+    msg[pos++] = MIDI_SYSEX_END;
+    midi_send(msg, pos);
+    LOG_DEBUG("Sent bank map request\n");
+}
+
+static void handle_bank_map_reply(const uint8_t * data, uint32_t length) {
+    tPanelConfig * cfg        = synth_panel_config();
+    uint32_t       skip       = 5 + cfg->manufacturerIdLen; // header + func + sub
+
+    if ((length < skip + 2) || ((int32_t)data[skip - 1] != cfg->bankMapReplySub)) {
+        return;
+    }
+    static uint8_t decoded[1024];
+    uint32_t       decodedLen = decode_7to8(data + skip, length - skip - 1, decoded, sizeof(decoded));
+
+    for (uint32_t b = 0; b < cfg->bankCount; b++) {
+        tBankSelect * bank = &cfg->banks[b];
+
+        if ((bank->msbDumpOffset >= 0) && ((uint32_t)bank->msbDumpOffset < decodedLen)) {
+            bank->msb = (int8_t)decoded[bank->msbDumpOffset]; // -1 = Off: not sent
+        }
+
+        if ((bank->lsbDumpOffset >= 0) && ((uint32_t)bank->lsbDumpOffset < decodedLen)) {
+            bank->lsb = (int8_t)decoded[bank->lsbDumpOffset];
+        }
+        LOG_DEBUG("Bank %s: Bank Select %d / %d\n", bank->name, (int)bank->msb, (int)bank->lsb);
+    }
+
+    if ((cfg->pcTransmitOffset >= 0) && ((uint32_t)cfg->pcTransmitOffset < decodedLen)) {
+        gDevice.programChangeTransmitOff = (((decoded[cfg->pcTransmitOffset] >> cfg->pcTransmitShift) & cfg->pcTransmitMask) == 0);
+        LOG_DEBUG("Program Change Transmit %s on the device\n", gDevice.programChangeTransmitOff ? "OFF" : "on");
+    }
 }
 
 void synth_request_korg_program_dump(uint8_t bank, uint32_t progNumber) {
@@ -1366,6 +1649,8 @@ void synth_send_korg_program_write_request(uint8_t bank, uint32_t progNumber) {
 void synth_send_parameter_change(uint8_t group, uint16_t paramId, uint16_t value) {
     // F0 42 3g 46 41 0mm pp pp vv vv F7
     uint8_t  msg[11];
+
+    LOG_DEBUG("Parameter Change out: group=%u param=%u value=%u\n", (unsigned)group, (unsigned)paramId, (unsigned)value);
     uint32_t pos = build_header(msg, SYNTH_FUNC_PARAMETER_CHANGE);
 
     msg[pos++] = (uint8_t)(group & 0x0F);
@@ -1668,6 +1953,11 @@ void synth_handle_message(const uint8_t * data, uint32_t length) {
             LOG_ERROR("Data format error\n");
             break;
         default:
+
+            if ((synth_panel_config()->bankMapReplyFunc >= 0) && (funcId == (uint8_t)synth_panel_config()->bankMapReplyFunc)) {
+                handle_bank_map_reply(data, length);
+                break;
+            }
             LOG_DEBUG("Synth unhandled func 0x%02X\n", (unsigned)funcId);
             break;
     }
@@ -1706,7 +1996,7 @@ void synth_flush_pending_param_send(void) {
                             ? encode_signed_param_wire_value(gPendingParamDial, gPendingParamValue)
                             : (uint16_t)gPendingParamValue;
 
-        synth_send_parameter_change((uint8_t)gPendingParamDial->paramGroup, (uint16_t)gPendingParamDial->paramId, wireValue);
+        synth_send_parameter_change((uint8_t)gPendingParamDial->paramGroup, (uint16_t)dial_param_id(gPendingParamDial), wireValue);
         gPendingParamDial = NULL;
     }
 }
@@ -1715,9 +2005,10 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
     if (!dial) {
         return;
     }
+    uint32_t max = synth_dial_max(dial);
 
-    if ((dial->max > 0) && (displayValue >= dial->max)) {
-        displayValue = dial->max - 1;
+    if ((max > 0) && (displayValue >= max)) {
+        displayValue = max - 1;
     }
 
     // notes §79
@@ -1813,9 +2104,11 @@ void synth_set_panel_dial_value(tPanelDial * dial, uint32_t displayValue) {
         gPendingParamDial  = dial;
         gPendingParamValue = storageValue;
     } else {
-        uint16_t wireValue = dial->wireSigned ? encode_signed_param_wire_value(dial, storageValue) : (uint16_t)storageValue;
+        uint16_t        wireValue = dial->wireSigned ? encode_signed_param_wire_value(dial, storageValue) : (uint16_t)storageValue;
+        tPanelSection * section   = panel_section_of_dial(synth_panel_config(), dial);
 
-        synth_send_parameter_change((uint8_t)dial->paramGroup, (uint16_t)dial->paramId, wireValue);
+        synth_send_parameter_change((uint8_t)dial->paramGroup, (uint16_t)dial_param_id(dial), wireValue);
+        cache_store_dial_value(dial, section, section_active_variant(section), (int32_t)storageValue);
     }
     synthlib_request_redraw();
 }

@@ -237,16 +237,28 @@ static void parse_dial_line(const tPanelConfig * config, tPanelSection * section
             }
         } else if (strcmp(key, "max") == 0) {
             dial->max = (uint32_t)strtoul(val, NULL, 0);
+        } else if (strcmp(key, "variantMax") == 0) {
+            dial->variantMax = (uint32_t)strtoul(val, NULL, 0);
         } else if (strcmp(key, "names") == 0) {
+            static char names[PANEL_MAX_NAMES][PANEL_LABEL_LEN];
+
             if (val[0] == '@') {
                 // notes §9
-                dial->nameCount = copy_list_items(config, val + 1, dial->names, PANEL_MAX_NAMES);
+                dial->nameCount = copy_list_items(config, val + 1, names, PANEL_MAX_NAMES);
 
                 if (dial->nameCount == 0) {
                     LOG_ERROR("panelConfig line %u: unknown or empty list '%s'\n", lineNo, val + 1);
                 }
             } else {
-                dial->nameCount = split_csv(val, dial->names, PANEL_MAX_NAMES);
+                dial->nameCount = split_csv(val, names, PANEL_MAX_NAMES);
+            }
+            // notes §11
+            dial->names   = (dial->nameCount > 0) ? malloc((size_t)dial->nameCount * PANEL_LABEL_LEN) : NULL;
+
+            if (dial->names) {
+                memcpy(dial->names, names, (size_t)dial->nameCount * PANEL_LABEL_LEN);
+            } else {
+                dial->nameCount = 0;
             }
             dial->display = dialDisplayNames;
         } else if (strcmp(key, "display") == 0) {
@@ -357,6 +369,86 @@ static void parse_dial_line(const tPanelConfig * config, tPanelSection * section
 }
 
 // ── "color <name> <r> <g> <b>" ───────────────────────────────────────────────
+// notes §13
+static void parse_graph_points(tPanelGraph * graph, const char * spec, uint32_t lineNo) {
+    char         item[PANEL_TOKEN_LEN];
+    const char * p = spec;
+
+    graph->pointCount = 0;
+
+    while (*p && (graph->pointCount < PANEL_GRAPH_MAX_POINTS)) {
+        tGraphPointSpec * point = &graph->points[graph->pointCount++];
+        const char *      end   = strchr(p, ';');
+        size_t            len   = end ? (size_t)(end - p) : strlen(p);
+
+        memset(point, 0, sizeof(*point));
+        snprintf(item, sizeof(item), "%.*s", (int)len, p);
+
+        for (char * part = strtok(item, ","); part; part = strtok(NULL, ",")) {
+            char *       eq  = strchr(part, '=');
+
+            if (!eq) {
+                LOG_ERROR("panelConfig line %u: graph point part '%s' has no '='\n", lineNo, part);
+                continue;
+            }
+            *eq = '\0';
+            const char * val = eq + 1;
+            bool         num = (*val == '-') || (*val == '.') || ((*val >= '0') && (*val <= '9'));
+
+            if (strcmp(part, "x") == 0) {
+                point->xSegments = strtod(val, NULL);
+            } else if (strcmp(part, "t") == 0) {
+                strncpy(point->tDial, val, sizeof(point->tDial) - 1);
+            } else if (strcmp(part, "X") == 0) {
+                strncpy(point->xDial, val, sizeof(point->xDial) - 1);
+            } else if ((strcmp(part, "y") == 0) && num) {
+                point->yConst = strtod(val, NULL);
+            } else if (strcmp(part, "y") == 0) {
+                strncpy(point->yDial, val, sizeof(point->yDial) - 1);
+            } else {
+                LOG_ERROR("panelConfig line %u: unknown graph point part '%s'\n", lineNo, part);
+            }
+        }
+
+        p += len + (end ? 1 : 0);
+    }
+}
+
+static void parse_graph_line(tPanelGraph * graph, char tokens[][PANEL_TOKEN_LEN], uint32_t tokenCount, uint32_t lineNo) {
+    graph->present  = true;
+    graph->width    = 400.0;
+    graph->height   = 100.0;
+    graph->segments = 1;
+
+    for (uint32_t i = 1; i < tokenCount; i++) {
+        char key[64];
+        char val[PANEL_TOKEN_LEN];
+
+        if (!split_kv(tokens[i], key, sizeof(key), val, sizeof(val))) {
+            LOG_ERROR("panelConfig line %u: expected key=value in graph, got '%s'\n", lineNo, tokens[i]);
+            continue;
+        }
+
+        if (strcmp(key, "width") == 0) {
+            graph->width = strtod(val, NULL);
+        } else if (strcmp(key, "height") == 0) {
+            graph->height = strtod(val, NULL);
+        } else if (strcmp(key, "segments") == 0) {
+            graph->segments = (uint32_t)strtoul(val, NULL, 0);
+        } else if (strcmp(key, "readOnly") == 0) {
+            graph->readOnly = (strtoul(val, NULL, 0) != 0);
+        } else if (strcmp(key, "points") == 0) {
+            parse_graph_points(graph, val, lineNo);
+        } else {
+            LOG_ERROR("panelConfig line %u: unknown graph key '%s'\n", lineNo, key);
+        }
+    }
+
+    if (graph->segments == 0) {
+        graph->segments = 1;
+    }
+}
+
 static void parse_colour_line(tPanelSection * section, char tokens[][PANEL_TOKEN_LEN], uint32_t tokenCount, uint32_t lineNo) {
     if (tokenCount < 5) {
         LOG_ERROR("panelConfig line %u: expected 'color <name> <r> <g> <b>'\n", lineNo);
@@ -425,6 +517,53 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
         config->nameLineWidth = (uint32_t)strtoul(tokens[1], NULL, 0);
     } else if (strcmp(keyword, "presetBankCount") == 0) {
         config->presetBankCount = (uint32_t)strtoul(tokens[1], NULL, 0);
+    } else if (strcmp(keyword, "bankSelect") == 0) {
+        // notes §12
+        if ((tokenCount < 4) || (config->bankCount >= PANEL_MAX_BANKS)) {
+            LOG_ERROR("panelConfig line %u: expected 'bankSelect <name> <msb> <lsb>' (max %u)\n", lineNo, (unsigned)PANEL_MAX_BANKS);
+            return;
+        }
+        tBankSelect * bank = &config->banks[config->bankCount++];
+
+        strncpy(bank->name, tokens[1], sizeof(bank->name) - 1);
+        bank->msb           = (int32_t)strtol(tokens[2], NULL, 0);
+        bank->lsb           = (int32_t)strtol(tokens[3], NULL, 0);
+        bank->declaredMsb   = bank->msb;
+        bank->declaredLsb   = bank->lsb;
+        bank->msbDumpOffset = -1;
+        bank->lsbDumpOffset = -1;
+    } else if (strcmp(keyword, "bankMapRequest") == 0) {
+        config->bankMapRequestLen = 0;
+
+        for (uint32_t b = 1; (b < tokenCount) && (config->bankMapRequestLen < sizeof(config->bankMapRequest)); b++) {
+            config->bankMapRequest[config->bankMapRequestLen++] = (uint8_t)strtoul(tokens[b], NULL, 16);
+        }
+    } else if (strcmp(keyword, "bankMapReply") == 0) {
+        if (tokenCount < 3) {
+            LOG_ERROR("panelConfig line %u: expected 'bankMapReply <func> <sub> <msbOffset> <lsbOffset> ...'\n", lineNo);
+            return;
+        }
+        config->bankMapReplyFunc = (int32_t)strtol(tokens[1], NULL, 16);
+        config->bankMapReplySub  = (int32_t)strtol(tokens[2], NULL, 16);
+
+        for (uint32_t b = 0; (b < config->bankCount) && (3 + (b * 2) + 1 < tokenCount); b++) {
+            config->banks[b].msbDumpOffset = (int32_t)strtol(tokens[3 + (b * 2)], NULL, 0);
+            config->banks[b].lsbDumpOffset = (int32_t)strtol(tokens[4 + (b * 2)], NULL, 0);
+        }
+    } else if (strcmp(keyword, "startupProgram") == 0) {
+        if (tokenCount < 3) {
+            LOG_ERROR("panelConfig line %u: expected 'startupProgram <bank index> <program 0-127>'\n", lineNo);
+            return;
+        }
+        config->startupSlot = ((int32_t)strtol(tokens[1], NULL, 0) * 128) + (int32_t)strtol(tokens[2], NULL, 0);
+    } else if (strcmp(keyword, "programChangeTransmit") == 0) {
+        if (tokenCount < 4) {
+            LOG_ERROR("panelConfig line %u: expected 'programChangeTransmit <offset> <shift> <mask>'\n", lineNo);
+            return;
+        }
+        config->pcTransmitOffset = (int32_t)strtol(tokens[1], NULL, 0);
+        config->pcTransmitShift  = (uint32_t)strtoul(tokens[2], NULL, 0);
+        config->pcTransmitMask   = (uint32_t)strtoul(tokens[3], NULL, 0);
     } else if (strcmp(keyword, "gridColWidth") == 0) {
         config->gridColWidth = strtod(tokens[1], NULL);
     } else if (strcmp(keyword, "gridRowHeight") == 0) {
@@ -501,6 +640,19 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
         }
         (*currentSection)->showIfOffset = (int32_t)strtol(tokens[1], NULL, 0);
         (*currentSection)->showIfValue  = (uint32_t)strtoul(tokens[2], NULL, 0);
+    } else if (strcmp(keyword, "graph") == 0) {
+        if (!*currentSection) {
+            LOG_ERROR("panelConfig line %u: 'graph' outside a section\n", lineNo);
+            return;
+        }
+        parse_graph_line(&(*currentSection)->graph, tokens, tokenCount, lineNo);
+    } else if (strcmp(keyword, "variantParamDelta") == 0) {
+        if (!*currentSection || (tokenCount < 2)) {
+            LOG_ERROR("panelConfig line %u: expected 'variantParamDelta <delta>' inside a page\n", lineNo);
+            return;
+        }
+        (*currentSection)->hasVariantParamDelta = true;
+        (*currentSection)->variantParamDelta    = (int32_t)strtol(tokens[1], NULL, 0);
     } else if (strcmp(keyword, "tabLabel") == 0) {
         if ((tokenCount < 4) || (config->tabLabelCount >= PANEL_MAX_TAB_LABELS)) {
             LOG_ERROR("panelConfig line %u: expected 'tabLabel \"<tab>\" <dumpOffset> <names>' (max %u)\n", lineNo, (unsigned)PANEL_MAX_TAB_LABELS);
@@ -514,7 +666,7 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
         tabLabel->nameCount  = split_csv(tokens[3], tabLabel->names, PANEL_MAX_NAMES);
     } else if (strcmp(keyword, "pageVariant") == 0) {
         if ((tokenCount < 5) || (config->pageVariantCount >= PANEL_MAX_PAGE_VARIANTS)) {
-            LOG_ERROR("panelConfig line %u: expected 'pageVariant \"<variant>\" \"<base>\" <typDelta> <dumpDelta>' (max %u)\n", lineNo, (unsigned)PANEL_MAX_PAGE_VARIANTS);
+            LOG_ERROR("panelConfig line %u: expected 'pageVariant \"<variant>\" \"<base>\" <typDelta> <dumpDelta> [paramDelta]' (max %u)\n", lineNo, (unsigned)PANEL_MAX_PAGE_VARIANTS);
             return;
         }
         tPageVariant * variant = &config->pageVariants[config->pageVariantCount++];
@@ -523,8 +675,35 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
         strncpy(variant->base, tokens[2], sizeof(variant->base) - 1);
         normalise_page_path(variant->variant);
         normalise_page_path(variant->base);
-        variant->typDelta  = (int32_t)strtol(tokens[3], NULL, 0);
-        variant->dumpDelta = (int32_t)strtol(tokens[4], NULL, 0);
+        variant->typDelta     = (int32_t)strtol(tokens[3], NULL, 0);
+        variant->dumpDelta    = (int32_t)strtol(tokens[4], NULL, 0);
+        variant->paramDelta   = (tokenCount > 5) ? (int32_t)strtol(tokens[5], NULL, 0) : 0;
+        variant->showIfOffset = -1;
+    } else if (strcmp(keyword, "variantShowIf") == 0) {
+        tPageVariant * variant = NULL;
+        char           name[PANEL_PAGE_LEN];
+
+        if (tokenCount < 5) {
+            LOG_ERROR("panelConfig line %u: expected 'variantShowIf \"<variant>\" <dumpOffset> <min> <max>'\n", lineNo);
+            return;
+        }
+        strncpy(name, tokens[1], sizeof(name) - 1);
+        name[sizeof(name) - 1] = '\0';
+        normalise_page_path(name);
+
+        for (uint32_t v = 0; v < config->pageVariantCount; v++) {
+            if (strcmp(config->pageVariants[v].variant, name) == 0) {
+                variant = &config->pageVariants[v];
+            }
+        }
+
+        if (!variant) {
+            LOG_ERROR("panelConfig line %u: variantShowIf names no earlier pageVariant '%s'\n", lineNo, tokens[1]);
+            return;
+        }
+        variant->showIfOffset  = (int32_t)strtol(tokens[2], NULL, 0);
+        variant->showIfMin     = (int32_t)strtol(tokens[3], NULL, 0);
+        variant->showIfMax     = (int32_t)strtol(tokens[4], NULL, 0);
     } else if (strcmp(keyword, "section") == 0) {
         if (!*currentSection) {
             LOG_ERROR("panelConfig line %u: 'section' with no preceding 'page'\n", lineNo);
@@ -595,6 +774,9 @@ bool load_panel_config(const char * path, tPanelConfig * config) {
     config->supportsKorgProgramDump = true;  // overridden by an explicit "supportsKorgProgramDump no" line — see its own field comment in panelConfig.h
     config->panelNameOffset         = -1;    // overridden by an explicit "panelNameOffset" line
     config->presetNameOffset        = -1;    // overridden by an explicit "presetNameOffset" line
+    config->bankMapReplyFunc        = -1;
+    config->pcTransmitOffset        = -1;
+    config->startupSlot             = -1;
     config->presetBankCount         = 1;     // overridden by an explicit "presetBankCount" line — see its own field comment in panelConfig.h
 
     tPanelSection * currentSection = NULL;

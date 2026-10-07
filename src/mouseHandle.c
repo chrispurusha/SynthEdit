@@ -36,6 +36,7 @@
 #include "alertDialog.h"
 #include "geometry.h"    // dial_drag_pixels_for_full_range() — the shared Shift-slows-the-drag policy
 #include "inputState.h"
+#include "panelGraph.h"
 
 // ── GLFW constants (avoids pulling GLFW header into C) ────────────────────────
 #define GLFW_CURSOR             0x00033001
@@ -226,6 +227,10 @@ static void end_dial_drag(void * win) {
 
 // notes §13
 void recover_lost_dial_drag(void * win) {
+    if (panel_graph_dragging() && (glfwGetMouseButton(win, 0) != GLFW_PRESS)) {
+        panel_graph_release(); // the same rule for a graph point - notes §25
+    }
+
     if (gDraggedDial == NULL) {
         return;
     }
@@ -256,6 +261,12 @@ void handle_mouse_button(tCoord coord, tMouseButton button, int mods) {
     // notes §15
     if (!pressed && gDraggedDial) {
         end_dial_drag(synthlib_window());
+        return;
+    }
+
+    if (!pressed && panel_graph_dragging()) {
+        panel_graph_release();
+        synthlib_request_redraw();
         return;
     }
     // notes §16
@@ -316,6 +327,11 @@ void handle_mouse_button(tCoord coord, tMouseButton button, int mods) {
     tPanelSection * sections[PANEL_MAX_SECTIONS];
     uint32_t        sectionCount = synth_current_page_sections(sections, PANEL_MAX_SECTIONS);
 
+    if (panel_graph_press(sections, sectionCount, coord)) { // notes §25
+        synthlib_request_redraw();
+        return;
+    }
+
     for (uint32_t s = 0; (s < sectionCount) && !hit; s++) {
         int32_t hitIdx = hit_test_panel_section(sections[s], coord);
 
@@ -330,6 +346,11 @@ void handle_mouse_button(tCoord coord, tMouseButton button, int mods) {
 }
 
 void handle_cursor_pos(tCoord coord) {
+    if (panel_graph_dragging()) {
+        panel_graph_drag(coord, shift_modifier_held());
+        return;
+    }
+
     if (!gDraggedDial) {
         return;
     }
@@ -340,7 +361,7 @@ void handle_cursor_pos(tCoord coord) {
         gDragSkipCount--;
         return;
     }
-    uint32_t range  = gDraggedDial->max;
+    uint32_t range  = synth_dial_max(gDraggedDial);
     int32_t  newVal = (int32_t)get_panel_dial_value(gDraggedDial);
 
     if (synthlib_dial_mode() == eDialModeRotary) {
@@ -489,6 +510,6 @@ void handle_scroll(double dx, double dy) {
 
     if (dial && !dial->readOnly && !panel_dial_is_disabled(dial, cfg)) {
         int32_t newVal = (int32_t)get_panel_dial_value(dial) + (int32_t)dy;
-        synth_set_panel_dial_value(dial, clamp_dial_value(newVal, dial->max));
+        synth_set_panel_dial_value(dial, clamp_dial_value(newVal, synth_dial_max(dial)));
     }
 }

@@ -745,3 +745,29 @@ sections are all hidden is not a tab in its own row - but it still makes the tab
 tab stays when its slot holds an engine with no pages yet. That tab then opens to itself: an empty
 panel with "Nothing to edit here yet (EXi 2: MOD-7)". Only a real (listed) page that turns hidden - a program change
 swapped the engine under it - moves to the first page still showing under its parent tab.
+
+## 58. `show_if_dial_value()`
+
+Before any dump has arrived, a `showIf` section (panelConfig.h notes §49) is judged by the dial that edits
+the byte it tests - the type selector - instead of being shown regardless. Showing regardless suited the
+Kronos's one AL-1 page, but the Z1 gates thirteen oscillator-model sections and eighteen effect sections on
+their type bytes, and all of them at once would run far off the page. The selector starts at its first
+value, so its first model shows, and choosing another shows that one, connected or not. Once a dump is
+cached the cache decides, as before.
+
+## 59. Program Change Transmit off
+
+With no current program known and the device reporting it sends no Program Change (synthComms.c notes
+§100), the label says so: following the synth's own program changes depends on that setting.
+
+## 60. Graph sections
+
+A section with a `graph` (panelConfig.h notes §56) draws it at the section's place and moves down by its
+height; it lays out no dials.
+
+## 61. A variant's tab can be absent
+
+page_shown() also asks the pageVariant's own condition (panelConfig.h notes §57), and the tab row drops
+the variant's own tab while its slot is absent. This is unlike §57, where an EXi tab stays with nothing
+under it: there the slot exists and holds an engine with no pages, here the slot itself does not exist
+(the Z1's OSC 2 behind a physical model), so there is nothing to open.

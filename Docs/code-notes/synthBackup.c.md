@@ -1675,3 +1675,17 @@ that a Program Change this app sent must match a unique name (synthComms.c notes
 unlikely.
 
 Moog-style devices only. A Korg device's current bank is not tracked (todo.md).
+
+## 137. The name lookups for a Korg device
+
+`synth_backup_unique_preset_named()` and `synth_backup_cached_preset_name()` answer from the Korg name
+cache (256 slots, bank x 128 + program, 1-based here) when the device is not Moog-style, so
+reconcile_current_program() (synthComms.c notes §88, §97) works for the Z1 unchanged.
+
+## 138. Store to Current Slot on a Korg device
+
+With banks declared (panelConfig.h notes §55) the current slot is known exactly once confirmed, so the
+Korg device gets the same rules as the Moog: only a confirmed slot is overwritten, by-name and unconfirmed
+ones are refused with the reason. The write is the device's own Program Write Request to that bank and
+program (the same path as Store Patch to Bank...), after a confirmation that names the slot and its cached
+name.

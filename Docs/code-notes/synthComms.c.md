@@ -1319,3 +1319,73 @@ A change for a TYP no dial carries may still be one of a pageVariant's: TYP 12 i
 EXi 1 dial (TYP 11, typDelta 1). It always goes into the cache at that variant's offset; the dial on
 screen only moves if that variant is the one being shown, so a slot-1 knob turned on the Kronos while
 EXi 2 is open does not drag the slot-2 display with it.
+
+## 92. `section_param_delta()`
+
+The Korg Parameter Change counterpart of the dump delta (§90): the active pageVariant's `paramDelta`, or
+the section's own `variantParamDelta` (panelConfig.h notes §48, §52). `dial_param_id()` is the ID every
+outgoing Parameter Change uses, the deferred one included, so a dial on the OSC 2 tab edits OSC 2.
+
+## 93. Shift/mask fields in the cache
+
+The Kronos dials name bit ranges (dumpBitWidth); the Z1's name a byte with dumpShift/dumpMask, so the
+cache had nothing to update for them and a variant's tab, re-read from the cache, would show a stale
+value. wireSigned dials are left out: their dump and wire encodings differ (memory note on PB Int), and a
+fresh dump puts them right.
+
+## 94. Receiving a variant's Parameter Change
+
+An ID no dial owns may belong to a variant: for each pageVariant, each section under its base is searched
+for the ID less that section's delta. The value goes into the cache at the variant's place and onto the
+dial only if that variant is the one showing - the same rule as the Kronos (§91).
+
+## 95. The Z1 edit-buffer dump goes through the cache
+
+The Kronos dump always did (§76). Without it the Z1 had no cache, so switching between a pageVariant and
+its base could not re-read anything.
+
+## 96. Bank Select tracking
+
+CC0/CC32 from the device are held until the next Program Change, which they belong to; the bank is the
+first declared one whose values match what arrived (a value the bank does not send, or one that did not
+arrive, matches anything). A Program Change with no Bank Select means the bank whose values are both Off,
+if exactly one is (the device selects it by sending none - the Z1's own map had A Off/Off, B 0/1 on the
+2026-10-07 hardware check); otherwise it stays in the bank of the previous one. With
+no bank known at all - a fresh connect, no Bank Select - the slot is left unknown and the program number
+kept for §97. A device with no `bankSelect` lines works as before: the slot is the Program Change number.
+synth_korg_select_program() sends through the same map, so Prev/Next and Load cross banks the way the
+device expects.
+
+## 97. Finding the bank by name
+
+When a Program Change arrived without its bank, the bank is the one whose cached name at that program
+number is the edit buffer's name.
+
+## 98. Reconciling after a Korg edit-buffer dump
+
+The Moog path always did this (§88). For a Korg device the name cache is the 256-slot one
+(synthBackup.c notes §137).
+
+## 99. Prev/Next across banks
+
+Numbered as slots: Next from A127 is B000. The last slot is the last declared bank's 127.
+
+## 100. The bank map reply
+
+The reply named by `bankMapReply` (panelConfig.h notes §55) replaces each bank's Bank Select values, and
+its `programChangeTransmit` field sets `gDevice.programChangeTransmitOff`. The request goes out after the
+state request at every connect.
+
+## 101. Checking the startup program
+
+The Z1 powers up on A000, so a session that connects to a synth nobody has touched yet is on it. One
+Program Dump of that program is asked for once per connect, only when nothing else has settled the current
+program; if its name is the edit buffer's, that is the current program, marked "(by name)". Its reply also
+goes to the backup capture, which ignores it unless a backup asked for one.
+
+## 102. Selecting a bank the device's map leaves silent
+
+A bank whose map values are both Off is one the device *transmits* no Bank Select for; it still needs one
+to be selected from outside. Checked on a Z1 (2026-10-07, map A Off/Off, B 0/1): from B005 a bare Program
+Change 5 stayed in B; Bank Select 0/0 then Program Change 5 went to A005. So for a silent bank the layout's
+own declared values are sent instead (`declaredMsb/Lsb`, kept when the map replaces msb/lsb).

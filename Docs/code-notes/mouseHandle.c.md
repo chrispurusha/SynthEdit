@@ -254,3 +254,11 @@ to test against. Which dial (if any) is entirely up to the device's own
 <device>.txt ("scrollDial <id>" — empty/absent means no shortcut).
 Only applies while the page holding that dial's section is actually
 active — no-ops harmlessly otherwise.
+
+## 25. Graph points before dials
+
+A press first tries the current page's graph points (panelGraph.c), so a point drawn over nothing else
+is picked up; dials are only hit-tested if no point was. The drag follows the pointer with the cursor
+visible - unlike a dial drag - because the point is meant to sit under it. Shift locks the drag to the
+direction it first moves in. recover_lost_dial_drag() ends a graph drag whose release never arrived, by
+the same rule as a dial's.

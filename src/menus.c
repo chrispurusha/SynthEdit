@@ -49,6 +49,10 @@ void open_dial_value_menu(tCoord coord, tPanelDial * dial) {
     }
     uint32_t       n                = (dial->nameCount < PANEL_MAX_NAMES) ? dial->nameCount : PANEL_MAX_NAMES;
 
+    if (synth_dial_max(dial) < n) {
+        n = synth_dial_max(dial); // a pageVariant's slot may offer fewer (panelConfig.h notes §51)
+    }
+
     for (uint32_t i = 0; i < n; i++) {
         gDialMenuItems[i] = (tMenuItem){
             dial->names[i], dial->colour, action_set_dial_value, i, NULL

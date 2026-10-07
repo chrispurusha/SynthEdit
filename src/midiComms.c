@@ -500,6 +500,10 @@ static void dispatch_cc(uint8_t channel, uint8_t cc, uint8_t value) {
                   (unsigned)(channel + 1), (unsigned)(gDevice.id + 1));
         gDevice.id = channel;
     }
+
+    if ((cc == 0) || (cc == 32)) {
+        synth_note_bank_select(cc, value); // for the Program Change that follows - synthComms.c notes §96
+    }
     // Generic: whichever dial (if any) has this cc= in the device's own
     // <device>.txt gets the value — no per-device CC list here.
     bool handled = synth_handle_cc(cc, value);

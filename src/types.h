@@ -83,6 +83,7 @@ typedef struct {
     int32_t           currentProgram;
     tProgramCertainty programCertainty;
     char              confirmedSlotName[SYNTH_PROG_NAME_MAXLEN]; // the edit buffer's name when confirmed, whitespace collapsed
+    bool              programChangeTransmitOff;                  // the device says it sends no Program Change (synthComms.c notes §100)
     // notes §3
     uint8_t           moogDeviceId;
 } tSynthDevice;

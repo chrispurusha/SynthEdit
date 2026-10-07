@@ -4,6 +4,31 @@ Completed work, measurements, and the traps that cost real time.
 One entry per finding, newest first.
 
 
+2026-10-07  Z1: EVERY PROGRAM PARAMETER, SIGNED ENCODING, BANK TRACKING, ENVELOPE GRAPHS
+------------------------------------------------------------------------------------------------------
+layouts/z1.txt now covers the whole Program: all 13 oscillator models (OSC 1 and, as a pageVariant, OSC 2),
+the 15 insert effects (Insert 1, and Insert 2 as a pageVariant) and the 3 master effects, Effect send and
+2-band EQ, controllers and the 5 PE knobs, and the parameters the hand-written pages lacked. Pages follow the
+Z1's signal path (Mode | Area | Page). The generated parts sit between BEGIN/END GENERATED markers and say
+so; value text comes from shared lists (names=@v...).
+
+Checked on the owner's Z1, edit buffer only, A005 "Digital Dulcimer" reloaded after every change:
+- SIGNED PARAMETERS. F1 Hi Int written +41 with wireSigned=1 (wire 29 00) read back +41 from a fresh dump.
+  The old "positive Int writes clamp to 0" (2026-07-13) was the offset encoding, not the firmware: every
+  signed dial now has wireSigned=1 and its dumpOffset.
+- ExID ADDRESSING. OSC 2 Semi Tone from the OSC 2 tab sent 190 and read back; Plucked Damping on OSC 1 sent
+  2756 (2048 + 708); Ensemble Speed on Insert 1 sent 7124 (3 x 2048 + 980); Over Drive Drive on Insert 2
+  sent 8993 (4 x 2048 + 801). All read back from fresh dumps; switching tabs re-reads each slot.
+- OSC 2 DOES NOT EXIST behind a physical model (OSC 1 Brass..Bowed): a parameter sent to it is ignored, so
+  the OSC 2 tab is now hidden then (variantShowIf). Likewise Insert 2 behind a double-size Effect 1 (11-14).
+- BANKS. The Global/MIDI dump (0E 01) gave this Z1's Program Bank Select Map: A Off/Off, B 0/1, Program
+  Change Transmit on. 0/1 + PC5 went to B005; a bare PC5 from B stayed in B; 0/0 + PC5 went to A005. So Off
+  means "not transmitted" and a silent bank is still selected with the declared default.
+- CURRENT PROGRAM. Found by name at connect (A005, B005), confirmed after each program change.
+
+Built, not yet seen on hardware: Prev/Next across A127/B000, Store Patch to Current Slot on a confirmed
+Korg slot, the A000 startup check on a freshly powered Z1, envelope-graph dragging (todo.md).
+
 2026-10-05  KRONOS: FULL AL-1, THREE-LEVEL PAGES, MODE FOLLOWING, EXi SLOTS
 ------------------------------------------------------------------------------------------------------
 Where the Kronos stands, and what is still open (the open items are also in todo.md, "Kronos").

@@ -107,3 +107,20 @@ The list has to appear earlier in the file than any dial that names it.
 A `list` line whose name has already appeared appends to that list rather than
 starting a new one, so a list too long for a single line (PANEL_LINE_LEN) can be
 split across several. Items beyond PANEL_MAX_LIST_ITEMS are dropped.
+
+## 11. names on the heap
+
+`names=` is parsed into a static scratch array, then copied to exactly `nameCount` labels on the heap
+(panelConfig.h notes §53). `names=@list` copies too, so a dial never points into a list another reload
+could overwrite.
+
+## 12. `bankSelect` and friends
+
+Parsed in file order: `bankMapReply`'s offsets pair up with the `bankSelect` lines above it, so the banks
+come first. panelConfig.h notes §55 has the meaning.
+
+## 13. `graph` parsing
+
+The `points` value is one token (quoted in the file so its `;` and `,` survive tokenising); unknown parts
+are logged and skipped. A section may have dials as well, but the renderer draws a graph section's graph
+only - put the dials in the next section.

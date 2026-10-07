@@ -25,7 +25,14 @@ Bugs
 - CHECK ON HARDWARE (built 2026-09-12): Voyager with a complete name cache, connect without a Program Change - a uniquely named patch shows 'Preset N (by name)' in grey and Prev/Next work; a duplicated name (e.g. two INITs) stays unknown
 - CHECK ON HARDWARE (built 2026-09-12): change preset on the Voyager, or with Prev/Next - the label turns white 'Preset N' once the dump's name agrees with the cache; Store Patch to Current Slot... is refused in every other state, with the reason
 - CHECK ON HARDWARE (built 2026-09-12, ONE flash write): Store Patch to Current Slot... on a confirmed preset, after an edit and after a rename in SynthEdit - confirm dialog names the slot, the write lands, the cache takes the new name
-- Store Patch to Current Slot... for the Korg devices: needs the current bank tracked (Bank Select before the Program Change), which nothing records yet
+- CHECK ON HARDWARE (Z1, built 2026-10-07): change program on the Z1's panel - the label shows e.g. "B042 (unconfirmed)", then "B042" once the dump's name agrees with the name cache; Prev/Next step across A127 -> B000
+- CHECK ON HARDWARE (Z1, built 2026-10-07): connect to a Z1 just powered up (on A000) with no name cache - the label shows "A000 (by name)" after one Program Dump; with Program Change Transmit off it says so instead
+- CHECK ON HARDWARE (Z1, built 2026-10-07): set a non-default Program Bank Select Map on the Z1 (e.g. B = 0/5), reconnect - Prev/Next and Load from Bank still land on the right bank
+- CHECK ON HARDWARE (Z1, built 2026-10-07, ONE flash write): Store Patch to Current Slot... on a confirmed program (e.g. after Prev/Next) - the dialog names the slot and its cached name, the write lands there
+- CHECK ON HARDWARE (Z1, built 2026-10-07): the Model and Insert pages follow the type selector (showIf) after a Sync, and offline from the selector's own value
+- Z1: Multi Set, Arpeggio pattern, Global and MIDI pages - the parameter tables exist, nothing laid out yet; confirm the Parameter Change group for Multi Set vs Arpeggio (2/3 or 3/2) first
+- CHECK BY HAND (Z1, built 2026-10-07): drag the envelope points on EG 1-4 and Amp > EG - times move sideways, levels up and down, Shift locks to one direction; the dials follow
+- Z1: the PE knobs' Parameter list beyond entry 158 names the current oscillator model's own parameters; it shows "OSC Model n" for now
 
 Kronos
 

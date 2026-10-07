@@ -94,6 +94,9 @@ void synth_send_device_mode(uint32_t mode);
 // The pageVariant (panelConfig.h) now shown, -1 for none; dials re-read their values for it. UI thread.
 void synth_set_active_page_variant(int32_t variant);
 
+// The count of positions `dial` offers now: its variantMax while its page is shown as a pageVariant, else max.
+uint32_t synth_dial_max(const tPanelDial * dial);
+
 // Byte `offset` of the cached Program dump, or -1 before one has arrived. Any thread.
 int32_t synth_dump_byte(int32_t offset);
 
@@ -118,6 +121,12 @@ void synth_navigate_preset(int32_t delta);
 
 // A Program Change this app sent (fromSynth false) or heard from the synth - types.h notes §2.
 void synth_note_program_change(uint8_t program, bool fromSynth);
+
+// A Bank Select (CC0 / CC32) from the device, applied to the next Program Change - notes §96.
+void synth_note_bank_select(uint8_t cc, uint8_t value);
+
+// Asks a device whose layout declares bankMapRequest for its bank map (and Program Change Transmit).
+void synth_request_bank_map(void);
 
 // Program names compared with whitespace collapsed - synthComms.c notes §87.
 bool synth_prog_names_equal(const char * a, const char * b);

@@ -78,6 +78,22 @@ memberId        0x01
 progNameLen     16
 scrollDial      f1cut
 
+# ── Which program the Z1 is on ─────────────────────────────────────────────────
+# No SysEx asks for it. On every program change the Z1 transmits Bank Select
+# (CC0/CC32) and Program Change - if its Program Change Transmit (MIDI param
+# 424) is on - so the current program is known exactly from the first change.
+# The Bank Select values are the user's own Program Bank Select Map (MIDI
+# params 426-429), read from the MIDI half of the Global/MIDI dump at connect;
+# the defaults below are what SynthEdit sends until that dump arrives. Before
+# the first change, a name match decides, and the program the Z1 powers up on
+# (A000) is checked against the edit buffer's name with one Program Dump.
+bankSelect            A 0 0
+bankSelect            B 0 1
+bankMapRequest        0E 01
+bankMapReply          51 01 3 4 5 6
+programChangeTransmit 2 0 0x0F
+startupProgram        0 0
+
 # ── Program info (Oscillators page, not rendered as dials — see "hidden" above)
 # Byte layout (Program Common section of the parameter table):
 #   0-15 : Program Name chars (params 1-16, see progNameLen above)
@@ -86,7 +102,105 @@ scrollDial      f1cut
 #    21  : bits0-1 = Unison Type, bit2 = Unison SW, bit3 = Unison Mode
 #          (params 24/25/26)
 #    22  : Unison Detune                     (param 27)
-page       oscillators
+
+# ══ BEGIN GENERATED Value lists
+# ── Value lists ──────────────────────────────────────────────────────────────
+# GENERATED from the Z1's parameter tables: the text each value shows, shared by
+# every dial with the same range (names=@vN).
+list vcac915 Off,EG1,EG2,EG3,EG4,"Amp EG",LFO1,LFO2,LFO3,LFO4,Portamento,Note[Linear],Note[Exp],"Note Split[High]","Note Split[Low]",Velocity[Soft],Velocity[Medium],Velocity[Hard],"Pitch Bend","After Touch","Modulation Wheel",ATouch+Mod.Wheel,ATouch+Mod.Wheel/2,X[+/-],X[+],X[-],Y[+/-],Y[+],Y[-],Knob1,Knob2,Knob3,Knob4,Knob5,Mod.SW1,Mod.SW2,"Foot SW","Foot Pedal",Damper,Sostenuto,"MIDI Breath Control","MIDI Volume","MIDI Panpot","MIDI Expression","MIDI Portamento Time","MIDI Portamento SW","Master Fx Off/On","Fx1 Off/On","Fx2 Off/On"
+list vc2ba68 C-1,"C#-1",D-1,"D#-1",E-1,F-1,"F#-1",G-1,"G#-1",A-1,"A#-1",B-1,C0,"C#0",D0,"D#0",E0,F0,"F#0",G0,"G#0",A0,"A#0",B0,C1,"C#1",D1,"D#1",E1,F1,"F#1",G1,"G#1",A1,"A#1",B1,C2,"C#2",D2,"D#2",E2,F2,"F#2",G2,"G#2",A2,"A#2",B2,C3,"C#3",D3,"D#3",E3,F3,"F#3",G3,"G#3",A3,"A#3",B3,C4,"C#4",D4,"D#4",E4,F4,"F#4",G4,"G#4",A4,"A#4",B4,C5,"C#5",D5,"D#5",E5,F5,"F#5",G5,"G#5",A5,"A#5",B5,C6,"C#6",D6,"D#6",E6,F6,"F#6",G6,"G#6",A6,"A#6",B6,C7,"C#7",D7,"D#7",E7,F7,"F#7",G7,"G#7",A7,"A#7",B7,C8,"C#8",D8,"D#8",E8,F8,"F#8",G8,"G#8",A8,"A#8",B8,C9,"C#9",D9,"D#9",E9,F9,"F#9",G9
+list v5ca5ab -1.00,-0.98,-0.96,-0.94,-0.92,-0.90,-0.88,-0.86,-0.84,-0.82,-0.80,-0.78,-0.76,-0.74,-0.72,-0.70,-0.68,-0.66,-0.64,-0.62,-0.60,-0.58,-0.56,-0.54,-0.52,-0.50,-0.48,-0.46,-0.44,-0.42,-0.40,-0.38,-0.36,-0.34,-0.32,-0.30,-0.28,-0.26,-0.24,-0.22,-0.20,-0.18,-0.16,-0.14,-0.12,-0.10,-0.08,-0.06,-0.04,-0.02,0.00,+0.02,+0.04,+0.06,+0.08,+0.10,+0.12,+0.14,+0.16,+0.18,+0.20,+0.22,+0.24,+0.26,+0.28,+0.30,+0.32,+0.34,+0.36,+0.38,+0.40,+0.42,+0.44,+0.46,+0.48,+0.50,+0.52,+0.54,+0.56,+0.58,+0.60,+0.62,+0.64,+0.66,+0.68,+0.70,+0.72,+0.74,+0.76,+0.78,+0.80,+0.82,+0.84,+0.86,+0.88,+0.90,+0.92,+0.94,+0.96,+0.98,+1.00,+1.02,+1.04,+1.06,+1.08,+1.10,+1.12,+1.14,+1.16,+1.18,+1.20,+1.22,+1.24,+1.26,+1.28,+1.30,+1.32,+1.34,+1.36,+1.38,+1.40,+1.42,+1.44,+1.46,+1.48,+1.50,+1.52,+1.54,+1.56,+1.58,+1.60,+1.62,+1.64,+1.66,+1.68,+1.70,+1.72,+1.74,+1.76,+1.78,+1.80,+1.82,+1.84,+1.86,+1.88,+1.90,+1.92,+1.94
+list v5ca5ab +1.96,+1.98,+2.00
+list vc8829f Saw,Pulse
+list vf1f63b Clip,Resonant
+list v5ecbff LFO1,LFO2,LFO3,LFO4
+list v340412 "OSC + Noise","Sub OSC + Noise","Filter1 + Noise","Filter2 + Noise","Pulse Noise",Impulse
+list v8bae12 Saw,Square,Triangle,Sine
+list v992cc0 Saw,Square,Triangle,Sine,OSC,"Sub OSC",Filter1,Filter2
+list v6b716b 0.5,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16
+list v31c5d0 Type1,Type2
+list vbd0e3e OSC,"Sub OSC",Noise,Filter1,Filter2
+list va0aefd 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16
+list v83a79e Sine1,Sine2,Sine3,Triangle
+list v3d6f7b Single,Multi
+list vc7ad3c Off,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99
+list v03072e Brass1,Brass2,Brass3,Horn1,Horn2,"Reed Brass"
+list v62bddb Smooth,Jump
+list v693363 EG1,EG2,EG3,EG4,"Amp EG"
+list v7bf299 Off,On
+list v3a302a HardSax1,HardSax2,HardSax3,SoftSax1,SoftSax2,"Double Reed1","Double Reed2",Bassoon,Clarinet,Flute1,Flute2,"Pan Flute",Ocarina,Shakuhachi,Harmonica1,Harmonica2,"Reed Synth"
+list v573665 20.0,21.8,23.8,25.9,28.3,30.8,33.6,36.7,40.0,43.6,47.6,51.9,56.6,61.7,67.3,73.4,80.0,87.2,95.1,103,113,123,134,146,160,174,190,207,226,246,269,293,320,348,380,414,452,493,538,586,640,697,761,829,905,987,1.08k,1.17k,1.28k,1.40k
+list v93ce09 -18.0,-17.5,-17.0,-16.5,-16.0,-15.5,-15.0,-14.5,-14.0,-13.5,-13.0,-12.5,-12.0,-11.5,-11.0,-10.5,-10.0,-9.5,-9.0,-8.5,-8.0,-7.5,-7.0,-6.5,-6.0,-5.5,-5.0,-4.5,-4.0,-3.5,-3.0,-2.5,-2.0,-1.5,-1.0,-0.5,0.0,+0.5,+1.0,+1.5,+2.0,+2.5,+3.0,+3.5,+4.0,+4.5,+5.0,+5.5,+6.0,+6.5,+7.0,+7.5,+8.0,+8.5,+9.0,+9.5,+10.0,+10.5,+11.0,+11.5,+12.0,+12.5,+13.0,+13.5,+14.0,+14.5,+15.0,+15.5,+16.0,+16.5,+17.0,+17.5,+18.0
+list ve8fd6d 1.00k,1.07k,1.15k,1.23k,1.32k,1.41k,1.52k,1.62k,1.74k,1.87k,2.00k,2.14k,2.30k,2.46k,2.64k,2.83k,3.03k,3.25k,3.48k,3.73k,4.00k,4.29k,4.59k,4.92k,5.28k,5.66k,6.06k,6.50k,6.96k,7.46k,8.00k,8.57k,9.19k,9.85k,10.6k,11.3k,12.1k,13.0k,13.9k,14.9k,16.0k,17.1k,18.4k,19.7k,21.1k,22.6k,24.3k,26.0k,27.9k,29.9k
+list v6ff210 "Over Drive",Compressor,"4 Band PEQ",Wah,Exciter,Decimator,Chorus,Flanger,Phaser,"Small Rotary SP",Delay,"Talking Modulator","Multitap Delay",Ensemble,"Rotary Speaker"
+list vf4ffc0 "Over Drive",Distortion
+list vadd024 50.0,56.1,63.0,70.7,79.4,89.1,100,112,125,141,158,178,200,224,251,282,317,356,400,448,503,565,634,712,800,897,1.01k,1.13k,1.27k,1.43k,1.60k,1.80k,2.02k,2.26k,2.54k,2.85k,3.20k,3.59k,4.03k,4.53k,5.08k,5.70k,6.40k,7.18k,8.06k,9.05k,10.2k,11.4k,12.8k,14.4k
+list v16f3bb 200,218,237,259,282,308,336,366,400,436,475,518,565,616,672,733,800,872,951,1.04k,1.13k,1.23k,1.35k,1.47k,1.60k,1.74k,1.90k,2.07k,2.26k,2.47k,2.69k,2.93k,3.20k,3.49k,3.81k,4.15k,4.53k,4.94k,5.38k,5.87k,6.40k,6.98k,7.61k,8.30k,9.05k,9.87k,10.8k,11.7k,12.8k,14.0k
+list v7f281d 500,540,583,629,680,734,793,857,925,1.00k,1.08k,1.17k,1.26k,1.36k,1.47k,1.59k,1.71k,1.85k,2.00k,2.16k,2.33k,2.52k,2.72k,2.94k,3.17k,3.43k,3.70k,4.00k,4.32k,4.67k,5.04k,5.44k,5.88k,6.35k,6.86k,7.41k,8.00k,8.64k,9.33k,10.1k,10.9k,11.8k,12.7k,13.7k,14.8k,16.0k,17.3k,18.7k,20.2k,21.8k
+list vaab1c2 0.5,0.6,0.7,0.8,0.9,1.0,1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8,1.9,2.0,2.1,2.2,2.3,2.4,2.5,2.6,2.7,2.8,2.9,3.0,3.1,3.2,3.3,3.4,3.5,3.6,3.7,3.8,3.9,4.0,4.1,4.2,4.3,4.4,4.5,4.6,4.7,4.8,4.9,5.0,5.1,5.2,5.3,5.4,5.5,5.6,5.7,5.8,5.9,6.0,6.1,6.2,6.3,6.4,6.5,6.6,6.7,6.8,6.9,7.0,7.1,7.2,7.3,7.4,7.5,7.6,7.7,7.8,7.9,8.0,8.1,8.2,8.3,8.4,8.5,8.6,8.7,8.8,8.9,9.0,9.1,9.2,9.3,9.4,9.5,9.6,9.7,9.8,9.9,10.0
+list vce3db9 Off,EG1,EG2,EG3,EG4,"Amp EG",LFO1,LFO2,LFO3,LFO4,Portamento,Note[Linear],Note[Exp],"Note Split[High]","Note Split[Low]",Velocity[Soft],Velocity[Medium],Velocity[Hard],"Pitch Bend","After Touch","Modulation Wheel",ATouch+Mod.Wheel,ATouch+Mod.Wheel/2,X[+/-],X[+],X[-],Y[+/-],Y[+],Y[-],Knob1,Knob2,Knob3,Knob4,Knob5,Mod.SW1,Mod.SW2,"Foot SW","Foot Pedal",Damper,Sostenuto,"MIDI Breath Control","MIDI Volume","MIDI Panpot","MIDI Expression","MIDI Portamento Time","MIDI Portamento SW"
+list v43b6ad 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99
+list v3adf50 Peaking,Shelving
+list v2d2e25 Auto,Mod.Source
+list v096952 BPF,LPF
+list va2d852 1.0k,1.2k,1.4k,1.6k,1.8k,2.0k,2.2k,2.4k,2.6k,2.8k,3.0k,3.2k,3.4k,3.6k,3.8k,4.0k,4.2k,4.4k,4.6k,4.8k,5.0k,5.2k,5.4k,5.6k,5.8k,6.0k,6.2k,6.4k,6.6k,6.8k,7.0k,7.2k,7.4k,7.6k,7.8k,8.0k,8.2k,8.4k,8.6k,8.8k,9.0k,9.2k,9.4k,9.6k,9.8k,10.0k,10.2k,10.4k,10.6k,10.8k,11.0k,11.2k,11.4k,11.6k,11.8k,12.0k,12.2k,12.4k,12.6k,12.8k,13.0k,13.2k,13.4k,13.6k,13.8k,14.0k,14.2k,14.4k,14.6k,14.8k,15.0k,15.2k,15.4k,15.6k,15.8k,16.0k,16.2k,16.4k,16.6k,16.8k,17.0k,17.2k,17.4k,17.6k,17.8k,18.0k,18.2k,18.4k,18.6k,18.8k,19.0k,19.2k,19.4k,19.6k,19.8k,20.0k,20.2k,20.4k,20.6k,20.8k,21.0k,21.2k,21.4k,21.6k,21.8k,22.0k,22.2k,22.4k,22.6k,22.8k,23.0k,23.2k,23.4k,23.6k,23.8k,24.0k
+list v7f2116 4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24
+list v10b274 -24.0k,-23.8k,-23.6k,-23.4k,-23.2k,-23.0k,-22.8k,-22.6k,-22.4k,-22.2k,-22.0k,-21.8k,-21.6k,-21.4k,-21.2k,-21.0k,-20.8k,-20.6k,-20.4k,-20.2k,-20.0k,-19.8k,-19.6k,-19.4k,-19.2k,-19.0k,-18.8k,-18.6k,-18.4k,-18.2k,-18.0k,-17.8k,-17.6k,-17.4k,-17.2k,-17.0k,-16.8k,-16.6k,-16.4k,-16.2k,-16.0k,-15.8k,-15.6k,-15.4k,-15.2k,-15.0k,-14.8k,-14.6k,-14.4k,-14.2k,-14.0k,-13.8k,-13.6k,-13.4k,-13.2k,-13.0k,-12.8k,-12.6k,-12.4k,-12.2k,-12.0k,-11.8k,-11.6k,-11.4k,-11.2k,-11.0k,-10.8k,-10.6k,-10.4k,-10.2k,-10.0k,-9.8k,-9.6k,-9.4k,-9.2k,-9.0k,-8.8k,-8.6k,-8.4k,-8.2k,-8.0k,-7.8k,-7.6k,-7.4k,-7.2k,-7.0k,-6.8k,-6.6k,-6.4k,-6.2k,-6.0k,-5.8k,-5.6k,-5.4k,-5.2k,-5.0k,-4.8k,-4.6k,-4.4k,-4.2k,-4.0k,-3.8k,-3.6k,-3.4k,-3.2k,-3.0k,-2.8k,-2.6k,-2.4k,-2.2k,-2.0k,-1.8k,-1.6k,-1.4k,-1.2k,-1.0k,-0.8k,-0.6k,-0.4k,-0.2k,0.0k,0.2k,0.4k,0.6k,0.8k,1.0k,1.2k,1.4k,1.6k,1.8k,2.0k,2.2k,2.4k,2.6k,2.8k,3.0k,3.2k,3.4k,3.6k
+list v10b274 3.8k,4.0k,4.2k,4.4k,4.6k,4.8k,5.0k,5.2k,5.4k,5.6k,5.8k,6.0k,6.2k,6.4k,6.6k,6.8k,7.0k,7.2k,7.4k,7.6k,7.8k,8.0k,8.2k,8.4k,8.6k,8.8k,9.0k,9.2k,9.4k,9.6k,9.8k,10.0k,10.2k,10.4k,10.6k,10.8k,11.0k,11.2k,11.4k,11.6k,11.8k,12.0k,12.2k,12.4k,12.6k,12.8k,13.0k,13.2k,13.4k,13.6k,13.8k,14.0k,14.2k,14.4k,14.6k,14.8k,15.0k,15.2k,15.4k,15.6k,15.8k,16.0k,16.2k,16.4k,16.6k,16.8k,17.0k,17.2k,17.4k,17.6k,17.8k,18.0k,18.2k,18.4k,18.6k,18.8k,19.0k,19.2k,19.4k,19.6k,19.8k,20.0k,20.2k,20.4k,20.6k,20.8k,21.0k,21.2k,21.4k,21.6k,21.8k,22.0k,22.2k,22.4k,22.6k,22.8k,23.0k,23.2k,23.4k,23.6k,23.8k,24.0k
+list v0565e9 0.0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0,1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8,1.9,2.0,2.1,2.2,2.3,2.4,2.5,2.6,2.7,2.8,2.9,3.0,3.1,3.2,3.3,3.4,3.5,3.6,3.7,3.8,3.9,4.0,4.1,4.2,4.3,4.4,4.5,4.6,4.7,4.8,4.9,5.0,5.1,5.2,5.3,5.4,5.5,5.6,5.7,5.8,5.9,6.0,6.1,6.2,6.3,6.4,6.5,6.6,6.7,6.8,6.9,7.0,7.1,7.2,7.3,7.4,7.5,7.6,7.7,7.8,7.9,8.0,8.1,8.2,8.3,8.4,8.5,8.6,8.7,8.8,8.9,9.0,9.1,9.2,9.3,9.4,9.5,9.6,9.7,9.8,9.9,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0,20.0,21.0,22.0,23.0,24.0,25.0,26.0,27.0,28.0,29.0,30.0,31.0,32.0,33.0,34.0,35.0,36.0,37.0,38.0,39.0,40.0,41.0,42.0,43.0,44.0,45.0,46.0,47.0,48.0,49.0,50.0
+list vccfdd2 Triangle,Sine
+list v19705d 0.04,0.08,0.12,0.16,0.20,0.24,0.28,0.32,0.36,0.40,0.44,0.48,0.52,0.56,0.60,0.64,0.68,0.72,0.76,0.80,0.84,0.88,0.92,0.96,1.00,1.04,1.08,1.12,1.16,1.20,1.24,1.28,1.32,1.36,1.40,1.44,1.48,1.52,1.56,1.60,1.64,1.68,1.72,1.76,1.80,1.84,1.88,1.92,1.96,2.00,2.10,2.20,2.30,2.40,2.50,2.60,2.70,2.80,2.90,3.00,3.10,3.20,3.30,3.40,3.50,3.60,3.70,3.80,3.90,4.00,4.10,4.20,4.30,4.40,4.50,4.60,4.70,4.80,4.90,5.00,5.20,5.40,5.60,5.80,6.00,6.20,6.40,6.60,6.80,7.00,7.20,7.40,7.60,7.80,8.00,8.20,8.40,8.60,8.80,9.00,9.20,9.40,9.60,9.80,10.00,11.00,12.00,13.00,14.00,15.00,16.00,17.00,18.00,19.00,20.00
+list v69c040 16,8T,8,4T,4,2T,2,1
+list va32aaa -20.00,-19.00,-18.00,-17.00,-16.00,-15.00,-14.00,-13.00,-12.00,-11.00,-10.00,-9.80,-9.60,-9.40,-9.20,-9.00,-8.80,-8.60,-8.40,-8.20,-8.00,-7.80,-7.60,-7.40,-7.20,-7.00,-6.80,-6.60,-6.40,-6.20,-6.00,-5.80,-5.60,-5.40,-5.20,-5.00,-4.90,-4.80,-4.70,-4.60,-4.50,-4.40,-4.30,-4.20,-4.10,-4.00,-3.90,-3.80,-3.70,-3.60,-3.50,-3.40,-3.30,-3.20,-3.10,-3.00,-2.90,-2.80,-2.70,-2.60,-2.50,-2.40,-2.30,-2.20,-2.10,-2.00,-1.96,-1.92,-1.88,-1.84,-1.80,-1.76,-1.72,-1.68,-1.64,-1.60,-1.56,-1.52,-1.48,-1.44,-1.40,-1.36,-1.32,-1.28,-1.24,-1.20,-1.16,-1.12,-1.08,-1.04,-1.00,-0.96,-0.92,-0.88,-0.84,-0.80,-0.76,-0.72,-0.68,-0.64,-0.60,-0.56,-0.52,-0.48,-0.44,-0.40,-0.36,-0.32,-0.28,-0.24,-0.20,-0.16,-0.12,-0.08,-0.04,0.00,+0.04,+0.08,+0.12,+0.16,+0.20,+0.24,+0.28,+0.32,+0.36,+0.40,+0.44,+0.48,+0.52,+0.56,+0.60,+0.64,+0.68,+0.72,+0.76,+0.80,+0.84,+0.88,+0.92,+0.96,+1.00,+1.04,+1.08,+1.12,+1.16,+1.20
+list va32aaa +1.24,+1.28,+1.32,+1.36,+1.40,+1.44,+1.48,+1.52,+1.56,+1.60,+1.64,+1.68,+1.72,+1.76,+1.80,+1.84,+1.88,+1.92,+1.96,+2.00,+2.10,+2.20,+2.30,+2.40,+2.50,+2.60,+2.70,+2.80,+2.90,+3.00,+3.10,+3.20,+3.30,+3.40,+3.50,+3.60,+3.70,+3.80,+3.90,+4.00,+4.10,+4.20,+4.30,+4.40,+4.50,+4.60,+4.70,+4.80,+4.90,+5.00,+5.20,+5.40,+5.60,+5.80,+6.00,+6.20,+6.40,+6.60,+6.80,+7.00,+7.20,+7.40,+7.60,+7.80,+8.00,+8.20,+8.40,+8.60,+8.80,+9.00,+9.20,+9.40,+9.60,+9.80,+10.00,+11.00,+12.00,+13.00,+14.00,+15.00,+16.00,+17.00,+18.00,+19.00,+20.00
+list v5514af +,-,+-
+list vf13402 Slow,Fast
+list v097bb0 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,52,54,56,58,60,62,64,66,68,70,72,74,76,78,80,82,84,86,88,90,92,94,96,98,100,102,104,106,108,110,112,114,116,118,120,122,124,126,128,130,132,134,136,138,140,142,144,146,148,150,152,154,156,158,160,162,164,166,168,170,172,174,176,178,180,182,184,186,188,190,192,194,196,198,200,202,204,206,208,210,212,214,216,218,220,222,224,226,228,230,232,234,236,238,240,242,244,246,248,250,252,254,256,258,260,262,264,266,268,270,272,274,276,278,280,282,284,286,288,290,292,294,296,298,300,305,310,315,320,325,330,335,340,345,350,355,360,365,370,375,380,385,390,395,400,405,410,415,420,425,430,435,440,445,450,455,460,465,470,475,480,485,490,495,500,505,510,515,520,525,530,535,540,545,550,555,560,565,570,575,580,585,590,595,600,605,610,615,620,625,630,635
+list v097bb0 640,645,650,655,660,665,670,675,680
+list vb93e51 Manual,Mod.Source
+list vcfd4dc A,I,U,E,O
+list v90893b Normal,Cross1,Cross2,Pan1,Pan2
+list v6615dd Rotate,Stop
+list vbd0b16 "Stereo Delay",Reverb-Hall,Reverb-Room
+list vd9dab7 Stereo,Cross
+list vde7d15 0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0,1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8,1.9,2.0,2.1,2.2,2.3,2.4,2.5,2.6,2.7,2.8,2.9,3.0,3.1,3.2,3.3,3.4,3.5,3.6,3.7,3.8,3.9,4.0,4.1,4.2,4.3,4.4,4.5,4.6,4.7,4.8,4.9,5.0,5.1,5.2,5.3,5.4,5.5,5.6,5.7,5.8,5.9,6.0,6.1,6.2,6.3,6.4,6.5,6.6,6.7,6.8,6.9,7.0,7.1,7.2,7.3,7.4,7.5,7.6,7.7,7.8,7.9,8.0,8.1,8.2,8.3,8.4,8.5,8.6,8.7,8.8,8.9,9.0,9.1,9.2,9.3,9.4,9.5,9.6,9.7,9.8,9.9,10.0
+list v936f87 0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0,1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8,1.9,2.0,2.1,2.2,2.3,2.4,2.5,2.6,2.7,2.8,2.9,3.0
+list v725f47 Mod.SW1,"Master Fx Off/On","Effect1 Off/On","Effect2 Off/On","Octave Up","Octave Down","Mono SW",Unison
+list v49d324 Latch,Unlatch
+list v6c31bc Mod.SW2,"Master Fx Off/On","Effect1 Off/On","Effect2 Off/On","Octave Up","Octave Down","Mono SW",Unison
+list v15b1c4 "Foot SW","MIDI Damper","MIDI Portamento SW","MIDI Sostenuto","Master Fx Off/On","Effect1 Off/On","Effect2 Off/On","Octave Up","Octave Down","Mono SW",Unison,"Arpeggio Off/On","Pad Hold"
+list v523f15 "Foot Pedal","MIDI Breath Control","MIDI Portamento Time","MIDI Volume","MIDI Panpot","MIDI Expression"
+list vb7cdb4 UP,DOWN,ALT1,ALT2,RANDOM,U1-1,U1-2,U1-3,U1-4,U1-5,U2-1,U2-2,U2-3,U2-4,U2-5,U3-1,U3-2,U3-3,U3-4,U3-5
+list v1d1439 1,2,3,4
+list v37167f 16T,16,8T,8,4T,4
+list v401711 30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,199,200,201,202,203,204,205,206,207,208,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223,224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255,256,257,258,259,260,261,262,263,264,265,266,267,268
+list v401711 269,270,271,272,273,274,275,276,277,278,279,280,281,282,283,284,285
+list v4f4c98 "No Assign","Common Pitch Mod.Int.","Portamento Time","Pitch Bend Int.(+)","Pitch Bend Int.(-)","[OSC1] Octave","[OSC1] Semi Tone","[OSC1] Fine Tune","[OSC1] Pitch Mod.1 Int.","[OSC1] Pitch Mod.1 Int.Cntl.Int.","[OSC1] Pitch Mod.2 Int.","[OSC2] Octave","[OSC2] Semi Tone","[OSC2] Fine Tune","[OSC2] Pitch Mod.1 Int.","[OSC2] Pitch Mod.1 Int.Cntl.Int.","[OSC2] Pitch Mod.2 Int.","[SubOSC] Octave","[SubOSC] Semi Tone","[SubOSC] Fine Tune","[SubOSC] Pitch Mod.1 Int.","[SubOSC] Pitch Mod.1 Int.Cntl.Int.","[SubOSC] Pitch Mod.2 Int.","[SubOSC] Wave Form","[NoiseGen.] Filter Type","[NoiseGen.] Input Trim","[NoiseGen.] Cutoff","[NoiseGen.] Cutoff Mod.1 Int.","[NoiseGen.] Cutoff Mod.2 Int.","[NoiseGen.] Resonance","[Mixer] OSC1 Out1 Level","[Mixer] OSC1 Out1 Level Mod.Int.","[Mixer] OSC1 Out2 Level","[Mixer] OSC1 Out2 Level Mod.Int.","[Mixer] OSC2 Out1 Level"
+list v4f4c98 "[Mixer] OSC2 Out1 Level Mod.Int.","[Mixer] OSC2 Out2 Level","[Mixer] OSC2 Out2 Level Mod.Int.","[Mixer] SubOSC Out1 Level","[Mixer] SubOSC Out1 Level Mod.Int.","[Mixer] SubOSC Out2 Level","[Mixer] SubOSC Out2 Level Mod.Int.","[Mixer] NoiseGen. Out1 Level","[Mixer] NoiseGen. Out1 Level Mod.Int.","[Mixer] NoiseGen. Out2 Level","[Mixer] NoiseGen. Out2 Level Mod.Int.","[Mixer] Feedback Out1 Level","[Mixer] Feedback Out1 Level Mod.Int.","[Mixer] Feedback Out2 Level","[Mixer] Feedback Out2 Level Mod.Int.","[Filter1] Filter Type","[Filter1] Input Trim","[Filter1] Cutoff","[Filter1] Cutoff Mod.EG Int.","[Filter1] Cutoff Mod.1 Int.","[Filter1] Cutoff Mod.2 Int.","[Filter1] Resonance","[Filter1] Resonance Mod.Int.","[Filter1-B] Input Trim","[Filter1-B] Cutoff","[Filter1-B] Cutoff Mod.EG Int.","[Filter1-B] Cutoff Mod.1 Int.","[Filter1-B] Cutoff Mod.2 Int.","[Filter1-B] Resonance"
+list v4f4c98 "[Filter1-B] Resonance Mod.Int.","[Filter2] Filter Type","[Filter2] Input Trim","[Filter2] Cutoff","[Filter2] Cutoff Mod.EG Int.","[Filter2] Cutoff Mod.1 Int.","[Filter2] Cutoff Mod.2 Int.","[Filter2] Resonance","[Filter2] Resonance Mod.Int.","[Filter2-B] Input Trim","[Filter2-B] Cutoff","[Filter2-B] Cutoff Mod.EG Int.","[Filter2-B] Cutoff Mod.1 Int.","[Filter2-B] Cutoff Mod.2 Int.","[Filter2-B] Resonance","[Filter2-B] Resonance Mod.Int.","[Amp1] Amplitude","[Amp1] Amplitude Mod.Int.","[Amp2] Amplitude","[Amp2] Amplitude Mod.Int.","[AmpEG] Attack Time","[AmpEG] Attack Level","[AmpEG] Decay Time","[AmpEG] Break Level","[AmpEG] Slope Time","[AmpEG] Sustain Level","[AmpEG] Release Time","[EG1] Start Level","[EG1] Attack Time","[EG1] Attack Level","[EG1] Decay Time","[EG1] Break Level","[EG1] Slope Time","[EG1] Sustain Level","[EG1] Release Time","[EG1] Release Level"
+list v4f4c98 "[EG2] Start Level","[EG2] Attack Time","[EG2] Attack Level","[EG2] Decay Time","[EG2] Break Level","[EG2] Slope Time","[EG2] Sustain Level","[EG2] Release Time","[EG2] Release Level","[EG3] Start Level","[EG3] Attack Time","[EG3] Attack Level","[EG3] Decay Time","[EG3] Break Level","[EG3] Slope Time","[EG3] Sustain Level","[EG3] Release Time","[EG3] Release Level","[EG4] Start Level","[EG4] Attack Time","[EG4] Attack Level","[EG4] Decay Time","[EG4] Break Level","[EG4] Slope Time","[EG4] Sustain Level","[EG4] Release Time","[EG4] Release Level","[LFO1] Wave Form","[LFO1] Freq.","[LFO1] Freq.Mod.1 Int.","[LFO1] Freq.Mod.2 Int.","[LFO1] Fade In","[LFO2] Wave Form","[LFO2] Freq.","[LFO2] Freq.Mod.1 Int.","[LFO2] Freq.Mod.2 Int.","[LFO2] Fade In","[LFO3] Wave Form","[LFO3] Freq.","[LFO3] Freq.Mod.1 Int.","[LFO3] Freq.Mod.2 Int.","[LFO3] Fade In","[LFO4] Wave Form"
+list v4f4c98 "[LFO4] Freq.","[LFO4] Freq.Mod.1 Int.","[LFO4] Freq.Mod.2 Int.","[LFO4] Fade In","[Output] Panpot","[Output] Panpot Mod.Int.","[Output] Output Level","[Effect] Effect Send","[Effect] Effect Send Mod.Int.","[2BandEQ] Low Freq.","[2BandEQ] Low Gain","[2BandEQ] High Freq.","[2BandEQ] High Gain","Unison Type","Unison Detune","OSC Model 1","OSC Model 2","OSC Model 3","OSC Model 4","OSC Model 5","OSC Model 6","OSC Model 7","OSC Model 8","OSC Model 9","OSC Model 10","OSC Model 11","OSC Model 12","OSC Model 13","OSC Model 14","OSC Model 15","OSC Model 16","OSC Model 17","OSC Model 18","OSC Model 19","OSC Model 20","OSC Model 21","OSC Model 22","OSC Model 23","OSC Model 24","OSC Model 25","OSC Model 26","OSC Model 27","OSC Model 28","OSC Model 29","OSC Model 30","OSC Model 31","OSC Model 32","OSC Model 33","OSC Model 34","OSC Model 35","OSC Model 36","OSC Model 37","OSC Model 38"
+list v4f4c98 "OSC Model 39","OSC Model 40","OSC Model 41","OSC Model 42","OSC Model 43","OSC Model 44","OSC Model 45","OSC Model 46","OSC Model 47","OSC Model 48","OSC Model 49","OSC Model 50","OSC Model 51","OSC Model 52","OSC Model 53","OSC Model 54","OSC Model 55","OSC Model 56","OSC Model 57","OSC Model 58","OSC Model 59","OSC Model 60","OSC Model 61","OSC Model 62","OSC Model 63","OSC Model 64","OSC Model 65","OSC Model 66","OSC Model 67","OSC Model 68","OSC Model 69","OSC Model 70","OSC Model 71","OSC Model 72","OSC Model 73"
+list v2400cb Linear,Exp,Log,SW
+list v3ffa0b "Group 1","Group 2","Group 3","Group 4","Group 5","Group 6","Group 7","Group 8","Group 9","Group 10","Group 11","Group 12","Group 13","Group 14","Group 15","Group 16"
+list ve099f0 Last,Low,High
+list v601b3c 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127
+list vb763e5 C,"C#",D,"D#",E,F,"F#",G,"G#",A,"A#",B
+list vebcac2 "Equal Temperament","Pure Major","Pure Minor",Arabic,Pythagorean,Werckmeister,Kirnberger,Slendro,Pelog,"User Scale 1","User Scale 2"
+list ve7a188 Continuous,1/8,1/4,1/2,1,2,3,4,5,6,7,8,9,10,11,12
+list v2e66f6 "Triangle '0","Triangle '90","Tri Random",Sine,"Saw Up '0","Saw Up '180","Saw Down '0","Saw Down '180",Square,Random1(S/H),Random2(Vector),"Step Tri 4","Step Tri 6","Step Saw 4","Step Saw 6","Exp Tri","Exp Saw Up","Exp Saw Down"
+list vf5ac2a 0.000,0.040,0.060,0.080,0.100,0.120,0.140,0.160,0.180,0.200,0.220,0.240,0.260,0.280,0.300,0.320,0.340,0.360,0.380,0.400,0.420,0.440,0.460,0.480,0.500,0.520,0.540,0.560,0.580,0.600,0.620,0.640,0.660,0.680,0.700,0.720,0.740,0.760,0.780,0.800,0.820,0.840,0.860,0.880,0.900,0.920,0.940,0.960,0.980,1.000,1.050,1.100,1.150,1.200,1.250,1.300,1.350,1.400,1.450,1.500,1.550,1.600,1.650,1.700,1.750,1.800,1.850,1.900,1.950,2.000,2.100,2.200,2.300,2.400,2.500,2.600,2.700,2.800,2.900,3.000,3.100,3.200,3.300,3.400,3.500,3.600,3.700,3.800,3.900,4.000,4.100,4.200,4.300,4.400,4.500,4.600,4.700,4.800,4.900,5.000,5.100,5.200,5.300,5.400,5.500,5.600,5.700,5.800,5.900,6.000,6.100,6.200,6.300,6.400,6.500,6.600,6.700,6.800,6.900,7.000,7.100,7.200,7.300,7.400,7.500,7.600,7.700,7.800,7.900,8.000,8.100,8.200,8.300,8.400,8.500,8.600,8.700,8.800,8.900,9.000,9.100,9.200,9.300,9.400,9.500,9.600,9.700
+list vf5ac2a 9.800,9.900,10.00,11.00,12.00,13.00,14.00,15.00,16.00,17.00,18.00,19.00,20.00,21.00,22.00,23.00,24.00,25.00,26.00,27.00,28.00,29.00,30.00,31.00,32.00,33.00,34.00,35.00,36.00,37.00,38.00,39.00,40.00,41.00,42.00,43.00,44.00,45.00,46.00,47.00,48.00,49.00,50.00,51.00,52.00,53.00,54.00,55.00,56.00,57.00,58.00,59.00,60.00
+# ══ END GENERATED Value lists
+
+# ── Page tree (2026-10-07) ────────────────────────────────────────────────────
+# Mode | Area | Page, as on the Kronos. The areas follow the Z1's signal path
+# (OSC1/OSC2/Sub/Noise > Mixer > Filter > Amp > Effects, with EG1-4 and LFO1-4
+# as the modulators), in the order the MIDI spec's parameter table lists them.
+# Model-specific dials sit in their own section under OSC 1/2, shown only while
+# that model is selected (showIf on the OSC Type byte). "Prog" leaves room for
+# Multi Set / Arpeggio / Global.
+page       Prog | Common
 section    info
 hidden
 
@@ -158,17 +272,26 @@ dial category label="Category" max=18 group=1 param=17 dumpOffset=16 dumpMask=0x
 # needing their own conversion (see decode_signed_dump_byte() vs decode_
 # signed_param_wire_value(), synthComms.c). "Sync from synth" now decodes
 # these two dials correctly too.
-page       oscillators
+page       Prog | OSC | Common
 section    oscCommon
 dialSize   40
 spacing    50
+#
+# CORRECTION 2026-10-07 — EVERY signed parameter uses that same encoding, not
+# only PB Int: the Z1's parameter table marks the -99~+99 Int family, Semi
+# Tone, Fine Tune, Frequency Offset and the rest as signed, and the dump holds
+# them as 8-bit two's complement. Confirmed on hardware: F1 Hi Int written as
+# +41 with wireSigned=1 (wire 29 00) read back +41 from a fresh dump, where
+# the old offset encoding (raw 140) had always come back 0 - the "positive Int
+# writes clamp to 0" was this, not a firmware limit. All signed dials now carry
+# wireSigned=1 and their dumpOffset.
 
 color common 0.9 0.7 0.3
 
 dial pbIntPlus   label="PB Int+"   color=common max=85  display=signed displayOffset=60 wireSigned=1 group=1 param=163 dumpOffset=145
 dial pbIntMinus  label="PB Int-"   color=common max=85  display=signed displayOffset=60 wireSigned=1 group=1 param=164 dumpOffset=146
-dial pbStepPlus  label="PB Step+"  color=common max=16  display=raw group=1 param=165 dumpOffset=147 dumpMask=0x0F
-dial pbStepMinus label="PB Step-"  color=common max=16  display=raw group=1 param=166 dumpOffset=147 dumpShift=4 dumpMask=0x0F
+dial pbStepPlus  label="PB Step+"  color=common max=16  names=@ve7a188 group=1 param=165 dumpOffset=147 dumpMask=0x0F
+dial pbStepMinus label="PB Step-"  color=common max=16  names=@ve7a188 group=1 param=166 dumpOffset=147 dumpShift=4 dumpMask=0x0F
 dial portSW      label="Porta"     color=common max=2   names=OFF,ON          group=1 param=169 dumpOffset=150 dumpMask=0x01 asMenu=1
 dial portMode    label="Porta Mode" color=common max=2  names=NORMAL,FINGERED group=1 param=170 dumpOffset=150 dumpShift=1 dumpMask=0x01 asMenu=1
 dial portTime    label="Porta Time" color=common max=100 display=raw          group=1 param=171 dumpOffset=151
@@ -194,7 +317,7 @@ dial portTime    label="Porta Time" color=common max=100 display=raw          gr
 # up this file's history), so a long enough single row can silently run off
 # the right edge of the window.
 #
-# BUG FOUND + FIXED 2026-07-13: the "page oscillators" line below is
+# BUG FOUND + FIXED 2026-07-13: the "page" line below is
 # REQUIRED — "section" alone only renames whichever section is already
 # current (see process_line()'s own handling in panelConfig.c: only "page"
 # advances to a fresh tPanelSection). Without it, this had been silently
@@ -202,7 +325,7 @@ dial portTime    label="Porta Time" color=common max=100 display=raw          gr
 # existing 7, producing exactly the single 12-dial-wide merged row this
 # comment block was written to avoid — confirmed via the backdoor DUMP
 # command (all 12 dials reporting under one "section=voiceCommon").
-page       oscillators
+page       Prog | Common
 section    voiceCommon
 dialSize   40
 spacing    50
@@ -215,58 +338,21 @@ dial unisonSW label="Unison SW" color=common max=2 group=1 param=25 dumpOffset=2
 dial unisonMode label="Unison Mode" color=common max=2 group=1 param=26 dumpOffset=21 dumpShift=3 dumpMask=0x01 names=FIXED,DYNAMIC asMenu=1
 dial unisonDetune label="Detune" color=common max=100 display=raw group=1 param=27 dumpOffset=22
 
-page       oscillators
+page       Prog | OSC 1 | Pitch
 section    osc1
+variantParamDelta 14
 dialSize   40
 spacing    50
 
 color osc1 0.4 0.7 0.9
 
-dial o1type label="O1 Type" color=osc1 max=13  names=Std,Comb,VPM,Reso,Ring,Cross,Sync,Organ,EPno,Brass,Reed,Pluck,Bowed group=1 param=174 dumpOffset=154
-dial o1oct  label="O1 Oct"  color=osc1 max=4   names="32',16',8',4'"          group=1 param=175 dumpOffset=155
-dial o1semi label="O1 Semi" color=osc1 max=25  display=signed displayOffset=12    group=1 param=176 dumpOffset=156
-dial o1fine label="O1 Fine" color=osc1 max=101 display=signed displayOffset=50    group=1 param=177 dumpOffset=157
-dial o1freq label="O1 Freq" color=osc1 max=201 display=signed displayOffset=100   group=1 param=178 dumpOffset=158
+dial o1type label="Type" color=osc1 max=13 variantMax=9  names=Std,Comb,VPM,Reso,Ring,Cross,Sync,Organ,EPno,Brass,Reed,Pluck,Bowed group=1 param=174 dumpOffset=154
+dial o1oct  label="Octave"  color=osc1 max=4   names="32',16',8',4'"          group=1 param=175 dumpOffset=155
+dial o1semi label="Semi Tone" color=osc1 max=25  display=signed displayOffset=12    group=1 param=176 dumpOffset=156 wireSigned=1
+dial o1fine label="Fine Tune" color=osc1 max=101 display=signed displayOffset=50    group=1 param=177 dumpOffset=157 wireSigned=1
+dial o1freq label="Freq Offset" color=osc1 max=201 display=signed displayOffset=100   group=1 param=178 dumpOffset=158 wireSigned=1
 
-# ── OSC1 VPM controls (o1type = 2) ───────────────────────────────────────────
-# Params 500-520 from the MIDI spec's [VPM OSC] block (Carrier 500-512,
-# Modulator 513-520). Gated on o1type:2 — Oscillator Type (param 174) is
-# 0~12 per the spec, so VPM is index 2 on a 0-based list.
-#
-# NO dumpOffset ON THESE YET, deliberately: the param->dump delta is not
-# constant across the table (o1type is param 174 -> dump 154, but mo1o1 is
-# param 224 -> dump 280), so it cannot be derived — it needs the dump layout
-# read out of the spec separately. Same as the LFO dials above, which are also
-# param-only. Effect: these send correctly on edit, but are not populated from
-# a Current Program dump until the offsets are added.
-#
-# The -99~+99 Mod1/Mod2 Source+Int pairs (502-505, 507-510, 515-518) are
-# deliberately NOT here yet — they are the Int family that silently clamps
-# positive writes to 0 on real hardware (known Z1 bug, unfixed), so wiring
-# them up would ship controls that half-work.
-dial o1vpmcwave   label="O1 VPM Wave"    color=osc1 max=4   names=SAW,SQU,TRI,SIN                                    group=1 param=500 disableUnless=o1type:2
-dial o1vpmclevel  label="O1 VPM Level"   color=osc1 max=100 display=raw                                              group=1 param=501 disableUnless=o1type:2
-dial o1vpmcshape  label="O1 VPM Shape"   color=osc1 max=100 display=raw                                              group=1 param=506 disableUnless=o1type:2
-dial o1vpmcstype  label="O1 VPM Shp Typ" color=osc1 max=2   names=1,2                                                group=1 param=511 disableUnless=o1type:2
-dial o1vpmcfb     label="O1 VPM Fdbk"    color=osc1 max=100 display=raw                                              group=1 param=512 disableUnless=o1type:2
-dial o1vpmmcoarse label="O1 VPM M Crse"  color=osc1 max=17  display=raw                                              group=1 param=513 disableUnless=o1type:2
-dial o1vpmmwave   label="O1 VPM M Wave"  color=osc1 max=8   names=SAW,SQU,TRI,SIN,OSC1,SubOSC,Filt1,Filt2            group=1 param=519 disableUnless=o1type:2
-dial o1vpmmlevel  label="O1 VPM M Lvl"   color=osc1 max=100 display=raw                                              group=1 param=520 disableUnless=o1type:2
-
-page       oscillators
-section    osc2
-dialSize   40
-spacing    50
-
-color osc2 0.5 0.9 0.6
-
-dial o2type label="O2 Type" color=osc2 max=9   names=Std,Comb,VPM,Reso,Ring,Cross,Sync,Organ,EPno group=1 param=188 dumpOffset=206
-dial o2oct  label="O2 Oct"  color=osc2 max=4   names="32',16',8',4'"          group=1 param=189 dumpOffset=207
-dial o2semi label="O2 Semi" color=osc2 max=25  display=signed displayOffset=12    group=1 param=190 dumpOffset=208
-dial o2fine label="O2 Fine" color=osc2 max=101 display=signed displayOffset=50    group=1 param=191 dumpOffset=209
-dial o2freq label="O2 Freq" color=osc2 max=201 display=signed displayOffset=100   group=1 param=192 dumpOffset=210
-
-page       oscillators
+page       Prog | OSC | Sub OSC
 section    subOsc
 dialSize   40
 spacing    50
@@ -290,14 +376,14 @@ color sub 0.8 0.5 0.9
 gap 66.5
 dial suboct  label="Sub Oct"  color=sub max=4   names="32',16',8',4'" group=1 param=202 dumpOffset=258
 gap -9.0
-dial subsemi label="Sub Semi" color=sub max=25  display=signed displayOffset=12 group=1 param=203 dumpOffset=259
+dial subsemi label="Sub Semi" color=sub max=25  display=signed displayOffset=12 group=1 param=203 dumpOffset=259 wireSigned=1
 gap -9.0
-dial subfine label="Sub Fine" color=sub max=101 display=signed displayOffset=50 group=1 param=204 dumpOffset=260
+dial subfine label="Sub Fine" color=sub max=101 display=signed displayOffset=50 group=1 param=204 dumpOffset=260 wireSigned=1
 gap -9.0
-dial subfreq label="Sub Freq" color=sub max=201 display=signed displayOffset=100 group=1 param=205 dumpOffset=261
+dial subfreq label="Sub Freq" color=sub max=201 display=signed displayOffset=100 group=1 param=205 dumpOffset=261 wireSigned=1
 dial subwave label="Sub Wave" color=sub max=4   names=SAW,SQU,TRI,SIN group=1 param=215 dumpOffset=271
 
-page       oscillators
+page       Prog | OSC | Noise
 section    noise
 dialSize   40
 spacing    50
@@ -309,7 +395,706 @@ dial noisetrim label="Noise Trim" color=noise max=100 display=raw            gro
 dial noisecut  label="Noise Cut"  color=noise max=100 display=raw            group=1 param=218 dumpOffset=274
 dial noiseres  label="Noise Res"  color=noise max=100 display=raw            group=1 param=223 dumpOffset=279
 
-page       oscillators
+# ══ BEGIN GENERATED OSC 1 / OSC 2
+# ── OSC 1 / OSC 2: Pitch and Model pages ─────────────────────────────────────
+# GENERATED from the Z1's parameter tables - regenerate rather than edit by hand.
+# OSC 2 is OSC 1's pages again (pageVariant): model parameters move by one ExID
+# (+2048) and the dump by 52; the Pitch sections move to OSC 2's own IDs, 14 on.
+# Each model section shows only while that model is selected (dump byte 154,
+# 206 for OSC 2); OSC 2 offers the first 9 models.
+pageVariant "Prog | OSC 2" "Prog | OSC 1" 0 52 2048
+# OSC 2 does not exist while OSC 1 is a physical model (Brass..Bowed, types 9-12).
+variantShowIf "Prog | OSC 2" 154 0 8
+tabLabel "Prog | OSC 1" 154 Std,Comb,VPM,Reso,Ring,Cross,Sync,Organ,EP,Brass,Reed,Pluck,Bowed
+
+page       Prog | OSC 1 | Pitch
+section    oscslope
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+graph width=360 height=70 points="x=0,y=p180;X=p179,y=0.3333;x=1,y=p181"
+
+page       Prog | OSC 1 | Pitch
+section    oscpitch1
+variantParamDelta 14
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p182     label="Mod1 Src" color=osc max=49 names=@vcac915 group=1 param=182 dumpOffset=162
+dial p179     label="Center Key" color=osc max=128 names=@vc2ba68 group=1 param=179 dumpOffset=159
+dial p180     label="Lower Slope" color=osc max=151 displayOffset=50 wireSigned=1 names=@v5ca5ab asDial=1 group=1 param=180 dumpOffset=160
+dial p181     label="Higher Slope" color=osc max=151 displayOffset=50 wireSigned=1 names=@v5ca5ab asDial=1 group=1 param=181 dumpOffset=161
+dial p183     label="Mod1 Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=183 dumpOffset=163
+dial p184     label="Mod1 IntCtrl" color=osc max=49 names=@vcac915 group=1 param=184 dumpOffset=164
+dial p185     label="Mod1 IntCtrl Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=185 dumpOffset=165
+dial p186     label="Mod2 Src" color=osc max=49 names=@vcac915 group=1 param=186 dumpOffset=166
+
+page       Prog | OSC 1 | Pitch
+section    oscpitch2
+variantParamDelta 14
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p187     label="Mod2 Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=187 dumpOffset=167
+
+page       Prog | OSC 1 | Model
+section    m0_1
+showIf     154 0
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p464     label="Wave" color=osc max=2 names=@vc8829f group=1 param=2512 dumpOffset=168
+dial p465     label="Wave Edge" color=osc max=100 display=raw group=1 param=2513 dumpOffset=169
+dial p475     label="Wave Shape Input Level" color=osc max=100 display=raw group=1 param=2523 dumpOffset=179
+dial p466     label="Wave Level" color=osc max=100 display=raw group=1 param=2514 dumpOffset=170
+dial p476     label="Wave Shape Input Lvl Mod Src" color=osc max=49 names=@vcac915 group=1 param=2524 dumpOffset=180
+dial p467     label="Triangle Level" color=osc max=100 display=raw group=1 param=2515 dumpOffset=171
+
+page       Prog | OSC 1 | Model
+section    m0_1w1
+showIf     154 0
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p477     label="Wave Shape Input Lvl Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2525 dumpOffset=181
+dial p468     label="Sine Level" color=osc max=100 display=raw group=1 param=2516 dumpOffset=172
+
+page       Prog | OSC 1 | Model
+section    m0_2
+showIf     154 0
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p478     label="Wave Shape Offset" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2526 dumpOffset=182
+dial p469     label="Triangle Phase Shift" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2517 dumpOffset=173
+dial p479     label="Wave Shape Table" color=osc max=2 names=@vf1f63b group=1 param=2527 dumpOffset=183
+dial p480     label="Wave Shape" color=osc max=100 display=raw group=1 param=2528 dumpOffset=184
+dial p470     label="Wave Form" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2518 dumpOffset=174
+dial p481     label="Wave Shape Mod Src" color=osc max=49 names=@vcac915 group=1 param=2529 dumpOffset=185
+dial p471     label="Wave Form Mod LFO" color=osc max=4 offset=6 names=@v5ecbff group=1 param=2519 dumpOffset=175
+
+page       Prog | OSC 1 | Model
+section    m0_3
+showIf     154 0
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p482     label="Wave Shape Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2530 dumpOffset=186
+dial p472     label="Wave Form Mod LFO Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2520 dumpOffset=176
+dial p473     label="Wave Form Mod Src" color=osc max=49 names=@vcac915 group=1 param=2521 dumpOffset=177
+dial p483     label="Wave Shape Bal" color=osc max=100 display=raw group=1 param=2531 dumpOffset=187
+dial p474     label="Wave Form Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2522 dumpOffset=178
+dial p484     label="Wave Shape Bal Mod Src" color=osc max=49 names=@vcac915 group=1 param=2532 dumpOffset=188
+dial p485     label="Wave Shape Bal Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2533 dumpOffset=189
+
+page       Prog | OSC 1 | Model
+section    m1_1
+showIf     154 1
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p486     label="Input Select" color=osc max=6 names=@v340412 group=1 param=2534 dumpOffset=168
+dial p487     label="Input Wave Level" color=osc max=100 display=raw group=1 param=2535 dumpOffset=169
+dial p488     label="Noise Level" color=osc max=100 display=raw group=1 param=2536 dumpOffset=170
+dial p489     label="Width" color=osc max=100 display=raw group=1 param=2537 dumpOffset=171
+dial p490     label="Input Level Mod Src" color=osc max=49 names=@vcac915 group=1 param=2538 dumpOffset=172
+dial p491     label="Input Level Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2539 dumpOffset=173
+dial p492     label="Comb Filter Fdbk" color=osc max=100 display=raw group=1 param=2540 dumpOffset=174
+dial p493     label="Fdbk Mod1 Src" color=osc max=49 names=@vcac915 group=1 param=2541 dumpOffset=175
+
+page       Prog | OSC 1 | Model
+section    m1_2
+showIf     154 1
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p494     label="Fdbk Mod1 Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2542 dumpOffset=176
+dial p495     label="Fdbk Mod2 Src" color=osc max=49 names=@vcac915 group=1 param=2543 dumpOffset=177
+dial p496     label="Fdbk Mod2 Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2544 dumpOffset=178
+dial p497     label="High Damp" color=osc max=100 display=raw group=1 param=2545 dumpOffset=179
+dial p498     label="High Damp Mod Src" color=osc max=49 names=@vcac915 group=1 param=2546 dumpOffset=180
+dial p499     label="High Damp Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2547 dumpOffset=181
+
+page       Prog | OSC 1 | Model
+section    m2_1
+showIf     154 2
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p500     label="Carrier Wave" color=osc max=4 names=@v8bae12 group=1 param=2548 dumpOffset=168
+dial p519     label="Modulator Wave" color=osc max=8 names=@v992cc0 group=1 param=2567 dumpOffset=187
+dial p501     label="Carrier Level" color=osc max=100 display=raw group=1 param=2549 dumpOffset=169
+dial p513     label="Freq Coarse" color=osc max=17 names=@v6b716b group=1 param=2561 dumpOffset=181
+dial p502     label="Carrier Level Mod1 Src" color=osc max=49 names=@vcac915 group=1 param=2550 dumpOffset=170
+dial p514     label="Fine" color=osc max=101 displayOffset=50 wireSigned=1 display=signed group=1 param=2562 dumpOffset=182
+dial p503     label="Carrier Level Mod1 Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2551 dumpOffset=171
+dial p515     label="Freq Mod1 Src" color=osc max=49 names=@vcac915 group=1 param=2563 dumpOffset=183
+
+page       Prog | OSC 1 | Model
+section    m2_2
+showIf     154 2
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p504     label="Carrier Level Mod2 Src" color=osc max=49 names=@vcac915 group=1 param=2552 dumpOffset=172
+dial p516     label="Freq Mod1 Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2564 dumpOffset=184
+dial p505     label="Carrier Level Mod2 Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2553 dumpOffset=173
+dial p517     label="Freq Mod2 Src" color=osc max=49 names=@vcac915 group=1 param=2565 dumpOffset=185
+dial p518     label="Freq Mod2 Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2566 dumpOffset=186
+dial p506     label="Wave Shape" color=osc max=100 display=raw group=1 param=2554 dumpOffset=174
+dial p507     label="Wave Shape Mod1 Src" color=osc max=49 names=@vcac915 group=1 param=2555 dumpOffset=175
+dial p520     label="Modulator Level" color=osc max=100 display=raw group=1 param=2568 dumpOffset=188
+
+page       Prog | OSC 1 | Model
+section    m2_3
+showIf     154 2
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p508     label="Wave Shape Mod1 Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2556 dumpOffset=176
+dial p521     label="Modulator Level Mod1 Src" color=osc max=49 names=@vcac915 group=1 param=2569 dumpOffset=189
+dial p509     label="Wave Shape Mod2 Src" color=osc max=49 names=@vcac915 group=1 param=2557 dumpOffset=177
+dial p522     label="Modulator Level Mod1 Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2570 dumpOffset=190
+dial p510     label="Wave Shape Mod2 Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2558 dumpOffset=178
+dial p523     label="Modulator Level Mod2 Src" color=osc max=49 names=@vcac915 group=1 param=2571 dumpOffset=191
+dial p511     label="Wave Shape Type" color=osc max=2 names=@v31c5d0 group=1 param=2559 dumpOffset=179
+
+page       Prog | OSC 1 | Model
+section    m2_3w1
+showIf     154 2
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p524     label="Modulator Level Mod2 Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2572 dumpOffset=192
+
+page       Prog | OSC 1 | Model
+section    m2_4
+showIf     154 2
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p512     label="Fdbk" color=osc max=100 display=raw group=1 param=2560 dumpOffset=180
+
+page       Prog | OSC 1 | Model
+section    m3_1
+showIf     154 3
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p525     label="Input Select" color=osc max=5 names=@vbd0e3e group=1 param=2573 dumpOffset=168
+dial p526     label="Input Level" color=osc max=100 display=raw group=1 param=2574 dumpOffset=169
+dial p527     label="Input Level Mod1 Src" color=osc max=49 names=@vcac915 group=1 param=2575 dumpOffset=170
+dial p528     label="Input Level Mod1 Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2576 dumpOffset=171
+dial p529     label="Input Level Mod2 Src" color=osc max=49 names=@vcac915 group=1 param=2577 dumpOffset=172
+dial p530     label="Input Level Mod2 Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2578 dumpOffset=173
+
+page       Prog | OSC 1 | Model
+section    m3_2
+showIf     154 3
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p531     label="Reso1" color=osc max=100 display=raw group=1 param=2579 dumpOffset=174
+dial p537     label="Reso2" color=osc max=100 display=raw group=1 param=2585 dumpOffset=180
+dial p543     label="Reso3" color=osc max=100 display=raw group=1 param=2591 dumpOffset=186
+dial p549     label="Reso4" color=osc max=100 display=raw group=1 param=2597 dumpOffset=192
+dial p532     label="Harm1" color=osc max=16 names=@va0aefd group=1 param=2580 dumpOffset=175
+dial p538     label="Harm2" color=osc max=16 names=@va0aefd group=1 param=2586 dumpOffset=181
+dial p544     label="Harm3" color=osc max=16 names=@va0aefd group=1 param=2592 dumpOffset=187
+dial p550     label="Harm4" color=osc max=16 names=@va0aefd group=1 param=2598 dumpOffset=193
+
+page       Prog | OSC 1 | Model
+section    m3_3
+showIf     154 3
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p533     label="Harm1 Mod Src" color=osc max=49 names=@vcac915 group=1 param=2581 dumpOffset=176
+dial p539     label="Harm2 Mod Src" color=osc max=49 names=@vcac915 group=1 param=2587 dumpOffset=182
+dial p545     label="Harm3 Mod Src" color=osc max=49 names=@vcac915 group=1 param=2593 dumpOffset=188
+dial p551     label="Harm4 Mod Src" color=osc max=49 names=@vcac915 group=1 param=2599 dumpOffset=194
+dial p534     label="Harm1 Mod Int" color=osc max=31 displayOffset=15 wireSigned=1 display=signed group=1 param=2582 dumpOffset=177
+dial p540     label="Harm2 Mod Int" color=osc max=31 displayOffset=15 wireSigned=1 display=signed group=1 param=2588 dumpOffset=183
+dial p546     label="Harm3 Mod Int" color=osc max=31 displayOffset=15 wireSigned=1 display=signed group=1 param=2594 dumpOffset=189
+dial p552     label="Harm4 Mod Int" color=osc max=31 displayOffset=15 wireSigned=1 display=signed group=1 param=2600 dumpOffset=195
+
+page       Prog | OSC 1 | Model
+section    m3_4
+showIf     154 3
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p535     label="Freq Fine1" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2583 dumpOffset=178
+dial p541     label="Freq Fine2" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2589 dumpOffset=184
+dial p547     label="Freq Fine3" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2595 dumpOffset=190
+dial p553     label="Freq Fine4" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2601 dumpOffset=196
+dial p536     label="Level1" color=osc max=100 display=raw group=1 param=2584 dumpOffset=179
+dial p542     label="Level2" color=osc max=100 display=raw group=1 param=2590 dumpOffset=185
+dial p548     label="Level3" color=osc max=100 display=raw group=1 param=2596 dumpOffset=191
+dial p554     label="Level4" color=osc max=100 display=raw group=1 param=2602 dumpOffset=197
+
+page       Prog | OSC 1 | Model
+section    m3_5
+showIf     154 3
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p555     label="Reso Mod Src" color=osc max=49 names=@vcac915 group=1 param=2603 dumpOffset=198
+dial p556     label="Reso Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2604 dumpOffset=199
+
+page       Prog | OSC 1 | Model
+section    m4_1
+showIf     154 4
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p557     label="Input Select" color=osc max=5 names=@vbd0e3e group=1 param=2605 dumpOffset=168
+dial p558     label="Carrier Wave" color=osc max=4 names=@v8bae12 group=1 param=2606 dumpOffset=169
+dial p565     label="Wave Edge" color=osc max=100 display=raw group=1 param=2613 dumpOffset=176
+dial p564     label="Type" color=osc max=2 names=@v31c5d0 group=1 param=2612 dumpOffset=175
+dial p559     label="Mod Depth" color=osc max=100 display=raw group=1 param=2607 dumpOffset=170
+dial p560     label="Mod Depth Mod1 Src" color=osc max=49 names=@vcac915 group=1 param=2608 dumpOffset=171
+dial p561     label="Mod Depth Mod1 Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2609 dumpOffset=172
+dial p562     label="Mod Depth Mod2 Src" color=osc max=49 names=@vcac915 group=1 param=2610 dumpOffset=173
+
+page       Prog | OSC 1 | Model
+section    m4_2
+showIf     154 4
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p563     label="Mod Depth Mod2 Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2611 dumpOffset=174
+
+page       Prog | OSC 1 | Model
+section    m5_1
+showIf     154 5
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p566     label="Input Select" color=osc max=5 names=@vbd0e3e group=1 param=2614 dumpOffset=168
+dial p567     label="Carrier Wave" color=osc max=4 names=@v8bae12 group=1 param=2615 dumpOffset=169
+dial p573     label="Wave Edge" color=osc max=100 display=raw group=1 param=2621 dumpOffset=175
+dial p568     label="Mod Depth" color=osc max=100 display=raw group=1 param=2616 dumpOffset=170
+dial p569     label="Mod Depth Mod1 Src" color=osc max=49 names=@vcac915 group=1 param=2617 dumpOffset=171
+dial p570     label="Mod Depth Mod1 Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2618 dumpOffset=172
+dial p571     label="Mod Depth Mod2 Src" color=osc max=49 names=@vcac915 group=1 param=2619 dumpOffset=173
+dial p572     label="Mod Depth Mod2 Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2620 dumpOffset=174
+
+page       Prog | OSC 1 | Model
+section    m6_1
+showIf     154 6
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p574     label="Input Select" color=osc max=5 names=@vbd0e3e group=1 param=2622 dumpOffset=168
+dial p575     label="Slave Wave" color=osc max=4 names=@v8bae12 group=1 param=2623 dumpOffset=169
+dial p576     label="Wave Edge" color=osc max=100 display=raw group=1 param=2624 dumpOffset=170
+
+page       Prog | OSC 1 | Model
+section    m7_1
+showIf     154 7
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p577     label="(Drawbar1)" color=osc max=4 names=@v83a79e group=1 param=2625 dumpOffset=168
+dial p584     label="Drawbar2 Wave" color=osc max=4 names=@v83a79e group=1 param=2632 dumpOffset=175
+dial p591     label="Drawbar3 Wave" color=osc max=4 names=@v83a79e group=1 param=2639 dumpOffset=182
+dial p578     label="Harm" color=osc max=16 names=@va0aefd group=1 param=2626 dumpOffset=169
+dial p585     label="Drawbar2 Harm" color=osc max=16 names=@va0aefd group=1 param=2633 dumpOffset=176
+dial p592     label="Drawbar3 Harm" color=osc max=16 names=@va0aefd group=1 param=2640 dumpOffset=183
+
+page       Prog | OSC 1 | Model
+section    m7_2
+showIf     154 7
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p579     label="Fine" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2627 dumpOffset=170
+dial p586     label="Drawbar2 Fine" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2634 dumpOffset=177
+dial p593     label="Drawbar3 Fine" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2641 dumpOffset=184
+dial p580     label="Level" color=osc max=100 display=raw group=1 param=2628 dumpOffset=171
+dial p587     label="Drawbar2 Level" color=osc max=100 display=raw group=1 param=2635 dumpOffset=178
+dial p594     label="Drawbar3 Level" color=osc max=100 display=raw group=1 param=2642 dumpOffset=185
+
+page       Prog | OSC 1 | Model
+section    m7_3
+showIf     154 7
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p581     label="Level Mod Src" color=osc max=49 names=@vcac915 group=1 param=2629 dumpOffset=172
+dial p588     label="Drawbar2 Level Mod Src" color=osc max=49 names=@vcac915 group=1 param=2636 dumpOffset=179
+dial p595     label="Drawbar3 Level Mod Src" color=osc max=49 names=@vcac915 group=1 param=2643 dumpOffset=186
+dial p582     label="Level Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2630 dumpOffset=173
+dial p589     label="Drawbar2 Level Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2637 dumpOffset=180
+dial p596     label="Drawbar3 Level Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2644 dumpOffset=187
+
+page       Prog | OSC 1 | Model
+section    m7_4
+showIf     154 7
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p583     label="Percussion Level" color=osc max=100 display=raw group=1 param=2631 dumpOffset=174
+dial p590     label="Drawbar2 Percussion Level" color=osc max=100 display=raw group=1 param=2638 dumpOffset=181
+dial p597     label="Drawbar3 Percussion Level" color=osc max=100 display=raw group=1 param=2645 dumpOffset=188
+dial p598     label="Trigger Mode" color=osc max=2 names=@v3d6f7b group=1 param=2646 dumpOffset=189
+dial p599     label="Decay" color=osc max=100 display=raw group=1 param=2647 dumpOffset=190
+dial p600     label="Percussion Level Mod Src" color=osc max=49 names=@vcac915 group=1 param=2648 dumpOffset=191
+dial p601     label="Percussion Level Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2649 dumpOffset=192
+
+page       Prog | OSC 1 | Model
+section    m8_1
+showIf     154 8
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p602     label="Force" color=osc max=100 display=raw group=1 param=2650 dumpOffset=168
+dial p611     label="Pickup Position" color=osc max=100 display=raw group=1 param=2659 dumpOffset=177
+dial p603     label="Force Vel Curve" color=osc max=101 displayOffset=1 wireSigned=1 names=@vc7ad3c asDial=1 group=1 param=2651 dumpOffset=169
+dial p612     label="ModSrc" color=osc max=49 names=@vcac915 group=1 param=2660 dumpOffset=178
+dial p604     label="Width" color=osc max=100 display=raw group=1 param=2652 dumpOffset=170
+dial p613     label="Pickup Position Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2661 dumpOffset=179
+dial p605     label="Click Level" color=osc max=100 display=raw group=1 param=2653 dumpOffset=171
+dial p614     label="Low EQ Freq" color=osc max=50 display=raw group=1 param=2662 dumpOffset=180
+
+page       Prog | OSC 1 | Model
+section    m8_2
+showIf     154 8
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p606     label="Decay" color=osc max=100 display=raw group=1 param=2654 dumpOffset=172
+dial p615     label="Low EQ Gain" color=osc max=37 displayOffset=18 wireSigned=1 display=signed group=1 param=2663 dumpOffset=181
+dial p607     label="Release" color=osc max=100 display=raw group=1 param=2655 dumpOffset=173
+dial p608     label="Overtone Level" color=osc max=100 display=raw group=1 param=2656 dumpOffset=174
+dial p609     label="Overtone Freq" color=osc max=100 display=raw group=1 param=2657 dumpOffset=175
+dial p610     label="Overtone Decay" color=osc max=100 display=raw group=1 param=2658 dumpOffset=176
+
+page       Prog | OSC 1 | Model
+section    m9_1
+showIf     154 9
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p616     label="Instrument Type" color=osc max=6 names=@v03072e group=1 param=2664 dumpOffset=168
+dial p617     label="Pitch Bend+" color=osc max=2 names=@v62bddb group=1 param=2665 dumpOffset=169 dumpShift=0 dumpMask=0x1
+dial p632     label="Bell Tone" color=osc max=100 display=raw group=1 param=2680 dumpOffset=183
+dial p618     label="Pitch Bend-" color=osc max=2 names=@v62bddb group=1 param=2666 dumpOffset=169 dumpShift=1 dumpMask=0x1
+dial p633     label="Bell Reso" color=osc max=100 display=raw group=1 param=2681 dumpOffset=184
+dial p634     label="Noise Level" color=osc max=100 display=raw group=1 param=2682 dumpOffset=185
+dial p619     label="Pressure EG" color=osc max=5 offset=1 names=@v693363 group=1 param=2667 dumpOffset=170
+
+page       Prog | OSC 1 | Model
+section    m9_2
+showIf     154 9
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p620     label="Pressure EG Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2668 dumpOffset=171
+dial p645     label="PEQ Freq" color=osc max=50 display=raw group=1 param=2693 dumpOffset=196
+dial p621     label="Pressure Mod1 Src" color=osc max=49 names=@vcac915 group=1 param=2669 dumpOffset=172
+dial p646     label="PEQ Q" color=osc max=30 display=raw group=1 param=2694 dumpOffset=197
+dial p622     label="Pressure Mod1 Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2670 dumpOffset=173
+dial p647     label="PEQ Gain" color=osc max=37 displayOffset=18 wireSigned=1 display=signed group=1 param=2695 dumpOffset=198
+dial p623     label="Pressure Mod2 Src" color=osc max=49 names=@vcac915 group=1 param=2671 dumpOffset=174
+
+page       Prog | OSC 1 | Model
+section    m9_3
+showIf     154 9
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p648     label="Strength" color=osc max=100 display=raw group=1 param=2696 dumpOffset=199
+dial p624     label="Pressure Mod2 Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2672 dumpOffset=175
+dial p626     label="Lip Character" color=osc max=100 display=raw group=1 param=2674 dumpOffset=177
+dial p627     label="Lip Character Mod Src" color=osc max=49 names=@vcac915 group=1 param=2675 dumpOffset=178
+dial p628     label="Lip Character Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2676 dumpOffset=179
+
+page       Prog | OSC 1 | Model
+section    m9_6
+showIf     154 9
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p651     label="Param 651" color=osc max=2 displayOffset=0 wireSigned=1 names=@v7bf299 group=1 param=2699 dumpOffset=202
+
+page       Prog | OSC 1 | Model
+section    m10_1
+showIf     154 10
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p654     label="Instrument Type" color=osc max=17 names=@v3a302a group=1 param=2702 dumpOffset=168
+dial p668     label="Noise Level" color=osc max=100 display=raw group=1 param=2716 dumpOffset=181
+dial p655     label="Pitch Bend+" color=osc max=2 names=@v62bddb group=1 param=2703 dumpOffset=169 dumpShift=0 dumpMask=0x1
+dial p683     label="HPF Fc" color=osc max=100 display=raw group=1 param=2731 dumpOffset=196
+dial p656     label="Pitch Bend-" color=osc max=2 names=@v62bddb group=1 param=2704 dumpOffset=169 dumpShift=1 dumpMask=0x1
+dial p684     label="HPF Reso" color=osc max=100 display=raw group=1 param=2732 dumpOffset=197
+dial p685     label="PEQ Freq" color=osc max=50 display=raw group=1 param=2733 dumpOffset=198
+dial p657     label="Pressure EG" color=osc max=5 offset=1 names=@v693363 group=1 param=2705 dumpOffset=170
+
+page       Prog | OSC 1 | Model
+section    m10_2
+showIf     154 10
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p686     label="PEQ Q" color=osc max=30 display=raw group=1 param=2734 dumpOffset=199
+dial p658     label="Pressure EG Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2706 dumpOffset=171
+dial p687     label="PEQ Gain" color=osc max=37 displayOffset=18 wireSigned=1 display=signed group=1 param=2735 dumpOffset=200
+dial p659     label="Pressure Mod1 Src" color=osc max=49 names=@vcac915 group=1 param=2707 dumpOffset=172
+dial p660     label="Pressure Mod1 Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2708 dumpOffset=173
+dial p661     label="Pressure Mod2 Src" color=osc max=49 names=@vcac915 group=1 param=2709 dumpOffset=174
+dial p689     label="Offset" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2737 dumpOffset=202
+
+page       Prog | OSC 1 | Model
+section    m10_3
+showIf     154 10
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p662     label="Pressure Mod2 Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2710 dumpOffset=175
+dial p690     label="Table" color=osc max=2 names=@vf1f63b group=1 param=2738 dumpOffset=203 dumpShift=7 dumpMask=0x1
+dial p691     label="Shape" color=osc max=100 display=raw group=1 param=2739 dumpOffset=203 dumpShift=0 dumpMask=0x7F
+dial p692     label="Shape Mod Src" color=osc max=49 names=@vcac915 group=1 param=2740 dumpOffset=204
+dial p681     label="Reed Mod Src" color=osc max=49 names=@vcac915 group=1 param=2729 dumpOffset=194
+dial p693     label="Shape Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2741 dumpOffset=205
+dial p682     label="Reed Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2730 dumpOffset=195
+
+page       Prog | OSC 1 | Model
+section    m11_1
+showIf     154 11
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p715     label="Harm Position" color=osc max=100 display=raw group=1 param=2763 dumpOffset=189
+dial p694     label="Attack Level" color=osc max=100 display=raw group=1 param=2742 dumpOffset=168
+dial p702     label="String Position" color=osc max=100 display=raw group=1 param=2750 dumpOffset=176
+dial p695     label="Attack Level Vel Cntrl" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2743 dumpOffset=169
+dial p703     label="String Position Mod Src" color=osc max=49 names=@vcac915 group=1 param=2751 dumpOffset=177
+dial p716     label="Harm Mod Src" color=osc max=49 names=@vcac915 group=1 param=2764 dumpOffset=190
+dial p704     label="String Position Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2752 dumpOffset=178
+dial p717     label="Harm Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2765 dumpOffset=191
+
+page       Prog | OSC 1 | Model
+section    m11_2
+showIf     154 11
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p696     label="Attack Curve Up" color=osc max=100 display=raw group=1 param=2744 dumpOffset=170
+dial p718     label="Pickup Switch" color=osc max=2 names=@v7bf299 group=1 param=2766 dumpOffset=192
+dial p697     label="Attack Curve Up Veloc Cntrl" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2745 dumpOffset=171
+dial p705     label="Dispersion" color=osc max=100 display=raw group=1 param=2753 dumpOffset=179
+dial p706     label="Dispersion Mod Src" color=osc max=49 names=@vcac915 group=1 param=2754 dumpOffset=180
+dial p719     label="Pickup Position" color=osc max=100 display=raw group=1 param=2767 dumpOffset=193
+
+page       Prog | OSC 1 | Model
+section    m11_3
+showIf     154 11
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p707     label="Dispersion Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2755 dumpOffset=181
+dial p698     label="Attack Curve Down" color=osc max=100 display=raw group=1 param=2746 dumpOffset=172
+dial p720     label="Pickup Position Mod Src" color=osc max=49 names=@vcac915 group=1 param=2768 dumpOffset=194
+dial p699     label="Attack Curve Down Veloc Cntr" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2747 dumpOffset=173
+dial p721     label="Pickup Position Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2769 dumpOffset=195
+dial p708     label="Damping" color=osc max=100 display=raw group=1 param=2756 dumpOffset=182
+
+page       Prog | OSC 1 | Model
+section    m11_4
+showIf     154 11
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p709     label="Damping Keyboard Track" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2757 dumpOffset=183
+dial p700     label="Attack Noise Level" color=osc max=100 display=raw group=1 param=2748 dumpOffset=174
+dial p722     label="Low EQ Freq" color=osc max=50 display=raw group=1 param=2770 dumpOffset=196
+dial p710     label="Damping Mod Src" color=osc max=49 names=@vcac915 group=1 param=2758 dumpOffset=184
+dial p701     label="Attack Noise Level Veloc Cnt" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2749 dumpOffset=175
+dial p723     label="Low EQ Gain" color=osc max=37 displayOffset=18 wireSigned=1 display=signed group=1 param=2771 dumpOffset=197
+
+page       Prog | OSC 1 | Model
+section    m11_4w1
+showIf     154 11
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p711     label="Damping Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2759 dumpOffset=185
+dial p724     label="Low Boost" color=osc max=100 display=raw group=1 param=2772 dumpOffset=198
+
+page       Prog | OSC 1 | Model
+section    m11_5
+showIf     154 11
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p712     label="Decay" color=osc max=100 display=raw group=1 param=2760 dumpOffset=186
+dial p713     label="Decay Keyboard Track" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2761 dumpOffset=187
+dial p714     label="Release" color=osc max=100 display=raw group=1 param=2762 dumpOffset=188
+
+page       Prog | OSC 1 | Model
+section    m12_1
+showIf     154 12
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p740     label="Damping" color=osc max=100 display=raw group=1 param=2788 dumpOffset=183
+dial p725     label="Bow Speed EG" color=osc max=5 offset=1 names=@v693363 group=1 param=2773 dumpOffset=168
+dial p752     label="PEQ Freq" color=osc max=50 display=raw group=1 param=2800 dumpOffset=195
+dial p726     label="Bow Speed EG Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2774 dumpOffset=169
+dial p753     label="PEQ Q" color=osc max=30 display=raw group=1 param=2801 dumpOffset=196
+dial p741     label="Damping Keyboard Trk Key" color=osc max=128 names=@vc2ba68 group=1 param=2789 dumpOffset=184
+
+page       Prog | OSC 1 | Model
+section    m12_2
+showIf     154 12
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p727     label="Mod1 Src" color=osc max=49 names=@vcac915 group=1 param=2775 dumpOffset=170
+dial p754     label="PEQ Gain" color=osc max=37 displayOffset=18 wireSigned=1 display=signed group=1 param=2802 dumpOffset=197
+dial p742     label="Damping Keyboard Trk Low Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2790 dumpOffset=185
+dial p728     label="Bow Speed Mod1 Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2776 dumpOffset=171
+dial p743     label="Damping Keyboard Trk High In" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2791 dumpOffset=186
+dial p729     label="Bow Speed Mod2 Src" color=osc max=49 names=@vcac915 group=1 param=2777 dumpOffset=172
+
+page       Prog | OSC 1 | Model
+section    m12_2w1
+showIf     154 12
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p730     label="Bow Speed Mod2 Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2778 dumpOffset=173
+dial p744     label="Damping Mod Src" color=osc max=49 names=@vcac915 group=1 param=2792 dumpOffset=187
+
+page       Prog | OSC 1 | Model
+section    m12_3
+showIf     154 12
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p731     label="Bow Diff" color=osc max=2 names=@v7bf299 group=1 param=2779 dumpOffset=174
+dial p745     label="Damping Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2793 dumpOffset=188
+dial p732     label="Pressure EG" color=osc max=5 offset=1 names=@v693363 group=1 param=2780 dumpOffset=175
+dial p746     label="Dispersion" color=osc max=100 display=raw group=1 param=2794 dumpOffset=189
+dial p733     label="Pressure EG Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2781 dumpOffset=176
+dial p747     label="Dispersion Mod Src" color=osc max=49 names=@vcac915 group=1 param=2795 dumpOffset=190
+dial p734     label="Pressure Mod Src" color=osc max=49 names=@vcac915 group=1 param=2782 dumpOffset=177
+dial p748     label="Dispersion Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2796 dumpOffset=191
+
+page       Prog | OSC 1 | Model
+section    m12_4
+showIf     154 12
+dialSize   40
+spacing    50
+
+color osc 0.4 0.7 0.9
+
+dial p735     label="Pressure Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2783 dumpOffset=178
+dial p736     label="Rosin Amount" color=osc max=100 display=raw group=1 param=2784 dumpOffset=179
+dial p749     label="Reflection" color=osc max=100 display=raw group=1 param=2797 dumpOffset=192
+dial p750     label="Reflection Mod Src" color=osc max=49 names=@vcac915 group=1 param=2798 dumpOffset=193
+dial p737     label="String Position" color=osc max=100 display=raw group=1 param=2785 dumpOffset=180
+dial p751     label="Reflection Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2799 dumpOffset=194
+dial p738     label="String Position Mod Src" color=osc max=49 names=@vcac915 group=1 param=2786 dumpOffset=181
+dial p739     label="String Position Mod Int" color=osc max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=2787 dumpOffset=182
+# ══ END GENERATED OSC 1 / OSC 2
+
+page       Prog | Mixer
 section    mixer
 dialSize   40
 spacing    50
@@ -343,7 +1128,7 @@ dial mnoisesw label="Noise SW" color=mixsw max=2 names=OFF,ON group=1 param=257 
 # Its own page, not stacked under Oscillators — a single page's worth of
 # Filter sections (core knobs + keytrack + modulation + "-B" sub-filter,
 # ×2) already runs off the bottom of the window on its own.
-page       filters
+page       Prog | Filter | Filter 1
 section    filters
 dialSize   40
 spacing    50
@@ -387,15 +1172,6 @@ dial f1trim label="F1 Trim"  color=f1     max=100  display=raw                  
 dial f1cut  label="F1 Cut"   color=f1     max=100  display=raw                     group=1 param=263 dumpOffset=314
 dial f1res  label="F1 Res"   color=f1     max=100  display=raw                     group=1 param=274 dumpOffset=325
 
-gap 20
-
-dial f2type label="F2 Type"  color=f2     max=5    names=LPF,HPF,BPF,BRF,2BPF      group=1 param=288 offset=1 dumpOffset=339 disableUnless=f2link:0
-dial f2trim label="F2 Trim"  color=f2     max=100  display=raw                     group=1 param=289 dumpOffset=340 disableUnless=f2link:0
-# See f1cut/f1res's own comment (above, Filters row) for the full derivation
-# — same fix, same confirmed hardware behaviour, same reasoning.
-dial f2cut  label="F2 Cut"   color=f2     max=100  display=raw                     group=1 param=290 dumpOffset=341 disableUnless=f2link:0
-dial f2res  label="F2 Res"   color=f2     max=100  display=raw                     group=1 param=301 dumpOffset=352 disableUnless=f2link:0
-
 # ── Filter1/Filter2 keyboard track, modulation, and "-B" sub-filter (Filters
 # page) — the remaining Filter parameters (258-314) beyond the core knobs
 # above. dumpOffset values are pure sequential arithmetic from the confirmed
@@ -411,7 +1187,15 @@ dial f2res  label="F2 Res"   color=f2     max=100  display=raw                  
 # "Mod Source" dials (0-48, "Mod.Source List 1") show the raw index rather
 # than a name — that list's 49 entries haven't been transcribed from the
 # manual yet.
-page       filters
+page       Prog | Filter | Filter 1
+section    filter1ktgraph
+dialSize   40
+spacing    50
+
+color f1kt 0.2 0.6 1.0
+graph width=360 height=70 points="x=0,y=f1lowint;X=f1lowkey,y=0.5;X=f1highkey,y=0.5;x=1,y=f1highint"
+
+page       Prog | Filter | Filter 1
 section    filter1kt
 dialSize   40
 spacing    50
@@ -435,10 +1219,10 @@ dial f1highkey label="F1 Hi Key"  color=f1kt max=128 display=note group=1 param=
 # F1B/F2/F2B equivalents below — since they're the same parameter class in
 # the official table). Purely cosmetic, same as display=note above — CC/
 # param in and out are unaffected.
-dial f1lowint  label="F1 Lo Int"  color=f1kt max=199 display=signed displayOffset=99 group=1 param=266 dumpOffset=317
-dial f1highint label="F1 Hi Int"  color=f1kt max=199 display=signed displayOffset=99 group=1 param=267 dumpOffset=318
+dial f1lowint  label="F1 Lo Int"  color=f1kt max=199 display=signed displayOffset=99 group=1 param=266 dumpOffset=317 wireSigned=1
+dial f1highint label="F1 Hi Int"  color=f1kt max=199 display=signed displayOffset=99 group=1 param=267 dumpOffset=318 wireSigned=1
 
-page       filters
+page       Prog | Filter | Filter 1
 section    filter1mod
 dialSize   40
 spacing    50
@@ -446,15 +1230,15 @@ spacing    50
 color f1mod 0.2 0.6 1.0
 
 dial f1modeg     label="F1 Mod EG"      color=f1mod max=5  names=EG1,EG2,EG3,EG4,A.EG group=1 param=268 offset=1 dumpOffset=319
-dial f1modegint  label="F1 ModEG Int"   color=f1mod max=199 display=signed displayOffset=99              group=1 param=269 dumpOffset=320
-dial f1mod1src   label="F1 Mod1 Src"    color=f1mod max=49  display=raw              group=1 param=270 dumpOffset=321
-dial f1mod1int   label="F1 Mod1 Int"    color=f1mod max=199 display=signed displayOffset=99              group=1 param=271 dumpOffset=322
-dial f1mod2src   label="F1 Mod2 Src"    color=f1mod max=49  display=raw              group=1 param=272 dumpOffset=323
-dial f1mod2int   label="F1 Mod2 Int"    color=f1mod max=199 display=signed displayOffset=99              group=1 param=273 dumpOffset=324
-dial f1resmodsrc label="F1 Res Mod Src" color=f1mod max=49  display=raw              group=1 param=275 dumpOffset=326
-dial f1resmodint label="F1 Res Mod Int" color=f1mod max=199 display=signed displayOffset=99              group=1 param=276 dumpOffset=327
+dial f1modegint  label="F1 ModEG Int"   color=f1mod max=199 display=signed displayOffset=99              group=1 param=269 dumpOffset=320 wireSigned=1
+dial f1mod1src   label="F1 Mod1 Src"    color=f1mod max=49  names=@vcac915              group=1 param=270 dumpOffset=321
+dial f1mod1int   label="F1 Mod1 Int"    color=f1mod max=199 display=signed displayOffset=99              group=1 param=271 dumpOffset=322 wireSigned=1
+dial f1mod2src   label="F1 Mod2 Src"    color=f1mod max=49  names=@vcac915              group=1 param=272 dumpOffset=323
+dial f1mod2int   label="F1 Mod2 Int"    color=f1mod max=199 display=signed displayOffset=99              group=1 param=273 dumpOffset=324 wireSigned=1
+dial f1resmodsrc label="F1 Res Mod Src" color=f1mod max=49  names=@vcac915              group=1 param=275 dumpOffset=326
+dial f1resmodint label="F1 Res Mod Int" color=f1mod max=199 display=signed displayOffset=99              group=1 param=276 dumpOffset=327 wireSigned=1
 
-page       filters
+page       Prog | Filter | Filter 1
 section    filter1b
 dialSize   40
 spacing    50
@@ -465,15 +1249,37 @@ dial f1btrim      label="F1B Trim"     color=f1b max=100 display=raw group=1 par
 dial f1bcut       label="F1B Cutoff"   color=f1b max=100 display=raw group=1 param=278 dumpOffset=329 disableUnless=f1type:4
 dial f1blowkey    label="F1B Lo Key"   color=f1b max=128 display=note group=1 param=279 dumpOffset=330 linkedMaxDial=f1bhighkey disableUnless=f1type:4
 dial f1bhighkey   label="F1B Hi Key"   color=f1b max=128 display=note group=1 param=280 dumpOffset=331 linkedMinDial=f1blowkey disableUnless=f1type:4
-dial f1blowint    label="F1B Lo Int"   color=f1b max=199 display=signed displayOffset=99 group=1 param=281 dumpOffset=332 disableUnless=f1type:4
-dial f1bhighint   label="F1B Hi Int"   color=f1b max=199 display=signed displayOffset=99 group=1 param=282 dumpOffset=333 disableUnless=f1type:4
-dial f1bmodegint  label="F1B ModEG"    color=f1b max=199 display=signed displayOffset=99 group=1 param=283 dumpOffset=334 disableUnless=f1type:4
-dial f1bmod1int   label="F1B Mod1"     color=f1b max=199 display=signed displayOffset=99 group=1 param=284 dumpOffset=335 disableUnless=f1type:4
-dial f1bmod2int   label="F1B Mod2"     color=f1b max=199 display=signed displayOffset=99 group=1 param=285 dumpOffset=336 disableUnless=f1type:4
+dial f1blowint    label="F1B Lo Int"   color=f1b max=199 display=signed displayOffset=99 group=1 param=281 dumpOffset=332 disableUnless=f1type:4 wireSigned=1
+dial f1bhighint   label="F1B Hi Int"   color=f1b max=199 display=signed displayOffset=99 group=1 param=282 dumpOffset=333 disableUnless=f1type:4 wireSigned=1
+dial f1bmodegint  label="F1B ModEG"    color=f1b max=199 display=signed displayOffset=99 group=1 param=283 dumpOffset=334 disableUnless=f1type:4 wireSigned=1
+dial f1bmod1int   label="F1B Mod1"     color=f1b max=199 display=signed displayOffset=99 group=1 param=284 dumpOffset=335 disableUnless=f1type:4 wireSigned=1
+dial f1bmod2int   label="F1B Mod2"     color=f1b max=199 display=signed displayOffset=99 group=1 param=285 dumpOffset=336 disableUnless=f1type:4 wireSigned=1
 dial f1bres       label="F1B Res"      color=f1b max=100 display=raw group=1 param=286 dumpOffset=337 disableUnless=f1type:4
-dial f1bresmodint label="F1B Res Mod"  color=f1b max=199 display=signed displayOffset=99 group=1 param=287 dumpOffset=338 disableUnless=f1type:4
+dial f1bresmodint label="F1B Res Mod"  color=f1b max=199 display=signed displayOffset=99 group=1 param=287 dumpOffset=338 disableUnless=f1type:4 wireSigned=1
 
-page       filters
+page       Prog | Filter | Filter 2
+section    filter2
+dialSize   40
+spacing    50
+
+color f2    0.3 0.9 0.5
+
+dial f2type label="F2 Type"  color=f2     max=5    names=LPF,HPF,BPF,BRF,2BPF      group=1 param=288 offset=1 dumpOffset=339 disableUnless=f2link:0
+dial f2trim label="F2 Trim"  color=f2     max=100  display=raw                     group=1 param=289 dumpOffset=340 disableUnless=f2link:0
+# See f1cut/f1res's own comment (above, Filters row) for the full derivation
+# — same fix, same confirmed hardware behaviour, same reasoning.
+dial f2cut  label="F2 Cut"   color=f2     max=100  display=raw                     group=1 param=290 dumpOffset=341 disableUnless=f2link:0
+dial f2res  label="F2 Res"   color=f2     max=100  display=raw                     group=1 param=301 dumpOffset=352 disableUnless=f2link:0
+
+page       Prog | Filter | Filter 2
+section    filter2ktgraph
+dialSize   40
+spacing    50
+
+color f2kt 0.3 0.9 0.5
+graph width=360 height=70 points="x=0,y=f2lowint;X=f2lowkey,y=0.5;X=f2highkey,y=0.5;x=1,y=f2highint"
+
+page       Prog | Filter | Filter 2
 section    filter2kt
 dialSize   40
 spacing    50
@@ -482,10 +1288,10 @@ color f2kt 0.3 0.9 0.5
 
 dial f2lowkey  label="F2 Lo Key"  color=f2kt max=128 display=note group=1 param=291 dumpOffset=342 linkedMaxDial=f2highkey disableUnless=f2link:0
 dial f2highkey label="F2 Hi Key"  color=f2kt max=128 display=note group=1 param=292 dumpOffset=343 linkedMinDial=f2lowkey disableUnless=f2link:0
-dial f2lowint  label="F2 Lo Int"  color=f2kt max=199 display=signed displayOffset=99 group=1 param=293 dumpOffset=344 disableUnless=f2link:0
-dial f2highint label="F2 Hi Int"  color=f2kt max=199 display=signed displayOffset=99 group=1 param=294 dumpOffset=345 disableUnless=f2link:0
+dial f2lowint  label="F2 Lo Int"  color=f2kt max=199 display=signed displayOffset=99 group=1 param=293 dumpOffset=344 disableUnless=f2link:0 wireSigned=1
+dial f2highint label="F2 Hi Int"  color=f2kt max=199 display=signed displayOffset=99 group=1 param=294 dumpOffset=345 disableUnless=f2link:0 wireSigned=1
 
-page       filters
+page       Prog | Filter | Filter 2
 section    filter2mod
 dialSize   40
 spacing    50
@@ -493,15 +1299,15 @@ spacing    50
 color f2mod 0.3 0.9 0.5
 
 dial f2modeg     label="F2 Mod EG"      color=f2mod max=5  names=EG1,EG2,EG3,EG4,A.EG group=1 param=295 offset=1 dumpOffset=346 disableUnless=f2link:0
-dial f2modegint  label="F2 ModEG Int"   color=f2mod max=199 display=signed displayOffset=99              group=1 param=296 dumpOffset=347 disableUnless=f2link:0
-dial f2mod1src   label="F2 Mod1 Src"    color=f2mod max=49  display=raw              group=1 param=297 dumpOffset=348 disableUnless=f2link:0
-dial f2mod1int   label="F2 Mod1 Int"    color=f2mod max=199 display=signed displayOffset=99              group=1 param=298 dumpOffset=349 disableUnless=f2link:0
-dial f2mod2src   label="F2 Mod2 Src"    color=f2mod max=49  display=raw              group=1 param=299 dumpOffset=350 disableUnless=f2link:0
-dial f2mod2int   label="F2 Mod2 Int"    color=f2mod max=199 display=signed displayOffset=99              group=1 param=300 dumpOffset=351 disableUnless=f2link:0
-dial f2resmodsrc label="F2 Res Mod Src" color=f2mod max=49  display=raw              group=1 param=302 dumpOffset=353 disableUnless=f2link:0
-dial f2resmodint label="F2 Res Mod Int" color=f2mod max=199 display=signed displayOffset=99              group=1 param=303 dumpOffset=354 disableUnless=f2link:0
+dial f2modegint  label="F2 ModEG Int"   color=f2mod max=199 display=signed displayOffset=99              group=1 param=296 dumpOffset=347 disableUnless=f2link:0 wireSigned=1
+dial f2mod1src   label="F2 Mod1 Src"    color=f2mod max=49  names=@vcac915              group=1 param=297 dumpOffset=348 disableUnless=f2link:0
+dial f2mod1int   label="F2 Mod1 Int"    color=f2mod max=199 display=signed displayOffset=99              group=1 param=298 dumpOffset=349 disableUnless=f2link:0 wireSigned=1
+dial f2mod2src   label="F2 Mod2 Src"    color=f2mod max=49  names=@vcac915              group=1 param=299 dumpOffset=350 disableUnless=f2link:0
+dial f2mod2int   label="F2 Mod2 Int"    color=f2mod max=199 display=signed displayOffset=99              group=1 param=300 dumpOffset=351 disableUnless=f2link:0 wireSigned=1
+dial f2resmodsrc label="F2 Res Mod Src" color=f2mod max=49  names=@vcac915              group=1 param=302 dumpOffset=353 disableUnless=f2link:0
+dial f2resmodint label="F2 Res Mod Int" color=f2mod max=199 display=signed displayOffset=99              group=1 param=303 dumpOffset=354 disableUnless=f2link:0 wireSigned=1
 
-page       filters
+page       Prog | Filter | Filter 2
 section    filter2b
 dialSize   40
 spacing    50
@@ -512,27 +1318,21 @@ dial f2btrim      label="F2B Trim"     color=f2b max=100 display=raw group=1 par
 dial f2bcut       label="F2B Cutoff"   color=f2b max=100 display=raw group=1 param=305 dumpOffset=356 disableUnless=f2type:4
 dial f2blowkey    label="F2B Lo Key"   color=f2b max=128 display=note group=1 param=306 dumpOffset=357 linkedMaxDial=f2bhighkey disableUnless=f2type:4
 dial f2bhighkey   label="F2B Hi Key"   color=f2b max=128 display=note group=1 param=307 dumpOffset=358 linkedMinDial=f2blowkey disableUnless=f2type:4
-dial f2blowint    label="F2B Lo Int"   color=f2b max=199 display=signed displayOffset=99 group=1 param=308 dumpOffset=359 disableUnless=f2type:4
-dial f2bhighint   label="F2B Hi Int"   color=f2b max=199 display=signed displayOffset=99 group=1 param=309 dumpOffset=360 disableUnless=f2type:4
-dial f2bmodegint  label="F2B ModEG"    color=f2b max=199 display=signed displayOffset=99 group=1 param=310 dumpOffset=361 disableUnless=f2type:4
-dial f2bmod1int   label="F2B Mod1"     color=f2b max=199 display=signed displayOffset=99 group=1 param=311 dumpOffset=362 disableUnless=f2type:4
-dial f2bmod2int   label="F2B Mod2"     color=f2b max=199 display=signed displayOffset=99 group=1 param=312 dumpOffset=363 disableUnless=f2type:4
+dial f2blowint    label="F2B Lo Int"   color=f2b max=199 display=signed displayOffset=99 group=1 param=308 dumpOffset=359 disableUnless=f2type:4 wireSigned=1
+dial f2bhighint   label="F2B Hi Int"   color=f2b max=199 display=signed displayOffset=99 group=1 param=309 dumpOffset=360 disableUnless=f2type:4 wireSigned=1
+dial f2bmodegint  label="F2B ModEG"    color=f2b max=199 display=signed displayOffset=99 group=1 param=310 dumpOffset=361 disableUnless=f2type:4 wireSigned=1
+dial f2bmod1int   label="F2B Mod1"     color=f2b max=199 display=signed displayOffset=99 group=1 param=311 dumpOffset=362 disableUnless=f2type:4 wireSigned=1
+dial f2bmod2int   label="F2B Mod2"     color=f2b max=199 display=signed displayOffset=99 group=1 param=312 dumpOffset=363 disableUnless=f2type:4 wireSigned=1
 dial f2bres       label="F2B Res"      color=f2b max=100 display=raw group=1 param=313 dumpOffset=364 disableUnless=f2type:4
-dial f2bresmodint label="F2B Res Mod"  color=f2b max=199 display=signed displayOffset=99 group=1 param=314 dumpOffset=365 disableUnless=f2type:4
+dial f2bresmodint label="F2B Res Mod"  color=f2b max=199 display=signed displayOffset=99 group=1 param=314 dumpOffset=365 disableUnless=f2type:4 wireSigned=1
 
 
 # ── Amp / EG pages ────────────────────────────────────────────────────────────
 # Added 2026-07-13 from the official parameter table (params 31-106 for
-# EG1-4, 315-355 for Amp1/Amp2/Amp EG/Output) — no hardware capture available
-# to add this session, so dumpOffset= is DELIBERATELY OMITTED throughout
-# both pages: live editing (param= writes) and live incoming Parameter
-# Change decode both work fully regardless (paramId alone drives both, no
-# byte-offset arithmetic involved), but "Sync from synth" won't populate
-# these dials from a full Program Dump until dumpOffset is added and
-# verified — the exact kind of byte-counting arithmetic that produced two
-# separate real bugs earlier this same session (F1 Cut's CC scaling, and
-# the 7-to-8 bit decode order) is not something to guess at further
-# unsupervised. Add dumpOffset once confirmed against a live dump capture.
+# EG1-4, 315-355 for Amp1/Amp2/Amp EG/Output). dumpOffset= added 2026-10-07
+# from the Z1's parameter table (byte, and bit field where there is one) to
+# every dial; it agrees with all 103 offsets this file already had. The signed
+# ones are read as two's complement (wireSigned, see the PB Int corrections).
 #
 # Row width AND page height both measured live (2026-07-13, owner's own
 # console capture: usableWidth=1280.0pt) after an earlier 2-section-per-EG
@@ -541,199 +1341,23 @@ dial f2bresmodint label="F2B Res Mod"  color=f2b max=199 display=signed displayO
 # ~1417pt, over the 1280pt budget) AND the 8-section-tall single
 # single "envelopes" page ran off the BOTTOM of the window. Fixed both at
 # once: each EG's 19 params now split 3 ways (7/6/6, every group
-# comfortably under budget even with its worst-case label), and the page
-# itself split in two — "env 1" (EG1+EG2) and "env 2" (EG3+EG4), tab labels
-# "Env 1"/"Env 2" (render_page_tabs() capitalizes just the first character
-# of the raw page id; a space in the id is fine, join_tokens() lets "page"
-# take more than one token — see its own comment in panelConfig.c) — so
-# neither page stacks more than 6 section-rows, matching Filters' own
-# 7-row page, already proven to fit. Amp EG (17 params) split the same way
+# comfortably under budget even with its worst-case label), and since
+# 2026-10-07 each EG has its own page (Prog | EG | EG 1..4), 3 section-rows
+# each. Amp EG (17 params) split the same way
 # (6/6/5), keeping the Amp page at 6 total section-rows (amp1/amp2/ampeg1/
 # ampeg2/ampeg3/output). Pushing the file's total section count to 34 also
 # required raising PANEL_MAX_SECTIONS (panelConfig.h) from 32.
 
-# ── EG1 (params 31-49), split across 3 sections — see
-# header comment above this whole Amp/EG block for why. ──
-page       env 1
-section    eg1a
-dialSize   40
-spacing    50
-
-color eg1 0.9 0.3 0.3
-
-dial eg1startlevel        label="EG1 Start Level" color=eg1 max=199 display=signed displayOffset=99 group=1 param=31
-dial eg1attacktime        label="EG1 Attack Time" color=eg1 max=100 display=raw group=1 param=32
-dial eg1attacklevel       label="EG1 Attack Level" color=eg1 max=199 display=signed displayOffset=99 group=1 param=33
-dial eg1decaytime         label="EG1 Decay Time" color=eg1 max=100 display=raw group=1 param=34
-dial eg1breaklevel        label="EG1 Break Level" color=eg1 max=199 display=signed displayOffset=99 group=1 param=35
-dial eg1slopetime         label="EG1 Slope Time" color=eg1 max=100 display=raw group=1 param=36
-dial eg1sustainlevel      label="EG1 Sustain Level" color=eg1 max=199 display=signed displayOffset=99 group=1 param=37
-
-page       env 1
-section    eg1b
-dialSize   40
-spacing    50
-
-color eg1 0.9 0.3 0.3
-
-dial eg1releasetime       label="EG1 Release Time" color=eg1 max=100 display=raw group=1 param=38
-dial eg1releaselevel      label="EG1 Release Level" color=eg1 max=199 display=signed displayOffset=99 group=1 param=39
-dial eg1levelmodsrc       label="EG1 Level Mod Src" color=eg1 max=49  display=raw group=1 param=40
-dial eg1levelmodint       label="EG1 Level Mod Int" color=eg1 max=199 display=signed displayOffset=99 group=1 param=41
-dial eg1levelvelctrl      label="EG1 Level Vel Ctrl" color=eg1 max=199 display=signed displayOffset=99 group=1 param=42
-dial eg1timemodsrc        label="EG1 Time Mod Src" color=eg1 max=49  display=raw group=1 param=43
-
-page       env 1
-section    eg1c
-dialSize   40
-spacing    50
-
-color eg1 0.9 0.3 0.3
-
-dial eg1timemodint        label="EG1 Time Mod Int" color=eg1 max=199 display=signed displayOffset=99 group=1 param=44
-dial eg1nodetimemodsrc    label="EG1 Node Time Mod Src" color=eg1 max=49  display=raw group=1 param=45
-dial eg1atkmodint         label="EG1 Atk Time Mod Int" color=eg1 max=199 display=signed displayOffset=99 group=1 param=46
-dial eg1dcymodint         label="EG1 Dcy Time Mod Int" color=eg1 max=199 display=signed displayOffset=99 group=1 param=47
-dial eg1slpmodint         label="EG1 Slp Time Mod Int" color=eg1 max=199 display=signed displayOffset=99 group=1 param=48
-dial eg1rlsmodint         label="EG1 Rls Time Mod Int" color=eg1 max=199 display=signed displayOffset=99 group=1 param=49
-
-# ── EG2 (params 50-68), split across 3 sections — see
-# header comment above this whole Amp/EG block for why. ──
-page       env 1
-section    eg2a
-dialSize   40
-spacing    50
-
-color eg2 0.3 0.6 0.9
-
-dial eg2startlevel        label="EG2 Start Level" color=eg2 max=199 display=signed displayOffset=99 group=1 param=50
-dial eg2attacktime        label="EG2 Attack Time" color=eg2 max=100 display=raw group=1 param=51
-dial eg2attacklevel       label="EG2 Attack Level" color=eg2 max=199 display=signed displayOffset=99 group=1 param=52
-dial eg2decaytime         label="EG2 Decay Time" color=eg2 max=100 display=raw group=1 param=53
-dial eg2breaklevel        label="EG2 Break Level" color=eg2 max=199 display=signed displayOffset=99 group=1 param=54
-dial eg2slopetime         label="EG2 Slope Time" color=eg2 max=100 display=raw group=1 param=55
-dial eg2sustainlevel      label="EG2 Sustain Level" color=eg2 max=199 display=signed displayOffset=99 group=1 param=56
-
-page       env 1
-section    eg2b
-dialSize   40
-spacing    50
-
-color eg2 0.3 0.6 0.9
-
-dial eg2releasetime       label="EG2 Release Time" color=eg2 max=100 display=raw group=1 param=57
-dial eg2releaselevel      label="EG2 Release Level" color=eg2 max=199 display=signed displayOffset=99 group=1 param=58
-dial eg2levelmodsrc       label="EG2 Level Mod Src" color=eg2 max=49  display=raw group=1 param=59
-dial eg2levelmodint       label="EG2 Level Mod Int" color=eg2 max=199 display=signed displayOffset=99 group=1 param=60
-dial eg2levelvelctrl      label="EG2 Level Vel Ctrl" color=eg2 max=199 display=signed displayOffset=99 group=1 param=61
-dial eg2timemodsrc        label="EG2 Time Mod Src" color=eg2 max=49  display=raw group=1 param=62
-
-page       env 1
-section    eg2c
-dialSize   40
-spacing    50
-
-color eg2 0.3 0.6 0.9
-
-dial eg2timemodint        label="EG2 Time Mod Int" color=eg2 max=199 display=signed displayOffset=99 group=1 param=63
-dial eg2nodetimemodsrc    label="EG2 Node Time Mod Src" color=eg2 max=49  display=raw group=1 param=64
-dial eg2atkmodint         label="EG2 Atk Time Mod Int" color=eg2 max=199 display=signed displayOffset=99 group=1 param=65
-dial eg2dcymodint         label="EG2 Dcy Time Mod Int" color=eg2 max=199 display=signed displayOffset=99 group=1 param=66
-dial eg2slpmodint         label="EG2 Slp Time Mod Int" color=eg2 max=199 display=signed displayOffset=99 group=1 param=67
-dial eg2rlsmodint         label="EG2 Rls Time Mod Int" color=eg2 max=199 display=signed displayOffset=99 group=1 param=68
-
-# ── EG3 (params 69-87), split across 3 sections — see
-# header comment above this whole Amp/EG block for why. ──
-page       env 2
-section    eg3a
-dialSize   40
-spacing    50
-
-color eg3 0.6 0.9 0.3
-
-dial eg3startlevel        label="EG3 Start Level" color=eg3 max=199 display=signed displayOffset=99 group=1 param=69
-dial eg3attacktime        label="EG3 Attack Time" color=eg3 max=100 display=raw group=1 param=70
-dial eg3attacklevel       label="EG3 Attack Level" color=eg3 max=199 display=signed displayOffset=99 group=1 param=71
-dial eg3decaytime         label="EG3 Decay Time" color=eg3 max=100 display=raw group=1 param=72
-dial eg3breaklevel        label="EG3 Break Level" color=eg3 max=199 display=signed displayOffset=99 group=1 param=73
-dial eg3slopetime         label="EG3 Slope Time" color=eg3 max=100 display=raw group=1 param=74
-dial eg3sustainlevel      label="EG3 Sustain Level" color=eg3 max=199 display=signed displayOffset=99 group=1 param=75
-
-page       env 2
-section    eg3b
-dialSize   40
-spacing    50
-
-color eg3 0.6 0.9 0.3
-
-dial eg3releasetime       label="EG3 Release Time" color=eg3 max=100 display=raw group=1 param=76
-dial eg3releaselevel      label="EG3 Release Level" color=eg3 max=199 display=signed displayOffset=99 group=1 param=77
-dial eg3levelmodsrc       label="EG3 Level Mod Src" color=eg3 max=49  display=raw group=1 param=78
-dial eg3levelmodint       label="EG3 Level Mod Int" color=eg3 max=199 display=signed displayOffset=99 group=1 param=79
-dial eg3levelvelctrl      label="EG3 Level Vel Ctrl" color=eg3 max=199 display=signed displayOffset=99 group=1 param=80
-dial eg3timemodsrc        label="EG3 Time Mod Src" color=eg3 max=49  display=raw group=1 param=81
-
-page       env 2
-section    eg3c
-dialSize   40
-spacing    50
-
-color eg3 0.6 0.9 0.3
-
-dial eg3timemodint        label="EG3 Time Mod Int" color=eg3 max=199 display=signed displayOffset=99 group=1 param=82
-dial eg3nodetimemodsrc    label="EG3 Node Time Mod Src" color=eg3 max=49  display=raw group=1 param=83
-dial eg3atkmodint         label="EG3 Atk Time Mod Int" color=eg3 max=199 display=signed displayOffset=99 group=1 param=84
-dial eg3dcymodint         label="EG3 Dcy Time Mod Int" color=eg3 max=199 display=signed displayOffset=99 group=1 param=85
-dial eg3slpmodint         label="EG3 Slp Time Mod Int" color=eg3 max=199 display=signed displayOffset=99 group=1 param=86
-dial eg3rlsmodint         label="EG3 Rls Time Mod Int" color=eg3 max=199 display=signed displayOffset=99 group=1 param=87
-
-# ── EG4 (params 88-106), split across 3 sections — see
-# header comment above this whole Amp/EG block for why. ──
-page       env 2
-section    eg4a
-dialSize   40
-spacing    50
-
-color eg4 0.9 0.6 0.2
-
-dial eg4startlevel        label="EG4 Start Level" color=eg4 max=199 display=signed displayOffset=99 group=1 param=88
-dial eg4attacktime        label="EG4 Attack Time" color=eg4 max=100 display=raw group=1 param=89
-dial eg4attacklevel       label="EG4 Attack Level" color=eg4 max=199 display=signed displayOffset=99 group=1 param=90
-dial eg4decaytime         label="EG4 Decay Time" color=eg4 max=100 display=raw group=1 param=91
-dial eg4breaklevel        label="EG4 Break Level" color=eg4 max=199 display=signed displayOffset=99 group=1 param=92
-dial eg4slopetime         label="EG4 Slope Time" color=eg4 max=100 display=raw group=1 param=93
-dial eg4sustainlevel      label="EG4 Sustain Level" color=eg4 max=199 display=signed displayOffset=99 group=1 param=94
-
-page       env 2
-section    eg4b
-dialSize   40
-spacing    50
-
-color eg4 0.9 0.6 0.2
-
-dial eg4releasetime       label="EG4 Release Time" color=eg4 max=100 display=raw group=1 param=95
-dial eg4releaselevel      label="EG4 Release Level" color=eg4 max=199 display=signed displayOffset=99 group=1 param=96
-dial eg4levelmodsrc       label="EG4 Level Mod Src" color=eg4 max=49  display=raw group=1 param=97
-dial eg4levelmodint       label="EG4 Level Mod Int" color=eg4 max=199 display=signed displayOffset=99 group=1 param=98
-dial eg4levelvelctrl      label="EG4 Level Vel Ctrl" color=eg4 max=199 display=signed displayOffset=99 group=1 param=99
-dial eg4timemodsrc        label="EG4 Time Mod Src" color=eg4 max=49  display=raw group=1 param=100
-
-page       env 2
-section    eg4c
-dialSize   40
-spacing    50
-
-color eg4 0.9 0.6 0.2
-
-dial eg4timemodint        label="EG4 Time Mod Int" color=eg4 max=199 display=signed displayOffset=99 group=1 param=101
-dial eg4nodetimemodsrc    label="EG4 Node Time Mod Src" color=eg4 max=49  display=raw group=1 param=102
-dial eg4atkmodint         label="EG4 Atk Time Mod Int" color=eg4 max=199 display=signed displayOffset=99 group=1 param=103
-dial eg4dcymodint         label="EG4 Dcy Time Mod Int" color=eg4 max=199 display=signed displayOffset=99 group=1 param=104
-dial eg4slpmodint         label="EG4 Slp Time Mod Int" color=eg4 max=199 display=signed displayOffset=99 group=1 param=105
-dial eg4rlsmodint         label="EG4 Rls Time Mod Int" color=eg4 max=199 display=signed displayOffset=99 group=1 param=106
-
 # ── Amp1 (params 315-323; 321 is a documented "reserved" param, skipped) ──
-page       amp
+page       Prog | Amp | Amp
+section    amp1graph
+dialSize   40
+spacing    50
+
+color amp1 0.9 0.7 0.3
+graph width=360 height=70 points="x=0,y=amp1lowint;X=amp1lowkey,y=0.5;X=amp1highkey,y=0.5;x=1,y=amp1highint"
+
+page       Prog | Amp | Amp
 section    amp1
 dialSize   40
 spacing    50
@@ -747,102 +1371,326 @@ color amp1 0.9 0.7 0.3
 # (a keyboard-track window), so the same local clamp is a reasonable,
 # harmless precaution either way — worst case it's a no-op if Amp turns
 # out not to enforce this itself.
-dial amp1level        label="Amp1 Level" color=amp1 max=100 display=raw group=1 param=315
-dial amp1lowkey       label="Amp1 Lo Key" color=amp1 max=128 display=note group=1 param=316 linkedMaxDial=amp1highkey
-dial amp1highkey      label="Amp1 Hi Key" color=amp1 max=128 display=note group=1 param=317 linkedMinDial=amp1lowkey
-dial amp1lowint       label="Amp1 Lo Int" color=amp1 max=199 display=signed displayOffset=99 group=1 param=318
-dial amp1highint      label="Amp1 Hi Int" color=amp1 max=199 display=signed displayOffset=99 group=1 param=319
-dial amp1modeg        label="Amp1 Mod EG" color=amp1 max=5  names=EG1,EG2,EG3,EG4,A.EG offset=1 group=1 param=320
-dial amp1modsrc       label="Amp1 Mod Src" color=amp1 max=49  display=raw group=1 param=322
-dial amp1modint       label="Amp1 Mod Int" color=amp1 max=199 display=signed displayOffset=99 group=1 param=323
+dial amp1level        label="Amp1 Level" color=amp1 max=100 display=raw group=1 param=315 dumpOffset=366
+dial amp1lowkey       label="Amp1 Lo Key" color=amp1 max=128 display=note group=1 param=316 linkedMaxDial=amp1highkey dumpOffset=367
+dial amp1highkey      label="Amp1 Hi Key" color=amp1 max=128 display=note group=1 param=317 linkedMinDial=amp1lowkey dumpOffset=368
+dial amp1lowint       label="Amp1 Lo Int" color=amp1 max=199 display=signed displayOffset=99 group=1 param=318 dumpOffset=369 wireSigned=1
+dial amp1highint      label="Amp1 Hi Int" color=amp1 max=199 display=signed displayOffset=99 group=1 param=319 dumpOffset=370 wireSigned=1
+dial amp1modeg        label="Amp1 Mod EG" color=amp1 max=5  names=EG1,EG2,EG3,EG4,A.EG offset=1 group=1 param=320 dumpOffset=371
+dial amp1modsrc       label="Amp1 Mod Src" color=amp1 max=49  names=@vcac915 group=1 param=322 dumpOffset=373
+dial amp1modint       label="Amp1 Mod Int" color=amp1 max=199 display=signed displayOffset=99 group=1 param=323 dumpOffset=374 wireSigned=1
 
 # ── Amp2 (params 324-332; 330 is a documented "(Not Use)" param, skipped) ──
-page       amp
+page       Prog | Amp | Amp
+section    amp2graph
+dialSize   40
+spacing    50
+
+color amp2 0.3 0.9 0.7
+graph width=360 height=70 points="x=0,y=amp2lowint;X=amp2lowkey,y=0.5;X=amp2highkey,y=0.5;x=1,y=amp2highint"
+
+page       Prog | Amp | Amp
 section    amp2
 dialSize   40
 spacing    50
 
 color amp2 0.3 0.9 0.7
 
-dial amp2level        label="Amp2 Level" color=amp2 max=100 display=raw group=1 param=324
-dial amp2lowkey       label="Amp2 Lo Key" color=amp2 max=128 display=note group=1 param=325 linkedMaxDial=amp2highkey
-dial amp2highkey      label="Amp2 Hi Key" color=amp2 max=128 display=note group=1 param=326 linkedMinDial=amp2lowkey
-dial amp2lowint       label="Amp2 Lo Int" color=amp2 max=199 display=signed displayOffset=99 group=1 param=327
-dial amp2highint      label="Amp2 Hi Int" color=amp2 max=199 display=signed displayOffset=99 group=1 param=328
-dial amp2modeg        label="Amp2 Mod EG" color=amp2 max=5  names=EG1,EG2,EG3,EG4,A.EG offset=1 group=1 param=329
-dial amp2modsrc       label="Amp2 Mod Src" color=amp2 max=49  display=raw group=1 param=331
-dial amp2modint       label="Amp2 Mod Int" color=amp2 max=199 display=signed displayOffset=99 group=1 param=332
+dial amp2level        label="Amp2 Level" color=amp2 max=100 display=raw group=1 param=324 dumpOffset=375
+dial amp2lowkey       label="Amp2 Lo Key" color=amp2 max=128 display=note group=1 param=325 linkedMaxDial=amp2highkey dumpOffset=376
+dial amp2highkey      label="Amp2 Hi Key" color=amp2 max=128 display=note group=1 param=326 linkedMinDial=amp2lowkey dumpOffset=377
+dial amp2lowint       label="Amp2 Lo Int" color=amp2 max=199 display=signed displayOffset=99 group=1 param=327 dumpOffset=378 wireSigned=1
+dial amp2highint      label="Amp2 Hi Int" color=amp2 max=199 display=signed displayOffset=99 group=1 param=328 dumpOffset=379 wireSigned=1
+dial amp2modeg        label="Amp2 Mod EG" color=amp2 max=5  names=EG1,EG2,EG3,EG4,A.EG offset=1 group=1 param=329 dumpOffset=380
+dial amp2modsrc       label="Amp2 Mod Src" color=amp2 max=49  names=@vcac915 group=1 param=331 dumpOffset=382
+dial amp2modint       label="Amp2 Mod Int" color=amp2 max=199 display=signed displayOffset=99 group=1 param=332 dumpOffset=383 wireSigned=1
 
 # ── Amp EG (params 334-351; 333/341 are documented "reserved" params,
 # skipped) — levels are display=raw (0~99), NOT signed, per the manual:
 # amplitude can't go negative, unlike the general-purpose EG1-4. Split
 # into 3 sections (6/6/5) — see header comment above this whole block.
-page       amp
+page       Prog | Amp | EG
+section    ampeggraph
+dialSize   40
+spacing    50
+
+color ampeg 0.6 0.6 0.9
+graph width=480 height=110 segments=5 points="x=0,y=0;t=ampegattacktime,y=ampegattacklevel;t=ampegdecaytime,y=ampegbreaklevel;t=ampegslopetime,y=ampegsustainlevel;x=4,y=ampegsustainlevel;t=ampegreleasetime,y=0"
+
+page       Prog | Amp | EG
 section    ampeg1
 dialSize   40
 spacing    50
 
 color ampeg 0.6 0.6 0.9
 
-dial ampegattacktime  label="AmpEG Attack Time" color=ampeg max=100 display=raw group=1 param=334
-dial ampegattacklevel label="AmpEG Attack Level" color=ampeg max=100 display=raw group=1 param=335
-dial ampegdecaytime   label="AmpEG Decay Time" color=ampeg max=100 display=raw group=1 param=336
-dial ampegbreaklevel  label="AmpEG Break Level" color=ampeg max=100 display=raw group=1 param=337
-dial ampegslopetime   label="AmpEG Slope Time" color=ampeg max=100 display=raw group=1 param=338
-dial ampegsustainlevel label="AmpEG Sustain Level" color=ampeg max=100 display=raw group=1 param=339
+dial ampegattacktime  label="AmpEG Attack Time" color=ampeg max=100 display=raw group=1 param=334 dumpOffset=385
+dial ampegattacklevel label="AmpEG Attack Level" color=ampeg max=100 display=raw group=1 param=335 dumpOffset=386
+dial ampegdecaytime   label="AmpEG Decay Time" color=ampeg max=100 display=raw group=1 param=336 dumpOffset=387
+dial ampegbreaklevel  label="AmpEG Break Level" color=ampeg max=100 display=raw group=1 param=337 dumpOffset=388
+dial ampegslopetime   label="AmpEG Slope Time" color=ampeg max=100 display=raw group=1 param=338 dumpOffset=389
+dial ampegsustainlevel label="AmpEG Sustain Level" color=ampeg max=100 display=raw group=1 param=339 dumpOffset=390
 
-page       amp
+page       Prog | Amp | EG
 section    ampeg2
 dialSize   40
 spacing    50
 
 color ampeg 0.6 0.6 0.9
 
-dial ampegreleasetime label="AmpEG Release Time" color=ampeg max=100 display=raw group=1 param=340
-dial ampeglevelmodsrc label="AmpEG Level Mod Src" color=ampeg max=49  display=raw group=1 param=342
-dial ampeglevelmodint label="AmpEG Level Mod Int" color=ampeg max=199 display=signed displayOffset=99 group=1 param=343
-dial ampeglevelvelctrl label="AmpEG Level Vel Ctrl" color=ampeg max=199 display=signed displayOffset=99 group=1 param=344
-dial ampegtimemodsrc  label="AmpEG Time Mod Src" color=ampeg max=49  display=raw group=1 param=345
-dial ampegtimemodint  label="AmpEG Time Mod Int" color=ampeg max=199 display=signed displayOffset=99 group=1 param=346
+dial ampegreleasetime label="AmpEG Release Time" color=ampeg max=100 display=raw group=1 param=340 dumpOffset=391
+dial ampeglevelmodsrc label="AmpEG Level Mod Src" color=ampeg max=49  names=@vcac915 group=1 param=342 dumpOffset=393
+dial ampeglevelmodint label="AmpEG Level Mod Int" color=ampeg max=199 display=signed displayOffset=99 group=1 param=343 dumpOffset=394 wireSigned=1
+dial ampeglevelvelctrl label="AmpEG Level Vel Ctrl" color=ampeg max=199 display=signed displayOffset=99 group=1 param=344 dumpOffset=395 wireSigned=1
+dial ampegtimemodsrc  label="AmpEG Time Mod Src" color=ampeg max=49  names=@vcac915 group=1 param=345 dumpOffset=396
+dial ampegtimemodint  label="AmpEG Time Mod Int" color=ampeg max=199 display=signed displayOffset=99 group=1 param=346 dumpOffset=397 wireSigned=1
 
-page       amp
+page       Prog | Amp | EG
 section    ampeg3
 dialSize   40
 spacing    50
 
 color ampeg 0.6 0.6 0.9
 
-dial ampegnodetimemodsrc label="AmpEG Node Time Mod Src" color=ampeg max=49  display=raw group=1 param=347
-dial ampegatkmodint   label="AmpEG Atk Time Mod Int" color=ampeg max=199 display=signed displayOffset=99 group=1 param=348
-dial ampegdcymodint   label="AmpEG Dcy Time Mod Int" color=ampeg max=199 display=signed displayOffset=99 group=1 param=349
-dial ampegslpmodint   label="AmpEG Slp Time Mod Int" color=ampeg max=199 display=signed displayOffset=99 group=1 param=350
-dial ampegrlsmodint   label="AmpEG Rls Time Mod Int" color=ampeg max=199 display=signed displayOffset=99 group=1 param=351
+dial ampegnodetimemodsrc label="AmpEG Node Time Mod Src" color=ampeg max=49  names=@vcac915 group=1 param=347 dumpOffset=398
+dial ampegatkmodint   label="AmpEG Atk Time Mod Int" color=ampeg max=199 display=signed displayOffset=99 group=1 param=348 dumpOffset=399 wireSigned=1
+dial ampegdcymodint   label="AmpEG Dcy Time Mod Int" color=ampeg max=199 display=signed displayOffset=99 group=1 param=349 dumpOffset=400 wireSigned=1
+dial ampegslpmodint   label="AmpEG Slp Time Mod Int" color=ampeg max=199 display=signed displayOffset=99 group=1 param=350 dumpOffset=401 wireSigned=1
+dial ampegrlsmodint   label="AmpEG Rls Time Mod Int" color=ampeg max=199 display=signed displayOffset=99 group=1 param=351 dumpOffset=402 wireSigned=1
 
 # ── Output (params 352-355) ──
-page       amp
+page       Prog | Amp | Amp
 section    output
 dialSize   40
 spacing    50
 
 color output 0.8 0.8 0.3
 
-dial panpot           label="Panpot" color=output max=128 display=raw group=1 param=352
-dial panpotmodsrc     label="Panpot Mod Src" color=output max=49  display=raw group=1 param=353
-dial panpotmodint     label="Panpot Mod Int" color=output max=199 display=signed displayOffset=99 group=1 param=354
-dial outputlevel      label="Output Level" color=output max=128 display=raw group=1 param=355
+dial panpot           label="Panpot" color=output max=128 display=raw group=1 param=352 dumpOffset=403
+dial panpotmodsrc     label="Panpot Mod Src" color=output max=49  names=@vcac915 group=1 param=353 dumpOffset=404
+dial panpotmodint     label="Panpot Mod Int" color=output max=199 display=signed displayOffset=99 group=1 param=354 dumpOffset=405 wireSigned=1
+dial outputlevel      label="Output Level" color=output max=128 display=raw group=1 param=355 dumpOffset=406
+
+# ── EG1 (params 31-49), split across 3 sections — see
+# header comment above this whole Amp/EG block for why. ──
+page       Prog | EG | EG 1
+section    eg1graph
+dialSize   40
+spacing    50
+
+color eg1 0.9 0.3 0.3
+graph width=480 height=110 segments=5 points="x=0,y=eg1startlevel;t=eg1attacktime,y=eg1attacklevel;t=eg1decaytime,y=eg1breaklevel;t=eg1slopetime,y=eg1sustainlevel;x=4,y=eg1sustainlevel;t=eg1releasetime,y=eg1releaselevel"
+
+page       Prog | EG | EG 1
+section    eg1a
+dialSize   40
+spacing    50
+
+color eg1 0.9 0.3 0.3
+
+dial eg1startlevel        label="EG1 Start Level" color=eg1 max=199 display=signed displayOffset=99 group=1 param=31 dumpOffset=25 wireSigned=1
+dial eg1attacktime        label="EG1 Attack Time" color=eg1 max=100 display=raw group=1 param=32 dumpOffset=26
+dial eg1attacklevel       label="EG1 Attack Level" color=eg1 max=199 display=signed displayOffset=99 group=1 param=33 dumpOffset=27 wireSigned=1
+dial eg1decaytime         label="EG1 Decay Time" color=eg1 max=100 display=raw group=1 param=34 dumpOffset=28
+dial eg1breaklevel        label="EG1 Break Level" color=eg1 max=199 display=signed displayOffset=99 group=1 param=35 dumpOffset=29 wireSigned=1
+dial eg1slopetime         label="EG1 Slope Time" color=eg1 max=100 display=raw group=1 param=36 dumpOffset=30
+dial eg1sustainlevel      label="EG1 Sustain Level" color=eg1 max=199 display=signed displayOffset=99 group=1 param=37 dumpOffset=31 wireSigned=1
+
+page       Prog | EG | EG 1
+section    eg1b
+dialSize   40
+spacing    50
+
+color eg1 0.9 0.3 0.3
+
+dial eg1releasetime       label="EG1 Release Time" color=eg1 max=100 display=raw group=1 param=38 dumpOffset=32
+dial eg1releaselevel      label="EG1 Release Level" color=eg1 max=199 display=signed displayOffset=99 group=1 param=39 dumpOffset=33 wireSigned=1
+dial eg1levelmodsrc       label="EG1 Level Mod Src" color=eg1 max=49  names=@vcac915 group=1 param=40 dumpOffset=34
+dial eg1levelmodint       label="EG1 Level Mod Int" color=eg1 max=199 display=signed displayOffset=99 group=1 param=41 dumpOffset=35 wireSigned=1
+dial eg1levelvelctrl      label="EG1 Level Vel Ctrl" color=eg1 max=199 display=signed displayOffset=99 group=1 param=42 dumpOffset=36 wireSigned=1
+dial eg1timemodsrc        label="EG1 Time Mod Src" color=eg1 max=49  names=@vcac915 group=1 param=43 dumpOffset=37
+
+page       Prog | EG | EG 1
+section    eg1c
+dialSize   40
+spacing    50
+
+color eg1 0.9 0.3 0.3
+
+dial eg1timemodint        label="EG1 Time Mod Int" color=eg1 max=199 display=signed displayOffset=99 group=1 param=44 dumpOffset=38 wireSigned=1
+dial eg1nodetimemodsrc    label="EG1 Node Time Mod Src" color=eg1 max=49  names=@vcac915 group=1 param=45 dumpOffset=39
+dial eg1atkmodint         label="EG1 Atk Time Mod Int" color=eg1 max=199 display=signed displayOffset=99 group=1 param=46 dumpOffset=40 wireSigned=1
+dial eg1dcymodint         label="EG1 Dcy Time Mod Int" color=eg1 max=199 display=signed displayOffset=99 group=1 param=47 dumpOffset=41 wireSigned=1
+dial eg1slpmodint         label="EG1 Slp Time Mod Int" color=eg1 max=199 display=signed displayOffset=99 group=1 param=48 dumpOffset=42 wireSigned=1
+dial eg1rlsmodint         label="EG1 Rls Time Mod Int" color=eg1 max=199 display=signed displayOffset=99 group=1 param=49 dumpOffset=43 wireSigned=1
+
+# ── EG2 (params 50-68), split across 3 sections — see
+# header comment above this whole Amp/EG block for why. ──
+page       Prog | EG | EG 2
+section    eg2graph
+dialSize   40
+spacing    50
+
+color eg2 0.3 0.6 0.9
+graph width=480 height=110 segments=5 points="x=0,y=eg2startlevel;t=eg2attacktime,y=eg2attacklevel;t=eg2decaytime,y=eg2breaklevel;t=eg2slopetime,y=eg2sustainlevel;x=4,y=eg2sustainlevel;t=eg2releasetime,y=eg2releaselevel"
+
+page       Prog | EG | EG 2
+section    eg2a
+dialSize   40
+spacing    50
+
+color eg2 0.3 0.6 0.9
+
+dial eg2startlevel        label="EG2 Start Level" color=eg2 max=199 display=signed displayOffset=99 group=1 param=50 dumpOffset=44 wireSigned=1
+dial eg2attacktime        label="EG2 Attack Time" color=eg2 max=100 display=raw group=1 param=51 dumpOffset=45
+dial eg2attacklevel       label="EG2 Attack Level" color=eg2 max=199 display=signed displayOffset=99 group=1 param=52 dumpOffset=46 wireSigned=1
+dial eg2decaytime         label="EG2 Decay Time" color=eg2 max=100 display=raw group=1 param=53 dumpOffset=47
+dial eg2breaklevel        label="EG2 Break Level" color=eg2 max=199 display=signed displayOffset=99 group=1 param=54 dumpOffset=48 wireSigned=1
+dial eg2slopetime         label="EG2 Slope Time" color=eg2 max=100 display=raw group=1 param=55 dumpOffset=49
+dial eg2sustainlevel      label="EG2 Sustain Level" color=eg2 max=199 display=signed displayOffset=99 group=1 param=56 dumpOffset=50 wireSigned=1
+
+page       Prog | EG | EG 2
+section    eg2b
+dialSize   40
+spacing    50
+
+color eg2 0.3 0.6 0.9
+
+dial eg2releasetime       label="EG2 Release Time" color=eg2 max=100 display=raw group=1 param=57 dumpOffset=51
+dial eg2releaselevel      label="EG2 Release Level" color=eg2 max=199 display=signed displayOffset=99 group=1 param=58 dumpOffset=52 wireSigned=1
+dial eg2levelmodsrc       label="EG2 Level Mod Src" color=eg2 max=49  names=@vcac915 group=1 param=59 dumpOffset=53
+dial eg2levelmodint       label="EG2 Level Mod Int" color=eg2 max=199 display=signed displayOffset=99 group=1 param=60 dumpOffset=54 wireSigned=1
+dial eg2levelvelctrl      label="EG2 Level Vel Ctrl" color=eg2 max=199 display=signed displayOffset=99 group=1 param=61 dumpOffset=55 wireSigned=1
+dial eg2timemodsrc        label="EG2 Time Mod Src" color=eg2 max=49  names=@vcac915 group=1 param=62 dumpOffset=56
+
+page       Prog | EG | EG 2
+section    eg2c
+dialSize   40
+spacing    50
+
+color eg2 0.3 0.6 0.9
+
+dial eg2timemodint        label="EG2 Time Mod Int" color=eg2 max=199 display=signed displayOffset=99 group=1 param=63 dumpOffset=57 wireSigned=1
+dial eg2nodetimemodsrc    label="EG2 Node Time Mod Src" color=eg2 max=49  names=@vcac915 group=1 param=64 dumpOffset=58
+dial eg2atkmodint         label="EG2 Atk Time Mod Int" color=eg2 max=199 display=signed displayOffset=99 group=1 param=65 dumpOffset=59 wireSigned=1
+dial eg2dcymodint         label="EG2 Dcy Time Mod Int" color=eg2 max=199 display=signed displayOffset=99 group=1 param=66 dumpOffset=60 wireSigned=1
+dial eg2slpmodint         label="EG2 Slp Time Mod Int" color=eg2 max=199 display=signed displayOffset=99 group=1 param=67 dumpOffset=61 wireSigned=1
+dial eg2rlsmodint         label="EG2 Rls Time Mod Int" color=eg2 max=199 display=signed displayOffset=99 group=1 param=68 dumpOffset=62 wireSigned=1
+
+# ── EG3 (params 69-87), split across 3 sections — see
+# header comment above this whole Amp/EG block for why. ──
+page       Prog | EG | EG 3
+section    eg3graph
+dialSize   40
+spacing    50
+
+color eg3 0.6 0.9 0.3
+graph width=480 height=110 segments=5 points="x=0,y=eg3startlevel;t=eg3attacktime,y=eg3attacklevel;t=eg3decaytime,y=eg3breaklevel;t=eg3slopetime,y=eg3sustainlevel;x=4,y=eg3sustainlevel;t=eg3releasetime,y=eg3releaselevel"
+
+page       Prog | EG | EG 3
+section    eg3a
+dialSize   40
+spacing    50
+
+color eg3 0.6 0.9 0.3
+
+dial eg3startlevel        label="EG3 Start Level" color=eg3 max=199 display=signed displayOffset=99 group=1 param=69 dumpOffset=63 wireSigned=1
+dial eg3attacktime        label="EG3 Attack Time" color=eg3 max=100 display=raw group=1 param=70 dumpOffset=64
+dial eg3attacklevel       label="EG3 Attack Level" color=eg3 max=199 display=signed displayOffset=99 group=1 param=71 dumpOffset=65 wireSigned=1
+dial eg3decaytime         label="EG3 Decay Time" color=eg3 max=100 display=raw group=1 param=72 dumpOffset=66
+dial eg3breaklevel        label="EG3 Break Level" color=eg3 max=199 display=signed displayOffset=99 group=1 param=73 dumpOffset=67 wireSigned=1
+dial eg3slopetime         label="EG3 Slope Time" color=eg3 max=100 display=raw group=1 param=74 dumpOffset=68
+dial eg3sustainlevel      label="EG3 Sustain Level" color=eg3 max=199 display=signed displayOffset=99 group=1 param=75 dumpOffset=69 wireSigned=1
+
+page       Prog | EG | EG 3
+section    eg3b
+dialSize   40
+spacing    50
+
+color eg3 0.6 0.9 0.3
+
+dial eg3releasetime       label="EG3 Release Time" color=eg3 max=100 display=raw group=1 param=76 dumpOffset=70
+dial eg3releaselevel      label="EG3 Release Level" color=eg3 max=199 display=signed displayOffset=99 group=1 param=77 dumpOffset=71 wireSigned=1
+dial eg3levelmodsrc       label="EG3 Level Mod Src" color=eg3 max=49  names=@vcac915 group=1 param=78 dumpOffset=72
+dial eg3levelmodint       label="EG3 Level Mod Int" color=eg3 max=199 display=signed displayOffset=99 group=1 param=79 dumpOffset=73 wireSigned=1
+dial eg3levelvelctrl      label="EG3 Level Vel Ctrl" color=eg3 max=199 display=signed displayOffset=99 group=1 param=80 dumpOffset=74 wireSigned=1
+dial eg3timemodsrc        label="EG3 Time Mod Src" color=eg3 max=49  names=@vcac915 group=1 param=81 dumpOffset=75
+
+page       Prog | EG | EG 3
+section    eg3c
+dialSize   40
+spacing    50
+
+color eg3 0.6 0.9 0.3
+
+dial eg3timemodint        label="EG3 Time Mod Int" color=eg3 max=199 display=signed displayOffset=99 group=1 param=82 dumpOffset=76 wireSigned=1
+dial eg3nodetimemodsrc    label="EG3 Node Time Mod Src" color=eg3 max=49  names=@vcac915 group=1 param=83 dumpOffset=77
+dial eg3atkmodint         label="EG3 Atk Time Mod Int" color=eg3 max=199 display=signed displayOffset=99 group=1 param=84 dumpOffset=78 wireSigned=1
+dial eg3dcymodint         label="EG3 Dcy Time Mod Int" color=eg3 max=199 display=signed displayOffset=99 group=1 param=85 dumpOffset=79 wireSigned=1
+dial eg3slpmodint         label="EG3 Slp Time Mod Int" color=eg3 max=199 display=signed displayOffset=99 group=1 param=86 dumpOffset=80 wireSigned=1
+dial eg3rlsmodint         label="EG3 Rls Time Mod Int" color=eg3 max=199 display=signed displayOffset=99 group=1 param=87 dumpOffset=81 wireSigned=1
+
+# ── EG4 (params 88-106), split across 3 sections — see
+# header comment above this whole Amp/EG block for why. ──
+page       Prog | EG | EG 4
+section    eg4graph
+dialSize   40
+spacing    50
+
+color eg4 0.9 0.6 0.2
+graph width=480 height=110 segments=5 points="x=0,y=eg4startlevel;t=eg4attacktime,y=eg4attacklevel;t=eg4decaytime,y=eg4breaklevel;t=eg4slopetime,y=eg4sustainlevel;x=4,y=eg4sustainlevel;t=eg4releasetime,y=eg4releaselevel"
+
+page       Prog | EG | EG 4
+section    eg4a
+dialSize   40
+spacing    50
+
+color eg4 0.9 0.6 0.2
+
+dial eg4startlevel        label="EG4 Start Level" color=eg4 max=199 display=signed displayOffset=99 group=1 param=88 dumpOffset=82 wireSigned=1
+dial eg4attacktime        label="EG4 Attack Time" color=eg4 max=100 display=raw group=1 param=89 dumpOffset=83
+dial eg4attacklevel       label="EG4 Attack Level" color=eg4 max=199 display=signed displayOffset=99 group=1 param=90 dumpOffset=84 wireSigned=1
+dial eg4decaytime         label="EG4 Decay Time" color=eg4 max=100 display=raw group=1 param=91 dumpOffset=85
+dial eg4breaklevel        label="EG4 Break Level" color=eg4 max=199 display=signed displayOffset=99 group=1 param=92 dumpOffset=86 wireSigned=1
+dial eg4slopetime         label="EG4 Slope Time" color=eg4 max=100 display=raw group=1 param=93 dumpOffset=87
+dial eg4sustainlevel      label="EG4 Sustain Level" color=eg4 max=199 display=signed displayOffset=99 group=1 param=94 dumpOffset=88 wireSigned=1
+
+page       Prog | EG | EG 4
+section    eg4b
+dialSize   40
+spacing    50
+
+color eg4 0.9 0.6 0.2
+
+dial eg4releasetime       label="EG4 Release Time" color=eg4 max=100 display=raw group=1 param=95 dumpOffset=89
+dial eg4releaselevel      label="EG4 Release Level" color=eg4 max=199 display=signed displayOffset=99 group=1 param=96 dumpOffset=90 wireSigned=1
+dial eg4levelmodsrc       label="EG4 Level Mod Src" color=eg4 max=49  names=@vcac915 group=1 param=97 dumpOffset=91
+dial eg4levelmodint       label="EG4 Level Mod Int" color=eg4 max=199 display=signed displayOffset=99 group=1 param=98 dumpOffset=92 wireSigned=1
+dial eg4levelvelctrl      label="EG4 Level Vel Ctrl" color=eg4 max=199 display=signed displayOffset=99 group=1 param=99 dumpOffset=93 wireSigned=1
+dial eg4timemodsrc        label="EG4 Time Mod Src" color=eg4 max=49  names=@vcac915 group=1 param=100 dumpOffset=94
+
+page       Prog | EG | EG 4
+section    eg4c
+dialSize   40
+spacing    50
+
+color eg4 0.9 0.6 0.2
+
+dial eg4timemodint        label="EG4 Time Mod Int" color=eg4 max=199 display=signed displayOffset=99 group=1 param=101 dumpOffset=95 wireSigned=1
+dial eg4nodetimemodsrc    label="EG4 Node Time Mod Src" color=eg4 max=49  names=@vcac915 group=1 param=102 dumpOffset=96
+dial eg4atkmodint         label="EG4 Atk Time Mod Int" color=eg4 max=199 display=signed displayOffset=99 group=1 param=103 dumpOffset=97 wireSigned=1
+dial eg4dcymodint         label="EG4 Dcy Time Mod Int" color=eg4 max=199 display=signed displayOffset=99 group=1 param=104 dumpOffset=98 wireSigned=1
+dial eg4slpmodint         label="EG4 Slp Time Mod Int" color=eg4 max=199 display=signed displayOffset=99 group=1 param=105 dumpOffset=99 wireSigned=1
+dial eg4rlsmodint         label="EG4 Rls Time Mod Int" color=eg4 max=199 display=signed displayOffset=99 group=1 param=106 dumpOffset=100 wireSigned=1
 
 # ── LFO1-4 pages ─────────────────────────────────────────────────────────────
 # Added 2026-07-13 from the official parameter table (params 107-162, 14
 # each). Same deliberate omissions/choices as the Amp/EG pages above:
-#   - dumpOffset= left out entirely — live editing and live incoming
-#     Parameter Change decode both work fully (paramId alone drives both),
-#     but "Sync from synth" won't populate these until dumpOffset is added
-#     and verified against a live dump capture.
+#   - dumpOffset= as for the Amp/EG pages above (2026-10-07): every unsigned
+#     dial has one; the signed ones are read through wireSigned.
 #   - "Wave Form" (18 positions) and every "...Mod Src" (Mod.Source List 1,
-#     49 positions) are display=raw, not names= — the manual footnotes a
-#     fuller name list for both that wasn't transcribed this session;
-#     showing a bare number honestly reflects "not yet decoded" rather
-#     than guessing at names that could be wrong.
+#     49 positions) show names from the shared value lists (names=@v...)
+#     since 2026-10-07.
 #   - "Offset" is -50..+50 (not the usual -99..+99 Int family) — displayOffset
 #     is a per-dial value for exactly this reason, not hardcoded to 99.
 #   - "MIDI Sync Base"/"MIDI Sync Time" shown as their raw wire range (0-7,
@@ -851,141 +1699,1226 @@ dial outputlevel      label="Output Level" color=output max=128 display=raw grou
 #     Type's storage 1-5 displays as 0-4), not a new inconsistency.
 # Split 7+7 per LFO (comfortably under the ~1280pt width budget measured
 # live for the Envelopes pages — see that section's own header comment for
-# the full derivation) and across 2 pages — "LFO 1" (LFO1+LFO2) / "LFO 2"
-# (LFO3+LFO4) — so neither page stacks more than 4 section-rows, well under
-# Filters' own proven 7-row page. Page ids are typed already-capitalized
-# ("LFO 1") since render_page_tabs() only uppercases the FIRST character —
-# lowercase "lfo 1" would render as the wrong-looking tab "Lfo 1".
+# the full derivation), one page per LFO since 2026-10-07 (Prog | LFO |
+# LFO 1..4). Tab names are typed
+# capitalized: render_page_tabs() only uppercases the FIRST character.
 
 # ── LFO1 (params 107-120), split across 2 sections ──
-page       LFO 1
+page       Prog | LFO | LFO 1
 section    lfo1a
 dialSize   40
 spacing    50
 
 color lfo1 0.9 0.4 0.6
 
-dial lfo1waveform         label="LFO1 Wave Form" color=lfo1 max=18  display=raw group=1 param=107
-dial lfo1keysyncsw        label="LFO1 Key Sync SW" color=lfo1 max=3   names=OFF,byTIMBRE,byVOICE group=1 param=108
-dial lfo1frequency        label="LFO1 Frequency" color=lfo1 max=200 display=raw group=1 param=109
-dial lfo1freqmod1src      label="LFO1 Freq Mod1 Src" color=lfo1 max=49  display=raw group=1 param=110
-dial lfo1freqmod1int      label="LFO1 Freq Mod1 Int" color=lfo1 max=199 display=signed displayOffset=99 group=1 param=111
-dial lfo1freqmod2src      label="LFO1 Freq Mod2 Src" color=lfo1 max=49  display=raw group=1 param=112
-dial lfo1freqmod2int      label="LFO1 Freq Mod2 Int" color=lfo1 max=199 display=signed displayOffset=99 group=1 param=113
+dial lfo1waveform         label="LFO1 Wave Form" color=lfo1 max=18  names=@v2e66f6 group=1 param=107 dumpOffset=101 dumpShift=0 dumpMask=0x1F
+dial lfo1keysyncsw        label="LFO1 Key Sync SW" color=lfo1 max=3   names=OFF,byTIMBRE,byVOICE group=1 param=108 dumpOffset=101 dumpShift=6 dumpMask=0x3
+dial lfo1frequency        label="LFO1 Frequency" color=lfo1 max=200 names=@vf5ac2a asDial=1 group=1 param=109 dumpOffset=102
+dial lfo1freqmod1src      label="LFO1 Freq Mod1 Src" color=lfo1 max=49  names=@vcac915 group=1 param=110 dumpOffset=103
+dial lfo1freqmod1int      label="LFO1 Freq Mod1 Int" color=lfo1 max=199 display=signed displayOffset=99 group=1 param=111 dumpOffset=104 wireSigned=1
+dial lfo1freqmod2src      label="LFO1 Freq Mod2 Src" color=lfo1 max=49  names=@vcac915 group=1 param=112 dumpOffset=105
+dial lfo1freqmod2int      label="LFO1 Freq Mod2 Int" color=lfo1 max=199 display=signed displayOffset=99 group=1 param=113 dumpOffset=106 wireSigned=1
 
-page       LFO 1
+page       Prog | LFO | LFO 1
 section    lfo1b
 dialSize   40
 spacing    50
 
 color lfo1 0.9 0.4 0.6
 
-dial lfo1fadein           label="LFO1 Fade In" color=lfo1 max=100 display=raw group=1 param=114
-dial lfo1ampmodsrc        label="LFO1 Amp Mod Src" color=lfo1 max=49  display=raw group=1 param=115
-dial lfo1ampmodint        label="LFO1 Amp Mod Int" color=lfo1 max=199 display=signed displayOffset=99 group=1 param=116
-dial lfo1offset           label="LFO1 Offset" color=lfo1 max=101 display=signed displayOffset=50 group=1 param=117
-dial lfo1midisync         label="LFO1 MIDI Sync" color=lfo1 max=2   names=OFF,ON group=1 param=118 asMenu=1
-dial lfo1midisyncbase     label="LFO1 MIDI Sync Base" color=lfo1 max=8   display=raw group=1 param=119
-dial lfo1midisynctime     label="LFO1 MIDI Sync Time" color=lfo1 max=16  display=raw group=1 param=120
+dial lfo1fadein           label="LFO1 Fade In" color=lfo1 max=100 display=raw group=1 param=114 dumpOffset=107
+dial lfo1ampmodsrc        label="LFO1 Amp Mod Src" color=lfo1 max=49  names=@vcac915 group=1 param=115 dumpOffset=108
+dial lfo1ampmodint        label="LFO1 Amp Mod Int" color=lfo1 max=199 display=signed displayOffset=99 group=1 param=116 dumpOffset=109 wireSigned=1
+dial lfo1offset           label="LFO1 Offset" color=lfo1 max=101 display=signed displayOffset=50 group=1 param=117 dumpOffset=110 wireSigned=1
+dial lfo1midisync         label="LFO1 MIDI Sync" color=lfo1 max=2   names=OFF,ON group=1 param=118 asMenu=1 dumpOffset=111 dumpShift=7 dumpMask=0x1
+dial lfo1midisyncbase     label="LFO1 MIDI Sync Base" color=lfo1 max=8   names=@v69c040 group=1 param=119 dumpOffset=111 dumpShift=4 dumpMask=0x7
+dial lfo1midisynctime     label="LFO1 MIDI Sync Time" color=lfo1 max=16  names=@va0aefd group=1 param=120 dumpOffset=111 dumpShift=0 dumpMask=0xF
 
 # ── LFO2 (params 121-134), split across 2 sections ──
-page       LFO 1
+page       Prog | LFO | LFO 2
 section    lfo2a
 dialSize   40
 spacing    50
 
 color lfo2 0.4 0.6 0.9
 
-dial lfo2waveform         label="LFO2 Wave Form" color=lfo2 max=18  display=raw group=1 param=121
-dial lfo2keysyncsw        label="LFO2 Key Sync SW" color=lfo2 max=3   names=OFF,byTIMBRE,byVOICE group=1 param=122
-dial lfo2frequency        label="LFO2 Frequency" color=lfo2 max=200 display=raw group=1 param=123
-dial lfo2freqmod1src      label="LFO2 Freq Mod1 Src" color=lfo2 max=49  display=raw group=1 param=124
-dial lfo2freqmod1int      label="LFO2 Freq Mod1 Int" color=lfo2 max=199 display=signed displayOffset=99 group=1 param=125
-dial lfo2freqmod2src      label="LFO2 Freq Mod2 Src" color=lfo2 max=49  display=raw group=1 param=126
-dial lfo2freqmod2int      label="LFO2 Freq Mod2 Int" color=lfo2 max=199 display=signed displayOffset=99 group=1 param=127
+dial lfo2waveform         label="LFO2 Wave Form" color=lfo2 max=18  names=@v2e66f6 group=1 param=121 dumpOffset=112 dumpShift=0 dumpMask=0x1F
+dial lfo2keysyncsw        label="LFO2 Key Sync SW" color=lfo2 max=3   names=OFF,byTIMBRE,byVOICE group=1 param=122 dumpOffset=112 dumpShift=6 dumpMask=0x3
+dial lfo2frequency        label="LFO2 Frequency" color=lfo2 max=200 names=@vf5ac2a asDial=1 group=1 param=123 dumpOffset=113
+dial lfo2freqmod1src      label="LFO2 Freq Mod1 Src" color=lfo2 max=49  names=@vcac915 group=1 param=124 dumpOffset=114
+dial lfo2freqmod1int      label="LFO2 Freq Mod1 Int" color=lfo2 max=199 display=signed displayOffset=99 group=1 param=125 dumpOffset=115 wireSigned=1
+dial lfo2freqmod2src      label="LFO2 Freq Mod2 Src" color=lfo2 max=49  names=@vcac915 group=1 param=126 dumpOffset=116
+dial lfo2freqmod2int      label="LFO2 Freq Mod2 Int" color=lfo2 max=199 display=signed displayOffset=99 group=1 param=127 dumpOffset=117 wireSigned=1
 
-page       LFO 1
+page       Prog | LFO | LFO 2
 section    lfo2b
 dialSize   40
 spacing    50
 
 color lfo2 0.4 0.6 0.9
 
-dial lfo2fadein           label="LFO2 Fade In" color=lfo2 max=100 display=raw group=1 param=128
-dial lfo2ampmodsrc        label="LFO2 Amp Mod Src" color=lfo2 max=49  display=raw group=1 param=129
-dial lfo2ampmodint        label="LFO2 Amp Mod Int" color=lfo2 max=199 display=signed displayOffset=99 group=1 param=130
-dial lfo2offset           label="LFO2 Offset" color=lfo2 max=101 display=signed displayOffset=50 group=1 param=131
-dial lfo2midisync         label="LFO2 MIDI Sync" color=lfo2 max=2   names=OFF,ON group=1 param=132 asMenu=1
-dial lfo2midisyncbase     label="LFO2 MIDI Sync Base" color=lfo2 max=8   display=raw group=1 param=133
-dial lfo2midisynctime     label="LFO2 MIDI Sync Time" color=lfo2 max=16  display=raw group=1 param=134
+dial lfo2fadein           label="LFO2 Fade In" color=lfo2 max=100 display=raw group=1 param=128 dumpOffset=118
+dial lfo2ampmodsrc        label="LFO2 Amp Mod Src" color=lfo2 max=49  names=@vcac915 group=1 param=129 dumpOffset=119
+dial lfo2ampmodint        label="LFO2 Amp Mod Int" color=lfo2 max=199 display=signed displayOffset=99 group=1 param=130 dumpOffset=120 wireSigned=1
+dial lfo2offset           label="LFO2 Offset" color=lfo2 max=101 display=signed displayOffset=50 group=1 param=131 dumpOffset=121 wireSigned=1
+dial lfo2midisync         label="LFO2 MIDI Sync" color=lfo2 max=2   names=OFF,ON group=1 param=132 asMenu=1 dumpOffset=122 dumpShift=7 dumpMask=0x1
+dial lfo2midisyncbase     label="LFO2 MIDI Sync Base" color=lfo2 max=8   names=@v69c040 group=1 param=133 dumpOffset=122 dumpShift=4 dumpMask=0x7
+dial lfo2midisynctime     label="LFO2 MIDI Sync Time" color=lfo2 max=16  names=@va0aefd group=1 param=134 dumpOffset=122 dumpShift=0 dumpMask=0xF
 
 # ── LFO3 (params 135-148), split across 2 sections ──
-page       LFO 2
+page       Prog | LFO | LFO 3
 section    lfo3a
 dialSize   40
 spacing    50
 
 color lfo3 0.6 0.9 0.4
 
-dial lfo3waveform         label="LFO3 Wave Form" color=lfo3 max=18  display=raw group=1 param=135
-dial lfo3keysyncsw        label="LFO3 Key Sync SW" color=lfo3 max=3   names=OFF,byTIMBRE,byVOICE group=1 param=136
-dial lfo3frequency        label="LFO3 Frequency" color=lfo3 max=200 display=raw group=1 param=137
-dial lfo3freqmod1src      label="LFO3 Freq Mod1 Src" color=lfo3 max=49  display=raw group=1 param=138
-dial lfo3freqmod1int      label="LFO3 Freq Mod1 Int" color=lfo3 max=199 display=signed displayOffset=99 group=1 param=139
-dial lfo3freqmod2src      label="LFO3 Freq Mod2 Src" color=lfo3 max=49  display=raw group=1 param=140
-dial lfo3freqmod2int      label="LFO3 Freq Mod2 Int" color=lfo3 max=199 display=signed displayOffset=99 group=1 param=141
+dial lfo3waveform         label="LFO3 Wave Form" color=lfo3 max=18  names=@v2e66f6 group=1 param=135 dumpOffset=123 dumpShift=0 dumpMask=0x1F
+dial lfo3keysyncsw        label="LFO3 Key Sync SW" color=lfo3 max=3   names=OFF,byTIMBRE,byVOICE group=1 param=136 dumpOffset=123 dumpShift=6 dumpMask=0x3
+dial lfo3frequency        label="LFO3 Frequency" color=lfo3 max=200 names=@vf5ac2a asDial=1 group=1 param=137 dumpOffset=124
+dial lfo3freqmod1src      label="LFO3 Freq Mod1 Src" color=lfo3 max=49  names=@vcac915 group=1 param=138 dumpOffset=125
+dial lfo3freqmod1int      label="LFO3 Freq Mod1 Int" color=lfo3 max=199 display=signed displayOffset=99 group=1 param=139 dumpOffset=126 wireSigned=1
+dial lfo3freqmod2src      label="LFO3 Freq Mod2 Src" color=lfo3 max=49  names=@vcac915 group=1 param=140 dumpOffset=127
+dial lfo3freqmod2int      label="LFO3 Freq Mod2 Int" color=lfo3 max=199 display=signed displayOffset=99 group=1 param=141 dumpOffset=128 wireSigned=1
 
-page       LFO 2
+page       Prog | LFO | LFO 3
 section    lfo3b
 dialSize   40
 spacing    50
 
 color lfo3 0.6 0.9 0.4
 
-dial lfo3fadein           label="LFO3 Fade In" color=lfo3 max=100 display=raw group=1 param=142
-dial lfo3ampmodsrc        label="LFO3 Amp Mod Src" color=lfo3 max=49  display=raw group=1 param=143
-dial lfo3ampmodint        label="LFO3 Amp Mod Int" color=lfo3 max=199 display=signed displayOffset=99 group=1 param=144
-dial lfo3offset           label="LFO3 Offset" color=lfo3 max=101 display=signed displayOffset=50 group=1 param=145
-dial lfo3midisync         label="LFO3 MIDI Sync" color=lfo3 max=2   names=OFF,ON group=1 param=146 asMenu=1
-dial lfo3midisyncbase     label="LFO3 MIDI Sync Base" color=lfo3 max=8   display=raw group=1 param=147
-dial lfo3midisynctime     label="LFO3 MIDI Sync Time" color=lfo3 max=16  display=raw group=1 param=148
+dial lfo3fadein           label="LFO3 Fade In" color=lfo3 max=100 display=raw group=1 param=142 dumpOffset=129
+dial lfo3ampmodsrc        label="LFO3 Amp Mod Src" color=lfo3 max=49  names=@vcac915 group=1 param=143 dumpOffset=130
+dial lfo3ampmodint        label="LFO3 Amp Mod Int" color=lfo3 max=199 display=signed displayOffset=99 group=1 param=144 dumpOffset=131 wireSigned=1
+dial lfo3offset           label="LFO3 Offset" color=lfo3 max=101 display=signed displayOffset=50 group=1 param=145 dumpOffset=132 wireSigned=1
+dial lfo3midisync         label="LFO3 MIDI Sync" color=lfo3 max=2   names=OFF,ON group=1 param=146 asMenu=1 dumpOffset=133 dumpShift=7 dumpMask=0x1
+dial lfo3midisyncbase     label="LFO3 MIDI Sync Base" color=lfo3 max=8   names=@v69c040 group=1 param=147 dumpOffset=133 dumpShift=4 dumpMask=0x7
+dial lfo3midisynctime     label="LFO3 MIDI Sync Time" color=lfo3 max=16  names=@va0aefd group=1 param=148 dumpOffset=133 dumpShift=0 dumpMask=0xF
 
 # ── LFO4 (params 149-162), split across 2 sections ──
-page       LFO 2
+page       Prog | LFO | LFO 4
 section    lfo4a
 dialSize   40
 spacing    50
 
 color lfo4 0.9 0.7 0.4
 
-dial lfo4waveform         label="LFO4 Wave Form" color=lfo4 max=18  display=raw group=1 param=149
-dial lfo4keysyncsw        label="LFO4 Key Sync SW" color=lfo4 max=3   names=OFF,byTIMBRE,byVOICE group=1 param=150
-dial lfo4frequency        label="LFO4 Frequency" color=lfo4 max=200 display=raw group=1 param=151
-dial lfo4freqmod1src      label="LFO4 Freq Mod1 Src" color=lfo4 max=49  display=raw group=1 param=152
-dial lfo4freqmod1int      label="LFO4 Freq Mod1 Int" color=lfo4 max=199 display=signed displayOffset=99 group=1 param=153
-dial lfo4freqmod2src      label="LFO4 Freq Mod2 Src" color=lfo4 max=49  display=raw group=1 param=154
-dial lfo4freqmod2int      label="LFO4 Freq Mod2 Int" color=lfo4 max=199 display=signed displayOffset=99 group=1 param=155
+dial lfo4waveform         label="LFO4 Wave Form" color=lfo4 max=18  names=@v2e66f6 group=1 param=149 dumpOffset=134 dumpShift=0 dumpMask=0x1F
+dial lfo4keysyncsw        label="LFO4 Key Sync SW" color=lfo4 max=3   names=OFF,byTIMBRE,byVOICE group=1 param=150 dumpOffset=134 dumpShift=6 dumpMask=0x3
+dial lfo4frequency        label="LFO4 Frequency" color=lfo4 max=200 names=@vf5ac2a asDial=1 group=1 param=151 dumpOffset=135
+dial lfo4freqmod1src      label="LFO4 Freq Mod1 Src" color=lfo4 max=49  names=@vcac915 group=1 param=152 dumpOffset=136
+dial lfo4freqmod1int      label="LFO4 Freq Mod1 Int" color=lfo4 max=199 display=signed displayOffset=99 group=1 param=153 dumpOffset=137 wireSigned=1
+dial lfo4freqmod2src      label="LFO4 Freq Mod2 Src" color=lfo4 max=49  names=@vcac915 group=1 param=154 dumpOffset=138
+dial lfo4freqmod2int      label="LFO4 Freq Mod2 Int" color=lfo4 max=199 display=signed displayOffset=99 group=1 param=155 dumpOffset=139 wireSigned=1
 
-page       LFO 2
+page       Prog | LFO | LFO 4
 section    lfo4b
 dialSize   40
 spacing    50
 
 color lfo4 0.9 0.7 0.4
 
-dial lfo4fadein           label="LFO4 Fade In" color=lfo4 max=100 display=raw group=1 param=156
-dial lfo4ampmodsrc        label="LFO4 Amp Mod Src" color=lfo4 max=49  display=raw group=1 param=157
-dial lfo4ampmodint        label="LFO4 Amp Mod Int" color=lfo4 max=199 display=signed displayOffset=99 group=1 param=158
-dial lfo4offset           label="LFO4 Offset" color=lfo4 max=101 display=signed displayOffset=50 group=1 param=159
-dial lfo4midisync         label="LFO4 MIDI Sync" color=lfo4 max=2   names=OFF,ON group=1 param=160 asMenu=1
-dial lfo4midisyncbase     label="LFO4 MIDI Sync Base" color=lfo4 max=8   display=raw group=1 param=161
-dial lfo4midisynctime     label="LFO4 MIDI Sync Time" color=lfo4 max=16  display=raw group=1 param=162
+dial lfo4fadein           label="LFO4 Fade In" color=lfo4 max=100 display=raw group=1 param=156 dumpOffset=140
+dial lfo4ampmodsrc        label="LFO4 Amp Mod Src" color=lfo4 max=49  names=@vcac915 group=1 param=157 dumpOffset=141
+dial lfo4ampmodint        label="LFO4 Amp Mod Int" color=lfo4 max=199 display=signed displayOffset=99 group=1 param=158 dumpOffset=142 wireSigned=1
+dial lfo4offset           label="LFO4 Offset" color=lfo4 max=101 display=signed displayOffset=50 group=1 param=159 dumpOffset=143 wireSigned=1
+dial lfo4midisync         label="LFO4 MIDI Sync" color=lfo4 max=2   names=OFF,ON group=1 param=160 asMenu=1 dumpOffset=144 dumpShift=7 dumpMask=0x1
+dial lfo4midisyncbase     label="LFO4 MIDI Sync Base" color=lfo4 max=8   names=@v69c040 group=1 param=161 dumpOffset=144 dumpShift=4 dumpMask=0x7
+dial lfo4midisynctime     label="LFO4 MIDI Sync Time" color=lfo4 max=16  names=@va0aefd group=1 param=162 dumpOffset=144 dumpShift=0 dumpMask=0xF
 
-# ── Effects page ──────────────────────────────────────────────────────────────
-# Placeholder — no controls transcribed yet. The page exists so the page-tab
-# row has something to switch to; add dials here once the Effects parameters
-# are worked out, same as the Oscillators/Filters pages above.
-page       effects
-section    effects
+# ══ BEGIN GENERATED Effects
+# ── Effects ───────────────────────────────────────────────────────────────────
+# GENERATED from the Z1's parameter tables - regenerate rather than edit by hand.
+# Insert 2 is Insert 1's page again: parameters move by one ExID (+2048), the dump
+# by 23, the type selector to Effect2 Select (+1), which offers 11 of the 15 types.
+pageVariant "Prog | Effects | Insert 2" "Prog | Effects | Insert 1" 0 23 2048
+# Effect 2 does not exist while Effect 1 is a double-size type (11-14).
+variantShowIf "Prog | Effects | Insert 2" 410 0 10
+tabLabel "Prog | Effects | Insert 1" 410 Over Drive,Compressor,4 Band PEQ,Wah,Exciter,Decimator,Chorus,Flanger,Phaser,Small Rotary,Delay,Talking Mod,Multitap Delay,Ensemble,Rotary Speaker
+tabLabel "Prog | Effects | Master" 456 Stereo Delay,Reverb-Hall,Reverb-Room
+
+page       Prog | Effects | Common
+section    fxcommon
 dialSize   40
 spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p356     label="Effect Send" color=fx max=101 display=raw group=1 param=356 dumpOffset=407
+dial p357     label="Effect Send Mod Src" color=fx max=49 names=@vcac915 group=1 param=357 dumpOffset=408
+dial p358     label="Effect Send Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=358 dumpOffset=409
+
+page       Prog | Effects | Common
+section    fxeq
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p362     label="EQ Low Freq" color=fx max=50 names=@v573665 asDial=1 group=1 param=362 dumpOffset=475
+dial p363     label="EQ Low Gain" color=fx max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=1 param=363 dumpOffset=476
+dial p364     label="EQ High Freq" color=fx max=50 names=@ve8fd6d asDial=1 group=1 param=364 dumpOffset=477
+dial p365     label="EQ High Gain" color=fx max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=1 param=365 dumpOffset=478
+
+page       Prog | Effects | Insert 1
+section    fxsel
+variantParamDelta 1
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p359     label="Type" color=fx max=15 names=@v6ff210 group=1 param=359 dumpOffset=410 variantMax=11
+
+page       Prog | Effects | Insert 1
+section    fx0_1
+showIf     410 0
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p800     label="Mode" color=fx max=2 names=@vf4ffc0 group=1 param=6944 dumpOffset=411
+dial p801     label="Drive" color=fx max=100 display=raw group=1 param=6945 dumpOffset=412
+dial p802     label="Output Level" color=fx max=100 display=raw group=1 param=6946 dumpOffset=413
+dial p803     label="Pre Low Cut" color=fx max=100 display=raw group=1 param=6947 dumpOffset=414
+dial p804     label="Low" color=fx max=50 names=@v573665 asDial=1 group=1 param=6948 dumpOffset=415
+dial p807     label="Mid Low EQ Freq" color=fx max=50 names=@vadd024 asDial=1 group=1 param=6951 dumpOffset=418
+dial p810     label="Mid High EQ Freq" color=fx max=50 names=@v16f3bb asDial=1 group=1 param=6954 dumpOffset=421
+dial p813     label="High EQ Freq" color=fx max=50 names=@v7f281d asDial=1 group=1 param=6957 dumpOffset=424
+
+page       Prog | Effects | Insert 1
+section    fx0_2
+showIf     410 0
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p805     label="Low EQ Q" color=fx max=96 names=@vaab1c2 asDial=1 group=1 param=6949 dumpOffset=416
+dial p808     label="Mid Low EQ Q" color=fx max=96 names=@vaab1c2 asDial=1 group=1 param=6952 dumpOffset=419
+dial p811     label="Mid High EQ Q" color=fx max=96 names=@vaab1c2 asDial=1 group=1 param=6955 dumpOffset=422
+dial p814     label="High EQ Q" color=fx max=96 names=@vaab1c2 asDial=1 group=1 param=6958 dumpOffset=425
+dial p806     label="Low EQ Gain" color=fx max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=1 param=6950 dumpOffset=417
+dial p809     label="Mid Low EQ Gain" color=fx max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=1 param=6953 dumpOffset=420
+dial p812     label="Mid High EQ Gain" color=fx max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=1 param=6956 dumpOffset=423
+dial p815     label="High EQ Gain" color=fx max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=1 param=6959 dumpOffset=426
+
+page       Prog | Effects | Insert 1
+section    fx0_3
+showIf     410 0
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p816     label="Effect Bal" color=fx max=101 display=raw group=1 param=6960 dumpOffset=427
+dial p817     label="Effect Bal Mod Src" color=fx max=46 names=@vce3db9 group=1 param=6961 dumpOffset=428
+dial p818     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=6962 dumpOffset=429
+
+page       Prog | Effects | Insert 1
+section    fx1_1
+showIf     410 1
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p824     label="Output Level" color=fx max=100 display=raw group=1 param=6968 dumpOffset=416
+dial p819     label="Sensitivity" color=fx max=99 offset=1 names=@v43b6ad asDial=1 group=1 param=6963 dumpOffset=411
+dial p821     label="EQ Trim" color=fx max=100 display=raw group=1 param=6965 dumpOffset=413
+dial p822     label="Pre Low EQ Gain" color=fx max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=1 param=6966 dumpOffset=414
+dial p823     label="Pre High EQ Gain" color=fx max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=1 param=6967 dumpOffset=415
+dial p820     label="Attack" color=fx max=99 offset=1 names=@v43b6ad asDial=1 group=1 param=6964 dumpOffset=412
+dial p825     label="Effect Bal" color=fx max=101 display=raw group=1 param=6969 dumpOffset=417
+dial p826     label="Effect Bal Mod Src" color=fx max=46 names=@vce3db9 group=1 param=6970 dumpOffset=418
+
+page       Prog | Effects | Insert 1
+section    fx1_2
+showIf     410 1
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p827     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=6971 dumpOffset=419
+
+page       Prog | Effects | Insert 1
+section    fx2_1
+showIf     410 2
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p828     label="Trim" color=fx max=100 display=raw group=1 param=6972 dumpOffset=411
+dial p829     label="Low EQ Type" color=fx max=2 names=@v3adf50 group=1 param=6973 dumpOffset=412
+dial p841     label="High EQ Type" color=fx max=2 names=@v3adf50 group=1 param=6985 dumpOffset=424
+dial p830     label="Low EQ Freq" color=fx max=50 names=@v573665 asDial=1 group=1 param=6974 dumpOffset=413
+dial p833     label="Mid Low EQ Freq" color=fx max=50 names=@vadd024 asDial=1 group=1 param=6977 dumpOffset=416
+dial p838     label="Mid High EQ Freq" color=fx max=50 names=@v16f3bb asDial=1 group=1 param=6982 dumpOffset=421
+dial p842     label="High" color=fx max=50 names=@v7f281d asDial=1 group=1 param=6986 dumpOffset=425
+
+page       Prog | Effects | Insert 1
+section    fx2_2
+showIf     410 2
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p831     label="Low EQ Q" color=fx max=96 names=@vaab1c2 asDial=1 group=1 param=6975 dumpOffset=414
+dial p834     label="Mid Low EQ Q" color=fx max=96 names=@vaab1c2 asDial=1 group=1 param=6978 dumpOffset=417
+dial p839     label="Mid High EQ Q" color=fx max=96 names=@vaab1c2 asDial=1 group=1 param=6983 dumpOffset=422
+dial p843     label="High EQ Q" color=fx max=96 names=@vaab1c2 asDial=1 group=1 param=6987 dumpOffset=426
+dial p832     label="Low EQ Gain" color=fx max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=1 param=6976 dumpOffset=415
+dial p835     label="Mid Low EQ Gain" color=fx max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=1 param=6979 dumpOffset=418
+dial p840     label="Mid High EQ Gain" color=fx max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=1 param=6984 dumpOffset=423
+dial p844     label="High EQ Gain" color=fx max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=1 param=6988 dumpOffset=427
+
+page       Prog | Effects | Insert 1
+section    fx2_3
+showIf     410 2
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p836     label="Mid Low EQ Gain Mod Src" color=fx max=46 names=@vce3db9 group=1 param=6980 dumpOffset=419
+dial p837     label="Mid Low EQ Gain Mod Int" color=fx max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=1 param=6981 dumpOffset=420
+dial p845     label="Effect Bal" color=fx max=101 display=raw group=1 param=6989 dumpOffset=428
+dial p846     label="Effect Bal Mod Src" color=fx max=46 names=@vce3db9 group=1 param=6990 dumpOffset=429
+dial p847     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=6991 dumpOffset=430
+
+page       Prog | Effects | Insert 1
+section    fx3_1
+showIf     410 3
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p848     label="Freq Bottom" color=fx max=100 display=raw group=1 param=6992 dumpOffset=411
+dial p853     label="Envelope Sens" color=fx max=100 display=raw group=1 param=6997 dumpOffset=416
+dial p849     label="Freq Top" color=fx max=100 display=raw group=1 param=6993 dumpOffset=412
+dial p854     label="Envelope Shape" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=6998 dumpOffset=417
+dial p855     label="Reso" color=fx max=100 display=raw group=1 param=6999 dumpOffset=418
+dial p850     label="Sweep Mode" color=fx max=2 names=@v2d2e25 group=1 param=6994 dumpOffset=413
+dial p856     label="Filter Mode" color=fx max=2 names=@v096952 group=1 param=7000 dumpOffset=419
+dial p851     label="Sweep Src" color=fx max=46 names=@vce3db9 group=1 param=6995 dumpOffset=414
+
+page       Prog | Effects | Insert 1
+section    fx3_2
+showIf     410 3
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p852     label="Sweep Response" color=fx max=100 display=raw group=1 param=6996 dumpOffset=415
+dial p857     label="Effect Bal" color=fx max=101 display=raw group=1 param=7001 dumpOffset=420
+dial p858     label="Effect Bal Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7002 dumpOffset=421
+dial p859     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7003 dumpOffset=422
+
+page       Prog | Effects | Insert 1
+section    fx4_1
+showIf     410 4
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p860     label="Blend" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7004 dumpOffset=411
+dial p866     label="Pre EQ Input Trim" color=fx max=100 display=raw group=1 param=7010 dumpOffset=417
+dial p867     label="Pre Low EQ Gain" color=fx max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=1 param=7011 dumpOffset=418
+dial p868     label="Pre High EQ Gain" color=fx max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=1 param=7012 dumpOffset=419
+dial p861     label="Blend Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7005 dumpOffset=412
+dial p862     label="Blend Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7006 dumpOffset=413
+dial p863     label="Emphatic PoInt" color=fx max=100 display=raw group=1 param=7007 dumpOffset=414
+dial p864     label="Emphatic PoIntMod Src" color=fx max=46 names=@vce3db9 group=1 param=7008 dumpOffset=415
+
+page       Prog | Effects | Insert 1
+section    fx4_2
+showIf     410 4
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p865     label="Emphatic PoIntMod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7009 dumpOffset=416
+dial p869     label="Effect Bal" color=fx max=101 display=raw group=1 param=7013 dumpOffset=420
+dial p870     label="Effect Bal Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7014 dumpOffset=421
+dial p871     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7015 dumpOffset=422
+
+page       Prog | Effects | Insert 1
+section    fx5_1
+showIf     410 5
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p872     label="Pre LPF" color=fx max=2 names=@v7bf299 group=1 param=7016 dumpOffset=411
+dial p873     label="Sampling Freq" color=fx max=116 offset=5 names=@va2d852 asDial=1 group=1 param=7017 dumpOffset=412
+dial p876     label="Resolution" color=fx max=21 offset=4 names=@v7f2116 group=1 param=7020 dumpOffset=415
+dial p877     label="High Damp" color=fx max=100 display=raw group=1 param=7021 dumpOffset=416
+dial p874     label="Sampling Freq Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7018 dumpOffset=413
+dial p875     label="Sampling Freq Mod Int" color=fx max=241 displayOffset=120 wireSigned=1 names=@v10b274 asDial=1 group=1 param=7019 dumpOffset=414
+dial p878     label="Output Level" color=fx max=100 display=raw group=1 param=7022 dumpOffset=417
+dial p879     label="Effect Bal" color=fx max=101 display=raw group=1 param=7023 dumpOffset=418
+
+page       Prog | Effects | Insert 1
+section    fx5_2
+showIf     410 5
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p880     label="Effect Bal Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7024 dumpOffset=419
+dial p881     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7025 dumpOffset=420
+
+page       Prog | Effects | Insert 1
+section    fx6_1
+showIf     410 6
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p882     label="Delay Time" color=fx max=141 names=@v0565e9 asDial=1 group=1 param=7026 dumpOffset=411
+dial p883     label="LFO Wave Form" color=fx max=2 names=@vccfdd2 group=1 param=7027 dumpOffset=412
+dial p893     label="Pre EQ Input Trim" color=fx max=100 display=raw group=1 param=7037 dumpOffset=420
+dial p894     label="Pre Low EQ Gain" color=fx max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=1 param=7038 dumpOffset=421
+dial p895     label="Pre High EQ Gain" color=fx max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=1 param=7039 dumpOffset=422
+dial p887     label="MIDI Sync" color=fx max=2 names=@v7bf299 group=1 param=7031 dumpOffset=416 dumpShift=7 dumpMask=0x1
+dial p884     label="LFO Freq" color=fx max=115 offset=1 names=@v19705d asDial=1 group=1 param=7028 dumpOffset=413
+dial p888     label="MIDI Sync Base" color=fx max=8 names=@v69c040 group=1 param=7032 dumpOffset=416 dumpShift=4 dumpMask=0x7
+
+page       Prog | Effects | Insert 1
+section    fx6_2
+showIf     410 6
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p885     label="LFO Freq Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7029 dumpOffset=414
+dial p889     label="MIDI Sync Time" color=fx max=16 names=@va0aefd group=1 param=7033 dumpOffset=416 dumpShift=0 dumpMask=0xF
+dial p886     label="LFO Freq Mod Int" color=fx max=231 displayOffset=115 wireSigned=1 names=@va32aaa asDial=1 group=1 param=7030 dumpOffset=415
+dial p890     label="Depth" color=fx max=100 display=raw group=1 param=7034 dumpOffset=417
+dial p891     label="Depth Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7035 dumpOffset=418
+dial p892     label="Depth Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7036 dumpOffset=419
+dial p896     label="Chorus Output Phase" color=fx max=3 names=@v5514af group=1 param=7040 dumpOffset=423
+dial p897     label="Effect Bal" color=fx max=101 display=raw group=1 param=7041 dumpOffset=424
+
+page       Prog | Effects | Insert 1
+section    fx6_3
+showIf     410 6
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p898     label="Effect Bal Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7042 dumpOffset=425
+dial p899     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7043 dumpOffset=426
+
+page       Prog | Effects | Insert 1
+section    fx7_1
+showIf     410 7
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p900     label="Delay Time" color=fx max=141 names=@v0565e9 asDial=1 group=1 param=7044 dumpOffset=411
+dial p901     label="LFO Wave Form" color=fx max=2 names=@vccfdd2 group=1 param=7045 dumpOffset=412
+dial p902     label="LFO Shape" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7046 dumpOffset=413
+dial p906     label="MIDI Sync" color=fx max=2 names=@v7bf299 group=1 param=7050 dumpOffset=417 dumpShift=7 dumpMask=0x1
+dial p903     label="LFO Freq" color=fx max=115 offset=1 names=@v19705d asDial=1 group=1 param=7047 dumpOffset=414
+dial p907     label="MIDI Sync Base" color=fx max=8 names=@v69c040 group=1 param=7051 dumpOffset=417 dumpShift=4 dumpMask=0x7
+dial p904     label="LFO Freq Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7048 dumpOffset=415
+dial p908     label="MIDI Sync Time" color=fx max=16 names=@va0aefd group=1 param=7052 dumpOffset=417 dumpShift=0 dumpMask=0xF
+
+page       Prog | Effects | Insert 1
+section    fx7_2
+showIf     410 7
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p905     label="LFO Freq Mod Int" color=fx max=231 displayOffset=115 wireSigned=1 names=@va32aaa asDial=1 group=1 param=7049 dumpOffset=416
+dial p909     label="Depth" color=fx max=100 display=raw group=1 param=7053 dumpOffset=418
+dial p910     label="Fdbk" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7054 dumpOffset=419
+dial p911     label="High Damp" color=fx max=100 display=raw group=1 param=7055 dumpOffset=420
+dial p912     label="Flanger Output Phase" color=fx max=3 names=@v5514af group=1 param=7056 dumpOffset=421
+dial p913     label="Effect Bal" color=fx max=101 display=raw group=1 param=7057 dumpOffset=422
+dial p914     label="Effect Bal Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7058 dumpOffset=423
+dial p915     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7059 dumpOffset=424
+
+page       Prog | Effects | Insert 1
+section    fx8_1
+showIf     410 8
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p916     label="LFO Wave Form" color=fx max=2 names=@vccfdd2 group=1 param=7060 dumpOffset=411
+dial p917     label="LFO Shape" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7061 dumpOffset=412
+dial p921     label="MIDI Sync" color=fx max=2 names=@v7bf299 group=1 param=7065 dumpOffset=416 dumpShift=7 dumpMask=0x1
+dial p918     label="LFO Freq" color=fx max=115 offset=1 names=@v19705d asDial=1 group=1 param=7062 dumpOffset=413
+dial p922     label="MIDI Sync Base" color=fx max=8 names=@v69c040 group=1 param=7066 dumpOffset=416 dumpShift=4 dumpMask=0x7
+dial p919     label="LFO Freq Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7063 dumpOffset=414
+dial p923     label="MIDI Sync Time" color=fx max=16 names=@va0aefd group=1 param=7067 dumpOffset=416 dumpShift=0 dumpMask=0xF
+dial p920     label="LFO Freq Mod Int" color=fx max=231 displayOffset=115 wireSigned=1 names=@va32aaa asDial=1 group=1 param=7064 dumpOffset=415
+
+page       Prog | Effects | Insert 1
+section    fx8_2
+showIf     410 8
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p924     label="Manual" color=fx max=100 display=raw group=1 param=7068 dumpOffset=417
+dial p925     label="Depth" color=fx max=100 display=raw group=1 param=7069 dumpOffset=418
+dial p926     label="Reso" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7070 dumpOffset=419
+dial p927     label="High Damp" color=fx max=100 display=raw group=1 param=7071 dumpOffset=420
+dial p928     label="Phaser Output Phase" color=fx max=3 names=@v5514af group=1 param=7072 dumpOffset=421
+dial p929     label="Effect Bal" color=fx max=101 display=raw group=1 param=7073 dumpOffset=422
+dial p930     label="Effect Bal Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7074 dumpOffset=423
+dial p931     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7075 dumpOffset=424
+
+page       Prog | Effects | Insert 1
+section    fx9_1
+showIf     410 9
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p932     label="Speed" color=fx max=2 names=@vf13402 group=1 param=7076 dumpOffset=411
+dial p933     label="Speed SW" color=fx max=46 names=@vce3db9 group=1 param=7077 dumpOffset=412
+dial p934     label="Horn Acceleration" color=fx max=100 display=raw group=1 param=7078 dumpOffset=413
+dial p935     label="Horn Rate" color=fx max=100 display=raw group=1 param=7079 dumpOffset=414
+dial p936     label="Mic Distance" color=fx max=100 display=raw group=1 param=7080 dumpOffset=415
+dial p937     label="Horn/Rotor Bal" color=fx max=100 display=raw group=1 param=7081 dumpOffset=416
+dial p938     label="Effect Bal" color=fx max=101 display=raw group=1 param=7082 dumpOffset=417
+dial p939     label="Effect Bal Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7083 dumpOffset=418
+
+page       Prog | Effects | Insert 1
+section    fx9_2
+showIf     410 9
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p940     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7084 dumpOffset=419
+
+page       Prog | Effects | Insert 1
+section    fx10_1
+showIf     410 10
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p941     label="Input Level Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7085 dumpOffset=411
+dial p943     label="Delay Time" color=fx max=252 names=@v097bb0 asDial=1 group=1 param=7087 dumpOffset=413
+dial p942     label="Input Level Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7086 dumpOffset=412
+dial p944     label="Fdbk" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7088 dumpOffset=414
+dial p947     label="Low Damp" color=fx max=100 display=raw group=1 param=7091 dumpOffset=417
+dial p948     label="High Damp" color=fx max=100 display=raw group=1 param=7092 dumpOffset=418
+dial p945     label="Fdbk Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7089 dumpOffset=415
+dial p946     label="Fdbk Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7090 dumpOffset=416
+
+page       Prog | Effects | Insert 1
+section    fx10_2
+showIf     410 10
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p949     label="Effect Bal" color=fx max=101 display=raw group=1 param=7093 dumpOffset=419
+dial p950     label="Effect Bal Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7094 dumpOffset=420
+dial p951     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7095 dumpOffset=421
+
+page       Prog | Effects | Insert 1
+section    fx11_1
+showIf     410 11
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p952     label="Ctrl Mode" color=fx max=2 names=@vb93e51 group=1 param=7096 dumpOffset=411
+dial p953     label="Manual Ctrl" color=fx max=100 display=raw group=1 param=7097 dumpOffset=412
+dial p954     label="Ctrl Src" color=fx max=46 names=@vce3db9 group=1 param=7098 dumpOffset=413
+dial p955     label="Voice Top" color=fx max=5 names=@vcfd4dc group=1 param=7099 dumpOffset=414
+dial p956     label="Voice Center" color=fx max=5 names=@vcfd4dc group=1 param=7100 dumpOffset=415
+dial p957     label="Voice Bottom" color=fx max=5 names=@vcfd4dc group=1 param=7101 dumpOffset=416
+dial p958     label="Formant Shift" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7102 dumpOffset=417
+dial p959     label="Reso" color=fx max=100 display=raw group=1 param=7103 dumpOffset=418
+
+page       Prog | Effects | Insert 1
+section    fx11_2
+showIf     410 11
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p960     label="Effect Bal" color=fx max=101 display=raw group=1 param=7104 dumpOffset=419
+dial p961     label="Effect Bal Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7105 dumpOffset=420
+dial p962     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7106 dumpOffset=421
+
+page       Prog | Effects | Insert 1
+section    fx12_1
+showIf     410 12
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p963     label="Type" color=fx max=5 names=@v90893b group=1 param=7107 dumpOffset=411
+dial p972     label="Low Damp" color=fx max=100 display=raw group=1 param=7116 dumpOffset=420
+dial p973     label="High Damp" color=fx max=100 display=raw group=1 param=7117 dumpOffset=421
+dial p966     label="Tap1 Time" color=fx max=252 names=@v097bb0 asDial=1 group=1 param=7110 dumpOffset=414
+dial p967     label="Tap1 Level" color=fx max=100 display=raw group=1 param=7111 dumpOffset=415
+dial p968     label="Tap2 Time" color=fx max=252 names=@v097bb0 asDial=1 group=1 param=7112 dumpOffset=416
+dial p964     label="Input Level Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7108 dumpOffset=412
+
+page       Prog | Effects | Insert 1
+section    fx12_2
+showIf     410 12
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p965     label="Input Level Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7109 dumpOffset=413
+dial p969     label="Fdbk" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7113 dumpOffset=417
+dial p970     label="Fdbk Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7114 dumpOffset=418
+dial p971     label="Fdbk Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7115 dumpOffset=419
+dial p974     label="Spread" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7118 dumpOffset=422
+dial p975     label="Spread Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7119 dumpOffset=423
+dial p976     label="Spread Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7120 dumpOffset=424
+dial p977     label="Effect Bal" color=fx max=101 display=raw group=1 param=7121 dumpOffset=425
+
+page       Prog | Effects | Insert 1
+section    fx12_3
+showIf     410 12
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p978     label="Effect Bal Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7122 dumpOffset=426
+dial p979     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7123 dumpOffset=427
+
+page       Prog | Effects | Insert 1
+section    fx13_1
+showIf     410 13
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p980     label="Speed" color=fx max=100 display=raw group=1 param=7124 dumpOffset=411
+dial p981     label="Speed Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7125 dumpOffset=412
+dial p982     label="Speed Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7126 dumpOffset=413
+dial p983     label="Shimmer" color=fx max=100 display=raw group=1 param=7127 dumpOffset=414
+dial p984     label="Depth" color=fx max=100 display=raw group=1 param=7128 dumpOffset=415
+dial p985     label="Depth Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7129 dumpOffset=416
+dial p986     label="Depth Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7130 dumpOffset=417
+dial p987     label="Param 987" color=fx max=101 display=raw group=1 param=7131 dumpOffset=418
+
+page       Prog | Effects | Insert 1
+section    fx13_2
+showIf     410 13
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p988     label="Effect Bal Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7132 dumpOffset=419
+dial p989     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7133 dumpOffset=420
+
+page       Prog | Effects | Insert 1
+section    fx14_1
+showIf     410 14
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p990     label="Speed" color=fx max=2 names=@vf13402 group=1 param=7134 dumpOffset=411
+dial p992     label="Mode" color=fx max=2 names=@v6615dd group=1 param=7136 dumpOffset=413
+dial p991     label="Speed SW" color=fx max=46 names=@vce3db9 group=1 param=7135 dumpOffset=412
+dial p993     label="Mode SW" color=fx max=46 names=@vce3db9 group=1 param=7137 dumpOffset=414
+
+page       Prog | Effects | Insert 1
+section    fx14_2
+showIf     410 14
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p994     label="Rotor Acceleration" color=fx max=100 display=raw group=1 param=7138 dumpOffset=415
+dial p995     label="Rotor Rate" color=fx max=100 display=raw group=1 param=7139 dumpOffset=416
+dial p996     label="Horn Acceleration" color=fx max=100 display=raw group=1 param=7140 dumpOffset=417
+dial p997     label="Horn Rate" color=fx max=100 display=raw group=1 param=7141 dumpOffset=418
+dial p998     label="Mic Distance" color=fx max=100 display=raw group=1 param=7142 dumpOffset=419
+dial p999     label="Mic Spread" color=fx max=100 display=raw group=1 param=7143 dumpOffset=420
+dial p1000    label="Horn/Rotor Bal" color=fx max=100 display=raw group=1 param=7144 dumpOffset=421
+dial p1001    label="Effect Bal" color=fx max=101 display=raw group=1 param=7145 dumpOffset=422
+
+page       Prog | Effects | Insert 1
+section    fx14_3
+showIf     410 14
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p1002    label="Effect Bal Mod Src" color=fx max=46 names=@vce3db9 group=1 param=7146 dumpOffset=423
+dial p1003    label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=7147 dumpOffset=424
+
+page       Prog | Effects | Master
+section    mfxsel
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p361     label="Type" color=fx max=3 names=@vbd0b16 group=1 param=361 dumpOffset=456
+
+page       Prog | Effects | Master
+section    mfx0_1
+showIf     456 0
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p1004    label="Type" color=fx max=2 names=@vd9dab7 group=1 param=11244 dumpOffset=457
+dial p1007    label="Left Delay Time" color=fx max=252 names=@v097bb0 asDial=1 group=1 param=11247 dumpOffset=460
+dial p1008    label="Right Delay Time" color=fx max=252 names=@v097bb0 asDial=1 group=1 param=11248 dumpOffset=461
+dial p1005    label="Input Level Mod Src" color=fx max=46 names=@vce3db9 group=1 param=11245 dumpOffset=458
+dial p1006    label="Input Level Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=11246 dumpOffset=459
+dial p1009    label="Fdbk(L)" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=11249 dumpOffset=462
+dial p1013    label="Low Damp" color=fx max=100 display=raw group=1 param=11253 dumpOffset=466
+dial p1014    label="High Damp" color=fx max=100 display=raw group=1 param=11254 dumpOffset=467
+
+page       Prog | Effects | Master
+section    mfx0_2
+showIf     456 0
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p1010    label="Fdbk(R)" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=11250 dumpOffset=463
+dial p1011    label="Fdbk Mod Src" color=fx max=46 names=@vce3db9 group=1 param=11251 dumpOffset=464
+dial p1012    label="Fdbk Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=11252 dumpOffset=465
+dial p1015    label="Effect Bal" color=fx max=101 display=raw group=1 param=11255 dumpOffset=468
+dial p1016    label="Effect Bal Mod Src" color=fx max=46 names=@vce3db9 group=1 param=11256 dumpOffset=469
+dial p1017    label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=11257 dumpOffset=470
+
+page       Prog | Effects | Master
+section    mfx1_1
+showIf     456 1
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p1018    label="Reverb Time" color=fx max=100 offset=1 names=@vde7d15 asDial=1 group=1 param=11258 dumpOffset=457
+dial p1022    label="Pre EQ Trim" color=fx max=100 display=raw group=1 param=11262 dumpOffset=461
+dial p1023    label="Pre Low EQ Gain" color=fx max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=1 param=11263 dumpOffset=462
+dial p1024    label="Pre High EQ Gain" color=fx max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=1 param=11264 dumpOffset=463
+dial p1019    label="Pre Delay" color=fx max=201 display=raw group=1 param=11259 dumpOffset=458
+dial p1021    label="High Damp" color=fx max=100 display=raw group=1 param=11261 dumpOffset=460
+dial p1020    label="Thru level" color=fx max=100 display=raw group=1 param=11260 dumpOffset=459
+dial p1025    label="Effect Bal" color=fx max=101 display=raw group=1 param=11265 dumpOffset=464
+
+page       Prog | Effects | Master
+section    mfx1_2
+showIf     456 1
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p1026    label="Effect Bal Mod Src" color=fx max=46 names=@vce3db9 group=1 param=11266 dumpOffset=465
+dial p1027    label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=11267 dumpOffset=466
+
+page       Prog | Effects | Master
+section    mfx2_1
+showIf     456 2
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p1028    label="Reverb Time" color=fx max=30 offset=1 names=@v936f87 asDial=1 group=1 param=11268 dumpOffset=457
+dial p1034    label="Pre EQ Trim" color=fx max=100 display=raw group=1 param=11274 dumpOffset=463
+dial p1035    label="Pre Low EQ Gain" color=fx max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=1 param=11275 dumpOffset=464
+dial p1036    label="Pre High EQ Gain" color=fx max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=1 param=11276 dumpOffset=465
+dial p1029    label="Pre Delay" color=fx max=201 display=raw group=1 param=11269 dumpOffset=458
+dial p1031    label="High Damp" color=fx max=100 display=raw group=1 param=11271 dumpOffset=460
+dial p1032    label="ER. Level" color=fx max=100 display=raw group=1 param=11272 dumpOffset=461
+dial p1033    label="Reverb Level" color=fx max=100 display=raw group=1 param=11273 dumpOffset=462
+
+page       Prog | Effects | Master
+section    mfx2_2
+showIf     456 2
+dialSize   40
+spacing    50
+
+color fx 0.9 0.5 0.7
+
+dial p1030    label="Pre Delay Thru Level" color=fx max=100 display=raw group=1 param=11270 dumpOffset=459
+dial p1037    label="Effect Bal" color=fx max=101 display=raw group=1 param=11277 dumpOffset=466
+dial p1038    label="Effect Bal Mod Src" color=fx max=46 names=@vce3db9 group=1 param=11278 dumpOffset=467
+dial p1039    label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=11279 dumpOffset=468
+# ══ END GENERATED Effects
+
+# ══ BEGIN GENERATED Control
+# ── Control ───────────────────────────────────────────────────────────────────
+# GENERATED from the Z1's parameter tables - regenerate rather than edit by hand.
+
+page       Prog | Control | Controllers
+section    ctl1
+dialSize   40
+spacing    50
+
+color ctl 0.7 0.8 0.5
+
+dial p366     label="SW1 Function" color=ctl max=8 names=@v725f47 group=1 param=366 dumpOffset=479 dumpShift=0 dumpMask=0x7F
+dial p367     label="SW1 Mode" color=ctl max=2 names=@v49d324 group=1 param=367 dumpOffset=479 dumpShift=7 dumpMask=0x1
+dial p368     label="SW2 Function" color=ctl max=8 names=@v6c31bc group=1 param=368 dumpOffset=480 dumpShift=0 dumpMask=0x7F
+dial p369     label="SW2 Mode" color=ctl max=2 names=@v49d324 group=1 param=369 dumpOffset=480 dumpShift=7 dumpMask=0x1
+dial p370     label="Assignable Foot SW Function" color=ctl max=13 names=@v15b1c4 group=1 param=370 dumpOffset=481 dumpShift=0 dumpMask=0x7F
+dial p371     label="Assignable Foot SW Mode" color=ctl max=2 names=@v49d324 group=1 param=371 dumpOffset=481 dumpShift=7 dumpMask=0x1
+dial p372     label="Assignable Pedal Function" color=ctl max=6 names=@v523f15 group=1 param=372 dumpOffset=482 dumpShift=0 dumpMask=0x7
+
+page       Prog | Control | Controllers
+section    ctl1w1
+dialSize   40
+spacing    50
+
+color ctl 0.7 0.8 0.5
+
+dial p373     label="Pad Hold" color=ctl max=2 names=@v7bf299 group=1 param=373 dumpOffset=482 dumpShift=3 dumpMask=0x1
+
+page       Prog | Control | Controllers
+section    ctl2
+dialSize   40
+spacing    50
+
+color ctl 0.7 0.8 0.5
+
+dial p374     label="Pattern" color=ctl max=20 displayOffset=0 wireSigned=1 names=@vb7cdb4 group=1 param=374 dumpOffset=483
+dial p375     label="Latch" color=ctl max=2 names=@v7bf299 group=1 param=375 dumpOffset=484 dumpShift=0 dumpMask=0x1
+dial p376     label="Key Sync" color=ctl max=2 names=@v7bf299 group=1 param=376 dumpOffset=484 dumpShift=1 dumpMask=0x1
+dial p377     label="Octave" color=ctl max=4 names=@v1d1439 group=1 param=377 dumpOffset=484 dumpShift=2 dumpMask=0x3
+dial p378     label="Keyboard OFF/ON" color=ctl max=2 names=@v7bf299 group=1 param=378 dumpOffset=484 dumpShift=4 dumpMask=0x1
+dial p379     label="Auto Run" color=ctl max=2 names=@v7bf299 group=1 param=379 dumpOffset=484 dumpShift=5 dumpMask=0x1
+dial p380     label="VelCtrl" color=ctl max=255 displayOffset=127 wireSigned=1 display=signed group=1 param=380 dumpOffset=485
+dial p381     label="GateCtrl" color=ctl max=255 displayOffset=127 wireSigned=1 display=signed group=1 param=381 dumpOffset=486
+
+page       Prog | Control | Controllers
+section    ctl3
+dialSize   40
+spacing    50
+
+color ctl 0.7 0.8 0.5
+
+dial p382     label="Resolution" color=ctl max=6 names=@v37167f group=1 param=382 dumpOffset=487
+dial p383     label="Speed" color=ctl max=256 names=@v401711 asDial=1 group=1 param=383 dumpOffset=488
+
+page       Prog | Control | PE 1
+section    pe1_1
+dialSize   40
+spacing    50
+
+color ctl 0.7 0.8 0.5
+
+dial p384     label="1 Parameter" color=ctl max=231 names=@v4f4c98 group=1 param=384 dumpOffset=496
+dial p385     label="1 Left Value" color=ctl max=101 display=raw group=1 param=385 dumpOffset=497
+dial p386     label="1 Right Value" color=ctl max=101 display=raw group=1 param=386 dumpOffset=498
+dial p387     label="1 Curve" color=ctl max=4 names=@v2400cb group=1 param=387 dumpOffset=499
+
+page       Prog | Control | PE 1
+section    pe1_2
+dialSize   40
+spacing    50
+
+color ctl 0.7 0.8 0.5
+
+dial p388     label="2 Parameter" color=ctl max=231 names=@v4f4c98 group=1 param=388 dumpOffset=500
+dial p389     label="2 Left Value" color=ctl max=101 display=raw group=1 param=389 dumpOffset=501
+dial p390     label="2 Right Value" color=ctl max=101 display=raw group=1 param=390 dumpOffset=502
+dial p391     label="2 Curve" color=ctl max=4 names=@v2400cb group=1 param=391 dumpOffset=503
+
+page       Prog | Control | PE 1
+section    pe1_3
+dialSize   40
+spacing    50
+
+color ctl 0.7 0.8 0.5
+
+dial p392     label="3 Parameter" color=ctl max=231 names=@v4f4c98 group=1 param=392 dumpOffset=504
+dial p393     label="3 Left Value" color=ctl max=101 display=raw group=1 param=393 dumpOffset=505
+dial p394     label="3 Right Value" color=ctl max=101 display=raw group=1 param=394 dumpOffset=506
+dial p395     label="3 Curve" color=ctl max=4 names=@v2400cb group=1 param=395 dumpOffset=507
+
+page       Prog | Control | PE 1
+section    pe1_4
+dialSize   40
+spacing    50
+
+color ctl 0.7 0.8 0.5
+
+dial p396     label="4 Parameter" color=ctl max=231 names=@v4f4c98 group=1 param=396 dumpOffset=508
+dial p397     label="4 Left Value" color=ctl max=101 display=raw group=1 param=397 dumpOffset=509
+dial p398     label="4 Right Value" color=ctl max=101 display=raw group=1 param=398 dumpOffset=510
+dial p399     label="4 Curve" color=ctl max=4 names=@v2400cb group=1 param=399 dumpOffset=511
+
+page       Prog | Control | PE 2
+section    pe2_1
+dialSize   40
+spacing    50
+
+color ctl 0.7 0.8 0.5
+
+dial p400     label="1 Parameter" color=ctl max=231 names=@v4f4c98 group=1 param=400 dumpOffset=512
+dial p401     label="1 Left Value" color=ctl max=101 display=raw group=1 param=401 dumpOffset=513
+dial p402     label="1 Right Value" color=ctl max=101 display=raw group=1 param=402 dumpOffset=514
+dial p403     label="1 Curve" color=ctl max=4 names=@v2400cb group=1 param=403 dumpOffset=515
+
+page       Prog | Control | PE 2
+section    pe2_2
+dialSize   40
+spacing    50
+
+color ctl 0.7 0.8 0.5
+
+dial p404     label="2 Parameter" color=ctl max=231 names=@v4f4c98 group=1 param=404 dumpOffset=516
+dial p405     label="2 Left Value" color=ctl max=101 display=raw group=1 param=405 dumpOffset=517
+dial p406     label="2 Right Value" color=ctl max=101 display=raw group=1 param=406 dumpOffset=518
+dial p407     label="2 Curve" color=ctl max=4 names=@v2400cb group=1 param=407 dumpOffset=519
+
+page       Prog | Control | PE 2
+section    pe2_3
+dialSize   40
+spacing    50
+
+color ctl 0.7 0.8 0.5
+
+dial p408     label="3 Parameter" color=ctl max=231 names=@v4f4c98 group=1 param=408 dumpOffset=520
+dial p409     label="3 Left Value" color=ctl max=101 display=raw group=1 param=409 dumpOffset=521
+dial p410     label="3 Right Value" color=ctl max=101 display=raw group=1 param=410 dumpOffset=522
+dial p411     label="3 Curve" color=ctl max=4 names=@v2400cb group=1 param=411 dumpOffset=523
+
+page       Prog | Control | PE 2
+section    pe2_4
+dialSize   40
+spacing    50
+
+color ctl 0.7 0.8 0.5
+
+dial p412     label="4 Parameter" color=ctl max=231 names=@v4f4c98 group=1 param=412 dumpOffset=524
+dial p413     label="4 Left Value" color=ctl max=101 display=raw group=1 param=413 dumpOffset=525
+dial p414     label="4 Right Value" color=ctl max=101 display=raw group=1 param=414 dumpOffset=526
+dial p415     label="4 Curve" color=ctl max=4 names=@v2400cb group=1 param=415 dumpOffset=527
+
+page       Prog | Control | PE 3
+section    pe3_1
+dialSize   40
+spacing    50
+
+color ctl 0.7 0.8 0.5
+
+dial p416     label="1 Parameter" color=ctl max=231 names=@v4f4c98 group=1 param=416 dumpOffset=528
+dial p417     label="1 Left Value" color=ctl max=101 display=raw group=1 param=417 dumpOffset=529
+dial p418     label="1 Right Value" color=ctl max=101 display=raw group=1 param=418 dumpOffset=530
+dial p419     label="1 Curve" color=ctl max=4 names=@v2400cb group=1 param=419 dumpOffset=531
+
+page       Prog | Control | PE 3
+section    pe3_2
+dialSize   40
+spacing    50
+
+color ctl 0.7 0.8 0.5
+
+dial p420     label="2 Parameter" color=ctl max=231 names=@v4f4c98 group=1 param=420 dumpOffset=532
+dial p421     label="2 Left Value" color=ctl max=101 display=raw group=1 param=421 dumpOffset=533
+dial p422     label="2 Right Value" color=ctl max=101 display=raw group=1 param=422 dumpOffset=534
+dial p423     label="2 Curve" color=ctl max=4 names=@v2400cb group=1 param=423 dumpOffset=535
+
+page       Prog | Control | PE 3
+section    pe3_3
+dialSize   40
+spacing    50
+
+color ctl 0.7 0.8 0.5
+
+dial p424     label="3 Parameter" color=ctl max=231 names=@v4f4c98 group=1 param=424 dumpOffset=536
+dial p425     label="3 Left Value" color=ctl max=101 display=raw group=1 param=425 dumpOffset=537
+dial p426     label="3 Right Value" color=ctl max=101 display=raw group=1 param=426 dumpOffset=538
+dial p427     label="3 Curve" color=ctl max=4 names=@v2400cb group=1 param=427 dumpOffset=539
+
+page       Prog | Control | PE 3
+section    pe3_4
+dialSize   40
+spacing    50
+
+color ctl 0.7 0.8 0.5
+
+dial p428     label="4 Parameter" color=ctl max=231 names=@v4f4c98 group=1 param=428 dumpOffset=540
+dial p429     label="4 Left Value" color=ctl max=101 display=raw group=1 param=429 dumpOffset=541
+dial p430     label="4 Right Value" color=ctl max=101 display=raw group=1 param=430 dumpOffset=542
+dial p431     label="4 Curve" color=ctl max=4 names=@v2400cb group=1 param=431 dumpOffset=543
+
+page       Prog | Control | PE 4
+section    pe4_1
+dialSize   40
+spacing    50
+
+color ctl 0.7 0.8 0.5
+
+dial p432     label="1 Parameter" color=ctl max=231 names=@v4f4c98 group=1 param=432 dumpOffset=544
+dial p433     label="1 Left Value" color=ctl max=101 display=raw group=1 param=433 dumpOffset=545
+dial p434     label="1 Right Value" color=ctl max=101 display=raw group=1 param=434 dumpOffset=546
+dial p435     label="1 Curve" color=ctl max=4 names=@v2400cb group=1 param=435 dumpOffset=547
+
+page       Prog | Control | PE 4
+section    pe4_2
+dialSize   40
+spacing    50
+
+color ctl 0.7 0.8 0.5
+
+dial p436     label="2 Parameter" color=ctl max=231 names=@v4f4c98 group=1 param=436 dumpOffset=548
+dial p437     label="2 Left Value" color=ctl max=101 display=raw group=1 param=437 dumpOffset=549
+dial p438     label="2 Right Value" color=ctl max=101 display=raw group=1 param=438 dumpOffset=550
+dial p439     label="2 Curve" color=ctl max=4 names=@v2400cb group=1 param=439 dumpOffset=551
+
+page       Prog | Control | PE 4
+section    pe4_3
+dialSize   40
+spacing    50
+
+color ctl 0.7 0.8 0.5
+
+dial p440     label="3 Parameter" color=ctl max=231 names=@v4f4c98 group=1 param=440 dumpOffset=552
+dial p441     label="3 Left Value" color=ctl max=101 display=raw group=1 param=441 dumpOffset=553
+dial p442     label="3 Right Value" color=ctl max=101 display=raw group=1 param=442 dumpOffset=554
+dial p443     label="3 Curve" color=ctl max=4 names=@v2400cb group=1 param=443 dumpOffset=555
+
+page       Prog | Control | PE 4
+section    pe4_4
+dialSize   40
+spacing    50
+
+color ctl 0.7 0.8 0.5
+
+dial p444     label="4 Parameter" color=ctl max=231 names=@v4f4c98 group=1 param=444 dumpOffset=556
+dial p445     label="4 Left Value" color=ctl max=101 display=raw group=1 param=445 dumpOffset=557
+dial p446     label="4 Right Value" color=ctl max=101 display=raw group=1 param=446 dumpOffset=558
+dial p447     label="4 Curve" color=ctl max=4 names=@v2400cb group=1 param=447 dumpOffset=559
+
+page       Prog | Control | PE 5
+section    pe5_1
+dialSize   40
+spacing    50
+
+color ctl 0.7 0.8 0.5
+
+dial p448     label="1 Parameter" color=ctl max=231 names=@v4f4c98 group=1 param=448 dumpOffset=560
+dial p449     label="1 Left Value" color=ctl max=101 display=raw group=1 param=449 dumpOffset=561
+dial p450     label="1 Right Value" color=ctl max=101 display=raw group=1 param=450 dumpOffset=562
+dial p451     label="1 Curve" color=ctl max=4 names=@v2400cb group=1 param=451 dumpOffset=563
+
+page       Prog | Control | PE 5
+section    pe5_2
+dialSize   40
+spacing    50
+
+color ctl 0.7 0.8 0.5
+
+dial p452     label="2 Parameter" color=ctl max=231 names=@v4f4c98 group=1 param=452 dumpOffset=564
+dial p453     label="2 Left Value" color=ctl max=101 display=raw group=1 param=453 dumpOffset=565
+dial p454     label="2 Right Value" color=ctl max=101 display=raw group=1 param=454 dumpOffset=566
+dial p455     label="2 Curve" color=ctl max=4 names=@v2400cb group=1 param=455 dumpOffset=567
+
+page       Prog | Control | PE 5
+section    pe5_3
+dialSize   40
+spacing    50
+
+color ctl 0.7 0.8 0.5
+
+dial p456     label="3 Parameter" color=ctl max=231 names=@v4f4c98 group=1 param=456 dumpOffset=568
+dial p457     label="3 Left Value" color=ctl max=101 display=raw group=1 param=457 dumpOffset=569
+dial p458     label="3 Right Value" color=ctl max=101 display=raw group=1 param=458 dumpOffset=570
+dial p459     label="3 Curve" color=ctl max=4 names=@v2400cb group=1 param=459 dumpOffset=571
+
+page       Prog | Control | PE 5
+section    pe5_4
+dialSize   40
+spacing    50
+
+color ctl 0.7 0.8 0.5
+
+dial p460     label="4 Parameter" color=ctl max=231 names=@v4f4c98 group=1 param=460 dumpOffset=572
+dial p461     label="4 Left Value" color=ctl max=101 display=raw group=1 param=461 dumpOffset=573
+dial p462     label="4 Right Value" color=ctl max=101 display=raw group=1 param=462 dumpOffset=574
+dial p463     label="4 Curve" color=ctl max=4 names=@v2400cb group=1 param=463 dumpOffset=575
+# ══ END GENERATED Control
+
+# ══ BEGIN GENERATED Remaining parameters of the areas above
+# ── Remaining parameters of the areas above ───────────────────────────────────
+# GENERATED from the Z1's parameter tables - regenerate rather than edit by hand.
+
+page       Prog | Common
+section    commonx1
+dialSize   40
+spacing    50
+
+color gen 0.9 0.7 0.3
+
+dial p18      label="User Group" color=gen max=16 names=@v3ffa0b group=1 param=18 dumpOffset=17
+dial p19      label="Hold" color=gen max=2 names=@v7bf299 group=1 param=19 dumpOffset=18 dumpShift=0 dumpMask=0x1
+dial p20      label="Key Priority" color=gen max=3 names=@ve099f0 group=1 param=20 dumpOffset=18 dumpShift=1 dumpMask=0x3
+dial p22      label="Retrigger Ctrl" color=gen max=46 names=@vce3db9 group=1 param=22 dumpOffset=19
+dial p23      label="Retrigger Ctrl Thresh" color=gen max=127 offset=1 names=@v601b3c asDial=1 group=1 param=23 dumpOffset=20
+
+page       Prog | Common
+section    commonx2
+dialSize   40
+spacing    50
+
+color gen 0.9 0.7 0.3
+
+dial p28      label="Scale Key" color=gen max=12 names=@vb763e5 group=1 param=28 dumpOffset=23 dumpShift=0 dumpMask=0xF
+dial p29      label="Scale Type" color=gen max=11 names=@vebcac2 group=1 param=29 dumpOffset=23 dumpShift=4 dumpMask=0xF
+dial p30      label="Random Pitch Int" color=gen max=100 display=raw group=1 param=30 dumpOffset=24
+
+page       Prog | OSC | Common
+section    osccommonx1
+dialSize   40
+spacing    50
+
+color gen 0.9 0.7 0.3
+
+dial p167     label="Common Pitch Mod Src" color=gen max=49 names=@vcac915 group=1 param=167 dumpOffset=148
+dial p168     label="Common Pitch Mod Int" color=gen max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=168 dumpOffset=149
+dial p172     label="Portamento Time Mod Src" color=gen max=49 names=@vcac915 group=1 param=172 dumpOffset=152
+dial p173     label="Portamento Time Mod Int" color=gen max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=173 dumpOffset=153
+
+page       Prog | OSC | Sub OSC
+section    subx1
+dialSize   40
+spacing    50
+
+color gen 0.6 0.6 0.9
+
+dial p209     label="Mod1 Src" color=gen max=49 names=@vcac915 group=1 param=209 dumpOffset=265
+dial p210     label="Mod1 Int" color=gen max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=210 dumpOffset=266
+dial p211     label="Mod1 IntCtrl" color=gen max=49 names=@vcac915 group=1 param=211 dumpOffset=267
+dial p212     label="Mod1 IntCtrl Int" color=gen max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=212 dumpOffset=268
+dial p213     label="Mod2 Src" color=gen max=49 names=@vcac915 group=1 param=213 dumpOffset=269
+dial p214     label="Mod2 Int" color=gen max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=214 dumpOffset=270
+
+page       Prog | OSC | Sub OSC
+section    subx2
+dialSize   40
+spacing    50
+
+color gen 0.6 0.6 0.9
+
+dial p206     label="Center Key" color=gen max=128 names=@vc2ba68 group=1 param=206 dumpOffset=262
+dial p207     label="Lower Slope" color=gen max=151 displayOffset=50 wireSigned=1 names=@v5ca5ab asDial=1 group=1 param=207 dumpOffset=263
+dial p208     label="Higher Slope" color=gen max=151 displayOffset=50 wireSigned=1 names=@v5ca5ab asDial=1 group=1 param=208 dumpOffset=264
+
+page       Prog | OSC | Noise
+section    noisex1
+dialSize   40
+spacing    50
+
+color gen 0.7 0.7 0.7
+
+dial p219     label="Noise Filter Cutoff Mod1 Src" color=gen max=49 names=@vcac915 group=1 param=219 dumpOffset=275
+dial p220     label="Noise Filter Cutoff Mod1 Int" color=gen max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=220 dumpOffset=276
+dial p221     label="Noise Filter Cutoff Mod2 Src" color=gen max=49 names=@vcac915 group=1 param=221 dumpOffset=277
+dial p222     label="Noise Filter Cutoff Mod2 Int" color=gen max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=222 dumpOffset=278
+
+page       Prog | Mixer
+section    mixerx1
+dialSize   40
+spacing    50
+
+color gen 0.8 0.6 0.4
+
+dial p225     label="O1 Out1 Level Mod Src" color=gen max=49 names=@vcac915 group=1 param=225 dumpOffset=281
+dial p226     label="O1 Out1 Level Mod Int" color=gen max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=226 dumpOffset=282
+dial p231     label="O1 Out2 Level Mod Src" color=gen max=49 names=@vcac915 group=1 param=231 dumpOffset=287
+dial p232     label="O1 Out2 Level Mod Int" color=gen max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=232 dumpOffset=288
+dial p237     label="SUB OSC Out1 Level Mod Src" color=gen max=49 names=@vcac915 group=1 param=237 dumpOffset=293
+dial p238     label="SUB OSC Out1 Level Mod Int" color=gen max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=238 dumpOffset=294
+
+page       Prog | Mixer
+section    mixerx2
+dialSize   40
+spacing    50
+
+color gen 0.8 0.6 0.4
+
+dial p243     label="NOISE Out1 Level Mod Src" color=gen max=49 names=@vcac915 group=1 param=243 dumpOffset=299
+dial p244     label="NOISE Out1 Level Mod Int" color=gen max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=244 dumpOffset=300
+dial p249     label="FB Out1 Level Mod Src" color=gen max=49 names=@vcac915 group=1 param=249 dumpOffset=305
+dial p250     label="FB Out1 Level Mod Int" color=gen max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=250 dumpOffset=306
+
+page       Prog | Mixer
+section    mixerx3
+dialSize   40
+spacing    50
+
+color gen 0.8 0.6 0.4
+
+dial p228     label="O1 Out2 Level Mod Src" color=gen max=49 names=@vcac915 group=1 param=228 dumpOffset=284
+dial p229     label="O1 Out2 Level Mod Int" color=gen max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=229 dumpOffset=285
+dial p234     label="O2 Out2 Level Mod Src" color=gen max=49 names=@vcac915 group=1 param=234 dumpOffset=290
+dial p235     label="O2 Out2 Level Mod Int" color=gen max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=235 dumpOffset=291
+
+page       Prog | Mixer
+section    mixerx4
+dialSize   40
+spacing    50
+
+color gen 0.8 0.6 0.4
+
+dial p240     label="SUB OSC Out2 Level Mod Src" color=gen max=49 names=@vcac915 group=1 param=240 dumpOffset=296
+dial p241     label="SUB OSC Out2 Level Mod Int" color=gen max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=241 dumpOffset=297
+dial p246     label="NOISE Out2 Level Mod Src" color=gen max=49 names=@vcac915 group=1 param=246 dumpOffset=302
+dial p247     label="NOISE Out2 Level Mod Int" color=gen max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=247 dumpOffset=303
+
+page       Prog | Mixer
+section    mixerx5
+dialSize   40
+spacing    50
+
+color gen 0.8 0.6 0.4
+
+dial p252     label="FB Out2 Level Mod Src" color=gen max=49 names=@vcac915 group=1 param=252 dumpOffset=308
+dial p253     label="FB Out2 Level Mod Int" color=gen max=199 displayOffset=99 wireSigned=1 display=signed group=1 param=253 dumpOffset=309
+# ══ END GENERATED Remaining parameters of the areas above

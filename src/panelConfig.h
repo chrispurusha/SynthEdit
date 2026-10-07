@@ -39,12 +39,13 @@ extern "C" {
 #define PANEL_MAX_MODE_TABS        16
 #define PANEL_MAX_PAGE_VARIANTS    8
 #define PANEL_MAX_TAB_LABELS       8
-#define PANEL_MAX_NAMES            65 // raised from 20 to 32 2026-07-10 (Voyager's soundCategory, a full 32-value enum, 0-31); raised from 32 to 48 2026-07-11 — Voyager's pgmShaping1Src/pgmShaping2Src are 43-value enums (0-42), values >= the old 32 cap silently had no stored name and rendered as "?"; raised from 48 to 65 2026-07-13 — Voyager's tsGateCtrl uses storageOffset to give TS Gate's MIDI Ctrl No (64-127 plus a distinct Off state) a proper named 65-value enum instead of a raw 0-128 dial with an unlabeled dead zone below 64
+#define PANEL_MAX_NAMES            256 // notes §53 (was 65: each dial carried a fixed array of this many names)
 #define PANEL_MAX_COLOURS          16
 #define PANEL_MAX_DIALS            32
-#define PANEL_MAX_SECTIONS         64              // raised 32->48 2026-07-13 (Amp/EG pages split narrow enough to hit the old ceiling at 34 sections — see panelConfig.c's own "too many sections" error for the actual failure mode, dials silently landing in the wrong section rather than a page just going missing); 48->64 same day adding LFO1-4 pushed close to 48 again — Z1's own remaining unbuilt pages (Effects, OSC-type sub-pages) will need more still, so raised with real headroom this time rather than tuning to the exact count again
+#define PANEL_MAX_SECTIONS         256             // notes §54
 #define PANEL_MAX_LIST_ITEMS       PANEL_MAX_NAMES // a list can feed a dial's names=@list
-#define PANEL_MAX_LISTS            32
+#define PANEL_MAX_BANKS            8               // notes §55
+#define PANEL_MAX_LISTS            128             // notes §53 (the Z1's value tables are shared lists)
 #define PANEL_MAX_COLUMN_LABELS    32
 
 typedef enum {
@@ -82,16 +83,16 @@ typedef struct {
 } tColumnLabel;
 
 typedef struct {
-    char         id[PANEL_ID_LEN];                        // e.g. "f1cut" — looked up by find_panel_dial()
-    char         label[PANEL_LABEL_LEN];                  // e.g. "F1 Cut"
-    char         colourName[PANEL_ID_LEN];                // as written in the file, e.g. "f1"
-    tRgb         colour;                                  // resolved against the section's colour table at parse time
-    uint32_t     max;                                     // count of valid display-space positions: 0..max-1
+    char         id[PANEL_ID_LEN];          // e.g. "f1cut" — looked up by find_panel_dial()
+    char         label[PANEL_LABEL_LEN];    // e.g. "F1 Cut"
+    char         colourName[PANEL_ID_LEN];  // as written in the file, e.g. "f1"
+    tRgb         colour;                    // resolved against the section's colour table at parse time
+    uint32_t     max;                       // count of valid display-space positions: 0..max-1
     tDialDisplay display;
-    char         names[PANEL_MAX_NAMES][PANEL_LABEL_LEN]; // populated when display == dialDisplayNames
+    char (*names)[PANEL_LABEL_LEN];         // notes §53: nameCount labels on the heap, when display == dialDisplayNames
     uint32_t     nameCount;
-    double       gapBefore;                               // extra flow-space inserted before this dial
-    tRectangle   rect;                                    // populated by layout_panel_section(); used for render + hit-test
+    double       gapBefore;                 // extra flow-space inserted before this dial
+    tRectangle   rect;                      // populated by layout_panel_section(); used for render + hit-test
 
     // notes §6
     char         linkedMaxDialId[PANEL_ID_LEN];
@@ -109,6 +110,9 @@ typedef struct {
 
     // notes §9
     bool         wireSigned;
+
+    // notes §51
+    uint32_t     variantMax;    // 0 = the same range on a pageVariant's tab as on its base
 
     // notes §10
     bool         hasKronosParam;
@@ -183,6 +187,28 @@ typedef struct {
     uint32_t hiLoFineScale;
 } tPanelDial;
 
+// notes §56
+#define PANEL_GRAPH_MAX_POINTS    12
+
+typedef struct {
+    double xSegments;            // a fixed x, in segments from the left, when neither dial below is named
+    char   tDial[PANEL_ID_LEN];  // x moves on from the previous point by this dial's share of one segment
+    char   xDial[PANEL_ID_LEN];  // x is this dial's share of the whole width
+    char   yDial[PANEL_ID_LEN];  // y is this dial's share of the height
+    double yConst;               // y (0..1) when no yDial
+} tGraphPointSpec;
+
+typedef struct {
+    bool            present;
+    bool            readOnly;
+    double          width;
+    double          height;
+    uint32_t        segments;
+    tGraphPointSpec points[PANEL_GRAPH_MAX_POINTS];
+    uint32_t        pointCount;
+    tRectangle      rect;        // where it was last drawn
+} tPanelGraph;
+
 typedef struct {
     char     page[PANEL_PAGE_LEN];
     char     section[PANEL_ID_LEN];
@@ -190,6 +216,9 @@ typedef struct {
     double   spacing;
     int32_t  showIfOffset;       // notes §49: shown only while this dump byte (-1 = always) ...
     uint32_t showIfValue;        // ... holds this value
+    // notes §52
+    bool     hasVariantParamDelta;
+    int32_t  variantParamDelta;
     bool     hidden;             // true: not a rendered control/page-tab target, just named
                                  // device state (e.g. program category, voice mode, unison) —
                                  // shown as plain "label: value" text instead of a dial widget.
@@ -198,6 +227,7 @@ typedef struct {
     uint32_t     colourCount;
     tPanelDial   dials[PANEL_MAX_DIALS];
     uint32_t     dialCount;
+    tPanelGraph  graph;          // notes §56
 } tPanelSection;
 
 typedef struct {
@@ -211,7 +241,22 @@ typedef struct {
     char    base[PANEL_PAGE_LEN];    // e.g. "Prog|EXi 1"
     int32_t typDelta;
     int32_t dumpDelta;
+    int32_t paramDelta;   // notes §48: Korg Parameter Change ID shift (e.g. +2048, the next ExID slot)
+    int32_t showIfOffset; // notes §57: the variant's tab shows only while this dump byte (-1 = always) ...
+    int32_t showIfMin;    // ... is within min..max
+    int32_t showIfMax;
 } tPageVariant;
+
+// notes §55
+typedef struct {
+    char    name[8];       // shown before the program number, e.g. "A" -> "A042"
+    int32_t msb;           // Bank Select CC0 value, -1 = not sent
+    int32_t lsb;           // Bank Select CC32 value, -1 = not sent
+    int32_t declaredMsb;   // the layout's own values, kept when the device's map replaces msb/lsb
+    int32_t declaredLsb;
+    int32_t msbDumpOffset; // where bankMapReply finds the device's own values, -1 = not there
+    int32_t lsbDumpOffset;
+} tBankSelect;
 
 // notes §50
 typedef struct {
@@ -264,6 +309,17 @@ typedef struct {
 
     // notes §32
     uint32_t      presetBankCount;
+    // notes §55
+    tBankSelect   banks[PANEL_MAX_BANKS];
+    uint32_t      bankCount;
+    uint8_t       bankMapRequest[16];      // the request after the SysEx header, without F7
+    uint32_t      bankMapRequestLen;
+    int32_t       bankMapReplyFunc;        // -1 = no bank map to read
+    int32_t       bankMapReplySub;
+    int32_t       pcTransmitOffset;        // -1 = not known; else byte in the bank-map reply ...
+    uint32_t      pcTransmitShift;         // ... >> shift & mask, 0 = the device sends no Program Change
+    uint32_t      pcTransmitMask;
+    int32_t       startupSlot;             // notes §55: the program a device powers up on (bank * 128 + program), -1 = none
 
     // notes §33
     double        gridColWidth;

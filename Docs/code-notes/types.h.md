@@ -33,6 +33,9 @@ synth_note_program_change() and reconcile_current_program()
 (synthComms.c notes §87-§88).
 Reset to -1 on every fresh connect (synth_on_connected()): a value
 learned from a previous session/device isn't trustworthy for a new one.
+Since 2026-10-07 a device that declares banks (panelConfig.h notes §55)
+numbers it as a slot, bank x 128 + program, with the bank taken from the
+Bank Select that precedes the Program Change (synthComms.c notes §96).
 
 ## 3. file scope
 
