@@ -328,6 +328,9 @@
 					"$(PROJECT_DIR)/SynthLib/ThirdParty/freetype/include",
 				);
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
+				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "SynthEdit opens and saves patches, dumps and backups in the folders you browse to.";
+				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "SynthEdit opens and saves patches, dumps and backups in the folders you browse to.";
+				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "SynthEdit opens and saves patches, dumps and backups in the folders you browse to.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMainNibFile = MainMenu;
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
@@ -387,6 +390,9 @@
 					"$(PROJECT_DIR)/SynthLib/ThirdParty/freetype/include",
 				);
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
+				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "SynthEdit opens and saves patches, dumps and backups in the folders you browse to.";
+				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "SynthEdit opens and saves patches, dumps and backups in the folders you browse to.";
+				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "SynthEdit opens and saves patches, dumps and backups in the folders you browse to.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMainNibFile = MainMenu;
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
