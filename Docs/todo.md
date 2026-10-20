@@ -32,7 +32,10 @@ Bugs
 - CHECK ON HARDWARE (Z1, built 2026-10-07): set a non-default Program Bank Select Map on the Z1 (e.g. B = 0/5), reconnect - Prev/Next and Load from Bank still land on the right bank
 - CHECK ON HARDWARE (Z1, built 2026-10-07, ONE flash write): Store Patch to Current Slot... on a confirmed program (e.g. after Prev/Next) - the dialog names the slot and its cached name, the write lands there
 - CHECK ON HARDWARE (Z1, built 2026-10-07): the Model and Insert pages follow the type selector (showIf) after a Sync, and offline from the selector's own value
-- Z1: Multi Set and Arpeggio pattern pages - the parameter tables exist; they need their own edit-buffer dumps as dumpBlocks (19 00 -> 49 00, 36 00 -> 6B 00) and the Parameter Change group confirmed (Multi 2 or 3?)
+- Z1: pace the connect-time requests - Multi (19 00), Arpeggio (36 00) and the startup probe's program dump get no reply at connect, only on a later Sync (findings 2026-10-20)
+- Z1: Multi Set name and arpeggio pattern name - shown nowhere yet, and not editable
+- Z1: arpeggio steps want a grid (10 tone rows x 36 steps, plus velocity/gate bars) instead of 216 dials
+- CHECK BY HAND (Z1, built 2026-10-20): in Multi mode on the Z1, turn a timbre's knob - the matching Timbre tab follows; edit Multi Effects and Arpeggio from SynthEdit and hear them
 - Z1: Global's User Scale 2 (128 notes), the 16 user group names and the MIDI program-select maps - tables too big for dials, want a grid/table control
 - CHECK ON HARDWARE (Z1, built 2026-10-07, writes Global): edit a Global or MIDI setting from SynthEdit (group 0) and read it back - reading is confirmed, writing not tried
 - CHECK BY HAND (Z1, built 2026-10-07): drag the envelope points on EG 1-4 and Amp > EG - times move sideways, levels up and down, Shift locks to one direction; the dials follow

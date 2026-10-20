@@ -175,12 +175,23 @@ static int32_t variant_dump_delta(const tPanelSection * section, int32_t variant
     return gSynthPanelConfig.pageVariants[variant].dumpDelta;
 }
 
+// The dump block the sections under `page` read from (-1 = the program dump).
+static int32_t page_dump_block(const char * page) {
+    for (uint32_t i = 0; i < gSynthPanelConfig.sectionCount; i++) {
+        if (panel_page_is_under(gSynthPanelConfig.sections[i].page, page)) {
+            return gSynthPanelConfig.sections[i].dumpBlock;
+        }
+    }
+
+    return -1;
+}
+
 // notes §58
-static int32_t show_if_dial_value(int32_t dumpOffset) {
+static int32_t show_if_dial_value(int32_t block, int32_t dumpOffset) {
     for (uint32_t i = 0; i < gSynthPanelConfig.sectionCount; i++) {
         tPanelSection * section = &gSynthPanelConfig.sections[i];
 
-        for (uint32_t d = 0; d < section->dialCount; d++) {
+        for (uint32_t d = 0; (section->dumpBlock == block) && (d < section->dialCount); d++) {
             const tPanelDial * dial = &section->dials[d];
 
             if ((dial->dumpOffset == dumpOffset) && (dial->dumpShift == 0) && (dial->dumpBitWidth == 0)) {
@@ -196,10 +207,10 @@ static bool section_shown(const tPanelSection * section, int32_t variant) {
     if (section->showIfOffset < 0) {
         return true;
     }
-    int32_t value = synth_dump_byte(section->showIfOffset + variant_dump_delta(section, variant));
+    int32_t value = synth_dump_byte(section->dumpBlock, section->showIfOffset + variant_dump_delta(section, variant));
 
     if (value < 0) {
-        value = show_if_dial_value(section->showIfOffset);
+        value = show_if_dial_value(section->dumpBlock, section->showIfOffset);
     }
     return (value < 0) || ((uint32_t)value == section->showIfValue);
 }
@@ -210,10 +221,11 @@ static bool variant_absent(int32_t variant) {
         return false;
     }
     const tPageVariant * v     = &gSynthPanelConfig.pageVariants[variant];
-    int32_t              value = synth_dump_byte(v->showIfOffset);
+    int32_t              block = page_dump_block(v->base);
+    int32_t              value = synth_dump_byte(block, v->showIfOffset);
 
     if (value < 0) {
-        value = show_if_dial_value(v->showIfOffset);
+        value = show_if_dial_value(block, v->showIfOffset);
     }
     return (value >= 0) && ((value < v->showIfMin) || (value > v->showIfMax));
 }
@@ -262,7 +274,7 @@ static void tab_label(const char * prefix, char * out, size_t outSize) {
 
         if (strcmp(label->tab, base) == 0) {
             int32_t delta = (variant >= 0) ? gSynthPanelConfig.pageVariants[variant].dumpDelta : 0;
-            int32_t value = synth_dump_byte(label->dumpOffset + delta);
+            int32_t value = synth_dump_byte(page_dump_block(base), label->dumpOffset + delta);
 
             if ((value >= 0) && ((uint32_t)value < label->nameCount)) {
                 size_t len = strlen(out);

@@ -4,6 +4,35 @@ Completed work, measurements, and the traps that cost real time.
 One entry per finding, newest first.
 
 
+2026-10-20  Z1: MULTI SET AND ARPEGGIO PAGES, ONE CACHE PER DUMP BLOCK
+------------------------------------------------------------------------------------------------------
+layouts/z1.txt has two new top tabs. Multi: Common (pitch bend, scale, controllers, linked arpeggio),
+Timbre 1-6 (one page, the other five as pageVariants 16 dump bytes / 27 IDs apart) and Effects (Insert 1/2,
+Master, EQ, as in the Program). Arpeggio: the edit buffer's pattern settings and its 36 steps, six to a
+page; a step's Tones read as x/- per tone, highest first. Each reads its own dump block (49 00 asked with
+19 00; 6B 00 asked with 36 00).
+
+Checked on the owner's Z1 through the Cirklon, edit buffers only, each put back byte for byte afterwards:
+- PARAMETER CHANGE GROUPS. Multi Set is group 2 and the arpeggio pattern group 3 - the Korg spec's table
+  has them the other way round, and defs.h had copied its binary "10"/"11" as hex 0x10/0x11 (unused).
+  Neither group sends a Data Load reply to a Parameter Change.
+- From SynthEdit: Timbre 2 Detune set to +3 reached the Z1 at Multi dump byte 35 with Timbre 1 untouched,
+  and stayed +3 on its tab after switching to Timbre 1 and back; Arpeggio Sort Off reached byte 18.
+- The Timbre 1/2 values, Effect 1 = Phaser and Effect 2 = Chorus all matched the raw dump.
+
+Code that went with it (synthComms.c notes §93, §104, §105):
+- Each dump block now has its own cache. Before this, an edited Global/MIDI dial was written into the
+  PROGRAM cache at its own offset (Master Tune over the program name's first character, back on the next
+  variant switch). showIf, variantShowIf and tabLabel read the section's own block.
+- Incoming Parameter Change for any group finds pageVariant copies and caches, as group 1 did.
+- Signed whole-byte dials are cached too, so an edited Transpose/Detune survives a tab switch.
+- PANEL_MAX_SECTIONS 256 -> 512 (276 used), PANEL_MAX_PAGE_VARIANTS 8 -> 16 (8 used by the Z1).
+
+Not seen: at connect only the Global and MIDI replies came back; Multi, Arpeggio and the startup probe's
+program dump did not, until Sync from synth asked again. Requests sent back to back seem to be dropped
+while the Z1 (or the Cirklon in front of it) is still answering one - pace them.
+
+
 2026-10-07  Z1: EVERY PROGRAM PARAMETER, SIGNED ENCODING, BANK TRACKING, ENVELOPE GRAPHS
 ------------------------------------------------------------------------------------------------------
 layouts/z1.txt now covers the whole Program: all 13 oscillator models (OSC 1 and, as a pageVariant, OSC 2),

@@ -73,8 +73,8 @@
 // Synth parameter groups (for PARAMETER CHANGE, function 0x41)
 #define SYNTH_PARAM_GROUP_GLOBAL           0x00
 #define SYNTH_PARAM_GROUP_PROG             0x01
-#define SYNTH_PARAM_GROUP_PATTERN          0x10
-#define SYNTH_PARAM_GROUP_MULTI            0x11
+#define SYNTH_PARAM_GROUP_MULTI            0x02 // the spec's table swaps these two; checked on the Z1
+#define SYNTH_PARAM_GROUP_PATTERN          0x03
 
 // notes §1
 

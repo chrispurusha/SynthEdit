@@ -37,12 +37,12 @@ extern "C" {
 #define PANEL_PAGE_LEVELS          3
 #define PANEL_PAGE_SEPARATOR       '|'
 #define PANEL_MAX_MODE_TABS        16
-#define PANEL_MAX_PAGE_VARIANTS    8
+#define PANEL_MAX_PAGE_VARIANTS    16
 #define PANEL_MAX_TAB_LABELS       8
 #define PANEL_MAX_NAMES            256 // notes §53 (was 65: each dial carried a fixed array of this many names)
 #define PANEL_MAX_COLOURS          16
 #define PANEL_MAX_DIALS            32
-#define PANEL_MAX_SECTIONS         256             // notes §54
+#define PANEL_MAX_SECTIONS         512             // notes §54
 #define PANEL_MAX_LIST_ITEMS       PANEL_MAX_NAMES // a list can feed a dial's names=@list
 #define PANEL_MAX_BANKS            8               // notes §55
 #define PANEL_MAX_DUMP_BLOCKS      8               // notes §58

@@ -1330,8 +1330,9 @@ outgoing Parameter Change uses, the deferred one included, so a dial on the OSC 
 
 The Kronos dials name bit ranges (dumpBitWidth); the Z1's name a byte with dumpShift/dumpMask, so the
 cache had nothing to update for them and a variant's tab, re-read from the cache, would show a stale
-value. wireSigned dials are left out: their dump and wire encodings differ (memory note on PB Int), and a
-fresh dump puts them right.
+value. A wireSigned dial on a whole byte is stored as the dump holds it - the 8-bit two's complement of its
+value less displayOffset (§12), not the 14-bit wire form - so the Multi Set's timbre tabs keep an edited
+Transpose or Detune. A signed dial on part of a byte is still left out; a fresh dump puts it right.
 
 ## 94. Receiving a variant's Parameter Change
 
@@ -1394,11 +1395,25 @@ own declared values are sent instead (`declaredMsb/Lsb`, kept when the map repla
 
 `read_dial_from_dump()` is the one place a dial is set from a decoded dump, shared by the program dump and
 the dump blocks (panelConfig.h notes §58), so both read fields, signs and native ranges the same way. A reply
-whose function and sub byte match a block sets only the dials of sections that read from it; the program
-dump skips those sections. A reply can be both a block and the bank map (the Z1's MIDI dump is) - both
-handlers see it.
+whose function and sub byte match a block is kept in that block's cache (§105) and sets only the dials of
+sections that read from it, at the showing pageVariant's offsets; the program dump skips those sections. A
+reply can be both a block and the bank map (the Z1's MIDI dump is) - both handlers see it.
 
 ## 104. Parameter Change for other groups
 
-Group Program keeps its own handling (the name characters, pageVariants). Any other group - the Z1's Global
-and MIDI settings are group 0 - finds its dial by group and ID across all sections and sets it.
+Every group but the Program name's characters takes the same path: the dial is found by group and ID, or as
+a pageVariant's copy (§94), its value goes into its section's cache, and onto the dial only if that variant
+is showing. The Z1's groups are 0 Global/MIDI, 1 Program, 2 Multi Set, 3 Arpeggio pattern - Multi and
+Pattern the other way round from the spec's table, settled on the owner's Z1 on 2026-10-20 by writing each
+and reading the edit buffer back.
+
+## 105. One cache per dump block
+
+The program cache (§90) has a companion for each dump block, under the same lock. A dial is stored to, and
+read from, the cache of the dump its section reads (`dump_cache()`), and `synth_dump_byte()` takes the block
+so a section's showIf, a variant's variantShowIf and a tabLabel read the same dump as their dials. Before
+2026-10-20 there was one cache: an edited Global or MIDI dial was written into the program cache at its own
+offset - Master Tune over the first character of the program name, which came back on the next variant
+switch - and a block could not have pageVariants, because nothing kept its bytes to re-read. The Z1's Multi
+Set (six timbres as variants of one page) is what needed them.
+

@@ -193,12 +193,31 @@ list vba3a98 Stereo,Monaural
 list vb14a9e Disable,Enable
 list v5be088 Disable,Enable,Program
 list v594ea0 Off,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127
-list v3ffa0b "Group 1","Group 2","Group 3","Group 4","Group 5","Group 6","Group 7","Group 8","Group 9","Group 10","Group 11","Group 12","Group 13","Group 14","Group 15","Group 16"
-list ve099f0 Last,Low,High
-list v601b3c 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127
+list ve7a188 Continuous,1/8,1/4,1/2,1,2,3,4,5,6,7,8,9,10,11,12
 list vb763e5 C,"C#",D,"D#",E,F,"F#",G,"G#",A,"A#",B
 list vebcac2 "Equal Temperament","Pure Major","Pure Minor",Arabic,Pythagorean,Werckmeister,Kirnberger,Slendro,Pelog,"User Scale 1","User Scale 2"
-list ve7a188 Continuous,1/8,1/4,1/2,1,2,3,4,5,6,7,8,9,10,11,12
+list v4c75db A,B
+list v3cf21b 000,001,002,003,004,005,006,007,008,009,010,011,012,013,014,015,016,017,018,019,020,021,022,023,024,025,026,027,028,029,030,031,032,033,034,035,036,037,038,039,040,041,042,043,044,045,046,047,048,049,050,051,052,053,054,055,056,057,058,059,060,061,062,063,064,065,066,067,068,069,070,071,072,073,074,075,076,077,078,079,080,081,082,083,084,085,086,087,088,089,090,091,092,093,094,095,096,097,098,099,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127
+list ve4d899 Off,1,2,3,4,5,6
+list v96941f Common,Program
+list vfa3e65 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,PRG
+list v531675 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,PRG
+list v601b3c 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127
+list v88c97d 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,Global
+list v814318 Disable,Common,Program
+list v56c171 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,Key,Step
+list v7d8f92 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,Step
+list va305ad 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36
+list vd77d66 "As Played","As Played(Fill)","Running Up","Up & Down"
+list v389560 Up,Down,Both,Parallel
+list ve570fb --,-x,x-,xx
+list vb7f903 --------,-------x,------x-,------xx,-----x--,-----x-x,-----xx-,-----xxx,----x---,----x--x,----x-x-,----x-xx,----xx--,----xx-x,----xxx-,----xxxx,---x----,---x---x,---x--x-,---x--xx,---x-x--,---x-x-x,---x-xx-,---x-xxx,---xx---,---xx--x,---xx-x-,---xx-xx,---xxx--,---xxx-x,---xxxx-,---xxxxx,--x-----,--x----x,--x---x-,--x---xx,--x--x--,--x--x-x,--x--xx-,--x--xxx,--x-x---,--x-x--x,--x-x-x-,--x-x-xx,--x-xx--,--x-xx-x,--x-xxx-,--x-xxxx,--xx----,--xx---x,--xx--x-,--xx--xx,--xx-x--,--xx-x-x,--xx-xx-,--xx-xxx,--xxx---,--xxx--x,--xxx-x-,--xxx-xx,--xxxx--,--xxxx-x,--xxxxx-,--xxxxxx,-x------,-x-----x,-x----x-,-x----xx,-x---x--,-x---x-x,-x---xx-,-x---xxx,-x--x---,-x--x--x,-x--x-x-,-x--x-xx,-x--xx--,-x--xx-x,-x--xxx-,-x--xxxx,-x-x----,-x-x---x,-x-x--x-,-x-x--xx,-x-x-x--,-x-x-x-x,-x-x-xx-,-x-x-xxx,-x-xx---,-x-xx--x,-x-xx-x-,-x-xx-xx,-x-xxx--,-x-xxx-x,-x-xxxx-,-x-xxxxx,-xx-----,-xx----x
+list vb7f903 -xx---x-,-xx---xx,-xx--x--,-xx--x-x,-xx--xx-,-xx--xxx,-xx-x---,-xx-x--x,-xx-x-x-,-xx-x-xx,-xx-xx--,-xx-xx-x,-xx-xxx-,-xx-xxxx,-xxx----,-xxx---x,-xxx--x-,-xxx--xx,-xxx-x--,-xxx-x-x,-xxx-xx-,-xxx-xxx,-xxxx---,-xxxx--x,-xxxx-x-,-xxxx-xx,-xxxxx--,-xxxxx-x,-xxxxxx-,-xxxxxxx,x-------,x------x,x-----x-,x-----xx,x----x--,x----x-x,x----xx-,x----xxx,x---x---,x---x--x,x---x-x-,x---x-xx,x---xx--,x---xx-x,x---xxx-,x---xxxx,x--x----,x--x---x,x--x--x-,x--x--xx,x--x-x--,x--x-x-x,x--x-xx-,x--x-xxx,x--xx---,x--xx--x,x--xx-x-,x--xx-xx,x--xxx--,x--xxx-x,x--xxxx-,x--xxxxx,x-x-----,x-x----x,x-x---x-,x-x---xx,x-x--x--,x-x--x-x,x-x--xx-,x-x--xxx,x-x-x---,x-x-x--x,x-x-x-x-,x-x-x-xx,x-x-xx--,x-x-xx-x,x-x-xxx-,x-x-xxxx,x-xx----,x-xx---x,x-xx--x-,x-xx--xx,x-xx-x--,x-xx-x-x,x-xx-xx-,x-xx-xxx,x-xxx---,x-xxx--x,x-xxx-x-,x-xxx-xx,x-xxxx--,x-xxxx-x,x-xxxxx-,x-xxxxxx,xx------,xx-----x,xx----x-,xx----xx
+list vb7f903 xx---x--,xx---x-x,xx---xx-,xx---xxx,xx--x---,xx--x--x,xx--x-x-,xx--x-xx,xx--xx--,xx--xx-x,xx--xxx-,xx--xxxx,xx-x----,xx-x---x,xx-x--x-,xx-x--xx,xx-x-x--,xx-x-x-x,xx-x-xx-,xx-x-xxx,xx-xx---,xx-xx--x,xx-xx-x-,xx-xx-xx,xx-xxx--,xx-xxx-x,xx-xxxx-,xx-xxxxx,xxx-----,xxx----x,xxx---x-,xxx---xx,xxx--x--,xxx--x-x,xxx--xx-,xxx--xxx,xxx-x---,xxx-x--x,xxx-x-x-,xxx-x-xx,xxx-xx--,xxx-xx-x,xxx-xxx-,xxx-xxxx,xxxx----,xxxx---x,xxxx--x-,xxxx--xx,xxxx-x--,xxxx-x-x,xxxx-xx-,xxxx-xxx,xxxxx---,xxxxx--x,xxxxx-x-,xxxxx-xx,xxxxxx--,xxxxxx-x,xxxxxxx-,xxxxxxxx
+list v0aa6ff 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,Key
+list vf7f828 Off,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,LGT
+list v3ffa0b "Group 1","Group 2","Group 3","Group 4","Group 5","Group 6","Group 7","Group 8","Group 9","Group 10","Group 11","Group 12","Group 13","Group 14","Group 15","Group 16"
+list ve099f0 Last,Low,High
 list v2e66f6 "Triangle '0","Triangle '90","Tri Random",Sine,"Saw Up '0","Saw Up '180","Saw Down '0","Saw Down '180",Square,Random1(S/H),Random2(Vector),"Step Tri 4","Step Tri 6","Step Saw 4","Step Saw 6","Exp Tri","Exp Saw Up","Exp Saw Down"
 list vf5ac2a 0.000,0.040,0.060,0.080,0.100,0.120,0.140,0.160,0.180,0.200,0.220,0.240,0.260,0.280,0.300,0.320,0.340,0.360,0.380,0.400,0.420,0.440,0.460,0.480,0.500,0.520,0.540,0.560,0.580,0.600,0.620,0.640,0.660,0.680,0.700,0.720,0.740,0.760,0.780,0.800,0.820,0.840,0.860,0.880,0.900,0.920,0.940,0.960,0.980,1.000,1.050,1.100,1.150,1.200,1.250,1.300,1.350,1.400,1.450,1.500,1.550,1.600,1.650,1.700,1.750,1.800,1.850,1.900,1.950,2.000,2.100,2.200,2.300,2.400,2.500,2.600,2.700,2.800,2.900,3.000,3.100,3.200,3.300,3.400,3.500,3.600,3.700,3.800,3.900,4.000,4.100,4.200,4.300,4.400,4.500,4.600,4.700,4.800,4.900,5.000,5.100,5.200,5.300,5.400,5.500,5.600,5.700,5.800,5.900,6.000,6.100,6.200,6.300,6.400,6.500,6.600,6.700,6.800,6.900,7.000,7.100,7.200,7.300,7.400,7.500,7.600,7.700,7.800,7.900,8.000,8.100,8.200,8.300,8.400,8.500,8.600,8.700,8.800,8.900,9.000,9.100,9.200,9.300,9.400,9.500,9.600,9.700
 list vf5ac2a 9.800,9.900,10.00,11.00,12.00,13.00,14.00,15.00,16.00,17.00,18.00,19.00,20.00,21.00,22.00,23.00,24.00,25.00,26.00,27.00,28.00,29.00,30.00,31.00,32.00,33.00,34.00,35.00,36.00,37.00,38.00,39.00,40.00,41.00,42.00,43.00,44.00,45.00,46.00,47.00,48.00,49.00,50.00,51.00,52.00,53.00,54.00,55.00,56.00,57.00,58.00,59.00,60.00
@@ -2930,6 +2949,1416 @@ dial g439     label="Multi Card A (LSB)" color=gl max=129 displayOffset=1 wireSi
 dial g440     label="Multi Card B (MSB)" color=gl max=129 displayOffset=1 wireSigned=1 names=@v594ea0 asDial=1 group=0 param=440 dumpOffset=17
 dial g441     label="Multi Card B (LSB)" color=gl max=129 displayOffset=1 wireSigned=1 names=@v594ea0 asDial=1 group=0 param=441 dumpOffset=18
 # ══ END GENERATED Global and MIDI
+
+# ══ BEGIN GENERATED Multi Set
+# ── Multi Set ─────────────────────────────────────────────────────────────────
+# GENERATED from the Z1's parameter tables - regenerate rather than edit by hand.
+# Its own dump (49 00, asked with 19 00), edited with Parameter Change group 2.
+# Timbres 2-6 are Timbre 1's page again: 16 dump bytes and 27 IDs apart.
+# Insert 2 is Insert 1's page again, as in the Program: +2048, dump +23.
+dumpBlock multi 19 00 reply 49 00
+pageVariant "Multi | Timbre 2" "Multi | Timbre 1" 0 16 27
+pageVariant "Multi | Timbre 3" "Multi | Timbre 1" 0 32 54
+pageVariant "Multi | Timbre 4" "Multi | Timbre 1" 0 48 81
+pageVariant "Multi | Timbre 5" "Multi | Timbre 1" 0 64 108
+pageVariant "Multi | Timbre 6" "Multi | Timbre 1" 0 80 135
+pageVariant "Multi | Effects | Insert 2" "Multi | Effects | Insert 1" 0 23 2048
+variantShowIf "Multi | Effects | Insert 2" 112 0 10
+tabLabel "Multi | Effects | Insert 1" 112 Over Drive,Compressor,4 Band PEQ,Wah,Exciter,Decimator,Chorus,Flanger,Phaser,Small Rotary,Delay,Talking Mod,Multitap Delay,Ensemble,Rotary Speaker
+tabLabel "Multi | Effects | Master" 158 Stereo Delay,Reverb-Hall,Reverb-Room
+
+page       Multi | Common | Common
+section    mucommon
+fromDump   multi
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m186     label="Pitch Bender Int(+)" color=mu max=85 displayOffset=60 wireSigned=1 display=signed group=2 param=186 dumpOffset=181
+dial m187     label="Pitch Bender Int(-)" color=mu max=85 displayOffset=60 wireSigned=1 display=signed group=2 param=187 dumpOffset=182
+dial m188     label="Pitch Bender Step(+)" color=mu max=16 names=@ve7a188 group=2 param=188 dumpOffset=183 dumpShift=0 dumpMask=0xF
+dial m189     label="Pitch Bender Step(-)" color=mu max=16 names=@ve7a188 group=2 param=189 dumpOffset=183 dumpShift=4 dumpMask=0xF
+dial m190     label="Scale Key" color=mu max=12 names=@vb763e5 group=2 param=190 dumpOffset=184 dumpShift=0 dumpMask=0xF
+dial m191     label="Scale Type" color=mu max=11 names=@vebcac2 group=2 param=191 dumpOffset=184 dumpShift=4 dumpMask=0xF
+dial m192     label="Portamento SW" color=mu max=2 names=@v7bf299 group=2 param=192 dumpOffset=185 dumpShift=0 dumpMask=0x1
+dial m193     label="Unison SW" color=mu max=2 names=@v7bf299 group=2 param=193 dumpOffset=185 dumpShift=1 dumpMask=0x1
+
+page       Multi | Common | Controllers
+section    muctl
+fromDump   multi
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m194     label="SW1 Function" color=mu max=8 names=@v725f47 group=2 param=194 dumpOffset=196 dumpShift=0 dumpMask=0xF
+dial m195     label="SW1 Mode" color=mu max=2 names=@v49d324 group=2 param=195 dumpOffset=196 dumpShift=4 dumpMask=0x1
+dial m196     label="SW2 Function" color=mu max=8 names=@v6c31bc group=2 param=196 dumpOffset=197 dumpShift=0 dumpMask=0xF
+dial m197     label="SW2 Mode" color=mu max=2 names=@v49d324 group=2 param=197 dumpOffset=197 dumpShift=4 dumpMask=0x1
+dial m198     label="Assignable Foot SW Function" color=mu max=13 names=@v15b1c4 group=2 param=198 dumpOffset=198 dumpShift=0 dumpMask=0xF
+dial m199     label="Assignable Foot SW Mode" color=mu max=2 names=@v49d324 group=2 param=199 dumpOffset=198 dumpShift=4 dumpMask=0x1
+dial m200     label="Assignable Pedal Function" color=mu max=6 names=@v523f15 group=2 param=200 dumpOffset=199 dumpShift=0 dumpMask=0x7
+
+page       Multi | Common | Controllers
+section    muctlw1
+fromDump   multi
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m201     label="Pad Hold" color=mu max=2 names=@v7bf299 group=2 param=201 dumpOffset=199 dumpShift=3 dumpMask=0x1
+
+page       Multi | Common | Arpeggio
+section    muarp
+fromDump   multi
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m202     label="Pattern" color=mu max=20 displayOffset=0 wireSigned=1 names=@vb7cdb4 group=2 param=202 dumpOffset=200
+dial m203     label="Latch" color=mu max=2 names=@v7bf299 group=2 param=203 dumpOffset=201 dumpShift=0 dumpMask=0x1
+dial m204     label="Key Sync" color=mu max=2 names=@v7bf299 group=2 param=204 dumpOffset=201 dumpShift=1 dumpMask=0x1
+dial m205     label="Octaves" color=mu max=4 names=@v1d1439 group=2 param=205 dumpOffset=201 dumpShift=2 dumpMask=0x3
+dial m206     label="Keyboard OFF/ON" color=mu max=2 names=@v7bf299 group=2 param=206 dumpOffset=201 dumpShift=4 dumpMask=0x1
+dial m207     label="Auto Running" color=mu max=2 names=@v7bf299 group=2 param=207 dumpOffset=201 dumpShift=5 dumpMask=0x1
+dial m208     label="Vel" color=mu max=255 displayOffset=127 wireSigned=1 display=signed group=2 param=208 dumpOffset=202
+dial m209     label="Gate" color=mu max=255 displayOffset=127 wireSigned=1 display=signed group=2 param=209 dumpOffset=203
+dial m210     label="Resolution" color=mu max=6 names=@v37167f group=2 param=210 dumpOffset=204
+dial m211     label="Speed" color=mu max=256 names=@v401711 asDial=1 group=2 param=211 dumpOffset=205
+
+page       Multi | Timbre 1 | Timbre
+section    mut_timbre
+fromDump   multi
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m17      label="Program Bank" color=mu max=2 names=@v4c75db group=2 param=17 dumpOffset=16 dumpShift=7 dumpMask=0x1
+dial m18      label="Program Number" color=mu max=128 names=@v3cf21b asDial=1 group=2 param=18 dumpOffset=16 dumpShift=0 dumpMask=0x7F
+dial m19      label="Reserve Voice" color=mu max=7 names=@ve4d899 group=2 param=19 dumpOffset=17
+
+page       Multi | Timbre 1 | Timbre
+section    mut_pitch
+fromDump   multi
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m20      label="Transpose" color=mu max=49 displayOffset=24 wireSigned=1 display=signed group=2 param=20 dumpOffset=18
+dial m21      label="Detune" color=mu max=101 displayOffset=50 wireSigned=1 display=signed group=2 param=21 dumpOffset=19
+dial m22      label="Scale Select" color=mu max=2 names=@v96941f group=2 param=22 dumpOffset=20 dumpShift=4 dumpMask=0xF
+dial m23      label="Arpeggiator" color=mu max=2 names=@vb14a9e group=2 param=23 dumpOffset=20 dumpShift=0 dumpMask=0xF
+
+page       Multi | Timbre 1 | Timbre
+section    mut_mixer
+fromDump   multi
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m24      label="Output Level" color=mu max=129 names=@vfa3e65 asDial=1 group=2 param=24 dumpOffset=21
+dial m25      label="Panpot" color=mu max=129 names=@vfa3e65 asDial=1 group=2 param=25 dumpOffset=22
+dial m26      label="Effect Send" color=mu max=102 names=@v531675 asDial=1 group=2 param=26 dumpOffset=23
+
+page       Multi | Timbre 1 | Timbre
+section    mut_zone
+fromDump   multi
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m27      label="Key Zone Top" color=mu max=128 names=@vc2ba68 group=2 param=27 dumpOffset=24
+dial m28      label="Key Zone Bottom" color=mu max=128 names=@vc2ba68 group=2 param=28 dumpOffset=25
+dial m29      label="Vel Zone Top" color=mu max=127 offset=1 names=@v601b3c asDial=1 group=2 param=29 dumpOffset=26
+dial m30      label="Vel Zone Bottom" color=mu max=127 offset=1 names=@v601b3c asDial=1 group=2 param=30 dumpOffset=27
+
+page       Multi | Timbre 1 | Timbre
+section    mut_midi
+fromDump   multi
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m31      label="MIDI Channel" color=mu max=17 names=@v88c97d group=2 param=31 dumpOffset=28 dumpShift=0 dumpMask=0x1F
+dial m32      label="Program Change" color=mu max=2 names=@vb14a9e group=2 param=32 dumpOffset=28 dumpShift=7 dumpMask=0x1
+dial m33      label="Pitch Bend" color=mu max=3 names=@v814318 group=2 param=33 dumpOffset=29 dumpShift=6 dumpMask=0x3
+dial m34      label="After Touch" color=mu max=2 names=@vb14a9e group=2 param=34 dumpOffset=29 dumpShift=5 dumpMask=0x1
+dial m35      label="Mod Wheel" color=mu max=2 names=@vb14a9e group=2 param=35 dumpOffset=29 dumpShift=4 dumpMask=0x1
+dial m36      label="X-Y Pad Ctrl" color=mu max=2 names=@vb14a9e group=2 param=36 dumpOffset=29 dumpShift=3 dumpMask=0x1
+dial m37      label="Damper" color=mu max=2 names=@vb14a9e group=2 param=37 dumpOffset=29 dumpShift=2 dumpMask=0x1
+dial m38      label="Portamento SW" color=mu max=2 names=@vb14a9e group=2 param=38 dumpOffset=29 dumpShift=1 dumpMask=0x1
+dial m39      label="Realtime Edit" color=mu max=2 names=@vb14a9e group=2 param=39 dumpOffset=29 dumpShift=0 dumpMask=0x1
+dial m40      label="Performance Edit" color=mu max=2 names=@vb14a9e group=2 param=40 dumpOffset=30 dumpShift=7 dumpMask=0x1
+dial m41      label="Others" color=mu max=2 names=@vb14a9e group=2 param=41 dumpOffset=30 dumpShift=6 dumpMask=0x1
+
+page       Multi | Effects | Common
+section    mufxeq
+fromDump   multi
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m182     label="EQ Low EQ Freq" color=mu max=50 names=@v573665 asDial=1 group=2 param=182 dumpOffset=177
+dial m183     label="EQ Low EQ Gain" color=mu max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=2 param=183 dumpOffset=178
+dial m184     label="EQ High EQ Freq" color=mu max=50 names=@ve8fd6d asDial=1 group=2 param=184 dumpOffset=179
+dial m185     label="EQ High EQ Gain" color=mu max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=2 param=185 dumpOffset=180
+
+page       Multi | Effects | Insert 1
+section    mufxsel
+fromDump   multi
+variantParamDelta 1
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m179     label="Type" color=mu max=15 names=@v6ff210 group=2 param=179 dumpOffset=112 variantMax=11
+
+page       Multi | Effects | Insert 1
+section    mufx0_1
+fromDump   multi
+showIf     112 0
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m6944    label="Mode" color=mu max=2 names=@vf4ffc0 group=2 param=6944 dumpOffset=113
+dial m6945    label="Drive" color=mu max=100 display=raw group=2 param=6945 dumpOffset=114
+dial m6946    label="Output Level" color=mu max=100 display=raw group=2 param=6946 dumpOffset=115
+dial m6947    label="Pre Low Cut" color=mu max=100 display=raw group=2 param=6947 dumpOffset=116
+dial m6948    label="Low" color=mu max=50 names=@v573665 asDial=1 group=2 param=6948 dumpOffset=117
+dial m6951    label="Mid Low EQ Freq" color=mu max=50 names=@vadd024 asDial=1 group=2 param=6951 dumpOffset=120
+dial m6954    label="Mid High EQ Freq" color=mu max=50 names=@v16f3bb asDial=1 group=2 param=6954 dumpOffset=123
+dial m6957    label="High EQ Freq" color=mu max=50 names=@v7f281d asDial=1 group=2 param=6957 dumpOffset=126
+
+page       Multi | Effects | Insert 1
+section    mufx0_2
+fromDump   multi
+showIf     112 0
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m6949    label="Low EQ Q" color=mu max=96 names=@vaab1c2 asDial=1 group=2 param=6949 dumpOffset=118
+dial m6952    label="Mid Low EQ Q" color=mu max=96 names=@vaab1c2 asDial=1 group=2 param=6952 dumpOffset=121
+dial m6955    label="Mid High EQ Q" color=mu max=96 names=@vaab1c2 asDial=1 group=2 param=6955 dumpOffset=124
+dial m6958    label="High EQ Q" color=mu max=96 names=@vaab1c2 asDial=1 group=2 param=6958 dumpOffset=127
+dial m6950    label="Low EQ Gain" color=mu max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=2 param=6950 dumpOffset=119
+dial m6953    label="Mid Low EQ Gain" color=mu max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=2 param=6953 dumpOffset=122
+dial m6956    label="Mid High EQ Gain" color=mu max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=2 param=6956 dumpOffset=125
+dial m6959    label="High EQ Gain" color=mu max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=2 param=6959 dumpOffset=128
+
+page       Multi | Effects | Insert 1
+section    mufx0_3
+fromDump   multi
+showIf     112 0
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m6960    label="Effect Bal" color=mu max=101 display=raw group=2 param=6960 dumpOffset=129
+dial m6961    label="Effect Bal Mod Src" color=mu max=46 names=@vce3db9 group=2 param=6961 dumpOffset=130
+dial m6962    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=6962 dumpOffset=131
+
+page       Multi | Effects | Insert 1
+section    mufx1_1
+fromDump   multi
+showIf     112 1
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m6968    label="Output Level" color=mu max=100 display=raw group=2 param=6968 dumpOffset=118
+dial m6963    label="Sensitivity" color=mu max=99 offset=1 names=@v43b6ad asDial=1 group=2 param=6963 dumpOffset=113
+dial m6965    label="EQ Trim" color=mu max=100 display=raw group=2 param=6965 dumpOffset=115
+dial m6966    label="Pre Low EQ Gain" color=mu max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=2 param=6966 dumpOffset=116
+dial m6967    label="Pre High EQ Gain" color=mu max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=2 param=6967 dumpOffset=117
+dial m6964    label="Attack" color=mu max=99 offset=1 names=@v43b6ad asDial=1 group=2 param=6964 dumpOffset=114
+dial m6969    label="Effect Bal" color=mu max=101 display=raw group=2 param=6969 dumpOffset=119
+dial m6970    label="Effect Bal Mod Src" color=mu max=46 names=@vce3db9 group=2 param=6970 dumpOffset=120
+
+page       Multi | Effects | Insert 1
+section    mufx1_2
+fromDump   multi
+showIf     112 1
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m6971    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=6971 dumpOffset=121
+
+page       Multi | Effects | Insert 1
+section    mufx2_1
+fromDump   multi
+showIf     112 2
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m6972    label="Trim" color=mu max=100 display=raw group=2 param=6972 dumpOffset=113
+dial m6973    label="Low EQ Type" color=mu max=2 names=@v3adf50 group=2 param=6973 dumpOffset=114
+dial m6985    label="High EQ Type" color=mu max=2 names=@v3adf50 group=2 param=6985 dumpOffset=126
+dial m6974    label="Low EQ Freq" color=mu max=50 names=@v573665 asDial=1 group=2 param=6974 dumpOffset=115
+dial m6977    label="Mid Low EQ Freq" color=mu max=50 names=@vadd024 asDial=1 group=2 param=6977 dumpOffset=118
+dial m6982    label="Mid High EQ Freq" color=mu max=50 names=@v16f3bb asDial=1 group=2 param=6982 dumpOffset=123
+dial m6986    label="High" color=mu max=50 names=@v7f281d asDial=1 group=2 param=6986 dumpOffset=127
+
+page       Multi | Effects | Insert 1
+section    mufx2_2
+fromDump   multi
+showIf     112 2
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m6975    label="Low EQ Q" color=mu max=96 names=@vaab1c2 asDial=1 group=2 param=6975 dumpOffset=116
+dial m6978    label="Mid Low EQ Q" color=mu max=96 names=@vaab1c2 asDial=1 group=2 param=6978 dumpOffset=119
+dial m6983    label="Mid High EQ Q" color=mu max=96 names=@vaab1c2 asDial=1 group=2 param=6983 dumpOffset=124
+dial m6987    label="High EQ Q" color=mu max=96 names=@vaab1c2 asDial=1 group=2 param=6987 dumpOffset=128
+dial m6976    label="Low EQ Gain" color=mu max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=2 param=6976 dumpOffset=117
+dial m6979    label="Mid Low EQ Gain" color=mu max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=2 param=6979 dumpOffset=120
+dial m6984    label="Mid High EQ Gain" color=mu max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=2 param=6984 dumpOffset=125
+dial m6988    label="High EQ Gain" color=mu max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=2 param=6988 dumpOffset=129
+
+page       Multi | Effects | Insert 1
+section    mufx2_3
+fromDump   multi
+showIf     112 2
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m6980    label="Mid Low EQ Gain Mod Src" color=mu max=46 names=@vce3db9 group=2 param=6980 dumpOffset=121
+dial m6981    label="Mid Low EQ Gain Mod Int" color=mu max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=2 param=6981 dumpOffset=122
+dial m6989    label="Effect Bal" color=mu max=101 display=raw group=2 param=6989 dumpOffset=130
+dial m6990    label="Effect Bal Mod Src" color=mu max=46 names=@vce3db9 group=2 param=6990 dumpOffset=131
+dial m6991    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=6991 dumpOffset=132
+
+page       Multi | Effects | Insert 1
+section    mufx3_1
+fromDump   multi
+showIf     112 3
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m6992    label="Freq Bottom" color=mu max=100 display=raw group=2 param=6992 dumpOffset=113
+dial m6997    label="Envelope Sens" color=mu max=100 display=raw group=2 param=6997 dumpOffset=118
+dial m6993    label="Freq Top" color=mu max=100 display=raw group=2 param=6993 dumpOffset=114
+dial m6998    label="Envelope Shape" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=6998 dumpOffset=119
+dial m6999    label="Reso" color=mu max=100 display=raw group=2 param=6999 dumpOffset=120
+dial m6994    label="Sweep Mode" color=mu max=2 names=@v2d2e25 group=2 param=6994 dumpOffset=115
+dial m7000    label="Filter Mode" color=mu max=2 names=@v096952 group=2 param=7000 dumpOffset=121
+dial m6995    label="Sweep Src" color=mu max=46 names=@vce3db9 group=2 param=6995 dumpOffset=116
+
+page       Multi | Effects | Insert 1
+section    mufx3_2
+fromDump   multi
+showIf     112 3
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m6996    label="Sweep Response" color=mu max=100 display=raw group=2 param=6996 dumpOffset=117
+dial m7001    label="Effect Bal" color=mu max=101 display=raw group=2 param=7001 dumpOffset=122
+dial m7002    label="Effect Bal Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7002 dumpOffset=123
+dial m7003    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7003 dumpOffset=124
+
+page       Multi | Effects | Insert 1
+section    mufx4_1
+fromDump   multi
+showIf     112 4
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7004    label="Blend" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7004 dumpOffset=113
+dial m7010    label="Pre EQ Input Trim" color=mu max=100 display=raw group=2 param=7010 dumpOffset=119
+dial m7011    label="Pre Low EQ Gain" color=mu max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=2 param=7011 dumpOffset=120
+dial m7012    label="Pre High EQ Gain" color=mu max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=2 param=7012 dumpOffset=121
+dial m7005    label="Blend Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7005 dumpOffset=114
+dial m7006    label="Blend Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7006 dumpOffset=115
+dial m7007    label="Emphatic PoInt" color=mu max=100 display=raw group=2 param=7007 dumpOffset=116
+dial m7008    label="Emphatic PoIntMod Src" color=mu max=46 names=@vce3db9 group=2 param=7008 dumpOffset=117
+
+page       Multi | Effects | Insert 1
+section    mufx4_2
+fromDump   multi
+showIf     112 4
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7009    label="Emphatic PoIntMod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7009 dumpOffset=118
+dial m7013    label="Effect Bal" color=mu max=101 display=raw group=2 param=7013 dumpOffset=122
+dial m7014    label="Effect Bal Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7014 dumpOffset=123
+dial m7015    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7015 dumpOffset=124
+
+page       Multi | Effects | Insert 1
+section    mufx5_1
+fromDump   multi
+showIf     112 5
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7016    label="Pre LPF" color=mu max=2 names=@v7bf299 group=2 param=7016 dumpOffset=113
+dial m7017    label="Sampling Freq" color=mu max=116 offset=5 names=@va2d852 asDial=1 group=2 param=7017 dumpOffset=114
+dial m7020    label="Resolution" color=mu max=21 offset=4 names=@v7f2116 group=2 param=7020 dumpOffset=117
+dial m7021    label="High Damp" color=mu max=100 display=raw group=2 param=7021 dumpOffset=118
+dial m7018    label="Sampling Freq Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7018 dumpOffset=115
+dial m7019    label="Sampling Freq Mod Int" color=mu max=241 displayOffset=120 wireSigned=1 names=@v10b274 asDial=1 group=2 param=7019 dumpOffset=116
+dial m7022    label="Output Level" color=mu max=100 display=raw group=2 param=7022 dumpOffset=119
+dial m7023    label="Effect Bal" color=mu max=101 display=raw group=2 param=7023 dumpOffset=120
+
+page       Multi | Effects | Insert 1
+section    mufx5_2
+fromDump   multi
+showIf     112 5
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7024    label="Effect Bal Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7024 dumpOffset=121
+dial m7025    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7025 dumpOffset=122
+
+page       Multi | Effects | Insert 1
+section    mufx6_1
+fromDump   multi
+showIf     112 6
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7026    label="Delay Time" color=mu max=141 names=@v0565e9 asDial=1 group=2 param=7026 dumpOffset=113
+dial m7027    label="LFO Wave Form" color=mu max=2 names=@vccfdd2 group=2 param=7027 dumpOffset=114
+dial m7037    label="Pre EQ Input Trim" color=mu max=100 display=raw group=2 param=7037 dumpOffset=122
+dial m7038    label="Pre Low EQ Gain" color=mu max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=2 param=7038 dumpOffset=123
+dial m7039    label="Pre High EQ Gain" color=mu max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=2 param=7039 dumpOffset=124
+dial m7031    label="MIDI Sync" color=mu max=2 names=@v7bf299 group=2 param=7031 dumpOffset=118 dumpShift=7 dumpMask=0x1
+dial m7028    label="LFO Freq" color=mu max=115 offset=1 names=@v19705d asDial=1 group=2 param=7028 dumpOffset=115
+dial m7032    label="MIDI Sync Base" color=mu max=8 names=@v69c040 group=2 param=7032 dumpOffset=118 dumpShift=4 dumpMask=0x7
+
+page       Multi | Effects | Insert 1
+section    mufx6_2
+fromDump   multi
+showIf     112 6
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7029    label="LFO Freq Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7029 dumpOffset=116
+dial m7033    label="MIDI Sync Time" color=mu max=16 names=@va0aefd group=2 param=7033 dumpOffset=118 dumpShift=0 dumpMask=0xF
+dial m7030    label="LFO Freq Mod Int" color=mu max=231 displayOffset=115 wireSigned=1 names=@va32aaa asDial=1 group=2 param=7030 dumpOffset=117
+dial m7034    label="Depth" color=mu max=100 display=raw group=2 param=7034 dumpOffset=119
+dial m7035    label="Depth Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7035 dumpOffset=120
+dial m7036    label="Depth Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7036 dumpOffset=121
+dial m7040    label="Chorus Output Phase" color=mu max=3 names=@v5514af group=2 param=7040 dumpOffset=125
+dial m7041    label="Effect Bal" color=mu max=101 display=raw group=2 param=7041 dumpOffset=126
+
+page       Multi | Effects | Insert 1
+section    mufx6_3
+fromDump   multi
+showIf     112 6
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7042    label="Effect Bal Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7042 dumpOffset=127
+dial m7043    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7043 dumpOffset=128
+
+page       Multi | Effects | Insert 1
+section    mufx7_1
+fromDump   multi
+showIf     112 7
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7044    label="Delay Time" color=mu max=141 names=@v0565e9 asDial=1 group=2 param=7044 dumpOffset=113
+dial m7045    label="LFO Wave Form" color=mu max=2 names=@vccfdd2 group=2 param=7045 dumpOffset=114
+dial m7046    label="LFO Shape" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7046 dumpOffset=115
+dial m7050    label="MIDI Sync" color=mu max=2 names=@v7bf299 group=2 param=7050 dumpOffset=119 dumpShift=7 dumpMask=0x1
+dial m7047    label="LFO Freq" color=mu max=115 offset=1 names=@v19705d asDial=1 group=2 param=7047 dumpOffset=116
+dial m7051    label="MIDI Sync Base" color=mu max=8 names=@v69c040 group=2 param=7051 dumpOffset=119 dumpShift=4 dumpMask=0x7
+dial m7048    label="LFO Freq Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7048 dumpOffset=117
+dial m7052    label="MIDI Sync Time" color=mu max=16 names=@va0aefd group=2 param=7052 dumpOffset=119 dumpShift=0 dumpMask=0xF
+
+page       Multi | Effects | Insert 1
+section    mufx7_2
+fromDump   multi
+showIf     112 7
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7049    label="LFO Freq Mod Int" color=mu max=231 displayOffset=115 wireSigned=1 names=@va32aaa asDial=1 group=2 param=7049 dumpOffset=118
+dial m7053    label="Depth" color=mu max=100 display=raw group=2 param=7053 dumpOffset=120
+dial m7054    label="Fdbk" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7054 dumpOffset=121
+dial m7055    label="High Damp" color=mu max=100 display=raw group=2 param=7055 dumpOffset=122
+dial m7056    label="Flanger Output Phase" color=mu max=3 names=@v5514af group=2 param=7056 dumpOffset=123
+dial m7057    label="Effect Bal" color=mu max=101 display=raw group=2 param=7057 dumpOffset=124
+dial m7058    label="Effect Bal Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7058 dumpOffset=125
+dial m7059    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7059 dumpOffset=126
+
+page       Multi | Effects | Insert 1
+section    mufx8_1
+fromDump   multi
+showIf     112 8
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7060    label="LFO Wave Form" color=mu max=2 names=@vccfdd2 group=2 param=7060 dumpOffset=113
+dial m7061    label="LFO Shape" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7061 dumpOffset=114
+dial m7065    label="MIDI Sync" color=mu max=2 names=@v7bf299 group=2 param=7065 dumpOffset=118 dumpShift=7 dumpMask=0x1
+dial m7062    label="LFO Freq" color=mu max=115 offset=1 names=@v19705d asDial=1 group=2 param=7062 dumpOffset=115
+dial m7066    label="MIDI Sync Base" color=mu max=8 names=@v69c040 group=2 param=7066 dumpOffset=118 dumpShift=4 dumpMask=0x7
+dial m7063    label="LFO Freq Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7063 dumpOffset=116
+dial m7067    label="MIDI Sync Time" color=mu max=16 names=@va0aefd group=2 param=7067 dumpOffset=118 dumpShift=0 dumpMask=0xF
+dial m7064    label="LFO Freq Mod Int" color=mu max=231 displayOffset=115 wireSigned=1 names=@va32aaa asDial=1 group=2 param=7064 dumpOffset=117
+
+page       Multi | Effects | Insert 1
+section    mufx8_2
+fromDump   multi
+showIf     112 8
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7068    label="Manual" color=mu max=100 display=raw group=2 param=7068 dumpOffset=119
+dial m7069    label="Depth" color=mu max=100 display=raw group=2 param=7069 dumpOffset=120
+dial m7070    label="Reso" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7070 dumpOffset=121
+dial m7071    label="High Damp" color=mu max=100 display=raw group=2 param=7071 dumpOffset=122
+dial m7072    label="Phaser Output Phase" color=mu max=3 names=@v5514af group=2 param=7072 dumpOffset=123
+dial m7073    label="Effect Bal" color=mu max=101 display=raw group=2 param=7073 dumpOffset=124
+dial m7074    label="Effect Bal Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7074 dumpOffset=125
+dial m7075    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7075 dumpOffset=126
+
+page       Multi | Effects | Insert 1
+section    mufx9_1
+fromDump   multi
+showIf     112 9
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7076    label="Speed" color=mu max=2 names=@vf13402 group=2 param=7076 dumpOffset=113
+dial m7077    label="Speed SW" color=mu max=46 names=@vce3db9 group=2 param=7077 dumpOffset=114
+dial m7078    label="Horn Acceleration" color=mu max=100 display=raw group=2 param=7078 dumpOffset=115
+dial m7079    label="Horn Rate" color=mu max=100 display=raw group=2 param=7079 dumpOffset=116
+dial m7080    label="Mic Distance" color=mu max=100 display=raw group=2 param=7080 dumpOffset=117
+dial m7081    label="Horn/Rotor Bal" color=mu max=100 display=raw group=2 param=7081 dumpOffset=118
+dial m7082    label="Effect Bal" color=mu max=101 display=raw group=2 param=7082 dumpOffset=119
+dial m7083    label="Effect Bal Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7083 dumpOffset=120
+
+page       Multi | Effects | Insert 1
+section    mufx9_2
+fromDump   multi
+showIf     112 9
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7084    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7084 dumpOffset=121
+
+page       Multi | Effects | Insert 1
+section    mufx10_1
+fromDump   multi
+showIf     112 10
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7085    label="Input Level Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7085 dumpOffset=113
+dial m7087    label="Delay Time" color=mu max=252 names=@v097bb0 asDial=1 group=2 param=7087 dumpOffset=115
+dial m7086    label="Input Level Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7086 dumpOffset=114
+dial m7088    label="Fdbk" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7088 dumpOffset=116
+dial m7091    label="Low Damp" color=mu max=100 display=raw group=2 param=7091 dumpOffset=119
+dial m7092    label="High Damp" color=mu max=100 display=raw group=2 param=7092 dumpOffset=120
+dial m7089    label="Fdbk Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7089 dumpOffset=117
+dial m7090    label="Fdbk Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7090 dumpOffset=118
+
+page       Multi | Effects | Insert 1
+section    mufx10_2
+fromDump   multi
+showIf     112 10
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7093    label="Effect Bal" color=mu max=101 display=raw group=2 param=7093 dumpOffset=121
+dial m7094    label="Effect Bal Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7094 dumpOffset=122
+dial m7095    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7095 dumpOffset=123
+
+page       Multi | Effects | Insert 1
+section    mufx11_1
+fromDump   multi
+showIf     112 11
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7096    label="Ctrl Mode" color=mu max=2 names=@vb93e51 group=2 param=7096 dumpOffset=113
+dial m7097    label="Manual Ctrl" color=mu max=100 display=raw group=2 param=7097 dumpOffset=114
+dial m7098    label="Ctrl Src" color=mu max=46 names=@vce3db9 group=2 param=7098 dumpOffset=115
+dial m7099    label="Voice Top" color=mu max=5 names=@vcfd4dc group=2 param=7099 dumpOffset=116
+dial m7100    label="Voice Center" color=mu max=5 names=@vcfd4dc group=2 param=7100 dumpOffset=117
+dial m7101    label="Voice Bottom" color=mu max=5 names=@vcfd4dc group=2 param=7101 dumpOffset=118
+dial m7102    label="Formant Shift" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7102 dumpOffset=119
+dial m7103    label="Reso" color=mu max=100 display=raw group=2 param=7103 dumpOffset=120
+
+page       Multi | Effects | Insert 1
+section    mufx11_2
+fromDump   multi
+showIf     112 11
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7104    label="Effect Bal" color=mu max=101 display=raw group=2 param=7104 dumpOffset=121
+dial m7105    label="Effect Bal Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7105 dumpOffset=122
+dial m7106    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7106 dumpOffset=123
+
+page       Multi | Effects | Insert 1
+section    mufx12_1
+fromDump   multi
+showIf     112 12
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7107    label="Type" color=mu max=5 names=@v90893b group=2 param=7107 dumpOffset=113
+dial m7116    label="Low Damp" color=mu max=100 display=raw group=2 param=7116 dumpOffset=122
+dial m7117    label="High Damp" color=mu max=100 display=raw group=2 param=7117 dumpOffset=123
+dial m7110    label="Tap1 Time" color=mu max=252 names=@v097bb0 asDial=1 group=2 param=7110 dumpOffset=116
+dial m7111    label="Tap1 Level" color=mu max=100 display=raw group=2 param=7111 dumpOffset=117
+dial m7112    label="Tap2 Time" color=mu max=252 names=@v097bb0 asDial=1 group=2 param=7112 dumpOffset=118
+dial m7108    label="Input Level Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7108 dumpOffset=114
+
+page       Multi | Effects | Insert 1
+section    mufx12_2
+fromDump   multi
+showIf     112 12
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7109    label="Input Level Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7109 dumpOffset=115
+dial m7113    label="Fdbk" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7113 dumpOffset=119
+dial m7114    label="Fdbk Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7114 dumpOffset=120
+dial m7115    label="Fdbk Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7115 dumpOffset=121
+dial m7118    label="Spread" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7118 dumpOffset=124
+dial m7119    label="Spread Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7119 dumpOffset=125
+dial m7120    label="Spread Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7120 dumpOffset=126
+dial m7121    label="Effect Bal" color=mu max=101 display=raw group=2 param=7121 dumpOffset=127
+
+page       Multi | Effects | Insert 1
+section    mufx12_3
+fromDump   multi
+showIf     112 12
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7122    label="Effect Bal Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7122 dumpOffset=128
+dial m7123    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7123 dumpOffset=129
+
+page       Multi | Effects | Insert 1
+section    mufx13_1
+fromDump   multi
+showIf     112 13
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7124    label="Speed" color=mu max=100 display=raw group=2 param=7124 dumpOffset=113
+dial m7125    label="Speed Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7125 dumpOffset=114
+dial m7126    label="Speed Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7126 dumpOffset=115
+dial m7127    label="Shimmer" color=mu max=100 display=raw group=2 param=7127 dumpOffset=116
+dial m7128    label="Depth" color=mu max=100 display=raw group=2 param=7128 dumpOffset=117
+dial m7129    label="Depth Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7129 dumpOffset=118
+dial m7130    label="Depth Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7130 dumpOffset=119
+dial m7131    label="Param 987" color=mu max=101 display=raw group=2 param=7131 dumpOffset=120
+
+page       Multi | Effects | Insert 1
+section    mufx13_2
+fromDump   multi
+showIf     112 13
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7132    label="Effect Bal Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7132 dumpOffset=121
+dial m7133    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7133 dumpOffset=122
+
+page       Multi | Effects | Insert 1
+section    mufx14_1
+fromDump   multi
+showIf     112 14
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7134    label="Speed" color=mu max=2 names=@vf13402 group=2 param=7134 dumpOffset=113
+dial m7136    label="Mode" color=mu max=2 names=@v6615dd group=2 param=7136 dumpOffset=115
+dial m7135    label="Speed SW" color=mu max=46 names=@vce3db9 group=2 param=7135 dumpOffset=114
+dial m7137    label="Mode SW" color=mu max=46 names=@vce3db9 group=2 param=7137 dumpOffset=116
+
+page       Multi | Effects | Insert 1
+section    mufx14_2
+fromDump   multi
+showIf     112 14
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7138    label="Rotor Acceleration" color=mu max=100 display=raw group=2 param=7138 dumpOffset=117
+dial m7139    label="Rotor Rate" color=mu max=100 display=raw group=2 param=7139 dumpOffset=118
+dial m7140    label="Horn Acceleration" color=mu max=100 display=raw group=2 param=7140 dumpOffset=119
+dial m7141    label="Horn Rate" color=mu max=100 display=raw group=2 param=7141 dumpOffset=120
+dial m7142    label="Mic Distance" color=mu max=100 display=raw group=2 param=7142 dumpOffset=121
+dial m7143    label="Mic Spread" color=mu max=100 display=raw group=2 param=7143 dumpOffset=122
+dial m7144    label="Horn/Rotor Bal" color=mu max=100 display=raw group=2 param=7144 dumpOffset=123
+dial m7145    label="Effect Bal" color=mu max=101 display=raw group=2 param=7145 dumpOffset=124
+
+page       Multi | Effects | Insert 1
+section    mufx14_3
+fromDump   multi
+showIf     112 14
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m7146    label="Effect Bal Mod Src" color=mu max=46 names=@vce3db9 group=2 param=7146 dumpOffset=125
+dial m7147    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=7147 dumpOffset=126
+
+page       Multi | Effects | Master
+section    mumfxsel
+fromDump   multi
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m181     label="Type" color=mu max=3 names=@vbd0b16 group=2 param=181 dumpOffset=158
+
+page       Multi | Effects | Master
+section    mumfx0_1
+fromDump   multi
+showIf     158 0
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m11244   label="Type" color=mu max=2 names=@vd9dab7 group=2 param=11244 dumpOffset=159
+dial m11247   label="Left Delay Time" color=mu max=252 names=@v097bb0 asDial=1 group=2 param=11247 dumpOffset=162
+dial m11248   label="Right Delay Time" color=mu max=252 names=@v097bb0 asDial=1 group=2 param=11248 dumpOffset=163
+dial m11245   label="Input Level Mod Src" color=mu max=46 names=@vce3db9 group=2 param=11245 dumpOffset=160
+dial m11246   label="Input Level Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=11246 dumpOffset=161
+dial m11249   label="Fdbk(L)" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=11249 dumpOffset=164
+dial m11253   label="Low Damp" color=mu max=100 display=raw group=2 param=11253 dumpOffset=168
+dial m11254   label="High Damp" color=mu max=100 display=raw group=2 param=11254 dumpOffset=169
+
+page       Multi | Effects | Master
+section    mumfx0_2
+fromDump   multi
+showIf     158 0
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m11250   label="Fdbk(R)" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=11250 dumpOffset=165
+dial m11251   label="Fdbk Mod Src" color=mu max=46 names=@vce3db9 group=2 param=11251 dumpOffset=166
+dial m11252   label="Fdbk Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=11252 dumpOffset=167
+dial m11255   label="Effect Bal" color=mu max=101 display=raw group=2 param=11255 dumpOffset=170
+dial m11256   label="Effect Bal Mod Src" color=mu max=46 names=@vce3db9 group=2 param=11256 dumpOffset=171
+dial m11257   label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=11257 dumpOffset=172
+
+page       Multi | Effects | Master
+section    mumfx1_1
+fromDump   multi
+showIf     158 1
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m11258   label="Reverb Time" color=mu max=100 offset=1 names=@vde7d15 asDial=1 group=2 param=11258 dumpOffset=159
+dial m11262   label="Pre EQ Trim" color=mu max=100 display=raw group=2 param=11262 dumpOffset=163
+dial m11263   label="Pre Low EQ Gain" color=mu max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=2 param=11263 dumpOffset=164
+dial m11264   label="Pre High EQ Gain" color=mu max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=2 param=11264 dumpOffset=165
+dial m11259   label="Pre Delay" color=mu max=201 display=raw group=2 param=11259 dumpOffset=160
+dial m11261   label="High Damp" color=mu max=100 display=raw group=2 param=11261 dumpOffset=162
+dial m11260   label="Thru level" color=mu max=100 display=raw group=2 param=11260 dumpOffset=161
+dial m11265   label="Effect Bal" color=mu max=101 display=raw group=2 param=11265 dumpOffset=166
+
+page       Multi | Effects | Master
+section    mumfx1_2
+fromDump   multi
+showIf     158 1
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m11266   label="Effect Bal Mod Src" color=mu max=46 names=@vce3db9 group=2 param=11266 dumpOffset=167
+dial m11267   label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=11267 dumpOffset=168
+
+page       Multi | Effects | Master
+section    mumfx2_1
+fromDump   multi
+showIf     158 2
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m11268   label="Reverb Time" color=mu max=30 offset=1 names=@v936f87 asDial=1 group=2 param=11268 dumpOffset=159
+dial m11274   label="Pre EQ Trim" color=mu max=100 display=raw group=2 param=11274 dumpOffset=165
+dial m11275   label="Pre Low EQ Gain" color=mu max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=2 param=11275 dumpOffset=166
+dial m11276   label="Pre High EQ Gain" color=mu max=73 displayOffset=36 wireSigned=1 names=@v93ce09 asDial=1 group=2 param=11276 dumpOffset=167
+dial m11269   label="Pre Delay" color=mu max=201 display=raw group=2 param=11269 dumpOffset=160
+dial m11271   label="High Damp" color=mu max=100 display=raw group=2 param=11271 dumpOffset=162
+dial m11272   label="ER. Level" color=mu max=100 display=raw group=2 param=11272 dumpOffset=163
+dial m11273   label="Reverb Level" color=mu max=100 display=raw group=2 param=11273 dumpOffset=164
+
+page       Multi | Effects | Master
+section    mumfx2_2
+fromDump   multi
+showIf     158 2
+dialSize   40
+spacing    50
+
+color mu 0.55 0.8 0.75
+
+dial m11270   label="Pre Delay Thru Level" color=mu max=100 display=raw group=2 param=11270 dumpOffset=161
+dial m11277   label="Effect Bal" color=mu max=101 display=raw group=2 param=11277 dumpOffset=168
+dial m11278   label="Effect Bal Mod Src" color=mu max=46 names=@vce3db9 group=2 param=11278 dumpOffset=169
+dial m11279   label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireSigned=1 display=signed group=2 param=11279 dumpOffset=170
+# ══ END GENERATED Multi Set
+
+# ══ BEGIN GENERATED Arpeggio
+# ── Arpeggio ──────────────────────────────────────────────────────────────────
+# GENERATED from the Z1's parameter tables - regenerate rather than edit by hand.
+# The edit buffer's pattern: its own dump (6B 00, asked with 36 00), Parameter Change group 3.
+# 36 steps of 6 bytes from dump byte 40. Tones shows which of the 10 tones a step plays,
+# highest first (x = on).
+dumpBlock arp 36 00 reply 6B 00
+
+page       Arpeggio | Pattern | Common
+section    arpcommon
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a19      label="Sort" color=arp max=2 names=@v7bf299 group=3 param=19 dumpOffset=18
+dial a20      label="Keyboard Scan Zone Top" color=arp max=128 names=@vc2ba68 group=3 param=20 dumpOffset=19
+dial a21      label="Keyboard Scan Zone Bottom" color=arp max=128 names=@vc2ba68 group=3 param=21 dumpOffset=20
+dial a22      label="Vel" color=arp max=129 offset=1 names=@v56c171 asDial=1 group=3 param=22 dumpOffset=21
+dial a25      label="Gate" color=arp max=102 names=@v7d8f92 asDial=1 group=3 param=25 dumpOffset=24
+dial a28      label="Swing" color=arp max=101 displayOffset=50 wireSigned=1 display=signed group=3 param=28 dumpOffset=27
+dial a30      label="Pattern Length" color=arp max=36 offset=1 names=@va305ad asDial=1 group=3 param=30 dumpOffset=29
+
+page       Arpeggio | Pattern | Common
+section    arpcommonw1
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a31      label="Arpeggio Type" color=arp max=4 names=@vd77d66 group=3 param=31 dumpOffset=30
+dial a32      label="Octave Motion" color=arp max=4 names=@v389560 group=3 param=32 dumpOffset=31
+
+page       Arpeggio | Steps | 1-6
+section    arpstep1
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a33      label="1 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=33 dumpOffset=40
+dial a34      label="1 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=34 dumpOffset=41
+dial a35      label="1 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=35 dumpOffset=42
+dial a36      label="1 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=36 dumpOffset=43
+dial a37      label="1 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=37 dumpOffset=44
+dial a38      label="1 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=38 dumpOffset=45
+
+page       Arpeggio | Steps | 1-6
+section    arpstep2
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a39      label="2 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=39 dumpOffset=46
+dial a40      label="2 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=40 dumpOffset=47
+dial a41      label="2 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=41 dumpOffset=48
+dial a42      label="2 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=42 dumpOffset=49
+dial a43      label="2 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=43 dumpOffset=50
+dial a44      label="2 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=44 dumpOffset=51
+
+page       Arpeggio | Steps | 1-6
+section    arpstep3
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a45      label="3 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=45 dumpOffset=52
+dial a46      label="3 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=46 dumpOffset=53
+dial a47      label="3 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=47 dumpOffset=54
+dial a48      label="3 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=48 dumpOffset=55
+dial a49      label="3 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=49 dumpOffset=56
+dial a50      label="3 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=50 dumpOffset=57
+
+page       Arpeggio | Steps | 1-6
+section    arpstep4
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a51      label="4 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=51 dumpOffset=58
+dial a52      label="4 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=52 dumpOffset=59
+dial a53      label="4 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=53 dumpOffset=60
+dial a54      label="4 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=54 dumpOffset=61
+dial a55      label="4 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=55 dumpOffset=62
+dial a56      label="4 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=56 dumpOffset=63
+
+page       Arpeggio | Steps | 1-6
+section    arpstep5
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a57      label="5 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=57 dumpOffset=64
+dial a58      label="5 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=58 dumpOffset=65
+dial a59      label="5 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=59 dumpOffset=66
+dial a60      label="5 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=60 dumpOffset=67
+dial a61      label="5 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=61 dumpOffset=68
+dial a62      label="5 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=62 dumpOffset=69
+
+page       Arpeggio | Steps | 1-6
+section    arpstep6
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a63      label="6 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=63 dumpOffset=70
+dial a64      label="6 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=64 dumpOffset=71
+dial a65      label="6 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=65 dumpOffset=72
+dial a66      label="6 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=66 dumpOffset=73
+dial a67      label="6 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=67 dumpOffset=74
+dial a68      label="6 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=68 dumpOffset=75
+
+page       Arpeggio | Steps | 7-12
+section    arpstep7
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a69      label="7 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=69 dumpOffset=76
+dial a70      label="7 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=70 dumpOffset=77
+dial a71      label="7 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=71 dumpOffset=78
+dial a72      label="7 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=72 dumpOffset=79
+dial a73      label="7 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=73 dumpOffset=80
+dial a74      label="7 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=74 dumpOffset=81
+
+page       Arpeggio | Steps | 7-12
+section    arpstep8
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a75      label="8 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=75 dumpOffset=82
+dial a76      label="8 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=76 dumpOffset=83
+dial a77      label="8 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=77 dumpOffset=84
+dial a78      label="8 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=78 dumpOffset=85
+dial a79      label="8 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=79 dumpOffset=86
+dial a80      label="8 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=80 dumpOffset=87
+
+page       Arpeggio | Steps | 7-12
+section    arpstep9
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a81      label="9 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=81 dumpOffset=88
+dial a82      label="9 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=82 dumpOffset=89
+dial a83      label="9 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=83 dumpOffset=90
+dial a84      label="9 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=84 dumpOffset=91
+dial a85      label="9 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=85 dumpOffset=92
+dial a86      label="9 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=86 dumpOffset=93
+
+page       Arpeggio | Steps | 7-12
+section    arpstep10
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a87      label="10 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=87 dumpOffset=94
+dial a88      label="10 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=88 dumpOffset=95
+dial a89      label="10 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=89 dumpOffset=96
+dial a90      label="10 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=90 dumpOffset=97
+dial a91      label="10 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=91 dumpOffset=98
+dial a92      label="10 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=92 dumpOffset=99
+
+page       Arpeggio | Steps | 7-12
+section    arpstep11
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a93      label="11 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=93 dumpOffset=100
+dial a94      label="11 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=94 dumpOffset=101
+dial a95      label="11 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=95 dumpOffset=102
+dial a96      label="11 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=96 dumpOffset=103
+dial a97      label="11 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=97 dumpOffset=104
+dial a98      label="11 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=98 dumpOffset=105
+
+page       Arpeggio | Steps | 7-12
+section    arpstep12
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a99      label="12 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=99 dumpOffset=106
+dial a100     label="12 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=100 dumpOffset=107
+dial a101     label="12 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=101 dumpOffset=108
+dial a102     label="12 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=102 dumpOffset=109
+dial a103     label="12 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=103 dumpOffset=110
+dial a104     label="12 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=104 dumpOffset=111
+
+page       Arpeggio | Steps | 13-18
+section    arpstep13
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a105     label="13 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=105 dumpOffset=112
+dial a106     label="13 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=106 dumpOffset=113
+dial a107     label="13 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=107 dumpOffset=114
+dial a108     label="13 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=108 dumpOffset=115
+dial a109     label="13 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=109 dumpOffset=116
+dial a110     label="13 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=110 dumpOffset=117
+
+page       Arpeggio | Steps | 13-18
+section    arpstep14
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a111     label="14 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=111 dumpOffset=118
+dial a112     label="14 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=112 dumpOffset=119
+dial a113     label="14 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=113 dumpOffset=120
+dial a114     label="14 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=114 dumpOffset=121
+dial a115     label="14 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=115 dumpOffset=122
+dial a116     label="14 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=116 dumpOffset=123
+
+page       Arpeggio | Steps | 13-18
+section    arpstep15
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a117     label="15 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=117 dumpOffset=124
+dial a118     label="15 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=118 dumpOffset=125
+dial a119     label="15 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=119 dumpOffset=126
+dial a120     label="15 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=120 dumpOffset=127
+dial a121     label="15 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=121 dumpOffset=128
+dial a122     label="15 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=122 dumpOffset=129
+
+page       Arpeggio | Steps | 13-18
+section    arpstep16
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a123     label="16 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=123 dumpOffset=130
+dial a124     label="16 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=124 dumpOffset=131
+dial a125     label="16 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=125 dumpOffset=132
+dial a126     label="16 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=126 dumpOffset=133
+dial a127     label="16 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=127 dumpOffset=134
+dial a128     label="16 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=128 dumpOffset=135
+
+page       Arpeggio | Steps | 13-18
+section    arpstep17
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a129     label="17 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=129 dumpOffset=136
+dial a130     label="17 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=130 dumpOffset=137
+dial a131     label="17 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=131 dumpOffset=138
+dial a132     label="17 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=132 dumpOffset=139
+dial a133     label="17 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=133 dumpOffset=140
+dial a134     label="17 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=134 dumpOffset=141
+
+page       Arpeggio | Steps | 13-18
+section    arpstep18
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a135     label="18 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=135 dumpOffset=142
+dial a136     label="18 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=136 dumpOffset=143
+dial a137     label="18 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=137 dumpOffset=144
+dial a138     label="18 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=138 dumpOffset=145
+dial a139     label="18 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=139 dumpOffset=146
+dial a140     label="18 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=140 dumpOffset=147
+
+page       Arpeggio | Steps | 19-24
+section    arpstep19
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a141     label="19 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=141 dumpOffset=148
+dial a142     label="19 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=142 dumpOffset=149
+dial a143     label="19 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=143 dumpOffset=150
+dial a144     label="19 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=144 dumpOffset=151
+dial a145     label="19 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=145 dumpOffset=152
+dial a146     label="19 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=146 dumpOffset=153
+
+page       Arpeggio | Steps | 19-24
+section    arpstep20
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a147     label="20 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=147 dumpOffset=154
+dial a148     label="20 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=148 dumpOffset=155
+dial a149     label="20 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=149 dumpOffset=156
+dial a150     label="20 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=150 dumpOffset=157
+dial a151     label="20 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=151 dumpOffset=158
+dial a152     label="20 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=152 dumpOffset=159
+
+page       Arpeggio | Steps | 19-24
+section    arpstep21
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a153     label="21 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=153 dumpOffset=160
+dial a154     label="21 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=154 dumpOffset=161
+dial a155     label="21 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=155 dumpOffset=162
+dial a156     label="21 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=156 dumpOffset=163
+dial a157     label="21 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=157 dumpOffset=164
+dial a158     label="21 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=158 dumpOffset=165
+
+page       Arpeggio | Steps | 19-24
+section    arpstep22
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a159     label="22 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=159 dumpOffset=166
+dial a160     label="22 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=160 dumpOffset=167
+dial a161     label="22 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=161 dumpOffset=168
+dial a162     label="22 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=162 dumpOffset=169
+dial a163     label="22 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=163 dumpOffset=170
+dial a164     label="22 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=164 dumpOffset=171
+
+page       Arpeggio | Steps | 19-24
+section    arpstep23
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a165     label="23 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=165 dumpOffset=172
+dial a166     label="23 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=166 dumpOffset=173
+dial a167     label="23 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=167 dumpOffset=174
+dial a168     label="23 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=168 dumpOffset=175
+dial a169     label="23 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=169 dumpOffset=176
+dial a170     label="23 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=170 dumpOffset=177
+
+page       Arpeggio | Steps | 19-24
+section    arpstep24
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a171     label="24 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=171 dumpOffset=178
+dial a172     label="24 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=172 dumpOffset=179
+dial a173     label="24 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=173 dumpOffset=180
+dial a174     label="24 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=174 dumpOffset=181
+dial a175     label="24 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=175 dumpOffset=182
+dial a176     label="24 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=176 dumpOffset=183
+
+page       Arpeggio | Steps | 25-30
+section    arpstep25
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a177     label="25 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=177 dumpOffset=184
+dial a178     label="25 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=178 dumpOffset=185
+dial a179     label="25 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=179 dumpOffset=186
+dial a180     label="25 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=180 dumpOffset=187
+dial a181     label="25 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=181 dumpOffset=188
+dial a182     label="25 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=182 dumpOffset=189
+
+page       Arpeggio | Steps | 25-30
+section    arpstep26
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a183     label="26 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=183 dumpOffset=190
+dial a184     label="26 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=184 dumpOffset=191
+dial a185     label="26 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=185 dumpOffset=192
+dial a186     label="26 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=186 dumpOffset=193
+dial a187     label="26 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=187 dumpOffset=194
+dial a188     label="26 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=188 dumpOffset=195
+
+page       Arpeggio | Steps | 25-30
+section    arpstep27
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a189     label="27 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=189 dumpOffset=196
+dial a190     label="27 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=190 dumpOffset=197
+dial a191     label="27 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=191 dumpOffset=198
+dial a192     label="27 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=192 dumpOffset=199
+dial a193     label="27 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=193 dumpOffset=200
+dial a194     label="27 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=194 dumpOffset=201
+
+page       Arpeggio | Steps | 25-30
+section    arpstep28
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a195     label="28 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=195 dumpOffset=202
+dial a196     label="28 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=196 dumpOffset=203
+dial a197     label="28 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=197 dumpOffset=204
+dial a198     label="28 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=198 dumpOffset=205
+dial a199     label="28 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=199 dumpOffset=206
+dial a200     label="28 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=200 dumpOffset=207
+
+page       Arpeggio | Steps | 25-30
+section    arpstep29
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a201     label="29 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=201 dumpOffset=208
+dial a202     label="29 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=202 dumpOffset=209
+dial a203     label="29 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=203 dumpOffset=210
+dial a204     label="29 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=204 dumpOffset=211
+dial a205     label="29 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=205 dumpOffset=212
+dial a206     label="29 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=206 dumpOffset=213
+
+page       Arpeggio | Steps | 25-30
+section    arpstep30
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a207     label="30 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=207 dumpOffset=214
+dial a208     label="30 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=208 dumpOffset=215
+dial a209     label="30 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=209 dumpOffset=216
+dial a210     label="30 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=210 dumpOffset=217
+dial a211     label="30 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=211 dumpOffset=218
+dial a212     label="30 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=212 dumpOffset=219
+
+page       Arpeggio | Steps | 31-36
+section    arpstep31
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a213     label="31 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=213 dumpOffset=220
+dial a214     label="31 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=214 dumpOffset=221
+dial a215     label="31 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=215 dumpOffset=222
+dial a216     label="31 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=216 dumpOffset=223
+dial a217     label="31 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=217 dumpOffset=224
+dial a218     label="31 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=218 dumpOffset=225
+
+page       Arpeggio | Steps | 31-36
+section    arpstep32
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a219     label="32 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=219 dumpOffset=226
+dial a220     label="32 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=220 dumpOffset=227
+dial a221     label="32 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=221 dumpOffset=228
+dial a222     label="32 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=222 dumpOffset=229
+dial a223     label="32 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=223 dumpOffset=230
+dial a224     label="32 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=224 dumpOffset=231
+
+page       Arpeggio | Steps | 31-36
+section    arpstep33
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a225     label="33 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=225 dumpOffset=232
+dial a226     label="33 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=226 dumpOffset=233
+dial a227     label="33 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=227 dumpOffset=234
+dial a228     label="33 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=228 dumpOffset=235
+dial a229     label="33 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=229 dumpOffset=236
+dial a230     label="33 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=230 dumpOffset=237
+
+page       Arpeggio | Steps | 31-36
+section    arpstep34
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a231     label="34 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=231 dumpOffset=238
+dial a232     label="34 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=232 dumpOffset=239
+dial a233     label="34 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=233 dumpOffset=240
+dial a234     label="34 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=234 dumpOffset=241
+dial a235     label="34 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=235 dumpOffset=242
+dial a236     label="34 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=236 dumpOffset=243
+
+page       Arpeggio | Steps | 31-36
+section    arpstep35
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a237     label="35 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=237 dumpOffset=244
+dial a238     label="35 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=238 dumpOffset=245
+dial a239     label="35 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=239 dumpOffset=246
+dial a240     label="35 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=240 dumpOffset=247
+dial a241     label="35 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=241 dumpOffset=248
+dial a242     label="35 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=242 dumpOffset=249
+
+page       Arpeggio | Steps | 31-36
+section    arpstep36
+fromDump   arp
+dialSize   40
+spacing    50
+
+color arp 0.85 0.75 0.45
+
+dial a243     label="36 Tones 9-8" color=arp max=4 names=@ve570fb group=3 param=243 dumpOffset=250
+dial a244     label="36 Tones 7-0" color=arp max=256 names=@vb7f903 asDial=1 group=3 param=244 dumpOffset=251
+dial a245     label="36 Pitch" color=arp max=97 displayOffset=48 wireSigned=1 display=signed group=3 param=245 dumpOffset=252
+dial a246     label="36 Flam" color=arp max=199 displayOffset=99 wireSigned=1 display=signed group=3 param=246 dumpOffset=253
+dial a247     label="36 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 group=3 param=247 dumpOffset=254
+dial a248     label="36 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=248 dumpOffset=255
+# ══ END GENERATED Arpeggio
 
 # ══ BEGIN GENERATED Remaining parameters of the areas above
 # ── Remaining parameters of the areas above ───────────────────────────────────

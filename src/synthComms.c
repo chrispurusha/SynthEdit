@@ -159,6 +159,22 @@ static uint8_t         gProgCache[8192];
 static uint32_t        gProgCacheLen  = 0;
 static _Atomic int32_t gActiveVariant = -1;
 
+// notes §105
+static uint8_t         gBlockCache[PANEL_MAX_DUMP_BLOCKS][1024];
+static uint32_t        gBlockCacheLen[PANEL_MAX_DUMP_BLOCKS];
+
+static uint32_t read_block_dials(int32_t block);
+
+// The cached dump `block` names: a dump block's, or the program dump's for -1. Call with gProgCacheLock held.
+static uint8_t * dump_cache(int32_t block, uint32_t * len) {
+    if ((block >= 0) && (block < PANEL_MAX_DUMP_BLOCKS)) {
+        *len = gBlockCacheLen[block];
+        return gBlockCache[block];
+    }
+    *len = gProgCacheLen;
+    return gProgCache;
+}
+
 // The pageVariant `variant` applies to `section` (its pages are under the variant's base), or NULL.
 static const tPageVariant * section_variant(const tPanelSection * section, int32_t variant) {
     const tPanelConfig * cfg = synth_panel_config();
@@ -209,16 +225,26 @@ uint32_t synth_dial_max(const tPanelDial * dial) {
 // Records a dial's value in the cached dump at the place `variant` reads it from, so switching variant or
 // re-reading the cache shows it.
 static void cache_store_dial_value(const tPanelDial * dial, const tPanelSection * section, int32_t variant, int32_t value) {
-    if ((dial->dumpOffset >= 0) && (dial->dumpBitWidth == 0) && !dial->wireSigned) {
+    int32_t block = section ? section->dumpBlock : -1;
+
+    if (dial->wireSigned && (dial->dumpBitWidth == 0) && (dial->dumpShift == 0) && (dial->dumpMask == 0xFF)) {
+        value = (value - dial->displayOffset) & 0xFF; // notes §93: the dump's two's-complement byte
+    } else if (dial->wireSigned) {
+        return;
+    }
+
+    if ((dial->dumpOffset >= 0) && (dial->dumpBitWidth == 0)) {
         // notes §93
-        uint32_t at = (uint32_t)(dial->dumpOffset + section_dump_delta(section, variant));
+        uint32_t  at    = (uint32_t)(dial->dumpOffset + section_dump_delta(section, variant));
+        uint32_t  len;
 
         pthread_mutex_lock(&gProgCacheLock);
+        uint8_t * cache = dump_cache(block, &len);
 
-        if (at < gProgCacheLen) {
+        if (at < len) {
             uint32_t mask = (uint32_t)dial->dumpMask << dial->dumpShift;
 
-            gProgCache[at] = (uint8_t)((gProgCache[at] & ~mask) | (((uint32_t)value << dial->dumpShift) & mask));
+            cache[at] = (uint8_t)((cache[at] & ~mask) | (((uint32_t)value << dial->dumpShift) & mask));
         }
         pthread_mutex_unlock(&gProgCacheLock);
         return;
@@ -227,12 +253,14 @@ static void cache_store_dial_value(const tPanelDial * dial, const tPanelSection 
     if ((dial->dumpOffset < 0) || (dial->dumpBitWidth == 0) || (dial->dumpBitWidth >= 32)) {
         return;
     }
-    uint32_t bits = (uint32_t)value & ((1u << dial->dumpBitWidth) - 1u);
+    uint32_t  bits  = (uint32_t)value & ((1u << dial->dumpBitWidth) - 1u);
+    uint32_t  len;
 
     pthread_mutex_lock(&gProgCacheLock);
+    uint8_t * cache = dump_cache(block, &len);
 
-    if (gProgCacheLen > 0) {
-        write_korg_bitpacked_field(gProgCache, gProgCacheLen, dial->dumpOffset + section_dump_delta(section, variant),
+    if (len > 0) {
+        write_korg_bitpacked_field(cache, len, dial->dumpOffset + section_dump_delta(section, variant),
                                    dial->dumpBitOffset, dial->dumpBitWidth, bits);
     }
     pthread_mutex_unlock(&gProgCacheLock);
@@ -1203,8 +1231,8 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
         gDevice.progName[paramId - 1]                                                                                   = ((c >= 0x20) && (c <= 0x7F)) ? c : '?';
         gDevice.progName[cfg->progNameLen < sizeof(gDevice.progName) ? cfg->progNameLen : sizeof(gDevice.progName) - 1] = '\0';
         LOG_DEBUG("Program name updated: \"%s\"\n", gDevice.progName);
-    } else if (group == SYNTH_PARAM_GROUP_PROG) {
-        // notes §49
+    } else {
+        // notes §49, §104
         tPanelDial * dial    = NULL;
 
         int32_t      variant = -1;
@@ -1236,20 +1264,7 @@ static void handle_parameter_change(const uint8_t * data, uint32_t length) {
                 apply_dial_wire_value(dial, rawForDial, (dial->dumpNativeMax != 0) ? dial->dumpNativeMax : dial->nativeMax);
             }
             synthlib_request_redraw();
-            LOG_DEBUG("Param %u (%s) = %u\n", (unsigned)paramId, dial->label, (unsigned)value);
-        }
-    } else {
-        // notes §104
-        tPanelDial * dial = NULL;
-
-        for (uint32_t s = 0; (s < cfg->sectionCount) && !dial; s++) {
-            dial = find_panel_dial_by_param(&cfg->sections[s], group, paramId);
-        }
-
-        if (dial) {
-            apply_dial_wire_value(dial, dial->wireSigned ? decode_signed_param_wire_value(dial, value) : value,
-                                  (dial->dumpNativeMax != 0) ? dial->dumpNativeMax : dial->nativeMax);
-            synthlib_request_redraw();
+            LOG_DEBUG("Param %u/%u (%s) = %u\n", (unsigned)group, (unsigned)paramId, dial->label, (unsigned)value);
         }
     }
 }
@@ -1329,13 +1344,15 @@ static void synth_send_kronos_parameter_change(uint32_t typ, uint32_t soc, uint3
               (unsigned)typ, (unsigned)soc, (unsigned)sub, (unsigned)pid, (unsigned)idx, (int)value);
 }
 
-int32_t synth_dump_byte(int32_t offset) {
-    int32_t value = -1;
+int32_t synth_dump_byte(int32_t block, int32_t offset) {
+    int32_t   value = -1;
+    uint32_t  len;
 
     pthread_mutex_lock(&gProgCacheLock);
+    uint8_t * cache = dump_cache(block, &len);
 
-    if ((offset >= 0) && ((uint32_t)offset < gProgCacheLen)) {
-        value = gProgCache[offset];
+    if ((offset >= 0) && ((uint32_t)offset < len)) {
+        value = cache[offset];
     }
     pthread_mutex_unlock(&gProgCacheLock);
     return value;
@@ -1350,6 +1367,11 @@ void synth_set_active_page_variant(int32_t variant) {
     if (gProgCacheLen > 0) {
         extract_prog_info(gProgCache, gProgCacheLen);
     }
+
+    for (uint32_t b = 0; b < synth_panel_config()->dumpBlockCount; b++) {
+        read_block_dials((int32_t)b);
+    }
+
     pthread_mutex_unlock(&gProgCacheLock);
     synthlib_request_redraw();
 }
@@ -1598,6 +1620,32 @@ void synth_request_dump_blocks(void) {
     }
 }
 
+// Sets the dials of every section reading dump block `block` from its cache, at the showing variant's
+// offsets. Call with gProgCacheLock held.
+static uint32_t read_block_dials(int32_t block) {
+    tPanelConfig * cfg     = synth_panel_config();
+    uint32_t       updated = 0;
+    uint32_t       len;
+    uint8_t *      cache   = dump_cache(block, &len);
+
+    for (uint32_t s = 0; (len > 0) && (s < cfg->sectionCount); s++) {
+        tPanelSection * section = &cfg->sections[s];
+
+        if (section->dumpBlock != block) {
+            continue;
+        }
+        int32_t         delta   = section_dump_delta(section, section_active_variant(section));
+
+        for (uint32_t d = 0; d < section->dialCount; d++) {
+            tPanelDial * dial = &section->dials[d];
+
+            updated += read_dial_from_dump(dial, (dial->dumpOffset >= 0) ? dial->dumpOffset + delta : -1, cache, len) ? 1 : 0;
+        }
+    }
+
+    return updated;
+}
+
 // The reply to a dump block's request: its sections' dials. True if it was one.
 static bool handle_dump_block_reply(const uint8_t * data, uint32_t length, uint8_t funcId) {
     tPanelConfig * cfg     = synth_panel_config();
@@ -1610,18 +1658,18 @@ static bool handle_dump_block_reply(const uint8_t * data, uint32_t length, uint8
         }
         static uint8_t decoded[4096];
         uint32_t       decodedLen = decode_7to8(data + skip, length - skip - 1, decoded, sizeof(decoded));
-        uint32_t       updated    = 0;
 
-        for (uint32_t s = 0; s < cfg->sectionCount; s++) {
-            tPanelSection * section = &cfg->sections[s];
-
-            for (uint32_t d = 0; (section->dumpBlock == (int32_t)b) && (d < section->dialCount); d++) {
-                updated += read_dial_from_dump(&section->dials[d], section->dials[d].dumpOffset, decoded, decodedLen) ? 1 : 0;
-            }
+        if (decodedLen > sizeof(gBlockCache[b])) {
+            decodedLen = sizeof(gBlockCache[b]);
         }
+        pthread_mutex_lock(&gProgCacheLock);
+        memcpy(gBlockCache[b], decoded, decodedLen);
+        gBlockCacheLen[b] = decodedLen;
+        uint32_t       updated    = read_block_dials((int32_t)b);
 
+        pthread_mutex_unlock(&gProgCacheLock);
         LOG_DEBUG("Dump block %s: %u dial(s) updated\n", cfg->dumpBlocks[b].name, (unsigned)updated);
-        matched = true;
+        matched           = true;
     }
 
     return matched;

@@ -97,8 +97,8 @@ void synth_set_active_page_variant(int32_t variant);
 // The count of positions `dial` offers now: its variantMax while its page is shown as a pageVariant, else max.
 uint32_t synth_dial_max(const tPanelDial * dial);
 
-// Byte `offset` of the cached Program dump, or -1 before one has arrived. Any thread.
-int32_t synth_dump_byte(int32_t offset);
+// Byte `offset` of the cached dump `block` (-1 = the Program dump), or -1 before one has arrived. Any thread.
+int32_t synth_dump_byte(int32_t block, int32_t offset);
 
 // The device mode last reported (Mode Data / Mode Change), -1 if none since the last call. Called from the
 // UI thread; the MIDI thread posts it.

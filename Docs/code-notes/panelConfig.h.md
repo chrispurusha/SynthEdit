@@ -771,7 +771,7 @@ freeing them, because `load_panel_config()` is also handed uninitialised scratch
 
 ## 54. `PANEL_MAX_SECTIONS`
 
-256 since 2026-10-07. Raised 32 -> 48 -> 64 in July as the Z1's Amp/EG/LFO pages were split, each time
+512 since 2026-10-20, when the Z1's Multi Set and Arpeggio pages took it to 276; 256 since 2026-10-07. Raised 32 -> 48 -> 64 in July as the Z1's Amp/EG/LFO pages were split, each time
 for a real failure: past the cap, dials land silently in the wrong section (panelConfig.c's "too many
 sections" error). The Z1's complete program needs about 175 - a section per row of every oscillator model
 and effect type, each shown only while selected. A section is about 14.5 KB since the dial names moved to
@@ -830,4 +830,7 @@ declares another dump: the request (after the SysEx header, without F7) and the 
 reply carries. A section that says `fromDump <name>` reads its dials' dumpOffsets from that reply instead of
 the program dump. Every block is requested at connect and by Sync from synth. The Z1 is the case: its Global
 settings come in `51 00` (asked with `0E 00`), its MIDI settings in `51 01` (`0E 01`), both edited with
-Parameter Change group 0.
+Parameter Change group 0; its Multi Set in `49 00` (`19 00`, group 2) and the edit buffer's arpeggio pattern
+in `6B 00` (`36 00`, group 3). Each block is cached (synthComms.c notes §105), so a section reading one can
+use showIf and pageVariants the way program sections do - the Multi Set's timbres 2-6 are variants of
+Timbre 1's page. PANEL_MAX_PAGE_VARIANTS went 8 -> 16 with them.
