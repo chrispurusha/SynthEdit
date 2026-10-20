@@ -217,6 +217,8 @@ typedef struct {
     double   spacing;
     int32_t  showIfOffset;       // notes §49: shown only while this dump byte (-1 = always) ...
     uint32_t showIfValue;        // ... holds this value
+    int32_t  showIfDumpMin;      // notes §59: shown only while its dump is this many bytes (-1 = any size) ...
+    int32_t  showIfDumpMax;      // ... up to this many
     // notes §52
     bool     hasVariantParamDelta;
     int32_t  variantParamDelta;
@@ -354,6 +356,9 @@ typedef struct {
 
 // True if `page` is `prefix` or a page below it in the path.
 bool panel_page_is_under(const char * page, const char * prefix);
+
+// A section with a showIfDumpSize belongs to a dump `length` bytes long (notes §59). True when it has none.
+bool panel_section_fits_dump(const tPanelSection * section, uint32_t length);
 
 // The section holding `dial`, or NULL.
 tPanelSection * panel_section_of_dial(tPanelConfig * config, const tPanelDial * dial);

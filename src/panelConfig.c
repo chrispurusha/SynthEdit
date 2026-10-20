@@ -658,10 +658,12 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
             LOG_ERROR("panelConfig line %u: too many sections (max %u)\n", lineNo, (unsigned)PANEL_MAX_SECTIONS);
             return;
         }
-        *currentSection                 = &config->sections[config->sectionCount++];
-        *pendingGap                     = 0.0;
-        (*currentSection)->showIfOffset = -1;
-        (*currentSection)->dumpBlock    = -1;
+        *currentSection                  = &config->sections[config->sectionCount++];
+        *pendingGap                      = 0.0;
+        (*currentSection)->showIfOffset  = -1;
+        (*currentSection)->showIfDumpMin = -1;
+        (*currentSection)->showIfDumpMax = -1;
+        (*currentSection)->dumpBlock     = -1;
         join_tokens(tokens, 1, tokenCount, (*currentSection)->page, sizeof((*currentSection)->page));
         normalise_page_path((*currentSection)->page);
     } else if (strcmp(keyword, "modeTab") == 0) {
@@ -680,6 +682,13 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
         }
         (*currentSection)->showIfOffset = (int32_t)strtol(tokens[1], NULL, 0);
         (*currentSection)->showIfValue  = (uint32_t)strtoul(tokens[2], NULL, 0);
+    } else if (strcmp(keyword, "showIfDumpSize") == 0) {
+        if (!*currentSection || (tokenCount < 3)) {
+            LOG_ERROR("panelConfig line %u: expected 'showIfDumpSize <min bytes> <max bytes>' inside a page\n", lineNo);
+            return;
+        }
+        (*currentSection)->showIfDumpMin = (int32_t)strtol(tokens[1], NULL, 0);
+        (*currentSection)->showIfDumpMax = (int32_t)strtol(tokens[2], NULL, 0);
     } else if (strcmp(keyword, "graph") == 0) {
         if (!*currentSection) {
             LOG_ERROR("panelConfig line %u: 'graph' outside a section\n", lineNo);
@@ -1114,6 +1123,14 @@ int32_t panel_mode_for_tab(const tPanelConfig * config, const char * tab) {
     }
 
     return -1;
+}
+
+// notes §59
+bool panel_section_fits_dump(const tPanelSection * section, uint32_t length) {
+    if (section->showIfDumpMin < 0) {
+        return true;
+    }
+    return ((int32_t)length >= section->showIfDumpMin) && ((int32_t)length <= section->showIfDumpMax);
 }
 
 bool panel_page_is_under(const char * page, const char * prefix) {

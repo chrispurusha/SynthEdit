@@ -653,6 +653,7 @@ void do_graphics_loop(void) {
         // name-sweep request was in flight at the time — see
         // synth_flush_pending_param_send()'s own comment (synthComms.h).
         synth_flush_pending_param_send();
+        synth_flush_pending_block_requests(); // synthComms.c notes §106
         // Advances an in-progress Backup > Bank (Individual Files)… sweep
         // (next preset request, or a per-preset timeout) — see
         // synth_backup_flush_bank_to_folder()'s own comment (synthBackup.h).

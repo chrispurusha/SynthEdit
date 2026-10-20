@@ -834,3 +834,14 @@ Parameter Change group 0; its Multi Set in `49 00` (`19 00`, group 2) and the ed
 in `6B 00` (`36 00`, group 3). Each block is cached (synthComms.c notes §105), so a section reading one can
 use showIf and pageVariants the way program sections do - the Multi Set's timbres 2-6 are variants of
 Timbre 1's page. PANEL_MAX_PAGE_VARIANTS went 8 -> 16 with them.
+
+## 59. `showIfDumpSize`
+
+`showIfDumpSize <min> <max>` shows a section only while the dump it reads is min..max bytes long; before
+any dump it shows. The dump also skips its dials when it is another size, and an edit is not stored into a
+cached dump of the other size. The Kronos is the case: its Program edit buffer comes in two formats, HD-1
+(3706 bytes) and EXi (4960), with different layouts, and Program Bank Types (func 61) says which. An EXi
+engine's pages must not read an HD-1 dump, where byte 2857 (the EXi 1 algorithm type its showIf tests) falls
+among the oscillator zones. Added 2026-10-20; no layout uses it yet - the HD-1 pages and the AL-1 pages'
+sizes come with the HD-1 generator.
+

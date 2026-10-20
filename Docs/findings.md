@@ -30,7 +30,8 @@ Code that went with it (synthComms.c notes §93, §104, §105):
 
 Not seen: at connect only the Global and MIDI replies came back; Multi, Arpeggio and the startup probe's
 program dump did not, until Sync from synth asked again. Requests sent back to back seem to be dropped
-while the Z1 (or the Cirklon in front of it) is still answering one - pace them.
+while the Z1 (or the Cirklon in front of it) is still answering one. Fixed the same day: block requests
+now go one at a time (synthComms.c notes §106), and a fresh connect fills Multi and Arpeggio with no Sync.
 
 
 2026-10-07  Z1: EVERY PROGRAM PARAMETER, SIGNED ENCODING, BANK TRACKING, ENVELOPE GRAPHS

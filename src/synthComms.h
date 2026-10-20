@@ -97,6 +97,9 @@ void synth_set_active_page_variant(int32_t variant);
 // The count of positions `dial` offers now: its variantMax while its page is shown as a pageVariant, else max.
 uint32_t synth_dial_max(const tPanelDial * dial);
 
+// The length of the cached dump `block` (-1 = the Program dump), 0 before one has arrived. Any thread.
+int32_t synth_dump_length(int32_t block);
+
 // Byte `offset` of the cached dump `block` (-1 = the Program dump), or -1 before one has arrived. Any thread.
 int32_t synth_dump_byte(int32_t block, int32_t offset);
 
@@ -130,6 +133,9 @@ void synth_request_bank_map(void);
 
 // Asks for every dumpBlock the layout declares (panelConfig.h notes §58).
 void synth_request_dump_blocks(void);
+
+// Sends the next queued dump-block request once the device has answered the last one. UI thread, per frame.
+void synth_flush_pending_block_requests(void);
 
 // Program names compared with whitespace collapsed - synthComms.c notes §87.
 bool synth_prog_names_equal(const char * a, const char * b);

@@ -32,7 +32,6 @@ Bugs
 - CHECK ON HARDWARE (Z1, built 2026-10-07): set a non-default Program Bank Select Map on the Z1 (e.g. B = 0/5), reconnect - Prev/Next and Load from Bank still land on the right bank
 - CHECK ON HARDWARE (Z1, built 2026-10-07, ONE flash write): Store Patch to Current Slot... on a confirmed program (e.g. after Prev/Next) - the dialog names the slot and its cached name, the write lands there
 - CHECK ON HARDWARE (Z1, built 2026-10-07): the Model and Insert pages follow the type selector (showIf) after a Sync, and offline from the selector's own value
-- Z1: pace the connect-time requests - Multi (19 00), Arpeggio (36 00) and the startup probe's program dump get no reply at connect, only on a later Sync (findings 2026-10-20)
 - Z1: Multi Set name and arpeggio pattern name - shown nowhere yet, and not editable
 - Z1: arpeggio steps want a grid (10 tone rows x 36 steps, plus velocity/gate bars) instead of 216 dials
 - CHECK BY HAND (Z1, built 2026-10-20): in Multi mode on the Z1, turn a timbre's knob - the matching Timbre tab follows; edit Multi Effects and Arpeggio from SynthEdit and hear them
@@ -52,6 +51,7 @@ Kronos
 - Note-length values (LFO MIDI Sync Base Note, Step Duration: 0..9 = 1/32..1/1) show as numbers - find the names
 - Pitch intensities show the raw -151..151 sent; the Kronos displays -48.00..+48.00 - scale the display
 - Global pages: request + decode the Global dump (Current Object Dump obj 3, 24620 bytes) into its own cache, dials tied to it; generate ~220 params (TYP 15) from Korg's Global table, laid out on the Korg editor's own 13 Global pages
+- HD-1 pages (started 2026-10-20): generator to write in ~/Documents/ClaudeFindings/SoundQuest-RE/tools (hd1tmpl.py reads Patch.sqt: key = TYP,SOC,SUB,PID lo/IDX hi; pages 1-68 mapped, see findings); addresses from Prog_HD-1.txt; AMS names from SysExEnums; OSC 2 = TYP+1, dump +466 but zones interleave, so generate OSC 2 pages rather than a variant; give HD-1 sections showIfDumpSize 3706 and AL-1 4960 (check the decoded sizes on the Kronos first)
 - Remaining EXi engines' pages (MOD-7, CX-3, STR-1, MS-20EX, PolysixEX, SGX-1, EP-1, HD-1), then Combi and Global
 - Raise PANEL_MAX_SECTIONS (64; 45 used) before more engines - first move each dial's own copy of its value names to shared names=@list references, as the memory cost scales with it
 - Store Patch / bank operations for the Kronos (Object Dump protocol), not just the edit buffer

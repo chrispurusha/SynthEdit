@@ -164,6 +164,7 @@ static uint8_t         gBlockCache[PANEL_MAX_DUMP_BLOCKS][1024];
 static uint32_t        gBlockCacheLen[PANEL_MAX_DUMP_BLOCKS];
 
 static uint32_t read_block_dials(int32_t block);
+static double monotonic_ms(void);
 
 // The cached dump `block` names: a dump block's, or the program dump's for -1. Call with gProgCacheLock held.
 static uint8_t * dump_cache(int32_t block, uint32_t * len) {
@@ -226,6 +227,10 @@ uint32_t synth_dial_max(const tPanelDial * dial) {
 // re-reading the cache shows it.
 static void cache_store_dial_value(const tPanelDial * dial, const tPanelSection * section, int32_t variant, int32_t value) {
     int32_t block = section ? section->dumpBlock : -1;
+
+    if (section && !panel_section_fits_dump(section, (uint32_t)synth_dump_length(block))) {
+        return; // the cached dump is the other format (panelConfig.h notes §59)
+    }
 
     if (dial->wireSigned && (dial->dumpBitWidth == 0) && (dial->dumpShift == 0) && (dial->dumpMask == 0xFF)) {
         value = (value - dial->displayOffset) & 0xFF; // notes §93: the dump's two's-complement byte
@@ -389,6 +394,10 @@ static void extract_prog_info(const uint8_t * decoded, uint32_t decodedLen) {
 
         if (dumpSection->dumpBlock >= 0) {
             continue; // its dials read another dump - notes §103
+        }
+
+        if (!panel_section_fits_dump(dumpSection, decodedLen)) {
+            continue; // panelConfig.h notes §59
         }
 
         for (uint32_t d = 0; d < dumpSection->dialCount; d++) {
@@ -1344,6 +1353,15 @@ static void synth_send_kronos_parameter_change(uint32_t typ, uint32_t soc, uint3
               (unsigned)typ, (unsigned)soc, (unsigned)sub, (unsigned)pid, (unsigned)idx, (int)value);
 }
 
+int32_t synth_dump_length(int32_t block) {
+    uint32_t len;
+
+    pthread_mutex_lock(&gProgCacheLock);
+    dump_cache(block, &len);
+    pthread_mutex_unlock(&gProgCacheLock);
+    return (int32_t)len;
+}
+
 int32_t synth_dump_byte(int32_t block, int32_t offset) {
     int32_t   value = -1;
     uint32_t  len;
@@ -1598,26 +1616,68 @@ void synth_request_bank_map(void) {
     LOG_DEBUG("Sent bank map request\n");
 }
 
+// notes §106
+#define DUMP_BLOCK_QUIET_MS      100.0
+#define DUMP_BLOCK_TIMEOUT_MS    1000.0
+
+static _Atomic int32_t gBlockRequestNext     = -1;    // the next block to ask for, -1 = none queued
+static _Atomic bool    gBlockRequestAwaiting = false; // the last one asked for has not answered yet
+static _Atomic double  gBlockRequestSentMs   = 0.0;
+static _Atomic double  gLastSysexInMs        = 0.0;
+
+static void send_dump_block_request(const tDumpBlock * block) {
+    uint8_t  msg[32];
+    uint32_t pos = build_header(msg, block->request[0]);
+
+    for (uint32_t i = 1; i < block->requestLen; i++) {
+        msg[pos++] = block->request[i];
+    }
+
+    msg[pos++] = MIDI_SYSEX_END;
+    midi_send(msg, pos);
+}
+
 // notes §103
 void synth_request_dump_blocks(void) {
-    const tPanelConfig * cfg = synth_panel_config();
+    atomic_store(&gBlockRequestAwaiting, false);
+    atomic_store(&gBlockRequestNext, 0);
+}
 
-    for (uint32_t b = 0; gDevice.connected && (b < cfg->dumpBlockCount); b++) {
-        const tDumpBlock * block = &cfg->dumpBlocks[b];
-        uint8_t            msg[32];
+// notes §106
+void synth_flush_pending_block_requests(void) {
+    const tPanelConfig * cfg  = synth_panel_config();
+    int32_t              next = atomic_load(&gBlockRequestNext);
+    double               now  = monotonic_ms();
 
-        if ((block->requestLen == 0) || (block->requestLen > 12)) {
-            continue;
-        }
-        uint32_t           pos   = build_header(msg, block->request[0]);
-
-        for (uint32_t i = 1; i < block->requestLen; i++) {
-            msg[pos++] = block->request[i];
-        }
-
-        msg[pos++] = MIDI_SYSEX_END;
-        midi_send(msg, pos);
+    if ((next < 0) || !gDevice.connected) {
+        return;
     }
+
+    if (atomic_load(&gBlockRequestAwaiting)) {
+        if ((now - atomic_load(&gBlockRequestSentMs)) < DUMP_BLOCK_TIMEOUT_MS) {
+            return;
+        }
+        LOG_DEBUG("Dump block %s: no reply\n", cfg->dumpBlocks[next - 1].name);
+        atomic_store(&gBlockRequestAwaiting, false);
+    }
+
+    if (gStartupProbePending || ((now - atomic_load(&gLastSysexInMs)) < DUMP_BLOCK_QUIET_MS)) {
+        return;
+    }
+
+    while (  ((uint32_t)next < cfg->dumpBlockCount)
+          && ((cfg->dumpBlocks[next].requestLen == 0) || (cfg->dumpBlocks[next].requestLen > 12))) {
+        next++;
+    }
+
+    if ((uint32_t)next >= cfg->dumpBlockCount) {
+        atomic_store(&gBlockRequestNext, -1);
+        return;
+    }
+    send_dump_block_request(&cfg->dumpBlocks[next]);
+    atomic_store(&gBlockRequestSentMs, now);
+    atomic_store(&gBlockRequestAwaiting, true);
+    atomic_store(&gBlockRequestNext, next + 1);
 }
 
 // Sets the dials of every section reading dump block `block` from its cache, at the showing variant's
@@ -1668,6 +1728,10 @@ static bool handle_dump_block_reply(const uint8_t * data, uint32_t length, uint8
         uint32_t       updated    = read_block_dials((int32_t)b);
 
         pthread_mutex_unlock(&gProgCacheLock);
+
+        if (atomic_load(&gBlockRequestNext) == (int32_t)b + 1) {
+            atomic_store(&gBlockRequestAwaiting, false);
+        }
         LOG_DEBUG("Dump block %s: %u dial(s) updated\n", cfg->dumpBlocks[b].name, (unsigned)updated);
         matched           = true;
     }
@@ -2015,6 +2079,8 @@ static void handle_kronos_message(const uint8_t * data, uint32_t length, uint8_t
 }
 
 void synth_handle_message(const uint8_t * data, uint32_t length) {
+    atomic_store(&gLastSysexInMs, monotonic_ms()); // notes §106
+
     if (synth_panel_config()->moogStyleDump) {
         // notes §77
         if (!is_moog_sysex(data, length)) {

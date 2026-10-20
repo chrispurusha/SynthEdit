@@ -204,10 +204,16 @@ static int32_t show_if_dial_value(int32_t block, int32_t dumpOffset) {
 }
 
 static bool section_shown(const tPanelSection * section, int32_t variant) {
+    int32_t length = synth_dump_length(section->dumpBlock);
+
+    if ((length > 0) && !panel_section_fits_dump(section, (uint32_t)length)) {
+        return false; // panelConfig.h notes §59
+    }
+
     if (section->showIfOffset < 0) {
         return true;
     }
-    int32_t value = synth_dump_byte(section->dumpBlock, section->showIfOffset + variant_dump_delta(section, variant));
+    int32_t value  = synth_dump_byte(section->dumpBlock, section->showIfOffset + variant_dump_delta(section, variant));
 
     if (value < 0) {
         value = show_if_dial_value(section->dumpBlock, section->showIfOffset);

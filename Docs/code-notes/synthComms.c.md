@@ -1417,3 +1417,13 @@ offset - Master Tune over the first character of the program name, which came ba
 switch - and a block could not have pageVariants, because nothing kept its bytes to re-read. The Z1's Multi
 Set (six timbres as variants of one page) is what needed them.
 
+## 106. Dump-block requests, one at a time
+
+At connect the Z1 was sent the program dump request, the bank map request and every block's request
+together, and then the startup probe's program dump request once the first reply was in. It answered the
+program, Global and MIDI dumps and dropped the rest: the Multi Set and arpeggio pattern stayed empty until a
+Sync asked again (2026-10-20, through the Cirklon). The block requests now wait in a queue that the render
+loop works through: the next one goes out when the last has answered (or after 1 s), the input has been
+quiet for 100 ms, and no startup probe is waiting for its reply. Every incoming SysEx stamps
+gLastSysexInMs, so a long reply still arriving holds the queue too.
+
