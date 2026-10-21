@@ -1,14 +1,10 @@
 # SynthEdit
 
-A macOS GUI editor built to support a variety of synthesizers. Synth-specific data — panel layout, controls, SysEx identity — lives in per-device layout files (see `layouts/`), not hardcoded in the app. Currently supports the Korg Z1 (`layouts/z1.txt`). Work in progress.
+A macOS GUI editor built to support a variety of synthesizers. Synth-specific data — panel layout, controls, SysEx identity — lives in per-device layout files (see `layouts/`), not hardcoded in the app. Currently supports the Korg Z1 and Moog Voyager. Work in progress.
 
-If anyone is interested in helping, especially with the GUI side of things, please drop me a line.
+## Working with LLMs
 
-Since I'm now incurring costs (I recently started using LLMs) which would be good to at least cover, I now have a Buy Me a Coffee page:
-
-https://buymeacoffee.com/chrispurusha
-
-Thanks for any donations!
+Development started as a solo project. As the project has evolved, I've recently incorporated LLM-assisted development into the workflow, using it as a tool for research, coding, debugging, and experimentation.
 
 ## Building
 
