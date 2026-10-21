@@ -40,6 +40,10 @@ Bugs
 - CHECK BY HAND (Z1, built 2026-10-07): drag the envelope points on EG 1-4 and Amp > EG - times move sideways, levels up and down, Shift locks to one direction; the dials follow
 - Z1: the PE knobs' Parameter list beyond entry 158 names the current oscillator model's own parameters; it shows "OSC Model n" for now
 
+SynthLib
+
+- Maximise the C and reduce the C++ (CT 2026-10-21): port src/fileBrowser.cpp, bankBrowser.cpp and prefs.cpp to C; plugin/synthlibPluginVst3.cpp and the VST3 views stay C++/Obj-C++ as the SDK's interfaces require
+
 Kronos
 
 - CHECK ON HARDWARE: press COMBI / PROG on the Kronos - the top tab row should follow (Mode Change, func 4E); clicking a top tab should switch the Kronos's mode
