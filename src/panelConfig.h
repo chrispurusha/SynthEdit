@@ -210,6 +210,28 @@ typedef struct {
     tRectangle      rect;        // where it was last drawn
 } tPanelGraph;
 
+// notes §60
+#define PANEL_STEPS_MAX_FIELDS    4
+
+typedef struct {
+    char     dial[PANEL_ID_LEN];   // step 1's dial; step n's is the same id with its number + (n - 1) x stride
+    uint32_t bits;                 // bit fields only: how many of the dial's bits are rows
+} tStepsField;
+
+typedef struct {
+    bool        present;
+    double      width;
+    double      height;
+    uint32_t    count;                             // steps
+    uint32_t    stride;                            // how far each step's dial ids move on
+    tStepsField bitFields[PANEL_STEPS_MAX_FIELDS]; // highest bit first, top row first
+    uint32_t    bitFieldCount;
+    tStepsField bars[PANEL_STEPS_MAX_FIELDS];
+    uint32_t    barCount;
+    char        length[PANEL_ID_LEN]; // a dial holding how many steps play; later ones are dimmed
+    tRectangle  rect;                 // where it was last drawn
+} tPanelSteps;
+
 typedef struct {
     char     page[PANEL_PAGE_LEN];
     char     section[PANEL_ID_LEN];
@@ -231,6 +253,7 @@ typedef struct {
     tPanelDial   dials[PANEL_MAX_DIALS];
     uint32_t     dialCount;
     tPanelGraph  graph;          // notes §56
+    tPanelSteps  steps;          // notes §60
     int32_t      dumpBlock;      // notes §58: the dump block its dials read from, -1 = the program dump
 } tPanelSection;
 

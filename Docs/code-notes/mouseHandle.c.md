@@ -261,4 +261,5 @@ A press first tries the current page's graph points (panelGraph.c), so a point d
 is picked up; dials are only hit-tested if no point was. The drag follows the pointer with the cursor
 visible - unlike a dial drag - because the point is meant to sit under it. Shift locks the drag to the
 direction it first moves in. recover_lost_dial_drag() ends a graph drag whose release never arrived, by
-the same rule as a dial's.
+the same rule as a dial's. A step grid (panelSteps.c) is tried next, the same way: press, a painting drag, and a lost
+release ended by the same rule.

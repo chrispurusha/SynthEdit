@@ -33,9 +33,11 @@ Bugs
 - CHECK ON HARDWARE (Z1, built 2026-10-07, ONE flash write): Store Patch to Current Slot... on a confirmed program (e.g. after Prev/Next) - the dialog names the slot and its cached name, the write lands there
 - CHECK ON HARDWARE (Z1, built 2026-10-07): the Model and Insert pages follow the type selector (showIf) after a Sync, and offline from the selector's own value
 - Z1: Multi Set name and arpeggio pattern name - shown nowhere yet, and not editable
-- Z1: arpeggio steps want a grid (10 tone rows x 36 steps, plus velocity/gate bars) instead of 216 dials
+- CHECK BY HAND (Z1, built 2026-10-25): Arpeggio > Pattern > Grid after a Sync - the cells and Vel/Gate bars match the Steps pages; click and drag along a row sets the tones, a drag across the bars draws Vel/Gate, and the Z1 plays the edit; steps past Pattern Length dimmed
+- Z1 layout generator: step 15's six dials (a117-a122) land under 'Prog | Common' in the 'Remaining parameters' block, not on Arpeggio > Steps > 13-18 - fix where the layout is generated
+- Grid/table control for the other big tables (User Scale 2, user group names, program-select maps): the `steps` element covers bit rows and bars; these want a value-per-cell table
 - CHECK BY HAND (Z1, built 2026-10-20): in Multi mode on the Z1, turn a timbre's knob - the matching Timbre tab follows; edit Multi Effects and Arpeggio from SynthEdit and hear them
-- Z1: Global's User Scale 2 (128 notes), the 16 user group names and the MIDI program-select maps - tables too big for dials, want a grid/table control
+- Z1: Global's User Scale 2 (128 notes), the 16 user group names and the MIDI program-select maps - tables too big for dials (see the grid/table item)
 - CHECK ON HARDWARE (Z1, built 2026-10-07, writes Global): edit a Global or MIDI setting from SynthEdit (group 0) and read it back - reading is confirmed, writing not tried
 - CHECK BY HAND (Z1, built 2026-10-07): drag the envelope points on EG 1-4 and Amp > EG - times move sideways, levels up and down, Shift locks to one direction; the dials follow
 - Z1: the PE knobs' Parameter list beyond entry 158 names the current oscillator model's own parameters; it shows "OSC Model n" for now

@@ -40,6 +40,7 @@ extern "C" {
 #include "panelConfig.h"
 #include "synthComms.h"
 #include "panelGraph.h"
+#include "panelSteps.h"
 #include "synthBackup.h"
 #include "midiComms.h"
 #include "misc.h"
@@ -1273,6 +1274,11 @@ void synth_render(tRectangle area) {
             // notes §60
             if (section->graph.present) {
                 y += panel_graph_render(mainArea, section, (tCoord){x, y}) + 24.0;
+                continue;
+            }
+
+            if (section->steps.present) {
+                y += panel_steps_render(mainArea, section, (tCoord){x, y}) + 24.0;
                 continue;
             }
             section->spacing = section_required_spacing(section);

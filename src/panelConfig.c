@@ -414,6 +414,73 @@ static void parse_graph_points(tPanelGraph * graph, const char * spec, uint32_t 
     }
 }
 
+// notes §60: "a33:2,a34:8" - a dial id, and for bit fields how many bits
+static uint32_t parse_steps_fields(tStepsField * fields, const char * spec, bool withBits, uint32_t lineNo) {
+    char     item[PANEL_TOKEN_LEN];
+    uint32_t count = 0;
+
+    snprintf(item, sizeof(item), "%s", spec);
+
+    for (char * part = strtok(item, ","); part && (count < PANEL_STEPS_MAX_FIELDS); part = strtok(NULL, ",")) {
+        tStepsField * field = &fields[count++];
+        char *        colon = strchr(part, ':');
+
+        memset(field, 0, sizeof(*field));
+
+        if (colon) {
+            *colon      = '\0';
+            field->bits = (uint32_t)strtoul(colon + 1, NULL, 0);
+        }
+        strncpy(field->dial, part, sizeof(field->dial) - 1);
+
+        if (withBits && (field->bits == 0)) {
+            LOG_ERROR("panelConfig line %u: steps bit field '%s' needs ':<bits>'\n", lineNo, part);
+        }
+    }
+
+    return count;
+}
+
+static void parse_steps_line(tPanelSteps * steps, char tokens[][PANEL_TOKEN_LEN], uint32_t tokenCount, uint32_t lineNo) {
+    steps->present = true;
+    steps->width   = 720.0;
+    steps->height  = 240.0;
+    steps->count   = 16;
+    steps->stride  = 1;
+
+    for (uint32_t i = 1; i < tokenCount; i++) {
+        char key[64];
+        char val[PANEL_TOKEN_LEN];
+
+        if (!split_kv(tokens[i], key, sizeof(key), val, sizeof(val))) {
+            LOG_ERROR("panelConfig line %u: expected key=value in steps, got '%s'\n", lineNo, tokens[i]);
+            continue;
+        }
+
+        if (strcmp(key, "width") == 0) {
+            steps->width = strtod(val, NULL);
+        } else if (strcmp(key, "height") == 0) {
+            steps->height = strtod(val, NULL);
+        } else if (strcmp(key, "count") == 0) {
+            steps->count = (uint32_t)strtoul(val, NULL, 0);
+        } else if (strcmp(key, "stride") == 0) {
+            steps->stride = (uint32_t)strtoul(val, NULL, 0);
+        } else if (strcmp(key, "bits") == 0) {
+            steps->bitFieldCount = parse_steps_fields(steps->bitFields, val, true, lineNo);
+        } else if (strcmp(key, "bars") == 0) {
+            steps->barCount = parse_steps_fields(steps->bars, val, false, lineNo);
+        } else if (strcmp(key, "length") == 0) {
+            strncpy(steps->length, val, sizeof(steps->length) - 1);
+        } else {
+            LOG_ERROR("panelConfig line %u: unknown steps key '%s'\n", lineNo, key);
+        }
+    }
+
+    if (steps->count == 0) {
+        steps->count = 1;
+    }
+}
+
 static void parse_graph_line(tPanelGraph * graph, char tokens[][PANEL_TOKEN_LEN], uint32_t tokenCount, uint32_t lineNo) {
     graph->present  = true;
     graph->width    = 400.0;
@@ -695,6 +762,12 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
             return;
         }
         parse_graph_line(&(*currentSection)->graph, tokens, tokenCount, lineNo);
+    } else if (strcmp(keyword, "steps") == 0) {
+        if (!*currentSection) {
+            LOG_ERROR("panelConfig line %u: 'steps' outside a section\n", lineNo);
+            return;
+        }
+        parse_steps_line(&(*currentSection)->steps, tokens, tokenCount, lineNo);
     } else if (strcmp(keyword, "variantParamDelta") == 0) {
         if (!*currentSection || (tokenCount < 2)) {
             LOG_ERROR("panelConfig line %u: expected 'variantParamDelta <delta>' inside a page\n", lineNo);

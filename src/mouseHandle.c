@@ -37,6 +37,7 @@
 #include "geometry.h"    // dial_drag_pixels_for_full_range() — the shared Shift-slows-the-drag policy
 #include "inputState.h"
 #include "panelGraph.h"
+#include "panelSteps.h"
 
 // ── GLFW constants (avoids pulling GLFW header into C) ────────────────────────
 #define GLFW_CURSOR             0x00033001
@@ -231,6 +232,10 @@ void recover_lost_dial_drag(void * win) {
         panel_graph_release(); // the same rule for a graph point - notes §25
     }
 
+    if (panel_steps_dragging() && (glfwGetMouseButton(win, 0) != GLFW_PRESS)) {
+        panel_steps_release();
+    }
+
     if (gDraggedDial == NULL) {
         return;
     }
@@ -266,6 +271,12 @@ void handle_mouse_button(tCoord coord, tMouseButton button, int mods) {
 
     if (!pressed && panel_graph_dragging()) {
         panel_graph_release();
+        synthlib_request_redraw();
+        return;
+    }
+
+    if (!pressed && panel_steps_dragging()) {
+        panel_steps_release();
         synthlib_request_redraw();
         return;
     }
@@ -332,6 +343,10 @@ void handle_mouse_button(tCoord coord, tMouseButton button, int mods) {
         return;
     }
 
+    if (panel_steps_press(sections, sectionCount, coord)) {
+        return;
+    }
+
     for (uint32_t s = 0; (s < sectionCount) && !hit; s++) {
         int32_t hitIdx = hit_test_panel_section(sections[s], coord);
 
@@ -348,6 +363,11 @@ void handle_mouse_button(tCoord coord, tMouseButton button, int mods) {
 void handle_cursor_pos(tCoord coord) {
     if (panel_graph_dragging()) {
         panel_graph_drag(coord, shift_modifier_held());
+        return;
+    }
+
+    if (panel_steps_dragging()) {
+        panel_steps_drag(coord);
         return;
     }
 

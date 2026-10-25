@@ -763,7 +763,7 @@ With no current program known and the device reporting it sends no Program Chang
 ## 60. Graph sections
 
 A section with a `graph` (panelConfig.h notes §56) draws it at the section's place and moves down by its
-height; it lays out no dials.
+height; it lays out no dials. A section with `steps` (panelConfig.h notes §60) does the same.
 
 ## 61. A variant's tab can be absent
 

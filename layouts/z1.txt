@@ -4360,6 +4360,14 @@ dial a247     label="36 Vel" color=arp max=128 offset=1 names=@v0aa6ff asDial=1 
 dial a248     label="36 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 param=248 dumpOffset=255
 # ══ END GENERATED Arpeggio
 
+# The pattern as a grid (hand-written, outside the generated block): a cell per tone and step - Tones 9-8 then
+# 7-0, highest at the top, click or drag along a row to set or clear - with each step's Vel and Gate as bars
+# below; steps past Pattern Length are dimmed. The cells and bars are the step dials above.
+page       Arpeggio | Pattern | Grid
+section    arpgrid
+color arp 0.85 0.75 0.45
+steps width=860 height=300 count=36 stride=6 bits=a33:2,a34:8 bars=a37,a38 length=a30
+
 # ══ BEGIN GENERATED Remaining parameters of the areas above
 # ── Remaining parameters of the areas above ───────────────────────────────────
 # GENERATED from the Z1's parameter tables - regenerate rather than edit by hand.

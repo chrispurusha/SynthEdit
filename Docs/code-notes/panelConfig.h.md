@@ -845,3 +845,19 @@ engine's pages must not read an HD-1 dump, where byte 2857 (the EXi 1 algorithm 
 among the oscillator zones. Added 2026-10-20; no layout uses it yet - the HD-1 pages and the AL-1 pages'
 sizes come with the HD-1 generator.
 
+
+## 60. `steps` - a step-sequencer grid bound to dials
+
+A section may hold one `steps` line instead of dials:
+
+    steps width=860 height=300 count=36 stride=6 bits=a33:2,a34:8 bars=a37,a38 length=a30
+
+- `count` - how many steps; `stride` - how far each step's dial ids move on (panelSteps.c notes §1)
+- `bits=<dial>:<n>,...` - dials whose bits are rows, highest bit first: the first dial's top `n` bits are the top
+  rows, and so on down. A cell is one bit of one step's dial.
+- `bars=<dial>,...` - one row of bars each, a bar's height its dial's share of its range
+- `length=<dial>` - optional: how many steps play (its stored value); later steps are dimmed
+- `width`, `height` - the grid's size; the bars take 42 points each from the height
+
+Clicking or dragging sets the same dials the step pages show, sending to the device (panelSteps.c notes §3).
+Built for the Z1's arpeggio pattern (10 tone bits per step over two dials, Vel and Gate as bars).
