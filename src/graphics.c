@@ -66,7 +66,7 @@ extern "C" {
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Weverything"
-#include "../SynthLib/ThirdParty/glfw/deps/stb_image_write.h"
+#include "../../SynthLib/ThirdParty/glfw/deps/stb_image_write.h"
 #pragma clang diagnostic pop
 
 static void setup_projection(GLFWwindow * win);
