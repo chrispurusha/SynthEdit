@@ -68,16 +68,23 @@ MIDI through an Elektron TM-1 (passed through to the VM: Parallels > Devices > U
   request to every output.
 - Z1 -> Windows WORKS: notes, CCs and the Z1's own parameter-change SysEx (`F0 42 33 46 ...`, channel 4)
   all arrive, checked with a standalone winmm probe.
-- Windows -> Z1: winmm reports every send done. NO IDENTITY REPLY YET - open.
+- Windows -> Z1 WORKS, once the MIDI thru box between the TM-1 and the Z1 was powered: the identity reply
+  comes back (channel 4 detected), and the current program, the global, MIDI, multi and arpeggio blocks
+  and the 256-program name sweep all load.
+
+Window size: GLFW makes a Windows window in pixels, a Mac one in points, so the default opened at half
+size on the VM's 200% display. `GLFW_SCALE_TO_MONITOR` in SynthLib's `synthlibWindow.c` (its notes §8)
+fixes that: 666x431 became 1306x791. A size saved by dragging still wins.
 
 Fixed on the way, for both platforms: the first-run Choose Device dialogue did not reconnect MIDI for the
 device chosen, so the connection made meanwhile for the default configuration stayed
-(`synthGraphics.c`, `on_startup_device_chosen()`); `synthGraphics.c` used `fmin` without `<math.h>`.
+(`synthGraphics.c`, `on_startup_device_chosen()`); `synthGraphics.c` used `fmin` without `<math.h>`;
+the "Fetching preset names..." status was drawn over the current program's label (`A001`) - both started
+at the same x (synthGraphics notes §24).
 
 From G2Alike's Windows work: dial drags hide the pointer instead of locking it (mouseHandle notes §26);
 SynthEdit already redrew during Windows' modal window resize (`windowRefresh`); stdout is unbuffered on
 Windows so a redirected log survives `_exit()` (`main.c`).
 
-**Open:** the identity reply; sleep/wake (`WM_POWERBROADCAST` -> `midi_request_reconnect()`); DPI - the VM
-runs at 200% and the window opens small; a `do-release-windows`; the Mac cross-build script untested;
--Werror.
+**Open:** sleep/wake (`WM_POWERBROADCAST` -> `midi_request_reconnect()`); the minimum window size is not
+scaled for DPI; a `do-release-windows`; the Mac cross-build script untested; -Werror.

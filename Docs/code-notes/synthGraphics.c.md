@@ -330,6 +330,10 @@ overlap the lowest row of dials. Falls back to the old bottom-left position if t
 haven't been laid out yet (no device, so synth_render() never placed them) — otherwise the
 row would render at 0,0 on those frames.
 
+It starts after the current program's label (`A001`), not after the button: both used to start at the same
+x, so the status was drawn over the label for as long as a sweep ran with a program known. `gPatchNavEndX`,
+set by `synth_render()`, is the row's right edge - the button's own when no label is drawn.
+
 ## 25. in `synth_render_backup_progress()`
 
 RGB_GREY_9 (G2-Edit's own track colour) doesn't exist in SynthEdit's

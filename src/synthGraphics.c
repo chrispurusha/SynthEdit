@@ -426,6 +426,7 @@ static tRectangle gPrevPatchRect   = {0};
 static tRectangle gNextPatchRect   = {0};
 static tRectangle gSyncPatchRect   = {0};
 static bool       gPatchNavLaidOut = false; // false until synth_render() has placed the rects at least once
+static double     gPatchNavEndX    = 0.0;   // right edge of that row: "Sync from synth" and the current program
 static int32_t    gPressedPatchNav = -1;    // cosmetic only — see synth_set_pressed_patch_nav()
 
 int32_t synth_hit_test_patch_nav(tCoord coord) {
@@ -854,7 +855,7 @@ static void synth_render_sweep_status_row(void) {
     double   textY       = renderH - margin - textH;
 
     if (gPatchNavLaidOut) {
-        textX = gSyncPatchRect.coord.x + gSyncPatchRect.size.w + 24.0;
+        textX = gPatchNavEndX + 24.0;
         textY = gSyncPatchRect.coord.y;
     }
     double   textW       = get_text_width(lineBuf, textH, eNoCache);
@@ -957,8 +958,9 @@ static void draw_nav_button(tRectangle rect, const char * label, bool enabled, t
     }, label);
 }
 
-// Which preset the synth is on, and how sure that is - types.h notes §5.
-static void draw_current_program(double x, double y, double height) {
+// Which preset the synth is on, and how sure that is - types.h notes §5. Returns where it ends: `x`
+// when nothing is drawn.
+static double draw_current_program(double x, double y, double height) {
     static const char *const kQualifier[] = {
         [eProgramUnknown]           = "",
         [eProgramFromProgramChange] = " (unconfirmed)",
@@ -969,12 +971,12 @@ static void draw_current_program(double x, double y, double height) {
     const tPanelConfig *     cfg          = synth_panel_config();
 
     if (!gDevice.connected || (!cfg->moogStyleDump && (cfg->bankCount == 0))) {
-        return;
+        return x;
     }
 
     if (gDevice.currentProgram < 0) {
         if (!gDevice.programChangeTransmitOff) {
-            return;
+            return x;
         }
         snprintf(label, sizeof(label), "Program Change Transmit is off on the synth"); // notes §59
     } else if (cfg->bankCount > 0) {
@@ -989,6 +991,7 @@ static void draw_current_program(double x, double y, double height) {
     render_text(mainArea, (tRectangle){
         {x + DRAW_BUTTON_MARGIN, y + DRAW_BUTTON_MARGIN}, {BLANK_SIZE, height}
     }, label);
+    return x + DRAW_BUTTON_MARGIN + get_text_width(label, height, eNoCache);
 }
 
 void synth_render(tRectangle area) {
@@ -1088,7 +1091,10 @@ void synth_render(tRectangle area) {
         draw_nav_button(gPrevPatchRect, "< Prev", prevNextEnabled, prevColour);
         draw_nav_button(gNextPatchRect, "Next >", prevNextEnabled, nextColour);
         draw_nav_button(gSyncPatchRect, "Sync from synth", navEnabled, syncColour);
-        draw_current_program(gSyncPatchRect.coord.x + syncWidth + 24.0, y, navBtnHeight);
+        double         syncEndX        = gSyncPatchRect.coord.x + syncWidth;
+        double         programEndX     = draw_current_program(syncEndX + 24.0, y, navBtnHeight);
+
+        gPatchNavEndX    = (programEndX > syncEndX + 24.0) ? programEndX : syncEndX;
         gPatchNavLaidOut = true;
 
         // notes §30
