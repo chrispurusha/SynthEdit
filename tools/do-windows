@@ -1,0 +1,130 @@
+#!/bin/zsh
+#
+# do-windows - cross-builds SynthEdit for Windows on this Mac, with llvm-mingw. The twin of
+# tools\do-windows.ps1 (the build on Windows itself); see Docs/windows-port.md.
+#
+#   tools/do-windows              x64 and arm64
+#   tools/do-windows arm64        one architecture (x64 | arm64)
+#   tools/do-windows --debug      -O1, the log on a console window
+#   tools/do-windows --clean      GLFW and FreeType again too
+#
+# Result: build-cross-<arch>/SynthEdit.exe, one self-contained file, with layouts/ beside it.
+# THE SOURCES ARE THE XCODE PROJECT'S SYNCHRONIZED FOLDERS (src/, ../SynthLib/src/), less the files
+# platform/windows/swaps.txt names, plus platform/windows/*.c - the rule do-windows.ps1 applies too.
+#
+# Environment: LLVM_MINGW (default ~/Developer/llvm-mingw), SYNTHLIB_DIR, SYNTHEDIT_WIN_VERSION,
+# SYNTHEDIT_WERROR=ON.
+
+set -e
+HERE=${0:A:h}
+ROOT=${HERE:h}
+LLVM_MINGW=${LLVM_MINGW:-$HOME/Developer/llvm-mingw}
+SL=${SYNTHLIB_DIR:-$ROOT/../SynthLib}
+SL=${SL:A}
+THIRD=$SL/ThirdParty
+WIN=$ROOT/platform/windows
+ARCHS=()
+DEBUG=0
+CLEAN=0
+
+for arg in "$@"; do
+    case $arg in
+        arm64|aarch64) ARCHS+=(aarch64) ;;
+        x64|x86_64)    ARCHS+=(x86_64) ;;
+        --debug)       DEBUG=1 ;;
+        --clean)       CLEAN=1 ;;
+        *) echo "usage: tools/do-windows [x64] [arm64] [--debug] [--clean]" >&2; exit 2 ;;
+    esac
+done
+(( ${#ARCHS} > 0 )) || ARCHS=(x86_64 aarch64)
+
+[[ -x $LLVM_MINGW/bin/clang ]] || { echo "error: no llvm-mingw at $LLVM_MINGW - see Docs/windows-port.md" >&2; exit 1; }
+
+# --- the sources -----------------------------------------------------------------------------------
+LEFT_OUT=()
+for line in ${(f)"$(grep -v '^#' $WIN/swaps.txt | grep -v '^[[:space:]]*$')"}; do
+    p=${${(z)line}[1]}
+    LEFT_OUT+=(${${p/#SynthLib\//$SL/}/#src\//$ROOT/src/})
+done
+SOURCES=()
+for src in $ROOT/src/*.(c|cpp)(N) $SL/src/*.(c|cpp)(N) $WIN/*.c; do
+    (( ${LEFT_OUT[(Ie)$src]} )) || SOURCES+=($src)
+done
+
+WARNINGS=(-Werror=uninitialized -Wunused-function -Wunused-variable -Werror=return-type -Wuninitialized
+          -Wempty-body -Wint-conversion -Wenum-conversion -Wstrict-prototypes -Wshorten-64-to-32 -Wcomma
+          -Wbool-conversion -Wconstant-conversion -Winfinite-recursion -Wunreachable-code -Wdocumentation)
+[[ $SYNTHEDIT_WERROR == ON ]] && WARNINGS+=(-Werror)
+
+if (( DEBUG )); then CONFIG=(-O1 -g -DDEBUG=1 -DENABLE_LOG_DEBUG=1); GUI=(); else CONFIG=(-Os); GUI=(-mwindows); fi
+VERSION=${SYNTHEDIT_WIN_VERSION:-$(git -C $ROOT describe --tags --always --dirty 2>/dev/null || echo 'development build')}
+DEFS=(-DGL_SILENCE_DEPRECATION=1 -D_USE_MATH_DEFINES -D_POSIX_THREAD_SAFE_FUNCTIONS=200112L)
+[[ $VERSION != 'development build' ]] && DEFS+=("-DSYNTHLIB_VERSION_STRING=\"$VERSION\"")
+INCLUDES=(-I$SL/src -I$ROOT/src -I$WIN -isystem $THIRD/glfw/include -isystem $THIRD/freetype/include)
+FLAGS=($CONFIG $DEFS $INCLUDES -include $WIN/winCompat.h)
+
+# --- GLFW and FreeType, once per architecture --------------------------------------------------------
+build_library() {    # name, then flags until --, then sources
+    local name=$1; shift
+    local lib=$OUT/deps/lib$name.a objs=() args=()
+    [[ -f $lib ]] && return
+    while [[ $1 != -- ]]; do args+=($1); shift; done; shift
+    echo "==> $name for $TRIPLE"
+    mkdir -p $OUT/$name-obj
+    for src in "$@"; do
+        objs+=($OUT/$name-obj/${${src:t}%.*}.o)
+        $CC -O2 -w $args -c $src -o $objs[-1] &
+    done
+    wait
+    for o in $objs; do [[ -f $o ]] || { echo "error: $name: ${o:t} failed" >&2; return 1; }; done
+    $LLVM_MINGW/bin/llvm-ar rcs $lib $objs
+}
+
+build_deps() {
+    local g=$THIRD/glfw/src ft=$THIRD/freetype
+    build_library glfw3 -D_GLFW_WIN32 -I$THIRD/glfw/include -- \
+        $g/{context,init,input,monitor,platform,vulkan,window,egl_context,osmesa_context,null_init,null_monitor,null_window,null_joystick,win32_module,win32_time,win32_thread,win32_init,win32_joystick,win32_monitor,win32_window,wgl_context}.c
+    # FreeType's own CMake source list, as do-windows.ps1 reads it
+    local ftsrcs=(${(f)"$(sed -n '/set(BASE_SRCS/,/)/p' $ft/CMakeLists.txt | grep -o 'src/[^ )]*\.c')"})
+    build_library freetype -DFT2_BUILD_LIBRARY -I$ft/include -- \
+        ${ftsrcs/#/$ft/} $ft/builds/windows/ftsystem.c $ft/builds/windows/ftdebug.c
+}
+
+# --- one architecture --------------------------------------------------------------------------------
+for ARCH in $ARCHS; do
+    TRIPLE=$ARCH-w64-mingw32
+    CC=$LLVM_MINGW/bin/$TRIPLE-clang
+    CXX=$LLVM_MINGW/bin/$TRIPLE-clang++
+    OUT=$ROOT/build-cross-$ARCH
+    (( CLEAN )) && rm -rf $OUT
+    mkdir -p $OUT/deps
+    build_deps
+
+    OBJ=$OUT/app-obj
+    rm -rf $OBJ; mkdir -p $OBJ
+    OBJECTS=()
+    echo "==> SynthEdit for $TRIPLE, $( (( DEBUG )) && echo Debug || echo Release) (${#SOURCES} files)"
+
+    for src in $SOURCES; do
+        prefix=''; [[ $src == $SL/* ]] && prefix=sl_    # SynthLib and the app may share a file name
+        if [[ $src == *.cpp ]]; then
+            OBJECTS+=($OBJ/$prefix${${src:t}%.*}.oxx)
+            $CXX -std=gnu++20 $FLAGS $WARNINGS -c $src -o $OBJECTS[-1] &
+        else
+            OBJECTS+=($OBJ/$prefix${${src:t}%.*}.o)
+            $CC -std=gnu17 $FLAGS $WARNINGS -c $src -o $OBJECTS[-1] &
+        fi
+    done
+    wait
+    for o in $OBJECTS; do [[ -f $o ]] || { echo "error: compile failed for ${o:t}" >&2; exit 1; }; done
+
+    EXE=$OUT/SynthEdit.exe
+    $CXX -static -o $EXE $OBJECTS $OUT/deps/libglfw3.a $OUT/deps/libfreetype.a \
+         -lopengl32 -lgdi32 -luser32 -lshell32 -lole32 -lcomdlg32 -lwinmm -lpthread $GUI
+
+    rm -rf $OUT/layouts
+    cp -R $ROOT/layouts $OUT/layouts    # synthGraphics.c looks for "layouts" in the working folder
+
+    echo "built: $EXE ($(du -h $EXE | cut -f1))"
+    echo "needs: $($LLVM_MINGW/bin/llvm-objdump -p $EXE | grep 'DLL Name' | awk '{print $3}' | tr '\n' ' ')"
+done

@@ -51,6 +51,9 @@ int main(int argc, char ** argv) {
     (void)argc;
     (void)argv;
 
+#if defined (_WIN32)
+    setvbuf(stdout, NULL, _IONBF, 0);    // the log, redirected to a file, is otherwise lost at _exit()
+#endif
     init_signals();
     register_sleep_wake_notifications();
 

@@ -419,3 +419,18 @@ a real ~20-25 s connect time down substantially without
 touching the 500 ms collection window fast-responding
 devices already rely on. Wakes early if a setup-change
 notification fires (via gRescanNeeded).
+
+## 37. `midi_wait()`
+
+Every wait the MIDI thread makes goes through here. On the Mac it runs the thread's CFRunLoop, which is
+also what delivers CoreMIDI's setup-changed notification (midi_notify_cb) - exactly the
+CFRunLoopRunInMode calls that were inline before. winmm has no such notification, so on Windows the wait
+sleeps in 10 ms slices and, every fourth call, compares the port names with the last list it saw
+(synthlib_midi_win_ports_changed()); a difference sets gRescanNeeded, as the notification does on the
+Mac. That is about every 130 ms while connected (MIDI_IDLE_TICK_SECONDS) and at least as often while
+scanning.
+
+The byte parser that used to be the body of midi_read_cb() is midi_receive_bytes() since the Windows
+port: the Mac's callback walks the packet list and hands each packet to it, and winmm's input callback
+(platform/windows/synthlibMidiWin.c) hands it each short message and each SysEx buffer. The parser was
+moved, not changed.

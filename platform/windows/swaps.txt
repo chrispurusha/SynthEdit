@@ -1,0 +1,8 @@
+# The Windows build's sources are the Xcode project's synchronized folders - every .c and .cpp in src/
+# and ../SynthLib/src/ - with the files below left out, and every .c in platform/windows/ added.
+# Read by tools/do-windows (the Mac cross-build) and tools/do-windows.ps1 (the build on Windows).
+#
+# left out                       its Windows version (platform/windows/)
+src/misc.mm                      miscWin.c
+SynthLib/src/synthlibMidi.c      synthlibMidiWin.c
+SynthLib/src/synthlibMidiPorts.c synthlibMidiPortsWin.c

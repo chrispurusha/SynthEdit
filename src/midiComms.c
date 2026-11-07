@@ -29,7 +29,13 @@
 #include "synthGraphics.h"
 #include "midiComms.h"
 
-static void                    (*gWakeCb)(void) = NULL;
+#if defined (_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>    // Sleep()
+#include <strings.h>    // strncasecmp()
+#endif
+
+static void                   (*gWakeCb)(void) = NULL;
 static pthread_t               gMidiThread                                = 0;
 // gSendMutex moved into SynthLib with the send primitive it guarded — see synthlibMidi.c.
 
@@ -107,6 +113,26 @@ static tMidiChannelParseState * channel_parse_state_for(MIDIEndpointRef src) {
     return &gChannelParseState[MAX_MIDI_PARSE_SOURCES - 1];
 }
 
+// The MIDI thread's waits: on the Mac a run of its CFRunLoop, which also delivers CoreMIDI's
+// notifications. notes §37
+static void midi_wait(double seconds) {
+#if defined (_WIN32)
+    for (double waited = 0.0; waited < seconds; waited += 0.01) {
+        Sleep(10);
+    }
+    static int pollTicks = 0;
+
+    if ((++pollTicks % 4) == 0 && synthlib_midi_win_ports_changed()) {
+        LOG_DEBUG("winmm port list changed — scheduling rescan\n");
+        gRescanNeeded = true;
+    }
+#else
+    CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, false);
+#endif
+}
+
+static void midi_receive_bytes(MIDIEndpointRef src, const uint8_t * data, uint32_t length);
+
 // ── Internal send ─────────────────────────────────────────────────────────────
 
 // notes §8
@@ -117,6 +143,16 @@ static bool midi_send_to(const uint8_t * data, uint32_t length, MIDIEndpointRef 
 
 // notes §10
 
+#if defined (_WIN32)
+// winmm has no entities: an input and an output of one device share its name (strategy 3 alone)
+static MIDIEndpointRef find_dest_for_source(MIDIEndpointRef src) {
+    char name[SYNTHLIB_MIDI_PORT_NAME_MAX] = {0};
+
+    synthlib_midi_port_name(src, name, sizeof(name));
+    return synthlib_midi_find_port(false, name);
+}
+
+#else
 static MIDIEndpointRef find_dest_for_source(MIDIEndpointRef src) {
     MIDIEntityRef   entity         = 0;
 
@@ -183,6 +219,7 @@ static MIDIEndpointRef find_dest_for_source(MIDIEndpointRef src) {
     }
     return dest;
 }
+#endif // _WIN32
 
 // Declared below (its own comment there covers what it does) — needed here
 // too now that process_identity_replies() can also fall back to it.
@@ -332,6 +369,45 @@ static void handle_identity_reply(MIDIEndpointRef src, const uint8_t * data, uin
 
 // notes §17
 
+#if defined (_WIN32)
+static void connect_all_midi_sources(void) {
+    ItemCount srcCount = MIDIGetNumberOfSources();
+
+    for (ItemCount i = 0; i < srcCount; i++) {
+        char name[SYNTHLIB_MIDI_PORT_NAME_MAX] = {0};
+        MIDIEndpointRef src = MIDIGetSource(i);
+
+        synthlib_midi_port_name(src, name, sizeof(name));
+        LOG_DEBUG("MIDI source %lu: %s (ref=0x%08X)\n", (unsigned long)i, name, (unsigned)src);
+    }
+    synthlib_midi_win_open_inputs(midi_receive_bytes);    // idempotent, as MIDIPortConnectSource is
+}
+
+// Case-insensitive substring match, as the Mac's CFStringFind
+static MIDIEndpointRef find_destination_by_name(const char * substr) {
+    if ((substr == NULL) || (substr[0] == '\0')) {
+        return 0;
+    }
+    size_t    needleLen = strlen(substr);
+    ItemCount destCount = MIDIGetNumberOfDestinations();
+
+    for (ItemCount i = 0; i < destCount; i++) {
+        MIDIEndpointRef dest                              = MIDIGetDestination(i);
+        char            name[SYNTHLIB_MIDI_PORT_NAME_MAX] = {0};
+
+        synthlib_midi_port_name(dest, name, sizeof(name));
+
+        for (size_t p = 0; name[p] != '\0' && strlen(name + p) >= needleLen; p++) {
+            if (strncasecmp(name + p, substr, needleLen) == 0) {
+                return dest;
+            }
+        }
+    }
+
+    return 0;
+}
+
+#else
 static void connect_all_midi_sources(void) {
     ItemCount srcCount = MIDIGetNumberOfSources();
 
@@ -384,6 +460,7 @@ static MIDIEndpointRef find_destination_by_name(const char * substr) {
     CFRelease(needle);
     return found;
 }
+#endif // _WIN32
 
 // notes §19
 
@@ -461,6 +538,7 @@ static void connect_without_identity(void) {
 
 // ── MIDI notification callback ────────────────────────────────────────────────
 
+#if !defined (_WIN32)    // winmm sends none: midi_wait() polls the port list instead
 static void midi_notify_cb(const MIDINotification * msg, void * refCon) {
     (void)refCon;
 
@@ -469,6 +547,7 @@ static void midi_notify_cb(const MIDINotification * msg, void * refCon) {
         gRescanNeeded = true;
     }
 }
+#endif
 
 // ── CC dispatch ───────────────────────────────────────────────────────────────
 // Only called from midi_read_cb for messages arriving from the Synth's source.
@@ -554,95 +633,100 @@ static void dispatch_sysex(MIDIEndpointRef src, const uint8_t * data, uint32_t l
     }
 }
 
-// ── MIDI read callback (CoreMIDI thread) ──────────────────────────────────────
+// ── MIDI input bytes (CoreMIDI's read thread; winmm's callback on Windows) ────
 
+static void midi_receive_bytes(MIDIEndpointRef src, const uint8_t * data, uint32_t length) {
+    for (uint32_t b = 0; b < length; b++) {
+        uint8_t byte = data[b];
+
+        if (byte == MIDI_SYSEX_START) {
+            if ((gSysExLen > 0) && (src != gSysExSrc)) {
+                // notes §25
+                LOG_DEBUG("SysEx start from a second source (src=0x%08X) ignored — already capturing from 0x%08X\n",
+                          (unsigned)src, (unsigned)gSysExSrc);
+            } else {
+                gSysExBuf[0] = byte;
+                gSysExLen    = 1;
+                gSysExSrc    = src;
+            }
+        } else if (byte == MIDI_SYSEX_END) {
+            // Only the source that opened this capture can close it — an
+            // F7 from anyone else is either a stray terminator or
+            // belongs to a start this app already dropped just above.
+            if ((gSysExLen > 0) && (src == gSysExSrc)) {
+                if (gSysExLen < SYSEX_BUF_SIZE) {
+                    gSysExBuf[gSysExLen++] = byte;
+                }
+                dispatch_sysex(gSysExSrc, gSysExBuf, gSysExLen);
+                gSysExLen = 0;
+            }
+        } else if (byte >= 0xF8) {
+            // Realtime — ignore. Spec-legal to interleave mid-SysEx from
+            // ANY source, so this deliberately never touches gSysExLen.
+        } else if (byte >= 0x80) {
+            if ((gSysExLen > 0) && (src == gSysExSrc)) {
+                // notes §26
+                LOG_DEBUG("SysEx aborted by status 0x%02X\n", byte);
+                gSysExLen = 0;
+            }
+            tMidiChannelParseState * state = channel_parse_state_for(src);
+            state->msgStatus  = byte;
+            state->msgDataLen = 0;
+        } else {
+            if ((gSysExLen > 0) && (src == gSysExSrc)) {
+                if (gSysExLen < SYSEX_BUF_SIZE) {
+                    gSysExBuf[gSysExLen++] = byte;
+                } else {
+                    LOG_ERROR("SysEx buffer overflow, discarding\n");
+                    gSysExLen = 0;
+                }
+            } else if (gSysExLen == 0) {
+                tMidiChannelParseState * state = channel_parse_state_for(src);
+
+                if (state->msgStatus != 0) {
+                    if (state->msgDataLen < 2) {
+                        state->msgData[state->msgDataLen++] = byte;
+                    }
+
+                    // CC is a 3-byte message (status + 2 data bytes)
+                    if (((state->msgStatus & 0xF0) == 0xB0) && (state->msgDataLen == 2)) {
+                        // gMidiSource == 0 means "accept from any source" —
+                        // set by connect_without_identity() for a device with
+                        // no identity reply to correlate a specific one from.
+                        if (gDevice.connected && ((gMidiSource == 0) || (src == gMidiSource))) {
+                            atomic_store(&gHeardFrom, src);
+                            dispatch_cc((uint8_t)(state->msgStatus & 0x0F), state->msgData[0], state->msgData[1]);
+                        }
+                        state->msgDataLen = 0;    // ready for running status
+                    }
+
+                    // notes §27
+                    if (((state->msgStatus & 0xF0) == 0xC0) && (state->msgDataLen == 1)) {
+                        if (gDevice.connected && ((gMidiSource == 0) || (src == gMidiSource))) {
+                            atomic_store(&gHeardFrom, src);
+                            dispatch_program_change((uint8_t)(state->msgStatus & 0x0F), state->msgData[0]);
+                        }
+                        state->msgDataLen = 0;
+                    }
+                }
+            }
+            // notes §28
+        }
+    }
+}
+
+#if !defined (_WIN32)
 static void midi_read_cb(const MIDIPacketList * pktList, void * readProcRefCon, void * srcConnRefCon) {
     (void)readProcRefCon;
     MIDIEndpointRef    src = (MIDIEndpointRef)(uintptr_t)srcConnRefCon;
     const MIDIPacket * pkt = &pktList->packet[0];
 
     for (uint32_t i = 0; i < pktList->numPackets; i++) {
-        for (uint16_t b = 0; b < pkt->length; b++) {
-            uint8_t byte = pkt->data[b];
-
-            if (byte == MIDI_SYSEX_START) {
-                if ((gSysExLen > 0) && (src != gSysExSrc)) {
-                    // notes §25
-                    LOG_DEBUG("SysEx start from a second source (src=0x%08X) ignored — already capturing from 0x%08X\n",
-                              (unsigned)src, (unsigned)gSysExSrc);
-                } else {
-                    gSysExBuf[0] = byte;
-                    gSysExLen    = 1;
-                    gSysExSrc    = src;
-                }
-            } else if (byte == MIDI_SYSEX_END) {
-                // Only the source that opened this capture can close it — an
-                // F7 from anyone else is either a stray terminator or
-                // belongs to a start this app already dropped just above.
-                if ((gSysExLen > 0) && (src == gSysExSrc)) {
-                    if (gSysExLen < SYSEX_BUF_SIZE) {
-                        gSysExBuf[gSysExLen++] = byte;
-                    }
-                    dispatch_sysex(gSysExSrc, gSysExBuf, gSysExLen);
-                    gSysExLen = 0;
-                }
-            } else if (byte >= 0xF8) {
-                // Realtime — ignore. Spec-legal to interleave mid-SysEx from
-                // ANY source, so this deliberately never touches gSysExLen.
-            } else if (byte >= 0x80) {
-                if ((gSysExLen > 0) && (src == gSysExSrc)) {
-                    // notes §26
-                    LOG_DEBUG("SysEx aborted by status 0x%02X\n", byte);
-                    gSysExLen = 0;
-                }
-                tMidiChannelParseState * state = channel_parse_state_for(src);
-                state->msgStatus  = byte;
-                state->msgDataLen = 0;
-            } else {
-                if ((gSysExLen > 0) && (src == gSysExSrc)) {
-                    if (gSysExLen < SYSEX_BUF_SIZE) {
-                        gSysExBuf[gSysExLen++] = byte;
-                    } else {
-                        LOG_ERROR("SysEx buffer overflow, discarding\n");
-                        gSysExLen = 0;
-                    }
-                } else if (gSysExLen == 0) {
-                    tMidiChannelParseState * state = channel_parse_state_for(src);
-
-                    if (state->msgStatus != 0) {
-                        if (state->msgDataLen < 2) {
-                            state->msgData[state->msgDataLen++] = byte;
-                        }
-
-                        // CC is a 3-byte message (status + 2 data bytes)
-                        if (((state->msgStatus & 0xF0) == 0xB0) && (state->msgDataLen == 2)) {
-                            // gMidiSource == 0 means "accept from any source" —
-                            // set by connect_without_identity() for a device with
-                            // no identity reply to correlate a specific one from.
-                            if (gDevice.connected && ((gMidiSource == 0) || (src == gMidiSource))) {
-                                atomic_store(&gHeardFrom, src);
-                                dispatch_cc((uint8_t)(state->msgStatus & 0x0F), state->msgData[0], state->msgData[1]);
-                            }
-                            state->msgDataLen = 0;    // ready for running status
-                        }
-
-                        // notes §27
-                        if (((state->msgStatus & 0xF0) == 0xC0) && (state->msgDataLen == 1)) {
-                            if (gDevice.connected && ((gMidiSource == 0) || (src == gMidiSource))) {
-                                atomic_store(&gHeardFrom, src);
-                                dispatch_program_change((uint8_t)(state->msgStatus & 0x0F), state->msgData[0]);
-                            }
-                            state->msgDataLen = 0;
-                        }
-                    }
-                }
-                // notes §28
-            }
-        }
-
+        midi_receive_bytes(src, pkt->data, pkt->length);
         pkt = MIDIPacketNext(pkt);
     }
 }
+#endif
 
 // ── Device scanning ───────────────────────────────────────────────────────────
 
@@ -691,11 +775,18 @@ static int midi_scan_devices(void) {
 
     for (ItemCount i = 0; i < destCount; i++) {
         MIDIEndpointRef dest = MIDIGetDestination(i);
-        CFStringRef     name = NULL;
 
         if ((onlyDest != 0) && (dest != onlyDest)) {
             continue;
         }
+#if defined (_WIN32)
+        char            buf[SYNTHLIB_MIDI_PORT_NAME_MAX] = {0};
+
+        synthlib_midi_port_name(dest, buf, sizeof(buf));
+        LOG_DEBUG("MIDI dest %lu: %s (ref=0x%08X)\n", (unsigned long)i, buf, (unsigned)dest);
+#else
+        CFStringRef     name = NULL;
+
         MIDIObjectGetStringProperty(dest, kMIDIPropertyDisplayName, &name);
 
         if (name != NULL) {
@@ -704,11 +795,12 @@ static int midi_scan_devices(void) {
             CFRelease(name);
             LOG_DEBUG("MIDI dest %lu: %s (ref=0x%08X)\n", (unsigned long)i, buf, (unsigned)dest);
         }
+#endif
         midi_send_to(idReq, sizeof(idReq), dest);
 
         // notes §31
         if ((i + 1) < destCount) {
-            CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.015, false);
+            midi_wait(0.015);
         }
     }
 
@@ -813,6 +905,11 @@ static void * midi_thread(void * arg) {
     (void)arg;
     LOG_DEBUG("MIDI thread started\n");
 
+#if defined (_WIN32)
+    // winmm needs no client: inputs open at the first scan, outputs at the first send to each
+    (void)synthlib_midi_win_ports_changed();    // its first call only records the list
+    synthlib_midi_set_out_port(1);
+#else
     // Create MIDI client here (not on main thread) so MIDIClientCreate does not
     // block app startup.  The notification callback is tied to this thread's
     // CFRunLoop, which we drive with CFRunLoopRunInMode in place of nanosleep.
@@ -839,6 +936,7 @@ static void * midi_thread(void * arg) {
         LOG_ERROR("MIDIOutputPortCreate failed: %d\n", (int)err);
         return NULL;
     }
+#endif
 
     while (!synthlib_quit_requested()) {
         if (atomic_exchange(&gReconnectRequested, false)) {
@@ -857,25 +955,25 @@ static void * midi_thread(void * arg) {
                     // No destination visible yet — wait up to 2 s in 100 ms
                     // slices, same shape as the "nothing found" wait below.
                     for (int t = 0; t < 20 && !gRescanNeeded; t++) {
-                        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.1, false);
+                        midi_wait(0.1);
                     }
                 }
             } else {
                 midi_scan_devices();
                 // Pump run loop for 500 ms — collects all identity replies and
                 // services any CoreMIDI notifications that arrive during the wait.
-                CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.5, false);
+                midi_wait(0.5);
                 process_identity_replies();
 
                 if (!gDevice.connected) {
                     // notes §36
                     for (int t = 0; t < 5 && !gRescanNeeded; t++) {
-                        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.1, false);
+                        midi_wait(0.1);
                     }
                 }
             }
         } else {
-            CFRunLoopRunInMode(kCFRunLoopDefaultMode, MIDI_IDLE_TICK_SECONDS, false);
+            midi_wait(MIDI_IDLE_TICK_SECONDS);
 
             // Debounced state dump request — see gStateDumpDebounceTicks'
             // own comment for why this doesn't just fire immediately from

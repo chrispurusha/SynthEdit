@@ -29,6 +29,7 @@ extern "C" {
 #pragma clang diagnostic pop
 
 #include <ctype.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -724,6 +725,9 @@ static void on_startup_device_chosen(bool confirmed, uint32_t bank1Indexed, uint
     }
     // notes §19
     synth_reload_panel_config();
+    // The MIDI thread connected while the chooser was open, for whichever configuration was loaded
+    // then - as synth_switch_device_config() does, start again for this one
+    midi_request_reconnect();
 }
 
 // notes §20

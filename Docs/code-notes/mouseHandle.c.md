@@ -263,3 +263,11 @@ visible - unlike a dial drag - because the point is meant to sit under it. Shift
 direction it first moves in. recover_lost_dial_drag() ends a graph drag whose release never arrived, by
 the same rule as a dial's. A step grid (panelSteps.c) is tried next, the same way: press, a painting drag, and a lost
 release ended by the same rule.
+
+## 26. in `arm_dial_press()`, Windows
+
+A vertical or horizontal dial drag HIDES the pointer on Windows rather than disabling (locking) it. Windows'
+locked pointer is GLFW re-centring it after every move, which a virtual machine's absolute pointer
+(Parallels' mouse synchronisation) does not allow: the drag then never moves. G2Alike found this first
+(its mouseHandle notes §37). No stale events follow a hidden pointer, so gDragSkipCount is 0. The cost is
+that a long drag stops at the screen edge.

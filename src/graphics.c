@@ -139,9 +139,14 @@ static void setup_projection(GLFWwindow * win) {
 
 static int init_font(void) {
     static const char * fontPaths[] = {
+#if defined (_WIN32)
+        "C:\\Windows\\Fonts\\arial.ttf",
+        "C:\\Windows\\Fonts\\segoeui.ttf",
+#else
         "/System/Library/Fonts/Supplemental/Arial.ttf",
         "/System/Library/Fonts/Helvetica.ttc",
         "/System/Library/Fonts/SFNSMono.ttf",
+#endif
         NULL
     };
 

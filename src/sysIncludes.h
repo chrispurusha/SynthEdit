@@ -31,12 +31,17 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdatomic.h>
+
+#if defined (__APPLE__)
 #include <dispatch/dispatch.h>
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Weverything"
 #include <CoreMIDI/CoreMIDI.h>
 #pragma clang diagnostic pop
+#else
+#include "coreMidiWin.h"    // platform/windows: winmm behind CoreMIDI's handful of names
+#endif
 
 #pragma clang diagnostic ignored "-Wwrite-strings"
 

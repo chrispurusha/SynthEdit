@@ -42,6 +42,7 @@
 // ── GLFW constants (avoids pulling GLFW header into C) ────────────────────────
 #define GLFW_CURSOR             0x00033001
 #define GLFW_CURSOR_NORMAL      0x00034001
+#define GLFW_CURSOR_HIDDEN      0x00034002
 #define GLFW_CURSOR_DISABLED    0x00034003
 #define GLFW_PRESS              1
 #define GLFW_RELEASE            0
@@ -113,8 +114,14 @@ static void arm_dial_press(tPanelDial * dial, tCoord coord) {
     gDragTypeAccum = 0.0;
 
     if (synthlib_dial_mode() != eDialModeRotary) {
+#if defined (_WIN32)
+        // notes §26 - hidden, not locked: a VM's absolute pointer (Parallels) cannot be re-centred
+        gDragSkipCount = 0;
+        glfwSetInputMode(synthlib_window(), GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+#else
         gDragSkipCount = 3;
         glfwSetInputMode(synthlib_window(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+#endif
     }
 }
 
