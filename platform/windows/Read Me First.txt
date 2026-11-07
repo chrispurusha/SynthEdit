@@ -22,8 +22,36 @@ anyway". It asks once. If Windows blocked the .zip itself, right-click the .zip
 MIDI
 
 SynthEdit uses Windows' own MIDI, so any class-compliant MIDI interface works
-with no driver of its own. Connect the synth's MIDI in and out to the
-interface, start SynthEdit and choose the ports.
+with no driver of its own.
+
+SETTING UP
+
+1. Connect both ways: the synth's MIDI OUT to your interface's IN, and the
+   interface's OUT to the synth's MIDI IN. SynthEdit reads the synth as well as
+   sending to it, so one cable is not enough.
+2. Start SynthEdit and choose your synth when it asks (the Device menu
+   switches to another one later).
+3. Device > MIDI Ports... - choose the input and output the synth is on.
+   Leave Channel on Automatic for synths that answer an identity request (Korg
+   Z1, Korg Kronos, Novation Supernova II). The Moog Voyager and Minitaur do not
+   answer one: set Channel to the channel the synth itself is set to.
+4. Press "Sync from synth" to read the current patch. Patch names are read in
+   the background once it is connected, and remembered after that
+   (File > Clear Patch Name Cache... forgets them).
+
+On the synth itself:
+
+  Korg Z1     Turn System Exclusive Transmit and Receive on (Global > MIDI).
+              Leave Program Change Transmit on, so SynthEdit follows program
+              changes made on the panel. Turn Memory Protect off before
+              storing a patch to a slot.
+  Korg Kronos Turn System Exclusive on in its Global MIDI settings.
+  Moog Voyager / Minitaur
+              Note the MIDI channel it is on, for step 3.
+
+Storing to the synth overwrites a slot in its memory. Back up first:
+Backup > Bank (Individual Files)... saves every patch to its own file, and
+Restore > Bank (Individual Files)... puts them back.
 
 PARALLELS: pass the MIDI interface to Windows with Devices > USB & Bluetooth,
 and choose the interface so it connects to Windows rather than the Mac.
