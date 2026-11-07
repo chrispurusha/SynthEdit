@@ -1,0 +1,43 @@
+SynthEdit for Windows (experimental)
+====================================
+
+WHAT IS IN HERE
+
+  SynthEdit.exe    the editor - one file, nothing to install
+  layouts\         the device descriptions it reads (see "LAYOUTS" below)
+  LICENSE          the GNU General Public License, version 3
+
+Extract the whole folder anywhere and double-click SynthEdit.exe. Keep the
+"layouts" folder beside it, or choose another one (below). Windows 10 or 11:
+the "x64" download for an ordinary PC, "arm64" for Windows on ARM (including
+Parallels on an Apple silicon Mac).
+
+THE FIRST RUN - "WINDOWS PROTECTED YOUR PC"
+
+The editor is not signed with a paid certificate, so on the first run Windows
+SmartScreen shows "Windows protected your PC". Click "More info", then "Run
+anyway". It asks once. If Windows blocked the .zip itself, right-click the .zip
+> Properties > tick "Unblock" > OK, before extracting it.
+
+MIDI
+
+SynthEdit uses Windows' own MIDI, so any class-compliant MIDI interface works
+with no driver of its own. Connect the synth's MIDI in and out to the
+interface, start SynthEdit and choose the ports.
+
+PARALLELS: pass the MIDI interface to Windows with Devices > USB & Bluetooth,
+and choose the interface so it connects to Windows rather than the Mac.
+
+LAYOUTS
+
+SynthEdit does not know about any synth on its own - each one is described by a
+plain text file in the "layouts" folder. To edit one, or add one for a synth
+nobody has written yet, copy the folder somewhere of your own (your Documents
+folder is a good choice), then choose Layouts > Choose Layouts Folder... and
+point it there. It is remembered after that.
+
+LICENCES
+
+SynthEdit is free software under the GNU General Public License version 3:
+https://github.com/chrispurusha/SynthEdit . It uses GLFW (zlib) and FreeType
+(FTL).

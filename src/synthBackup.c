@@ -294,6 +294,13 @@ void synth_store_patch_to_current_slot(void) {
             show_alert(STORE_CURRENT_TITLE, message);
             return;
 
+        case eProgramAssumed:
+            snprintf(message, sizeof(message), "%s is only assumed, because the synth powers up on it. "
+                     "Step to it with Prev/Next, or select it on the synth, to confirm it - or use Store Patch to Bank... to choose the slot.",
+                     slot);
+            show_alert(STORE_CURRENT_TITLE, message);
+            return;
+
         case eProgramFromProgramChange:
             snprintf(message, sizeof(message), "%s came from a Program Change, but the synth's patch name hasn't confirmed it - "
                      "the name cache may not hold that preset yet, or another preset has the same name. "

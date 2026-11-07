@@ -792,7 +792,8 @@ sends no Program Change; the label then says so instead of leaving the program b
 
 `startupProgram <bank index> <program>` is the program the device powers up on. If nothing else has
 settled the current program after the first edit-buffer dump, that one program is requested and its name
-compared with the edit buffer's (synthComms.c notes §101).
+compared with the edit buffer's (synthComms.c notes §101). Until something settles it, the current program
+is assumed to be this one, so Prev/Next can step from it.
 
 The Z1 is the case: banks A and B, its Program Bank Select Map in the MIDI half of the Global/MIDI dump,
 and A000 at power-up.
@@ -861,3 +862,14 @@ A section may hold one `steps` line instead of dials:
 
 Clicking or dragging sets the same dials the step pages show, sending to the device (panelSteps.c notes §3).
 Built for the Z1's arpeggio pattern (10 tone bits per step over two dials, Vel and Gate as bars).
+
+## 61. `title` - a section's heading
+
+`title <text>` inside a section draws the text above its dials with a rule under it, the width of the
+dials (or of the title, if longer). Titled sections on a page sit side by side while they fit the window,
+wrapping to a new row when the next one would not; an untitled section, a graph or a step grid always
+starts a row of its own, so a layout with no titles draws as it always did (synthGraphics.c notes §62).
+A graph or step grid may carry the title too; it then heads the graph, and the dials below it (an untitled
+section) read as part of that group - the Z1's key-track and envelope pages are built that way.
+A section's dials share one spacing, set by its widest label or value name, so a group with one long
+value list (the Z1's Retrigger controller) is best a section of its own.

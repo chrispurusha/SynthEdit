@@ -645,10 +645,36 @@ static double render_page_tabs(tRectangle origin) {
 }
 
 // notes §11
-#define BUTTON_TEXT_PADDING    10.0
+#define BUTTON_TEXT_PADDING     10.0
 
 // notes §12
-#define MIN_BUTTON_GAP         8.0
+#define MIN_BUTTON_GAP          8.0
+
+#define SECTION_TITLE_HEIGHT    12.0
+#define SECTION_TITLE_SPACE     26.0 // the title, its rule and the gap before the dials
+#define SECTION_GAP             36.0 // between titled sections side by side
+
+// notes §62: the width a section's dials take, at least its title's
+static double section_width(const tPanelSection * section) {
+    double width = 0.0;
+
+    for (uint32_t i = 0; i < section->dialCount; i++) {
+        width += section->dials[i].gapBefore + section->spacing;
+    }
+
+    double title = get_text_width(section->title, SECTION_TITLE_HEIGHT, eNoCache);
+
+    return (title > width) ? title : width;
+}
+
+static void draw_section_title(const char * title, double x, double y, double width, double rightEdge) {
+    double end = ((x + width) < rightEdge) ? (x + width) : rightEdge;
+
+    set_rgb_colour((tRgb)RGB_WHITE);
+    render_text(mainArea, (tRectangle){{x, y}, {0.0, SECTION_TITLE_HEIGHT}}, title);
+    set_rgb_colour((tRgb)RGB_GREY_5);
+    render_line(mainArea, (tCoord){x, y + SECTION_TITLE_HEIGHT + 3.0}, (tCoord){end, y + SECTION_TITLE_HEIGHT + 3.0}, 1.0);
+}
 
 // notes §13
 static double section_required_spacing(tPanelSection * section) {
@@ -963,6 +989,7 @@ static void draw_nav_button(tRectangle rect, const char * label, bool enabled, t
 static double draw_current_program(double x, double y, double height) {
     static const char *const kQualifier[] = {
         [eProgramUnknown]           = "",
+        [eProgramAssumed]           = " (assumed)",
         [eProgramFromProgramChange] = " (unconfirmed)",
         [eProgramMatchedByName]     = " (by name)",
         [eProgramConfirmed]         = "",
@@ -1091,8 +1118,8 @@ void synth_render(tRectangle area) {
         draw_nav_button(gPrevPatchRect, "< Prev", prevNextEnabled, prevColour);
         draw_nav_button(gNextPatchRect, "Next >", prevNextEnabled, nextColour);
         draw_nav_button(gSyncPatchRect, "Sync from synth", navEnabled, syncColour);
-        double         syncEndX        = gSyncPatchRect.coord.x + syncWidth;
-        double         programEndX     = draw_current_program(syncEndX + 24.0, y, navBtnHeight);
+        double syncEndX    = gSyncPatchRect.coord.x + syncWidth;
+        double programEndX = draw_current_program(syncEndX + 24.0, y, navBtnHeight);
 
         gPatchNavEndX    = (programEndX > syncEndX + 24.0) ? programEndX : syncEndX;
         gPatchNavLaidOut = true;
@@ -1277,22 +1304,50 @@ void synth_render(tRectangle area) {
                 y += headerHeight + 8.0;
             }
         }
+        // notes §62
+        const double rightEdge = area.coord.x + area.size.w - 20.0;
+        double       rowX      = x;
+        double       rowHeight = 0.0;
 
         for (uint32_t sIdx = 0; sIdx < sectionCount; sIdx++) {
             tPanelSection * section = sections[sIdx];
+            bool            titled  = (section->title[0] != '\0') && !pageIsGrid;
 
-            // notes §60
-            if (section->graph.present) {
-                y += panel_graph_render(mainArea, section, (tCoord){x, y}) + 24.0;
-                continue;
+            if ((rowHeight > 0.0) && (!titled || section->graph.present || section->steps.present)) {
+                y        += rowHeight; // an untitled section starts a row of its own
+                rowX      = x;
+                rowHeight = 0.0;
             }
 
-            if (section->steps.present) {
-                y += panel_steps_render(mainArea, section, (tCoord){x, y}) + 24.0;
+            // notes §60
+            if (section->graph.present || section->steps.present) {
+                if (titled) {
+                    draw_section_title(section->title, x, y, section->graph.present ? section->graph.width : section->steps.width, rightEdge);
+                    y += SECTION_TITLE_SPACE;
+                }
+                y += (section->graph.present ? panel_graph_render(mainArea, section, (tCoord){x, y})
+                                             : panel_steps_render(mainArea, section, (tCoord){x, y})) + 24.0;
                 continue;
             }
             section->spacing = section_required_spacing(section);
-            layout_panel_section(section, (tRectangle){{x, y}, {0, 0}}, cfg->gridColWidth, cfg->gridRowHeight);
+
+            if (titled) {
+                double width  = section_width(section);
+
+                if ((rowHeight > 0.0) && ((rowX + width) > rightEdge)) {
+                    y        += rowHeight;
+                    rowX      = x;
+                    rowHeight = 0.0;
+                }
+                draw_section_title(section->title, rowX, y, width, rightEdge);
+                layout_panel_section(section, (tRectangle){{rowX, y + SECTION_TITLE_SPACE}, {0, 0}}, cfg->gridColWidth, cfg->gridRowHeight);
+                double height = SECTION_TITLE_SPACE + section->dialSize + 46.0;
+
+                rowX     += width + SECTION_GAP;
+                rowHeight = (height > rowHeight) ? height : rowHeight; // dial sizes may differ along a row
+            } else {
+                layout_panel_section(section, (tRectangle){{x, y}, {0, 0}}, cfg->gridColWidth, cfg->gridRowHeight);
+            }
 
             for (uint32_t i = 0; i < section->dialCount; i++) {
                 tPanelDial * dial     = &section->dials[i];
@@ -1425,7 +1480,7 @@ void synth_render(tRectangle area) {
                 }
             }
 
-            if (!pageIsGrid) {
+            if (!pageIsGrid && !titled) {
                 y += section->dialSize + 46.0; // dial + value/label text + gap before next stacked section
             }
         }

@@ -33,7 +33,14 @@ architecture into `build-*/deps`; `-Clean` / `--clean` builds them again.
 Both scripts read that one file. A new source file in either folder needs nothing doing here. SynthLib
 is compiled from source: Windows does not use `libSynthLib.a` (`SynthLib/Docs/build.md`).
 
-**The Mac script is untested** - it was written on Windows. Run it once on the Mac before relying on it.
+The Mac script was written on Windows; it first ran on the Mac on 2026-11-07, building both
+architectures through `do-release-windows` (it had been committed without its executable bit).
+
+**Releases** - `./do-release-windows beta` on the Mac, with the same argument as `./do-release` and before
+the tag: a clean Release build per architecture, checked to be a GUI program carrying its version, zipped
+to the Desktop as `SynthEdit-<version>-windows-<x64|arm64>.zip` - a folder holding `SynthEdit.exe`,
+`layouts\`, `Read Me First.txt` (`platform/windows/`, with the version and SynthLib commit added) and
+`LICENSE`. Unsigned: SmartScreen warns once.
 
 ## What is Apple-only, and its Windows version
 
@@ -87,4 +94,4 @@ SynthEdit already redrew during Windows' modal window resize (`windowRefresh`); 
 Windows so a redirected log survives `_exit()` (`main.c`).
 
 **Open:** sleep/wake (`WM_POWERBROADCAST` -> `midi_request_reconnect()`); the minimum window size is not
-scaled for DPI; a `do-release-windows`; the Mac cross-build script untested; -Werror.
+scaled for DPI; -Werror (the one warning left: `encode_8to7()` in synthComms.c is unused).

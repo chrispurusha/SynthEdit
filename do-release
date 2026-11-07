@@ -317,7 +317,7 @@ LAYOUTS
 SynthEdit does not know about any synth on its own - each one is described by a
 plain text file in the "layouts" folder in this disk image. Copy that folder
 somewhere of your own (your Documents folder is a good choice), then in the app
-choose Settings > Layouts Folder and point it there. It is remembered after that.
+choose Layouts > Choose Layouts Folder... and point it there. It is remembered after that.
 
 Keeping the folder outside the app means you can edit a layout, or add one for a
 synth nobody has written yet, without rebuilding anything.

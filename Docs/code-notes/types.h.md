@@ -79,6 +79,8 @@ How `currentProgram` was learned, added 2026-09-12. It decides two things: wheth
 from it (any known value), and whether Store Patch to Current Slot may overwrite it (Confirmed only).
 
 - **Unknown** - no Program Change since connecting, and no unique name match.
+- **Assumed** - a device with a `startupProgram` (the Z1) is taken to be on it from connect, until anything
+  better is known (2026-11-07). Enough to step from; not enough to overwrite.
 - **FromProgramChange** - a Program Change was sent or heard, but the patch name has not confirmed it:
   no cached name for that preset, the name disagrees, or (for one this app sent) another preset has
   the same name.

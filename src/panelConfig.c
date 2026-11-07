@@ -832,6 +832,12 @@ static void process_line(tPanelConfig * config, tPanelSection ** currentSection,
             return;
         }
         join_tokens(tokens, 1, tokenCount, (*currentSection)->section, sizeof((*currentSection)->section));
+    } else if (strcmp(keyword, "title") == 0) {
+        if (!*currentSection) {
+            LOG_ERROR("panelConfig line %u: 'title' with no preceding 'page'\n", lineNo);
+            return;
+        }
+        join_tokens(tokens, 1, tokenCount, (*currentSection)->title, sizeof((*currentSection)->title));
     } else if (strcmp(keyword, "dialSize") == 0) {
         if (*currentSection) {
             (*currentSection)->dialSize = strtod(tokens[1], NULL);

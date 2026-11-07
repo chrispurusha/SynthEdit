@@ -67,6 +67,7 @@ typedef struct {
 // notes §5
 typedef enum {
     eProgramUnknown = 0,
+    eProgramAssumed,
     eProgramFromProgramChange,
     eProgramMatchedByName,
     eProgramConfirmed,

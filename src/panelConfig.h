@@ -235,6 +235,7 @@ typedef struct {
 typedef struct {
     char     page[PANEL_PAGE_LEN];
     char     section[PANEL_ID_LEN];
+    char     title[PANEL_LABEL_LEN]; // notes §61: drawn above the dials, underlined; "" = none
     double   dialSize;
     double   spacing;
     int32_t  showIfOffset;       // notes §49: shown only while this dump byte (-1 = always) ...

@@ -32,9 +32,12 @@ Bugs
 - CHECK ON HARDWARE (Z1, built 2026-10-07): set a non-default Program Bank Select Map on the Z1 (e.g. B = 0/5), reconnect - Prev/Next and Load from Bank still land on the right bank
 - CHECK ON HARDWARE (Z1, built 2026-10-07, ONE flash write): Store Patch to Current Slot... on a confirmed program (e.g. after Prev/Next) - the dialog names the slot and its cached name, the write lands there
 - CHECK ON HARDWARE (Z1, built 2026-10-07): the Model and Insert pages follow the type selector (showIf) after a Sync, and offline from the selector's own value
+- CHECK ON HARDWARE (Z1, built 2026-11-07): connect with the name not matching A000 - the label shows "A000 (assumed)" and Prev/Next work at once; Store to Current Slot refuses it
 - Z1: Multi Set name and arpeggio pattern name - shown nowhere yet, and not editable
 - CHECK BY HAND (Z1, built 2026-10-25): Arpeggio > Pattern > Grid after a Sync - the cells and Vel/Gate bars match the Steps pages; click and drag along a row sets the tones, a drag across the bars draws Vel/Gate, and the Z1 plays the edit; steps past Pattern Length dimmed
-- Z1 layout generator: step 15's six dials (a117-a122) land under 'Prog | Common' in the 'Remaining parameters' block, not on Arpeggio > Steps > 13-18 - fix where the layout is generated
+- Z1 Arpeggio > Steps > 13-18: step 15 (a117-a122) reported on the wrong page; z1.txt and the parser both put it on 13-18 (checked 2026-11-07) - look on screen for where it shows
+- Section titles (built 2026-11-07, every Z1 page): titles for the Voyager, Kronos, Minitaur and Supernova II layouts
+- Rows wider than the window run off the right edge (Z1 Control > Controllers, Multi Timbre MIDI Filter): wrap a section's dials, or split those rows narrower in the generator
 - Grid/table control for the other big tables (User Scale 2, user group names, program-select maps): the `steps` element covers bit rows and bars; these want a value-per-cell table
 - CHECK BY HAND (Z1, built 2026-10-20): in Multi mode on the Z1, turn a timbre's knob - the matching Timbre tab follows; edit Multi Effects and Arpeggio from SynthEdit and hear them
 - Z1: Global's User Scale 2 (128 notes), the 16 user group names and the MIDI program-select maps - tables too big for dials (see the grid/table item)

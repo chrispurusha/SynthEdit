@@ -216,7 +216,6 @@ list vb7f903 -xx---x-,-xx---xx,-xx--x--,-xx--x-x,-xx--xx-,-xx--xxx,-xx-x---,-xx-
 list vb7f903 xx---x--,xx---x-x,xx---xx-,xx---xxx,xx--x---,xx--x--x,xx--x-x-,xx--x-xx,xx--xx--,xx--xx-x,xx--xxx-,xx--xxxx,xx-x----,xx-x---x,xx-x--x-,xx-x--xx,xx-x-x--,xx-x-x-x,xx-x-xx-,xx-x-xxx,xx-xx---,xx-xx--x,xx-xx-x-,xx-xx-xx,xx-xxx--,xx-xxx-x,xx-xxxx-,xx-xxxxx,xxx-----,xxx----x,xxx---x-,xxx---xx,xxx--x--,xxx--x-x,xxx--xx-,xxx--xxx,xxx-x---,xxx-x--x,xxx-x-x-,xxx-x-xx,xxx-xx--,xxx-xx-x,xxx-xxx-,xxx-xxxx,xxxx----,xxxx---x,xxxx--x-,xxxx--xx,xxxx-x--,xxxx-x-x,xxxx-xx-,xxxx-xxx,xxxxx---,xxxxx--x,xxxxx-x-,xxxxx-xx,xxxxxx--,xxxxxx-x,xxxxxxx-,xxxxxxxx
 list v0aa6ff 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,Key
 list vf7f828 Off,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,LGT
-list v3ffa0b "Group 1","Group 2","Group 3","Group 4","Group 5","Group 6","Group 7","Group 8","Group 9","Group 10","Group 11","Group 12","Group 13","Group 14","Group 15","Group 16"
 list ve099f0 Last,Low,High
 list v2e66f6 "Triangle '0","Triangle '90","Tri Random",Sine,"Saw Up '0","Saw Up '180","Saw Down '0","Saw Down '180",Square,Random1(S/H),Random2(Vector),"Step Tri 4","Step Tri 6","Step Saw 4","Step Saw 6","Exp Tri","Exp Saw Up","Exp Saw Down"
 list vf5ac2a 0.000,0.040,0.060,0.080,0.100,0.120,0.140,0.160,0.180,0.200,0.220,0.240,0.260,0.280,0.300,0.320,0.340,0.360,0.380,0.400,0.420,0.440,0.460,0.480,0.500,0.520,0.540,0.560,0.580,0.600,0.620,0.640,0.660,0.680,0.700,0.720,0.740,0.760,0.780,0.800,0.820,0.840,0.860,0.880,0.900,0.920,0.940,0.960,0.980,1.000,1.050,1.100,1.150,1.200,1.250,1.300,1.350,1.400,1.450,1.500,1.550,1.600,1.650,1.700,1.750,1.800,1.850,1.900,1.950,2.000,2.100,2.200,2.300,2.400,2.500,2.600,2.700,2.800,2.900,3.000,3.100,3.200,3.300,3.400,3.500,3.600,3.700,3.800,3.900,4.000,4.100,4.200,4.300,4.400,4.500,4.600,4.700,4.800,4.900,5.000,5.100,5.200,5.300,5.400,5.500,5.600,5.700,5.800,5.900,6.000,6.100,6.200,6.300,6.400,6.500,6.600,6.700,6.800,6.900,7.000,7.100,7.200,7.300,7.400,7.500,7.600,7.700,7.800,7.900,8.000,8.100,8.200,8.300,8.400,8.500,8.600,8.700,8.800,8.900,9.000,9.100,9.200,9.300,9.400,9.500,9.600,9.700
@@ -304,6 +303,7 @@ dial category label="Category" max=18 group=1 param=17 dumpOffset=16 dumpMask=0x
 # these two dials correctly too.
 page       Prog | OSC | Common
 section    oscCommon
+title      Pitch Bend & Portamento
 dialSize   40
 spacing    50
 #
@@ -355,21 +355,71 @@ dial portTime    label="Porta Time" color=common max=100 display=raw          gr
 # existing 7, producing exactly the single 12-dial-wide merged row this
 # comment block was written to avoid — confirmed via the backdoor DUMP
 # command (all 12 dials reporting under one "section=voiceCommon").
+#
+list userGroups "Group 1","Group 2","Group 3","Group 4","Group 5","Group 6","Group 7","Group 8","Group 9","Group 10","Group 11","Group 12","Group 13","Group 14","Group 15","Group 16"
+# 2026-11-07: Prog | Common is titled groups, side by side where the window has room - voice
+# assignment, retrigger, unison, scale and the program's own user group.
 page       Prog | Common
 section    voiceCommon
+title      Voice Assign
 dialSize   40
 spacing    50
 
 color common 0.9 0.7 0.3
 
-dial voiceMode label="Voice" color=common max=3 group=1 param=21 dumpOffset=18 dumpShift=3 dumpMask=0x03 names="Mono Multi","Mono Single",Poly
-dial unisonType label="Unison" color=common max=4 group=1 param=24 dumpOffset=21 dumpMask=0x03 names=OFF,"2 voices","3 voices","6 voices"
+dial voiceMode label="Mode" color=common max=3 group=1 param=21 dumpOffset=18 dumpShift=3 dumpMask=0x03 names="Mono Multi","Mono Single",Poly
+dial keyPriority label="Key Priority" color=common max=3 names=@ve099f0 group=1 param=20 dumpOffset=18 dumpShift=1 dumpMask=0x3
+dial hold label="Hold" color=common max=2 names=@v7bf299 group=1 param=19 dumpOffset=18 dumpShift=0 dumpMask=0x1
+
+page       Prog | Common
+section    retrigger
+title      Retrigger
+dialSize   40
+spacing    50
+
+color common 0.9 0.7 0.3
+
+dial retrigCtrl label="Controller" color=common max=46 names=@vce3db9 group=1 param=22 dumpOffset=19
+dial retrigThresh label="Threshold" color=common max=127 offset=1 names=@v601b3c asDial=1 group=1 param=23 dumpOffset=20
+
+page       Prog | Common
+section    unison
+title      Unison
+dialSize   40
+spacing    50
+
+color common 0.9 0.7 0.3
+
 dial unisonSW label="Unison SW" color=common max=2 group=1 param=25 dumpOffset=21 dumpShift=2 dumpMask=0x01 names=OFF,ON asMenu=1
-dial unisonMode label="Unison Mode" color=common max=2 group=1 param=26 dumpOffset=21 dumpShift=3 dumpMask=0x01 names=FIXED,DYNAMIC asMenu=1
+dial unisonType label="Voices" color=common max=4 group=1 param=24 dumpOffset=21 dumpMask=0x03 names=OFF,"2 voices","3 voices","6 voices"
+dial unisonMode label="Mode" color=common max=2 group=1 param=26 dumpOffset=21 dumpShift=3 dumpMask=0x01 names=FIXED,DYNAMIC asMenu=1
 dial unisonDetune label="Detune" color=common max=100 display=raw group=1 param=27 dumpOffset=22
+
+page       Prog | Common
+section    scale
+title      Scale
+dialSize   40
+spacing    50
+
+color common 0.9 0.7 0.3
+
+dial scaleKey label="Key" color=common max=12 names=@vb763e5 group=1 param=28 dumpOffset=23 dumpShift=0 dumpMask=0xF
+dial scaleType label="Type" color=common max=11 names=@vebcac2 group=1 param=29 dumpOffset=23 dumpShift=4 dumpMask=0xF
+dial randomPitch label="Random Pitch" color=common max=100 display=raw group=1 param=30 dumpOffset=24
+
+page       Prog | Common
+section    program
+title      Program
+dialSize   40
+spacing    50
+
+color common 0.9 0.7 0.3
+
+dial userGroup label="User Group" color=common max=16 names=@userGroups group=1 param=18 dumpOffset=17
 
 page       Prog | OSC 1 | Pitch
 section    osc1
+title      Oscillator
 variantParamDelta 14
 dialSize   40
 spacing    50
@@ -384,6 +434,7 @@ dial o1freq label="Freq Offset" color=osc1 max=201 display=signed displayOffset=
 
 page       Prog | OSC | Sub OSC
 section    subOsc
+title      Sub Oscillator
 dialSize   40
 spacing    50
 
@@ -415,6 +466,7 @@ dial subwave label="Sub Wave" color=sub max=4   names=SAW,SQU,TRI,SIN group=1 pa
 
 page       Prog | OSC | Noise
 section    noise
+title      Noise Generator
 dialSize   40
 spacing    50
 
@@ -439,6 +491,7 @@ tabLabel "Prog | OSC 1" 154 Std,Comb,VPM,Reso,Ring,Cross,Sync,Organ,EP,Brass,Ree
 
 page       Prog | OSC 1 | Pitch
 section    oscslope
+title      Pitch Modulation
 dialSize   40
 spacing    50
 
@@ -474,6 +527,7 @@ dial p187     label="Mod2 Int" color=osc max=199 displayOffset=99 wireSigned=1 d
 
 page       Prog | OSC 1 | Model
 section    m0_1
+title      Standard
 showIf     154 0
 dialSize   40
 spacing    50
@@ -532,6 +586,7 @@ dial p485     label="Wave Shape Bal Mod Int" color=osc max=199 displayOffset=99 
 
 page       Prog | OSC 1 | Model
 section    m1_1
+title      Comb Filter
 showIf     154 1
 dialSize   40
 spacing    50
@@ -564,6 +619,7 @@ dial p499     label="High Damp Mod Int" color=osc max=199 displayOffset=99 wireS
 
 page       Prog | OSC 1 | Model
 section    m2_1
+title      VPM
 showIf     154 2
 dialSize   40
 spacing    50
@@ -634,6 +690,7 @@ dial p512     label="Fdbk" color=osc max=100 display=raw group=1 param=2560 dump
 
 page       Prog | OSC 1 | Model
 section    m3_1
+title      Resonance
 showIf     154 3
 dialSize   40
 spacing    50
@@ -711,6 +768,7 @@ dial p556     label="Reso Mod Int" color=osc max=199 displayOffset=99 wireSigned
 
 page       Prog | OSC 1 | Model
 section    m4_1
+title      Ring Mod
 showIf     154 4
 dialSize   40
 spacing    50
@@ -738,6 +796,7 @@ dial p563     label="Mod Depth Mod2 Int" color=osc max=199 displayOffset=99 wire
 
 page       Prog | OSC 1 | Model
 section    m5_1
+title      Cross Mod
 showIf     154 5
 dialSize   40
 spacing    50
@@ -755,6 +814,7 @@ dial p572     label="Mod Depth Mod2 Int" color=osc max=199 displayOffset=99 wire
 
 page       Prog | OSC 1 | Model
 section    m6_1
+title      Sync
 showIf     154 6
 dialSize   40
 spacing    50
@@ -767,6 +827,7 @@ dial p576     label="Wave Edge" color=osc max=100 display=raw group=1 param=2624
 
 page       Prog | OSC 1 | Model
 section    m7_1
+title      Organ
 showIf     154 7
 dialSize   40
 spacing    50
@@ -828,6 +889,7 @@ dial p601     label="Percussion Level Mod Int" color=osc max=199 displayOffset=9
 
 page       Prog | OSC 1 | Model
 section    m8_1
+title      E.Piano
 showIf     154 8
 dialSize   40
 spacing    50
@@ -860,6 +922,7 @@ dial p610     label="Overtone Decay" color=osc max=100 display=raw group=1 param
 
 page       Prog | OSC 1 | Model
 section    m9_1
+title      Brass
 showIf     154 9
 dialSize   40
 spacing    50
@@ -916,6 +979,7 @@ dial p651     label="Param 651" color=osc max=2 displayOffset=0 wireSigned=1 nam
 
 page       Prog | OSC 1 | Model
 section    m10_1
+title      Reed
 showIf     154 10
 dialSize   40
 spacing    50
@@ -965,6 +1029,7 @@ dial p682     label="Reed Mod Int" color=osc max=199 displayOffset=99 wireSigned
 
 page       Prog | OSC 1 | Model
 section    m11_1
+title      Plucked
 showIf     154 11
 dialSize   40
 spacing    50
@@ -1050,6 +1115,7 @@ dial p714     label="Release" color=osc max=100 display=raw group=1 param=2762 d
 
 page       Prog | OSC 1 | Model
 section    m12_1
+title      Bowed
 showIf     154 12
 dialSize   40
 spacing    50
@@ -1126,6 +1192,7 @@ dial p739     label="String Position Mod Int" color=osc max=199 displayOffset=99
 
 page       Prog | Mixer
 section    mixer
+title      Levels
 dialSize   40
 spacing    50
 
@@ -1160,6 +1227,7 @@ dial mnoisesw label="Noise SW" color=mixsw max=2 names=OFF,ON group=1 param=257 
 # ×2) already runs off the bottom of the window on its own.
 page       Prog | Filter | Filter 1
 section    filters
+title      Routing & Filter 1
 dialSize   40
 spacing    50
 
@@ -1219,6 +1287,7 @@ dial f1res  label="F1 Res"   color=f1     max=100  display=raw                  
 # manual yet.
 page       Prog | Filter | Filter 1
 section    filter1ktgraph
+title      Key Track
 dialSize   40
 spacing    50
 
@@ -1254,6 +1323,7 @@ dial f1highint label="F1 Hi Int"  color=f1kt max=199 display=signed displayOffse
 
 page       Prog | Filter | Filter 1
 section    filter1mod
+title      Modulation
 dialSize   40
 spacing    50
 
@@ -1270,6 +1340,7 @@ dial f1resmodint label="F1 Res Mod Int" color=f1mod max=199 display=signed displ
 
 page       Prog | Filter | Filter 1
 section    filter1b
+title      Filter 1B
 dialSize   40
 spacing    50
 
@@ -1289,6 +1360,7 @@ dial f1bresmodint label="F1B Res Mod"  color=f1b max=199 display=signed displayO
 
 page       Prog | Filter | Filter 2
 section    filter2
+title      Filter 2
 dialSize   40
 spacing    50
 
@@ -1303,6 +1375,7 @@ dial f2res  label="F2 Res"   color=f2     max=100  display=raw                  
 
 page       Prog | Filter | Filter 2
 section    filter2ktgraph
+title      Key Track
 dialSize   40
 spacing    50
 
@@ -1323,6 +1396,7 @@ dial f2highint label="F2 Hi Int"  color=f2kt max=199 display=signed displayOffse
 
 page       Prog | Filter | Filter 2
 section    filter2mod
+title      Modulation
 dialSize   40
 spacing    50
 
@@ -1339,6 +1413,7 @@ dial f2resmodint label="F2 Res Mod Int" color=f2mod max=199 display=signed displ
 
 page       Prog | Filter | Filter 2
 section    filter2b
+title      Filter 2B
 dialSize   40
 spacing    50
 
@@ -1381,6 +1456,7 @@ dial f2bresmodint label="F2B Res Mod"  color=f2b max=199 display=signed displayO
 # ── Amp1 (params 315-323; 321 is a documented "reserved" param, skipped) ──
 page       Prog | Amp | Amp
 section    amp1graph
+title      Amp 1
 dialSize   40
 spacing    50
 
@@ -1413,6 +1489,7 @@ dial amp1modint       label="Amp1 Mod Int" color=amp1 max=199 display=signed dis
 # ── Amp2 (params 324-332; 330 is a documented "(Not Use)" param, skipped) ──
 page       Prog | Amp | Amp
 section    amp2graph
+title      Amp 2
 dialSize   40
 spacing    50
 
@@ -1441,6 +1518,7 @@ dial amp2modint       label="Amp2 Mod Int" color=amp2 max=199 display=signed dis
 # into 3 sections (6/6/5) — see header comment above this whole block.
 page       Prog | Amp | EG
 section    ampeggraph
+title      Envelope
 dialSize   40
 spacing    50
 
@@ -1463,6 +1541,7 @@ dial ampegsustainlevel label="AmpEG Sustain Level" color=ampeg max=100 display=r
 
 page       Prog | Amp | EG
 section    ampeg2
+title      Release & Modulation
 dialSize   40
 spacing    50
 
@@ -1477,6 +1556,7 @@ dial ampegtimemodint  label="AmpEG Time Mod Int" color=ampeg max=199 display=sig
 
 page       Prog | Amp | EG
 section    ampeg3
+title      Time Modulation
 dialSize   40
 spacing    50
 
@@ -1491,6 +1571,7 @@ dial ampegrlsmodint   label="AmpEG Rls Time Mod Int" color=ampeg max=199 display
 # ── Output (params 352-355) ──
 page       Prog | Amp | Amp
 section    output
+title      Output
 dialSize   40
 spacing    50
 
@@ -1505,6 +1586,7 @@ dial outputlevel      label="Output Level" color=output max=128 display=raw grou
 # header comment above this whole Amp/EG block for why. ──
 page       Prog | EG | EG 1
 section    eg1graph
+title      Envelope
 dialSize   40
 spacing    50
 
@@ -1528,6 +1610,7 @@ dial eg1sustainlevel      label="EG1 Sustain Level" color=eg1 max=199 display=si
 
 page       Prog | EG | EG 1
 section    eg1b
+title      Release & Modulation
 dialSize   40
 spacing    50
 
@@ -1542,6 +1625,7 @@ dial eg1timemodsrc        label="EG1 Time Mod Src" color=eg1 max=49  names=@vcac
 
 page       Prog | EG | EG 1
 section    eg1c
+title      Time Modulation
 dialSize   40
 spacing    50
 
@@ -1558,6 +1642,7 @@ dial eg1rlsmodint         label="EG1 Rls Time Mod Int" color=eg1 max=199 display
 # header comment above this whole Amp/EG block for why. ──
 page       Prog | EG | EG 2
 section    eg2graph
+title      Envelope
 dialSize   40
 spacing    50
 
@@ -1581,6 +1666,7 @@ dial eg2sustainlevel      label="EG2 Sustain Level" color=eg2 max=199 display=si
 
 page       Prog | EG | EG 2
 section    eg2b
+title      Release & Modulation
 dialSize   40
 spacing    50
 
@@ -1595,6 +1681,7 @@ dial eg2timemodsrc        label="EG2 Time Mod Src" color=eg2 max=49  names=@vcac
 
 page       Prog | EG | EG 2
 section    eg2c
+title      Time Modulation
 dialSize   40
 spacing    50
 
@@ -1611,6 +1698,7 @@ dial eg2rlsmodint         label="EG2 Rls Time Mod Int" color=eg2 max=199 display
 # header comment above this whole Amp/EG block for why. ──
 page       Prog | EG | EG 3
 section    eg3graph
+title      Envelope
 dialSize   40
 spacing    50
 
@@ -1634,6 +1722,7 @@ dial eg3sustainlevel      label="EG3 Sustain Level" color=eg3 max=199 display=si
 
 page       Prog | EG | EG 3
 section    eg3b
+title      Release & Modulation
 dialSize   40
 spacing    50
 
@@ -1648,6 +1737,7 @@ dial eg3timemodsrc        label="EG3 Time Mod Src" color=eg3 max=49  names=@vcac
 
 page       Prog | EG | EG 3
 section    eg3c
+title      Time Modulation
 dialSize   40
 spacing    50
 
@@ -1664,6 +1754,7 @@ dial eg3rlsmodint         label="EG3 Rls Time Mod Int" color=eg3 max=199 display
 # header comment above this whole Amp/EG block for why. ──
 page       Prog | EG | EG 4
 section    eg4graph
+title      Envelope
 dialSize   40
 spacing    50
 
@@ -1687,6 +1778,7 @@ dial eg4sustainlevel      label="EG4 Sustain Level" color=eg4 max=199 display=si
 
 page       Prog | EG | EG 4
 section    eg4b
+title      Release & Modulation
 dialSize   40
 spacing    50
 
@@ -1701,6 +1793,7 @@ dial eg4timemodsrc        label="EG4 Time Mod Src" color=eg4 max=49  names=@vcac
 
 page       Prog | EG | EG 4
 section    eg4c
+title      Time Modulation
 dialSize   40
 spacing    50
 
@@ -1736,6 +1829,7 @@ dial eg4rlsmodint         label="EG4 Rls Time Mod Int" color=eg4 max=199 display
 # ── LFO1 (params 107-120), split across 2 sections ──
 page       Prog | LFO | LFO 1
 section    lfo1a
+title      Wave & Frequency
 dialSize   40
 spacing    50
 
@@ -1751,6 +1845,7 @@ dial lfo1freqmod2int      label="LFO1 Freq Mod2 Int" color=lfo1 max=199 display=
 
 page       Prog | LFO | LFO 1
 section    lfo1b
+title      Fade, Amplitude & Sync
 dialSize   40
 spacing    50
 
@@ -1767,6 +1862,7 @@ dial lfo1midisynctime     label="LFO1 MIDI Sync Time" color=lfo1 max=16  names=@
 # ── LFO2 (params 121-134), split across 2 sections ──
 page       Prog | LFO | LFO 2
 section    lfo2a
+title      Wave & Frequency
 dialSize   40
 spacing    50
 
@@ -1782,6 +1878,7 @@ dial lfo2freqmod2int      label="LFO2 Freq Mod2 Int" color=lfo2 max=199 display=
 
 page       Prog | LFO | LFO 2
 section    lfo2b
+title      Fade, Amplitude & Sync
 dialSize   40
 spacing    50
 
@@ -1798,6 +1895,7 @@ dial lfo2midisynctime     label="LFO2 MIDI Sync Time" color=lfo2 max=16  names=@
 # ── LFO3 (params 135-148), split across 2 sections ──
 page       Prog | LFO | LFO 3
 section    lfo3a
+title      Wave & Frequency
 dialSize   40
 spacing    50
 
@@ -1813,6 +1911,7 @@ dial lfo3freqmod2int      label="LFO3 Freq Mod2 Int" color=lfo3 max=199 display=
 
 page       Prog | LFO | LFO 3
 section    lfo3b
+title      Fade, Amplitude & Sync
 dialSize   40
 spacing    50
 
@@ -1829,6 +1928,7 @@ dial lfo3midisynctime     label="LFO3 MIDI Sync Time" color=lfo3 max=16  names=@
 # ── LFO4 (params 149-162), split across 2 sections ──
 page       Prog | LFO | LFO 4
 section    lfo4a
+title      Wave & Frequency
 dialSize   40
 spacing    50
 
@@ -1844,6 +1944,7 @@ dial lfo4freqmod2int      label="LFO4 Freq Mod2 Int" color=lfo4 max=199 display=
 
 page       Prog | LFO | LFO 4
 section    lfo4b
+title      Fade, Amplitude & Sync
 dialSize   40
 spacing    50
 
@@ -1870,6 +1971,7 @@ tabLabel "Prog | Effects | Master" 456 Stereo Delay,Reverb-Hall,Reverb-Room
 
 page       Prog | Effects | Common
 section    fxcommon
+title      Effect Send
 dialSize   40
 spacing    50
 
@@ -1881,6 +1983,7 @@ dial p358     label="Effect Send Mod Int" color=fx max=199 displayOffset=99 wire
 
 page       Prog | Effects | Common
 section    fxeq
+title      2-Band EQ
 dialSize   40
 spacing    50
 
@@ -1893,6 +1996,7 @@ dial p365     label="EQ High Gain" color=fx max=73 displayOffset=36 wireSigned=1
 
 page       Prog | Effects | Insert 1
 section    fxsel
+title      Insert Effect
 variantParamDelta 1
 dialSize   40
 spacing    50
@@ -1903,6 +2007,7 @@ dial p359     label="Type" color=fx max=15 names=@v6ff210 group=1 param=359 dump
 
 page       Prog | Effects | Insert 1
 section    fx0_1
+title      Over Drive
 showIf     410 0
 dialSize   40
 spacing    50
@@ -1949,6 +2054,7 @@ dial p818     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireS
 
 page       Prog | Effects | Insert 1
 section    fx1_1
+title      Compressor
 showIf     410 1
 dialSize   40
 spacing    50
@@ -1976,6 +2082,7 @@ dial p827     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireS
 
 page       Prog | Effects | Insert 1
 section    fx2_1
+title      4 Band PEQ
 showIf     410 2
 dialSize   40
 spacing    50
@@ -2023,6 +2130,7 @@ dial p847     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireS
 
 page       Prog | Effects | Insert 1
 section    fx3_1
+title      Wah
 showIf     410 3
 dialSize   40
 spacing    50
@@ -2053,6 +2161,7 @@ dial p859     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireS
 
 page       Prog | Effects | Insert 1
 section    fx4_1
+title      Exciter
 showIf     410 4
 dialSize   40
 spacing    50
@@ -2083,6 +2192,7 @@ dial p871     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireS
 
 page       Prog | Effects | Insert 1
 section    fx5_1
+title      Decimator
 showIf     410 5
 dialSize   40
 spacing    50
@@ -2111,6 +2221,7 @@ dial p881     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireS
 
 page       Prog | Effects | Insert 1
 section    fx6_1
+title      Chorus
 showIf     410 6
 dialSize   40
 spacing    50
@@ -2156,6 +2267,7 @@ dial p899     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireS
 
 page       Prog | Effects | Insert 1
 section    fx7_1
+title      Flanger
 showIf     410 7
 dialSize   40
 spacing    50
@@ -2190,6 +2302,7 @@ dial p915     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireS
 
 page       Prog | Effects | Insert 1
 section    fx8_1
+title      Phaser
 showIf     410 8
 dialSize   40
 spacing    50
@@ -2224,6 +2337,7 @@ dial p931     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireS
 
 page       Prog | Effects | Insert 1
 section    fx9_1
+title      Small Rotary
 showIf     410 9
 dialSize   40
 spacing    50
@@ -2251,6 +2365,7 @@ dial p940     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireS
 
 page       Prog | Effects | Insert 1
 section    fx10_1
+title      Delay
 showIf     410 10
 dialSize   40
 spacing    50
@@ -2280,6 +2395,7 @@ dial p951     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireS
 
 page       Prog | Effects | Insert 1
 section    fx11_1
+title      Talking Mod
 showIf     410 11
 dialSize   40
 spacing    50
@@ -2309,6 +2425,7 @@ dial p962     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireS
 
 page       Prog | Effects | Insert 1
 section    fx12_1
+title      Multitap Delay
 showIf     410 12
 dialSize   40
 spacing    50
@@ -2353,6 +2470,7 @@ dial p979     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireS
 
 page       Prog | Effects | Insert 1
 section    fx13_1
+title      Ensemble
 showIf     410 13
 dialSize   40
 spacing    50
@@ -2381,6 +2499,7 @@ dial p989     label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireS
 
 page       Prog | Effects | Insert 1
 section    fx14_1
+title      Rotary Speaker
 showIf     410 14
 dialSize   40
 spacing    50
@@ -2422,6 +2541,7 @@ dial p1003    label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireS
 
 page       Prog | Effects | Master
 section    mfxsel
+title      Master Effect
 dialSize   40
 spacing    50
 
@@ -2431,6 +2551,7 @@ dial p361     label="Type" color=fx max=3 names=@vbd0b16 group=1 param=361 dumpO
 
 page       Prog | Effects | Master
 section    mfx0_1
+title      Stereo Delay
 showIf     456 0
 dialSize   40
 spacing    50
@@ -2463,6 +2584,7 @@ dial p1017    label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireS
 
 page       Prog | Effects | Master
 section    mfx1_1
+title      Reverb-Hall
 showIf     456 1
 dialSize   40
 spacing    50
@@ -2491,6 +2613,7 @@ dial p1027    label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireS
 
 page       Prog | Effects | Master
 section    mfx2_1
+title      Reverb-Room
 showIf     456 2
 dialSize   40
 spacing    50
@@ -2526,6 +2649,7 @@ dial p1039    label="Effect Bal Mod Int" color=fx max=199 displayOffset=99 wireS
 
 page       Prog | Control | Controllers
 section    ctl1
+title      Switches & Pedal
 dialSize   40
 spacing    50
 
@@ -2550,6 +2674,7 @@ dial p373     label="Pad Hold" color=ctl max=2 names=@v7bf299 group=1 param=373 
 
 page       Prog | Control | Controllers
 section    ctl2
+title      Arpeggio
 dialSize   40
 spacing    50
 
@@ -2566,6 +2691,7 @@ dial p381     label="GateCtrl" color=ctl max=255 displayOffset=127 wireSigned=1 
 
 page       Prog | Control | Controllers
 section    ctl3
+title      Arpeggio Clock
 dialSize   40
 spacing    50
 
@@ -2576,6 +2702,7 @@ dial p383     label="Speed" color=ctl max=256 names=@v401711 asDial=1 group=1 pa
 
 page       Prog | Control | PE 1
 section    pe1_1
+title      Parameter 1
 dialSize   40
 spacing    50
 
@@ -2588,6 +2715,7 @@ dial p387     label="1 Curve" color=ctl max=4 names=@v2400cb group=1 param=387 d
 
 page       Prog | Control | PE 1
 section    pe1_2
+title      Parameter 2
 dialSize   40
 spacing    50
 
@@ -2600,6 +2728,7 @@ dial p391     label="2 Curve" color=ctl max=4 names=@v2400cb group=1 param=391 d
 
 page       Prog | Control | PE 1
 section    pe1_3
+title      Parameter 3
 dialSize   40
 spacing    50
 
@@ -2612,6 +2741,7 @@ dial p395     label="3 Curve" color=ctl max=4 names=@v2400cb group=1 param=395 d
 
 page       Prog | Control | PE 1
 section    pe1_4
+title      Parameter 4
 dialSize   40
 spacing    50
 
@@ -2624,6 +2754,7 @@ dial p399     label="4 Curve" color=ctl max=4 names=@v2400cb group=1 param=399 d
 
 page       Prog | Control | PE 2
 section    pe2_1
+title      Parameter 1
 dialSize   40
 spacing    50
 
@@ -2636,6 +2767,7 @@ dial p403     label="1 Curve" color=ctl max=4 names=@v2400cb group=1 param=403 d
 
 page       Prog | Control | PE 2
 section    pe2_2
+title      Parameter 2
 dialSize   40
 spacing    50
 
@@ -2648,6 +2780,7 @@ dial p407     label="2 Curve" color=ctl max=4 names=@v2400cb group=1 param=407 d
 
 page       Prog | Control | PE 2
 section    pe2_3
+title      Parameter 3
 dialSize   40
 spacing    50
 
@@ -2660,6 +2793,7 @@ dial p411     label="3 Curve" color=ctl max=4 names=@v2400cb group=1 param=411 d
 
 page       Prog | Control | PE 2
 section    pe2_4
+title      Parameter 4
 dialSize   40
 spacing    50
 
@@ -2672,6 +2806,7 @@ dial p415     label="4 Curve" color=ctl max=4 names=@v2400cb group=1 param=415 d
 
 page       Prog | Control | PE 3
 section    pe3_1
+title      Parameter 1
 dialSize   40
 spacing    50
 
@@ -2684,6 +2819,7 @@ dial p419     label="1 Curve" color=ctl max=4 names=@v2400cb group=1 param=419 d
 
 page       Prog | Control | PE 3
 section    pe3_2
+title      Parameter 2
 dialSize   40
 spacing    50
 
@@ -2696,6 +2832,7 @@ dial p423     label="2 Curve" color=ctl max=4 names=@v2400cb group=1 param=423 d
 
 page       Prog | Control | PE 3
 section    pe3_3
+title      Parameter 3
 dialSize   40
 spacing    50
 
@@ -2708,6 +2845,7 @@ dial p427     label="3 Curve" color=ctl max=4 names=@v2400cb group=1 param=427 d
 
 page       Prog | Control | PE 3
 section    pe3_4
+title      Parameter 4
 dialSize   40
 spacing    50
 
@@ -2720,6 +2858,7 @@ dial p431     label="4 Curve" color=ctl max=4 names=@v2400cb group=1 param=431 d
 
 page       Prog | Control | PE 4
 section    pe4_1
+title      Parameter 1
 dialSize   40
 spacing    50
 
@@ -2732,6 +2871,7 @@ dial p435     label="1 Curve" color=ctl max=4 names=@v2400cb group=1 param=435 d
 
 page       Prog | Control | PE 4
 section    pe4_2
+title      Parameter 2
 dialSize   40
 spacing    50
 
@@ -2744,6 +2884,7 @@ dial p439     label="2 Curve" color=ctl max=4 names=@v2400cb group=1 param=439 d
 
 page       Prog | Control | PE 4
 section    pe4_3
+title      Parameter 3
 dialSize   40
 spacing    50
 
@@ -2756,6 +2897,7 @@ dial p443     label="3 Curve" color=ctl max=4 names=@v2400cb group=1 param=443 d
 
 page       Prog | Control | PE 4
 section    pe4_4
+title      Parameter 4
 dialSize   40
 spacing    50
 
@@ -2768,6 +2910,7 @@ dial p447     label="4 Curve" color=ctl max=4 names=@v2400cb group=1 param=447 d
 
 page       Prog | Control | PE 5
 section    pe5_1
+title      Parameter 1
 dialSize   40
 spacing    50
 
@@ -2780,6 +2923,7 @@ dial p451     label="1 Curve" color=ctl max=4 names=@v2400cb group=1 param=451 d
 
 page       Prog | Control | PE 5
 section    pe5_2
+title      Parameter 2
 dialSize   40
 spacing    50
 
@@ -2792,6 +2936,7 @@ dial p455     label="2 Curve" color=ctl max=4 names=@v2400cb group=1 param=455 d
 
 page       Prog | Control | PE 5
 section    pe5_3
+title      Parameter 3
 dialSize   40
 spacing    50
 
@@ -2804,6 +2949,7 @@ dial p459     label="3 Curve" color=ctl max=4 names=@v2400cb group=1 param=459 d
 
 page       Prog | Control | PE 5
 section    pe5_4
+title      Parameter 4
 dialSize   40
 spacing    50
 
@@ -2824,6 +2970,7 @@ dumpBlock midi   0E 01 reply 51 01
 
 page       Global | Global | Common
 section    glcommon1
+title      Keyboard & Pedals
 fromDump   global
 dialSize   40
 spacing    50
@@ -2869,6 +3016,7 @@ dial g7       label="Output Mode" color=gl max=2 names=@vba3a98 group=0 param=7 
 
 page       Global | Global | User Scale 1
 section    glscale11
+title      User Scale 1
 fromDump   global
 dialSize   40
 spacing    50
@@ -2890,6 +3038,7 @@ dial g287     label="Scale 1 B" color=gl max=201 displayOffset=100 wireSigned=1 
 
 page       Global | MIDI | Common
 section    midicommon1
+title      MIDI
 fromDump   midi
 dialSize   40
 spacing    50
@@ -2917,6 +3066,7 @@ dial g425     label="Program Change Receive" color=gl max=3 names=@v5be088 group
 
 page       Global | MIDI | Bank Maps
 section    midibank1
+title      Bank Select Maps
 fromDump   midi
 dialSize   40
 spacing    50
@@ -2969,6 +3119,7 @@ tabLabel "Multi | Effects | Master" 158 Stereo Delay,Reverb-Hall,Reverb-Room
 
 page       Multi | Common | Common
 section    mucommon
+title      Common
 fromDump   multi
 dialSize   40
 spacing    50
@@ -2986,6 +3137,7 @@ dial m193     label="Unison SW" color=mu max=2 names=@v7bf299 group=2 param=193 
 
 page       Multi | Common | Controllers
 section    muctl
+title      Switches & Pedal
 fromDump   multi
 dialSize   40
 spacing    50
@@ -3012,6 +3164,7 @@ dial m201     label="Pad Hold" color=mu max=2 names=@v7bf299 group=2 param=201 d
 
 page       Multi | Common | Arpeggio
 section    muarp
+title      Arpeggio
 fromDump   multi
 dialSize   40
 spacing    50
@@ -3031,6 +3184,7 @@ dial m211     label="Speed" color=mu max=256 names=@v401711 asDial=1 group=2 par
 
 page       Multi | Timbre 1 | Timbre
 section    mut_timbre
+title      Program
 fromDump   multi
 dialSize   40
 spacing    50
@@ -3043,6 +3197,7 @@ dial m19      label="Reserve Voice" color=mu max=7 names=@ve4d899 group=2 param=
 
 page       Multi | Timbre 1 | Timbre
 section    mut_pitch
+title      Pitch
 fromDump   multi
 dialSize   40
 spacing    50
@@ -3056,6 +3211,7 @@ dial m23      label="Arpeggiator" color=mu max=2 names=@vb14a9e group=2 param=23
 
 page       Multi | Timbre 1 | Timbre
 section    mut_mixer
+title      Mixer
 fromDump   multi
 dialSize   40
 spacing    50
@@ -3068,6 +3224,7 @@ dial m26      label="Effect Send" color=mu max=102 names=@v531675 asDial=1 group
 
 page       Multi | Timbre 1 | Timbre
 section    mut_zone
+title      Zones
 fromDump   multi
 dialSize   40
 spacing    50
@@ -3081,6 +3238,7 @@ dial m30      label="Vel Zone Bottom" color=mu max=127 offset=1 names=@v601b3c a
 
 page       Multi | Timbre 1 | Timbre
 section    mut_midi
+title      MIDI Filter
 fromDump   multi
 dialSize   40
 spacing    50
@@ -3101,6 +3259,7 @@ dial m41      label="Others" color=mu max=2 names=@vb14a9e group=2 param=41 dump
 
 page       Multi | Effects | Common
 section    mufxeq
+title      2-Band EQ
 fromDump   multi
 dialSize   40
 spacing    50
@@ -3114,6 +3273,7 @@ dial m185     label="EQ High EQ Gain" color=mu max=73 displayOffset=36 wireSigne
 
 page       Multi | Effects | Insert 1
 section    mufxsel
+title      Insert Effect
 fromDump   multi
 variantParamDelta 1
 dialSize   40
@@ -3125,6 +3285,7 @@ dial m179     label="Type" color=mu max=15 names=@v6ff210 group=2 param=179 dump
 
 page       Multi | Effects | Insert 1
 section    mufx0_1
+title      Over Drive
 fromDump   multi
 showIf     112 0
 dialSize   40
@@ -3174,6 +3335,7 @@ dial m6962    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireS
 
 page       Multi | Effects | Insert 1
 section    mufx1_1
+title      Compressor
 fromDump   multi
 showIf     112 1
 dialSize   40
@@ -3203,6 +3365,7 @@ dial m6971    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireS
 
 page       Multi | Effects | Insert 1
 section    mufx2_1
+title      4 Band PEQ
 fromDump   multi
 showIf     112 2
 dialSize   40
@@ -3253,6 +3416,7 @@ dial m6991    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireS
 
 page       Multi | Effects | Insert 1
 section    mufx3_1
+title      Wah
 fromDump   multi
 showIf     112 3
 dialSize   40
@@ -3285,6 +3449,7 @@ dial m7003    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireS
 
 page       Multi | Effects | Insert 1
 section    mufx4_1
+title      Exciter
 fromDump   multi
 showIf     112 4
 dialSize   40
@@ -3317,6 +3482,7 @@ dial m7015    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireS
 
 page       Multi | Effects | Insert 1
 section    mufx5_1
+title      Decimator
 fromDump   multi
 showIf     112 5
 dialSize   40
@@ -3347,6 +3513,7 @@ dial m7025    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireS
 
 page       Multi | Effects | Insert 1
 section    mufx6_1
+title      Chorus
 fromDump   multi
 showIf     112 6
 dialSize   40
@@ -3395,6 +3562,7 @@ dial m7043    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireS
 
 page       Multi | Effects | Insert 1
 section    mufx7_1
+title      Flanger
 fromDump   multi
 showIf     112 7
 dialSize   40
@@ -3431,6 +3599,7 @@ dial m7059    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireS
 
 page       Multi | Effects | Insert 1
 section    mufx8_1
+title      Phaser
 fromDump   multi
 showIf     112 8
 dialSize   40
@@ -3467,6 +3636,7 @@ dial m7075    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireS
 
 page       Multi | Effects | Insert 1
 section    mufx9_1
+title      Small Rotary
 fromDump   multi
 showIf     112 9
 dialSize   40
@@ -3496,6 +3666,7 @@ dial m7084    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireS
 
 page       Multi | Effects | Insert 1
 section    mufx10_1
+title      Delay
 fromDump   multi
 showIf     112 10
 dialSize   40
@@ -3527,6 +3698,7 @@ dial m7095    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireS
 
 page       Multi | Effects | Insert 1
 section    mufx11_1
+title      Talking Mod
 fromDump   multi
 showIf     112 11
 dialSize   40
@@ -3558,6 +3730,7 @@ dial m7106    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireS
 
 page       Multi | Effects | Insert 1
 section    mufx12_1
+title      Multitap Delay
 fromDump   multi
 showIf     112 12
 dialSize   40
@@ -3605,6 +3778,7 @@ dial m7123    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireS
 
 page       Multi | Effects | Insert 1
 section    mufx13_1
+title      Ensemble
 fromDump   multi
 showIf     112 13
 dialSize   40
@@ -3635,6 +3809,7 @@ dial m7133    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireS
 
 page       Multi | Effects | Insert 1
 section    mufx14_1
+title      Rotary Speaker
 fromDump   multi
 showIf     112 14
 dialSize   40
@@ -3679,6 +3854,7 @@ dial m7147    label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireS
 
 page       Multi | Effects | Master
 section    mumfxsel
+title      Master Effect
 fromDump   multi
 dialSize   40
 spacing    50
@@ -3689,6 +3865,7 @@ dial m181     label="Type" color=mu max=3 names=@vbd0b16 group=2 param=181 dumpO
 
 page       Multi | Effects | Master
 section    mumfx0_1
+title      Stereo Delay
 fromDump   multi
 showIf     158 0
 dialSize   40
@@ -3723,6 +3900,7 @@ dial m11257   label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireS
 
 page       Multi | Effects | Master
 section    mumfx1_1
+title      Reverb-Hall
 fromDump   multi
 showIf     158 1
 dialSize   40
@@ -3753,6 +3931,7 @@ dial m11267   label="Effect Bal Mod Int" color=mu max=199 displayOffset=99 wireS
 
 page       Multi | Effects | Master
 section    mumfx2_1
+title      Reverb-Room
 fromDump   multi
 showIf     158 2
 dialSize   40
@@ -3794,6 +3973,7 @@ dumpBlock arp 36 00 reply 6B 00
 
 page       Arpeggio | Pattern | Common
 section    arpcommon
+title      Pattern
 fromDump   arp
 dialSize   40
 spacing    50
@@ -3821,6 +4001,7 @@ dial a32      label="Octave Motion" color=arp max=4 names=@v389560 group=3 param
 
 page       Arpeggio | Steps | 1-6
 section    arpstep1
+title      Step 1
 fromDump   arp
 dialSize   40
 spacing    50
@@ -3836,6 +4017,7 @@ dial a38      label="1 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 p
 
 page       Arpeggio | Steps | 1-6
 section    arpstep2
+title      Step 2
 fromDump   arp
 dialSize   40
 spacing    50
@@ -3851,6 +4033,7 @@ dial a44      label="2 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 p
 
 page       Arpeggio | Steps | 1-6
 section    arpstep3
+title      Step 3
 fromDump   arp
 dialSize   40
 spacing    50
@@ -3866,6 +4049,7 @@ dial a50      label="3 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 p
 
 page       Arpeggio | Steps | 1-6
 section    arpstep4
+title      Step 4
 fromDump   arp
 dialSize   40
 spacing    50
@@ -3881,6 +4065,7 @@ dial a56      label="4 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 p
 
 page       Arpeggio | Steps | 1-6
 section    arpstep5
+title      Step 5
 fromDump   arp
 dialSize   40
 spacing    50
@@ -3896,6 +4081,7 @@ dial a62      label="5 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 p
 
 page       Arpeggio | Steps | 1-6
 section    arpstep6
+title      Step 6
 fromDump   arp
 dialSize   40
 spacing    50
@@ -3911,6 +4097,7 @@ dial a68      label="6 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 p
 
 page       Arpeggio | Steps | 7-12
 section    arpstep7
+title      Step 7
 fromDump   arp
 dialSize   40
 spacing    50
@@ -3926,6 +4113,7 @@ dial a74      label="7 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 p
 
 page       Arpeggio | Steps | 7-12
 section    arpstep8
+title      Step 8
 fromDump   arp
 dialSize   40
 spacing    50
@@ -3941,6 +4129,7 @@ dial a80      label="8 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 p
 
 page       Arpeggio | Steps | 7-12
 section    arpstep9
+title      Step 9
 fromDump   arp
 dialSize   40
 spacing    50
@@ -3956,6 +4145,7 @@ dial a86      label="9 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 p
 
 page       Arpeggio | Steps | 7-12
 section    arpstep10
+title      Step 10
 fromDump   arp
 dialSize   40
 spacing    50
@@ -3971,6 +4161,7 @@ dial a92      label="10 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 7-12
 section    arpstep11
+title      Step 11
 fromDump   arp
 dialSize   40
 spacing    50
@@ -3986,6 +4177,7 @@ dial a98      label="11 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 7-12
 section    arpstep12
+title      Step 12
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4001,6 +4193,7 @@ dial a104     label="12 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 13-18
 section    arpstep13
+title      Step 13
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4016,6 +4209,7 @@ dial a110     label="13 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 13-18
 section    arpstep14
+title      Step 14
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4031,6 +4225,7 @@ dial a116     label="14 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 13-18
 section    arpstep15
+title      Step 15
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4046,6 +4241,7 @@ dial a122     label="15 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 13-18
 section    arpstep16
+title      Step 16
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4061,6 +4257,7 @@ dial a128     label="16 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 13-18
 section    arpstep17
+title      Step 17
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4076,6 +4273,7 @@ dial a134     label="17 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 13-18
 section    arpstep18
+title      Step 18
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4091,6 +4289,7 @@ dial a140     label="18 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 19-24
 section    arpstep19
+title      Step 19
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4106,6 +4305,7 @@ dial a146     label="19 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 19-24
 section    arpstep20
+title      Step 20
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4121,6 +4321,7 @@ dial a152     label="20 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 19-24
 section    arpstep21
+title      Step 21
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4136,6 +4337,7 @@ dial a158     label="21 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 19-24
 section    arpstep22
+title      Step 22
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4151,6 +4353,7 @@ dial a164     label="22 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 19-24
 section    arpstep23
+title      Step 23
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4166,6 +4369,7 @@ dial a170     label="23 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 19-24
 section    arpstep24
+title      Step 24
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4181,6 +4385,7 @@ dial a176     label="24 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 25-30
 section    arpstep25
+title      Step 25
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4196,6 +4401,7 @@ dial a182     label="25 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 25-30
 section    arpstep26
+title      Step 26
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4211,6 +4417,7 @@ dial a188     label="26 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 25-30
 section    arpstep27
+title      Step 27
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4226,6 +4433,7 @@ dial a194     label="27 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 25-30
 section    arpstep28
+title      Step 28
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4241,6 +4449,7 @@ dial a200     label="28 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 25-30
 section    arpstep29
+title      Step 29
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4256,6 +4465,7 @@ dial a206     label="29 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 25-30
 section    arpstep30
+title      Step 30
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4271,6 +4481,7 @@ dial a212     label="30 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 31-36
 section    arpstep31
+title      Step 31
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4286,6 +4497,7 @@ dial a218     label="31 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 31-36
 section    arpstep32
+title      Step 32
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4301,6 +4513,7 @@ dial a224     label="32 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 31-36
 section    arpstep33
+title      Step 33
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4316,6 +4529,7 @@ dial a230     label="33 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 31-36
 section    arpstep34
+title      Step 34
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4331,6 +4545,7 @@ dial a236     label="34 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 31-36
 section    arpstep35
+title      Step 35
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4346,6 +4561,7 @@ dial a242     label="35 Gate" color=arp max=102 names=@vf7f828 asDial=1 group=3 
 
 page       Arpeggio | Steps | 31-36
 section    arpstep36
+title      Step 36
 fromDump   arp
 dialSize   40
 spacing    50
@@ -4372,32 +4588,9 @@ steps width=860 height=300 count=36 stride=6 bits=a33:2,a34:8 bars=a37,a38 lengt
 # ── Remaining parameters of the areas above ───────────────────────────────────
 # GENERATED from the Z1's parameter tables - regenerate rather than edit by hand.
 
-page       Prog | Common
-section    commonx1
-dialSize   40
-spacing    50
-
-color gen 0.9 0.7 0.3
-
-dial p18      label="User Group" color=gen max=16 names=@v3ffa0b group=1 param=18 dumpOffset=17
-dial p19      label="Hold" color=gen max=2 names=@v7bf299 group=1 param=19 dumpOffset=18 dumpShift=0 dumpMask=0x1
-dial p20      label="Key Priority" color=gen max=3 names=@ve099f0 group=1 param=20 dumpOffset=18 dumpShift=1 dumpMask=0x3
-dial p22      label="Retrigger Ctrl" color=gen max=46 names=@vce3db9 group=1 param=22 dumpOffset=19
-dial p23      label="Retrigger Ctrl Thresh" color=gen max=127 offset=1 names=@v601b3c asDial=1 group=1 param=23 dumpOffset=20
-
-page       Prog | Common
-section    commonx2
-dialSize   40
-spacing    50
-
-color gen 0.9 0.7 0.3
-
-dial p28      label="Scale Key" color=gen max=12 names=@vb763e5 group=1 param=28 dumpOffset=23 dumpShift=0 dumpMask=0xF
-dial p29      label="Scale Type" color=gen max=11 names=@vebcac2 group=1 param=29 dumpOffset=23 dumpShift=4 dumpMask=0xF
-dial p30      label="Random Pitch Int" color=gen max=100 display=raw group=1 param=30 dumpOffset=24
-
 page       Prog | OSC | Common
 section    osccommonx1
+title      Pitch & Portamento Mod
 dialSize   40
 spacing    50
 
@@ -4410,6 +4603,7 @@ dial p173     label="Portamento Time Mod Int" color=gen max=199 displayOffset=99
 
 page       Prog | OSC | Sub OSC
 section    subx1
+title      Pitch Modulation
 dialSize   40
 spacing    50
 
@@ -4424,6 +4618,7 @@ dial p214     label="Mod2 Int" color=gen max=199 displayOffset=99 wireSigned=1 d
 
 page       Prog | OSC | Sub OSC
 section    subx2
+title      Key Track
 dialSize   40
 spacing    50
 
@@ -4435,6 +4630,7 @@ dial p208     label="Higher Slope" color=gen max=151 displayOffset=50 wireSigned
 
 page       Prog | OSC | Noise
 section    noisex1
+title      Cutoff Modulation
 dialSize   40
 spacing    50
 
@@ -4447,6 +4643,7 @@ dial p222     label="Noise Filter Cutoff Mod2 Int" color=gen max=199 displayOffs
 
 page       Prog | Mixer
 section    mixerx1
+title      Level Modulation
 dialSize   40
 spacing    50
 

@@ -775,3 +775,13 @@ page_shown() also asks the pageVariant's own condition (panelConfig.h notes §57
 the variant's own tab while its slot is absent. This is unlike §57, where an EXi tab stays with nothing
 under it: there the slot exists and holds an engine with no pages, here the slot itself does not exist
 (the Z1's OSC 2 behind a physical model), so there is nothing to open.
+
+## 62. Titled sections
+
+The page loop keeps a row: `rowX`, where the next titled section starts, and `rowHeight`, the tallest so
+far. A titled section goes at `rowX` if it fits before the right margin, else the row is closed (`y` moves
+down by `rowHeight`) and it starts the next one. Anything untitled closes the row first and then stacks as
+before. `section_width()` is the dials' run (gaps plus one spacing each, the last label included) or the
+title's width, whichever is wider; the rule is drawn across it and `SECTION_GAP` separates neighbours.
+A titled graph or step grid draws its title and a rule the graph's width, then the graph below. The rule stops
+at the right margin even when a row of dials runs past it. Grid pages (column-positioned dials) ignore titles.

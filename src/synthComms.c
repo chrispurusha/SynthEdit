@@ -774,7 +774,7 @@ static void reconcile_current_program(const char * editBufferName) {
         set_current_program((int32_t)uniquePreset - 1, eProgramMatchedByName, NULL);
     } else if (gProgramChangeSeen >= 0) {
         set_current_program(gProgramChangeSeen, eProgramFromProgramChange, NULL);
-    } else {
+    } else if (gDevice.programCertainty != eProgramAssumed) {
         set_current_program(-1, eProgramUnknown, NULL);
     }
 }
@@ -892,7 +892,8 @@ static bool gStartupProbePending = false;
 static void probe_startup_program(void) {
     const tPanelConfig * cfg = synth_panel_config();
 
-    if ((cfg->startupSlot < 0) || gStartupProbeSent || (gDevice.currentProgram >= 0) || (gDevice.progName[0] == '\0')) {
+    if (  (cfg->startupSlot < 0) || gStartupProbeSent || (gDevice.progName[0] == '\0')
+       || ((gDevice.currentProgram >= 0) && (gDevice.programCertainty != eProgramAssumed))) {
         return;
     }
     gStartupProbeSent    = true;
@@ -920,7 +921,8 @@ static void check_startup_probe(const uint8_t * data, uint32_t length) {
 
     memcpy(name, decoded, n);
 
-    if ((gDevice.currentProgram < 0) && synth_prog_names_equal(name, gDevice.progName)) {
+    if (  ((gDevice.currentProgram < 0) || (gDevice.programCertainty == eProgramAssumed))
+       && synth_prog_names_equal(name, gDevice.progName)) {
         gCurrentBank = cfg->startupSlot / 128;
         set_current_program(cfg->startupSlot, eProgramMatchedByName, NULL);
         LOG_DEBUG("Current program is the startup program by name\n");
@@ -1296,6 +1298,10 @@ void synth_on_connected(void) {
 
     // notes §52
     tPanelConfig * cfg = synth_panel_config();
+
+    if (cfg->startupSlot >= 0) {
+        set_current_program(cfg->startupSlot, eProgramAssumed, NULL); // notes §101
+    }
 
     for (uint32_t s = 0; s < cfg->sectionCount; s++) {
         tPanelSection * section = &cfg->sections[s];

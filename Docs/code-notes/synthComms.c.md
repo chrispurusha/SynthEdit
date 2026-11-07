@@ -1281,7 +1281,7 @@ pending, when gDevice.progName is showing the new name rather than the synth's).
    (gNameCacheValid); two or more matches do not count.
 4. A Program Change was seen → FromProgramChange, unconfirmed. This keeps the behaviour from before
    name matching: with no name cache at all, a Program Change still enables Prev/Next.
-5. Otherwise Unknown.
+5. Otherwise Unknown - unless the startup program is still Assumed (§101), which stays.
 
 A dump already in flight when a Program Change is sent can arrive after it carrying the old patch's
 name. Step 3 then points at the old preset for one dump, and the next dump settles it by step 1.
@@ -1383,6 +1383,9 @@ The Z1 powers up on A000, so a session that connects to a synth nobody has touch
 Program Dump of that program is asked for once per connect, only when nothing else has settled the current
 program; if its name is the edit buffer's, that is the current program, marked "(by name)". Its reply also
 goes to the backup capture, which ignores it unless a backup asked for one.
+
+Since 2026-11-07 the startup program is also Assumed from connect (types.h notes §5), so Prev/Next works
+before any Program Change. The probe still runs while it is only Assumed, and upgrades it to "(by name)".
 
 ## 102. Selecting a bank the device's map leaves silent
 
