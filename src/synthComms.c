@@ -610,8 +610,9 @@ void synth_decode_moog_category(const uint8_t * data, uint32_t length, char * ou
 }
 
 // notes §87
-static int32_t gProgramChangeSeen      = -1;
-static bool    gProgramChangeFromSynth = false;
+static int32_t gProgramChangeSeen                               = -1;
+static bool    gProgramChangeFromSynth                          = false;
+static char    gNameBeforeProgramChange[SYNTH_PROG_NAME_MAXLEN] = ""; // the edit buffer's, when we sent ours - notes §88
 
 static void normalise_prog_name(const char * name, char * out, size_t outSize) {
     size_t o            = 0;
@@ -713,6 +714,10 @@ void synth_note_program_change(uint8_t program, bool fromSynth) {
     int32_t slot = program;
 
     gProgramChangeFromSynth = fromSynth;
+
+    if (fromSynth) {
+        gNameBeforeProgramChange[0] = '\0';
+    }
     gProgramChangeInBank    = -1;
 
     if (synth_panel_config()->bankCount > 0) {
@@ -748,7 +753,8 @@ static void reconcile_current_program(const char * editBufferName) {
         uint32_t presetNumber = (uint32_t)gProgramChangeSeen + 1;
 
         if (  synth_backup_cached_name_is(presetNumber, editBufferName)
-           && (gProgramChangeFromSynth || (uniquePreset == presetNumber))) {
+           && (  gProgramChangeFromSynth || (uniquePreset == presetNumber)
+              || ((gNameBeforeProgramChange[0] != '\0') && !synth_prog_names_equal(gNameBeforeProgramChange, editBufferName)))) {
             set_current_program(gProgramChangeSeen, eProgramConfirmed, editBufferName);
             return;
         }
@@ -1286,6 +1292,7 @@ void synth_on_connected(void) {
     LOG_DEBUG("Synth connected (channel byte 0x%02X)\n", SYNTH_SYSEX_CHANNEL_BYTE(gDevice.id));
     memset(gDevice.progName, 0, sizeof(gDevice.progName));
     gProgramChangeSeen               = -1;
+    gNameBeforeProgramChange[0]      = '\0';
     gProgramChangeInBank             = -1;
     gCurrentBank                     = -1;
     gBankSelectMsb                   = -1;
@@ -1510,6 +1517,7 @@ void synth_request_all_presets_dump(void) {
 
 // notes §60
 static void synth_change_program(uint8_t program) {
+    strncpy(gNameBeforeProgramChange, gDevice.progName, sizeof(gNameBeforeProgramChange) - 1);
     midi_send_program_change(gDevice.id, program);
     synth_note_program_change(program, false); // optimistic - types.h notes §2
     LOG_DEBUG("Preset navigation: sent Program Change %d\n", (int)program);

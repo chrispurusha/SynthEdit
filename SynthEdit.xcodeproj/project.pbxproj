@@ -26,7 +26,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		49BEB827A7B14F99AC9EC792 /* SynthLib/src */ = {
+		49BEB827A7B14F99AC9EC792 /* ../SynthLib/src */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = ../SynthLib/src;
 			sourceTree = "<group>";
@@ -65,7 +65,7 @@
 			children = (
 				A04E4EEAFCCE334E00468BB7 /* src */,
 				A0F1C0012FD5A00100DD4947 /* Resources */,
-				49BEB827A7B14F99AC9EC792 /* SynthLib/src */,
+				49BEB827A7B14F99AC9EC792 /* ../SynthLib/src */,
 				A0453C2CFCFF7104004E572A /* Frameworks */,
 				A045332CFCFF6E5F004E572A /* Products */,
 			);

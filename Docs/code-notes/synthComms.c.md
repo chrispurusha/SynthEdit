@@ -1274,7 +1274,11 @@ pending, when gDevice.progName is showing the new name rather than the synth's).
 
 1. A Program Change was seen and the name agrees with that preset's cached name → Confirmed. If this
    app sent the Program Change, the name must also be the only one of its kind in the cache: the synth
-   may not have received it, and a same-named preset would then pass for it.
+   may not have received it, and a same-named preset would then pass for it. Or (2026-11-07) the name
+   changed from the one the edit buffer had when the Program Change went out: then the synth moved, and
+   moved to a preset of that name, which the Program Change explains. Only a step between two presets of
+   the same name stays unconfirmed. (Seen on a Z1 whose A001 name also appears in bank B: A000 -> A001
+   with Next stayed "(unconfirmed)".)
 2. Already Confirmed and the name is still the confirmed one → unchanged (the patch was edited, or
    renamed in this app, which updates the confirmed name in synth_apply_pending_dump_patches()).
 3. Exactly one cached preset carries this name → MatchedByName. The cache must be complete

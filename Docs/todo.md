@@ -33,6 +33,7 @@ Bugs
 - CHECK ON HARDWARE (Z1, built 2026-10-07, ONE flash write): Store Patch to Current Slot... on a confirmed program (e.g. after Prev/Next) - the dialog names the slot and its cached name, the write lands there
 - CHECK ON HARDWARE (Z1, built 2026-10-07): the Model and Insert pages follow the type selector (showIf) after a Sync, and offline from the selector's own value
 - CHECK ON HARDWARE (Z1, built 2026-11-07): connect with the name not matching A000 - the label shows "A000 (assumed)" and Prev/Next work at once; Store to Current Slot refuses it
+- CHECK ON HARDWARE (Z1, built 2026-11-07): Next from A000 to A001 ("Desert Winds", a name also in bank B) shows "A001" in white, not "(unconfirmed)"; a step between two programs of the same name still says unconfirmed
 - Z1: Multi Set name and arpeggio pattern name - shown nowhere yet, and not editable
 - CHECK BY HAND (Z1, built 2026-10-25): Arpeggio > Pattern > Grid after a Sync - the cells and Vel/Gate bars match the Steps pages; click and drag along a row sets the tones, a drag across the bars draws Vel/Gate, and the Z1 plays the edit; steps past Pattern Length dimmed
 - Z1 Arpeggio > Steps > 13-18: step 15 (a117-a122) reported on the wrong page; z1.txt and the parser both put it on 13-18 (checked 2026-11-07) - look on screen for where it shows
