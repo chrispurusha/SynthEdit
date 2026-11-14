@@ -6,6 +6,8 @@ Built-but-unchecked work goes in to-test.md.
 
 CT (priority order)
 
+- Update check (CT 2026-11-14): ask GitHub's releases API for the newest tag at start (opt-out in prefs, at most daily), compare with the build's version, show "Update available" with a link; shared in SynthLib so every app and plug-in gets it
+- Auto-install updates (CT 2026-11-14): investigate whether it is possible - download the .dmg/.zip, verify it, replace the app or the installed plug-ins; unsigned builds mean quarantine to clear, /Library plug-in folders may need admin, a plug-in cannot be replaced while a host has it loaded, and a public repo must never fetch and run anything unverified
 - The to test items below, need to go into a to-test.md, similar to G2-Edit.
 - Corruption on Voyager panel - corrupted name string. Possible when merging MIDI note data from Ableton whilst changing parameters.
 - Waldorf Pulse 2 support (CT 2026-10-17): a layouts/pulse2.txt - every sound parameter has a CC (range, value names, channel), the external input as osc 3 shape EXT; take the CC table from Waldorf's published Pulse 2 manual, not from anything else (repo is public); where the instrument behaves differently from the manual, confirm it on the hardware and document it as observed behaviour

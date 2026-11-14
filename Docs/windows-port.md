@@ -38,8 +38,8 @@ architectures through `do-release-windows` (it had been committed without its ex
 
 **Releases** - `./do-release-windows beta` on the Mac, with the same argument as `./do-release` and before
 the tag: a clean Release build per architecture, checked to be a GUI program carrying its version, zipped
-to the Desktop as `SynthEdit-<version>-windows-<x64|arm64>.zip` - a folder holding `SynthEdit.exe`,
-`layouts\`, `Read Me First.txt` (`platform/windows/`, with the version and SynthLib commit added) and
+to the Desktop as one `SynthEdit-<version>-windows.zip` (since 2026-11-14; `./do-release` runs it after the
+`.dmg`) - an `x64\` and an `arm64\` folder each holding `SynthEdit.exe` and `layouts\`, beside `Read Me First.txt` (`platform/windows/`, with the version and SynthLib commit added) and
 `LICENSE`. Unsigned: SmartScreen warns once.
 
 ## What is Apple-only, and its Windows version

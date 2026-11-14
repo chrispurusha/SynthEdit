@@ -3,14 +3,18 @@ SynthEdit for Windows (experimental)
 
 WHAT IS IN HERE
 
-  SynthEdit.exe    the editor - one file, nothing to install
-  layouts\         the device descriptions it reads (see "LAYOUTS" below)
+  x64\            for an ordinary PC (Intel or AMD)
+  arm64\          for Windows on ARM (including Parallels on an Apple silicon Mac)
   LICENSE          the GNU General Public License, version 3
 
-Extract the whole folder anywhere and double-click SynthEdit.exe. Keep the
-"layouts" folder beside it, or choose another one (below). Windows 10 or 11:
-the "x64" download for an ordinary PC, "arm64" for Windows on ARM (including
-Parallels on an Apple silicon Mac).
+Each of the two folders holds the same, built for that kind of PC:
+
+  SynthEdit.exe    the editor - one file, nothing to install
+  layouts\         the device descriptions it reads (see "LAYOUTS" below)
+
+Unpack the zip (right-click > Extract All...), copy the folder that matches
+your PC anywhere and double-click SynthEdit.exe in it. Keep the "layouts"
+folder beside it, or choose another one (below). Windows 10 or 11.
 
 THE FIRST RUN - "WINDOWS PROTECTED YOUR PC"
 

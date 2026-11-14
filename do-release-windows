@@ -17,9 +17,9 @@
 # Run it with the same argument as ./do-release for the same release, BEFORE the tag is made - both work
 # the next version out from the newest tag. Never creates or pushes the tag.
 #
-# Writes one .zip per architecture - SynthEdit-<version>-windows-x64.zip (any PC) and -arm64.zip (Windows
-# on ARM, Parallels on Apple silicon) - each a folder holding SynthEdit.exe, layouts\, "Read Me
-# First.txt" and LICENSE. Self-contained and unsigned: SmartScreen warns on the first run, and the Read Me
+# Writes ONE .zip, SynthEdit-<version>-windows.zip: "Read Me First.txt" and LICENSE at the top, and a folder
+# per architecture - x64 (any PC) and arm64 (Windows on ARM, Parallels on Apple silicon) - each holding that
+# architecture's SynthEdit.exe and layouts\ beside it. ./do-release runs this after the .dmg. Self-contained and unsigned: SmartScreen warns on the first run, and the Read Me
 # says what to do. Cross-built by tools/do-windows with llvm-mingw - see Docs/windows-port.md.
 
 set -e
@@ -147,7 +147,11 @@ LLVM_BIN=${LLVM_MINGW:-$HOME/Developer/llvm-mingw}/bin
 SYNTHLIB_COMMIT="$(git -C ../SynthLib describe --always --dirty --abbrev=12)"
 echo "==> SynthLib $SYNTHLIB_COMMIT"
 mkdir -p "$DIST"
-ZIPS=()
+name="SynthEdit-$VERSION_CLEAN-windows"
+mkdir -p "$STAGE/$name"
+cp LICENSE "$STAGE/$name/"
+{ cat "platform/windows/Read Me First.txt"; print "\nSynthEdit $VERSION_CLEAN for Windows, built with SynthLib $SYNTHLIB_COMMIT"; } \
+    | sed 's/$/\r/' > "$STAGE/$name/Read Me First.txt"   # CRLF, for Notepad on older Windows
 
 for arch in x64 arm64; do
     triple=$([[ $arch == arm64 ]] && echo aarch64 || echo x86_64)
@@ -172,23 +176,16 @@ for arch in x64 arm64; do
         exit 1
     fi
 
-    name="SynthEdit-$VERSION_CLEAN-windows-$arch"
-    mkdir -p "$STAGE/$name"
-    cp $exe "$STAGE/$name/SynthEdit.exe"
-    cp -R layouts "$STAGE/$name/layouts"
-    cp LICENSE "$STAGE/$name/"
-    { cat "platform/windows/Read Me First.txt"; print "\nSynthEdit $VERSION_CLEAN, Windows $arch, built with SynthLib $SYNTHLIB_COMMIT"; } \
-        | sed 's/$/\r/' > "$STAGE/$name/Read Me First.txt"   # CRLF, for Notepad on older Windows
-
-    zip="$DIST/$name.zip"
-    rm -f "$zip"
-    (cd "$STAGE" && zip -q -r -X "$zip" "$name" -x '*.DS_Store')
-    ZIPS+=("$zip")
+    mkdir -p "$STAGE/$name/$arch"
+    cp $exe "$STAGE/$name/$arch/SynthEdit.exe"
+    cp -R layouts "$STAGE/$name/$arch/layouts"
 done
+
+zip="$DIST/$name.zip"
+rm -f "$zip"
+(cd "$STAGE/$name" && zip -q -r -X "$zip" . -x '*.DS_Store')   # no enclosing folder: Extract All makes one
 
 echo
-for zip in $ZIPS; do
-    echo "done: $zip ($(du -h "$zip" | cut -f1))"
-done
-echo "contents: SynthEdit.exe, layouts\\, Read Me First.txt, LICENSE"
+echo "done: $zip ($(du -h "$zip" | cut -f1))"
+echo "contents: x64\\ and arm64\\ (SynthEdit.exe, layouts\\), Read Me First.txt, LICENSE"
 echo "signature: none - SmartScreen warns on first run (More info > Run anyway)"
